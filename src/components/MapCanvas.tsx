@@ -1,29 +1,36 @@
 import React, { useRef, useEffect } from 'react';
 import { MapData } from '../types';
-import { TILE_MAP, TILE_SIZE } from '../constants';
+import { TILE_SIZE } from '../constants';
 import { Biome } from '../engine/biomes';
+import { TileType } from '../engine/schema';
+import { STANDARD_TILE_TYPES, computeDamageThresholdIndex } from '../engine/tileTypes';
+import { computeHeightBlend, drawThresholdCrackMask } from '../engine/heightBlendShader';
 
 interface MapCanvasProps {
   mapData: MapData;
   biomes?: Biome[];
+  tileTypes?: Record<string, TileType>;
   onTileInteract: (x: number, y: number) => void;
   isDrawing: boolean;
   setIsDrawing: (drawing: boolean) => void;
   showGrid?: boolean;
+  showDamageMasks?: boolean;
 }
 
 export const MapCanvas: React.FC<MapCanvasProps> = ({ 
   mapData, 
   biomes = [],
+  tileTypes = STANDARD_TILE_TYPES,
   onTileInteract,
   isDrawing,
   setIsDrawing,
-  showGrid = true
+  showGrid = true,
+  showDamageMasks = true
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Helper map for quick biome and decor lookup
+  // Quick lookup caches
   const biomeMap = React.useMemo(() => {
     const map: Record<string, Biome> = {};
     biomes.forEach(b => { map[b.id] = b; });
@@ -31,16 +38,23 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   }, [biomes]);
 
   const decorMap = React.useMemo(() => {
-    const map: Record<string, { name: string; color: string; icon: string; layer: string }> = {};
+    const map: Record<string, { name: string; color: string; icon: string; layer: string; health: number; armor: number }> = {};
     biomes.forEach(b => {
       b.decorItems.forEach(d => {
-        map[d.id] = { name: d.name, color: d.color, icon: d.icon, layer: d.layer };
+        map[d.id] = { 
+          name: d.name, 
+          color: d.color, 
+          icon: d.icon, 
+          layer: d.layer,
+          health: d.health,
+          armor: d.armor
+        };
       });
     });
     return map;
   }, [biomes]);
 
-  // Draw the map whenever mapData changes
+  // Main Render Loop: Height-Blend Shader Simulation & Shared Destruction Pipeline
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -49,41 +63,78 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Draw procedural layer (Biomes & Base Terrain)
+    // 1. Draw Procedural & Base Material Layer with Continuous Height-Blend Shader
     for (let y = 0; y < mapData.height; y++) {
       for (let x = 0; x < mapData.width; x++) {
         const tileId = mapData.layers.procedural[y][x];
         const screenX = x * TILE_SIZE;
         const screenY = y * TILE_SIZE;
 
-        if (biomeMap[tileId]) {
-          const biome = biomeMap[tileId];
-          // Base Strata
-          ctx.fillStyle = biome.baseColor;
-          ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // Resolve material TileType resource (reference-not-duplicate)
+        const currentTileType: TileType = tileTypes[tileId] || (biomeMap[tileId] ? {
+          id: biomeMap[tileId].id,
+          name: biomeMap[tileId].name,
+          category: 'natural',
+          height_map_scale: biomeMap[tileId].material.heightScale,
+          base_color: biomeMap[tileId].baseColor,
+          surface_overlay_top: biomeMap[tileId].accentColor,
+          surface_overlay_side: biomeMap[tileId].material.surfaceOverlayColor,
+          softness: biomeMap[tileId].material.blendSoftness,
+          blend_style: 'fade',
+          fade_amount: 0.4,
+          health: biomeMap[tileId].material.health,
+          defense_type: 'kinetic',
+          armor_deduction: biomeMap[tileId].material.armor,
+          damage_affinities: biomeMap[tileId].material.damageAffinities,
+          shares_damage_overlay: true,
+          traversal_tags: [],
+          speed_modifier: 1.0
+        } : STANDARD_TILE_TYPES.stone);
 
-          // Top/Side Surface Shading & Height Blend overlay
-          ctx.fillStyle = biome.accentColor;
-          ctx.globalAlpha = 0.15 + biome.material.blendSoftness * 0.1;
-          ctx.fillRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-          ctx.globalAlpha = 1.0;
+        // Base Strata
+        ctx.fillStyle = currentTileType.base_color;
+        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
 
-          // Surface Overlay Edge Accent
-          ctx.fillStyle = biome.material.surfaceOverlayColor;
-          ctx.globalAlpha = 0.4;
+        // Check right neighbor for horizontal height-blend boundary
+        if (x < mapData.width - 1) {
+          const rightId = mapData.layers.procedural[y][x + 1];
+          if (rightId && rightId !== tileId) {
+            const neighborType = tileTypes[rightId] || STANDARD_TILE_TYPES.stone;
+            const blend = computeHeightBlend(x, y, currentTileType, neighborType, 0.0);
+            
+            // Continuous alpha blend along border
+            ctx.fillStyle = neighborType.base_color;
+            ctx.globalAlpha = blend.blendAlpha * 0.45;
+            ctx.fillRect(screenX + TILE_SIZE - 4, screenY, 4, TILE_SIZE);
+            ctx.globalAlpha = 1.0;
+          }
+        }
+
+        // Check bottom neighbor for vertical height-blend boundary
+        if (y < mapData.height - 1) {
+          const bottomId = mapData.layers.procedural[y + 1][x];
+          if (bottomId && bottomId !== tileId) {
+            const neighborType = tileTypes[bottomId] || STANDARD_TILE_TYPES.stone;
+            const blend = computeHeightBlend(x, y, currentTileType, neighborType, 0.0);
+            
+            ctx.fillStyle = neighborType.base_color;
+            ctx.globalAlpha = blend.blendAlpha * 0.45;
+            ctx.fillRect(screenX, screenY + TILE_SIZE - 4, TILE_SIZE, 4);
+            ctx.globalAlpha = 1.0;
+          }
+        }
+
+        // Top Surface Overlay
+        if (currentTileType.surface_overlay_top) {
+          ctx.fillStyle = currentTileType.surface_overlay_top;
+          ctx.globalAlpha = 0.35;
           ctx.fillRect(screenX, screenY, TILE_SIZE, 3);
           ctx.globalAlpha = 1.0;
-        } else if (tileId && TILE_MAP[tileId]) {
-          ctx.fillStyle = TILE_MAP[tileId].color;
-          ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-        } else {
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
         }
       }
     }
 
-    // 2. Draw manual layer (Override tiles, Detail Decor, & Foreground Objects)
+    // 2. Draw Manual Layer (Tile-Layer Objects & Foreground Entities)
     for (let y = 0; y < mapData.height; y++) {
       for (let x = 0; x < mapData.width; x++) {
         const tileId = mapData.layers.manual[y][x];
@@ -92,12 +143,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         const screenX = x * TILE_SIZE;
         const screenY = y * TILE_SIZE;
 
-        // Check if it's a dynamic Biome Decor object
         if (decorMap[tileId]) {
           const decor = decorMap[tileId];
-          
+
           if (decor.layer === 'tile_layer') {
-            // Tile-layer objects blend as part of that tile's material
+            // Tile-layer objects: baked into composite material, blends with terrain
             ctx.fillStyle = decor.color;
             ctx.globalAlpha = 0.85;
             ctx.beginPath();
@@ -105,45 +155,56 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
             ctx.fill();
             ctx.globalAlpha = 1.0;
 
-            // Small subtle glyph
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(decor.icon, screenX + TILE_SIZE / 2, screenY + TILE_SIZE / 2);
           } else {
-            // Foreground-layer objects ignore tile blending entirely (distinct interactive/destructible entity)
-            // Shadow
+            // Foreground-layer objects: independent nodes with shadow & distinct collision
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-            ctx.fillRect(screenX + 4, screenY + 6, TILE_SIZE - 8, TILE_SIZE - 8);
+            ctx.fillRect(screenX + 3, screenY + 5, TILE_SIZE - 6, TILE_SIZE - 6);
 
-            // Body
             ctx.fillStyle = decor.color;
-            ctx.fillRect(screenX + 3, screenY + 3, TILE_SIZE - 6, TILE_SIZE - 6);
+            ctx.fillRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.lineWidth = 1;
-            ctx.strokeRect(screenX + 3, screenY + 3, TILE_SIZE - 6, TILE_SIZE - 6);
+            ctx.strokeRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
 
-            // Glyph
             ctx.font = '12px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(decor.icon, screenX + TILE_SIZE / 2, screenY + TILE_SIZE / 2);
           }
-        } else if (TILE_MAP[tileId]) {
-          // Legacy object/tile
-          ctx.fillStyle = TILE_MAP[tileId].color;
+        } else if (tileTypes[tileId]) {
+          // Manual material override
+          const m = tileTypes[tileId];
+          ctx.fillStyle = m.base_color;
           ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-          
-          if (TILE_MAP[tileId].type === 'object') {
-            ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(screenX + 2, screenY + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+          ctx.strokeRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+        }
+      }
+    }
+
+    // 3. Draw Shared Damage & Threshold Crack Masks
+    if (showDamageMasks) {
+      // Deterministic threshold cracking test pattern
+      for (let y = 0; y < mapData.height; y++) {
+        for (let x = 0; x < mapData.width; x++) {
+          const screenX = x * TILE_SIZE;
+          const screenY = y * TILE_SIZE;
+          const hostId = mapData.layers.procedural[y][x];
+          const tile = tileTypes[hostId] || STANDARD_TILE_TYPES.stone;
+
+          // Simulated damage pattern for interactive demonstration
+          if ((x === 12 && y === 12) || (x === 13 && y === 12) || (x === 14 && y === 12)) {
+            drawThresholdCrackMask(ctx, screenX, screenY, TILE_SIZE, 2, tile.shares_damage_overlay, 42);
           }
         }
       }
     }
 
-    // 3. Draw Grid
+    // 4. Draw Grid
     if (showGrid) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
       ctx.lineWidth = 1;
@@ -159,7 +220,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       ctx.stroke();
     }
 
-  }, [mapData, showGrid, biomeMap, decorMap]);
+  }, [mapData, showGrid, showDamageMasks, biomeMap, decorMap, tileTypes]);
 
   const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;

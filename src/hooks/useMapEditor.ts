@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { MapData, ToolType, LayerType, ModeType } from '../types';
 import { Biome, INITIAL_BIOMES } from '../engine/biomes';
+import { TileType } from '../engine/schema';
+import { STANDARD_TILE_TYPES, resolveTileDamage } from '../engine/tileTypes';
 
 const INITIAL_WIDTH = 64;
 const INITIAL_HEIGHT = 64;
@@ -10,7 +12,7 @@ const createEmptyMap = (width: number, height: number): MapData => {
     width,
     height,
     layers: {
-      procedural: Array(height).fill(null).map(() => Array(width).fill('mourne_ashen_steppes')),
+      procedural: Array(height).fill(null).map(() => Array(width).fill('stone')),
       manual: Array(height).fill(null).map(() => Array(width).fill(null)),
     },
   };
@@ -19,11 +21,12 @@ const createEmptyMap = (width: number, height: number): MapData => {
 export const useMapEditor = () => {
   const [mapData, setMapData] = useState<MapData>(createEmptyMap(INITIAL_WIDTH, INITIAL_HEIGHT));
   const [biomes, setBiomes] = useState<Biome[]>(INITIAL_BIOMES);
+  const [tileTypes, setTileTypes] = useState<Record<string, TileType>>(STANDARD_TILE_TYPES);
   const [activeBiomeId, setActiveBiomeId] = useState<string>('mourne_ashen_steppes');
   const [mode, setMode] = useState<ModeType>('paint');
   const [activeLayer, setActiveLayer] = useState<LayerType>('procedural');
   const [activeTool, setActiveTool] = useState<ToolType>('brush');
-  const [selectedTile, setSelectedTile] = useState<string>('mourne_ashen_steppes');
+  const [selectedTile, setSelectedTile] = useState<string>('stone');
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState<number>(1);
   const [autoScatterEnabled, setAutoScatterEnabled] = useState<boolean>(true);
@@ -53,9 +56,8 @@ export const useMapEditor = () => {
           if (activeLayer === 'procedural') {
             newMap.layers.procedural[y][x] = selectedTile;
 
-            // If auto-scatter is on and painting a biome, calculate decor scatter
+            // Auto-scatter for biome painting
             if (autoScatterEnabled && activeBiome && activeBiome.decorItems.length > 0) {
-              // Roll decor items
               let placedDecor: string | null = null;
               for (const decor of activeBiome.decorItems) {
                 if (Math.random() < decor.frequency * 0.4) {
@@ -73,7 +75,7 @@ export const useMapEditor = () => {
           }
         } else if (activeTool === 'eraser') {
           if (activeLayer === 'procedural') {
-            newMap.layers.procedural[y][x] = 'mourne_ashen_steppes';
+            newMap.layers.procedural[y][x] = 'stone';
           } else {
             newMap.layers.manual[y][x] = null;
           }
@@ -83,7 +85,7 @@ export const useMapEditor = () => {
       if (activeTool === 'bucket') {
         const targetTile = prev.layers[activeLayer][centerY][centerX];
         const replacement = activeTool === 'eraser' 
-          ? (activeLayer === 'procedural' ? 'mourne_ashen_steppes' : null) 
+          ? (activeLayer === 'procedural' ? 'stone' : null) 
           : selectedTile;
 
         if (targetTile === replacement) return prev;
@@ -102,7 +104,6 @@ export const useMapEditor = () => {
 
           newMap.layers[activeLayer][cy][cx] = replacement as any;
 
-          // Auto scatter for bucket fill on procedural layer
           if (activeLayer === 'procedural' && autoScatterEnabled && activeBiome && replacement) {
             for (const decor of activeBiome.decorItems) {
               if (Math.random() < decor.frequency * 0.3) {
@@ -121,7 +122,7 @@ export const useMapEditor = () => {
         return newMap;
       }
 
-      // Single or multi-cell brush
+      // Radius painting
       for (let dy = -radius; dy <= radius; dy++) {
         for (let dx = -radius; dx <= radius; dx++) {
           if (brushSize > 2 && dx * dx + dy * dy > radius * radius + 1) continue;
@@ -133,20 +134,18 @@ export const useMapEditor = () => {
     });
   }, [mapData.width, mapData.height, activeLayer, activeTool, selectedTile, brushSize, autoScatterEnabled, biomes, activeBiomeId]);
 
-  // Generate full procedural template based on current biome noise configs
+  // Macro procedural generator
   const generateWorldTemplate = useCallback(() => {
     setMapData((prev) => {
-      const newProcedural = Array(prev.height).fill(null).map(() => Array(prev.width).fill('mourne_ashen_steppes'));
+      const newProcedural = Array(prev.height).fill(null).map(() => Array(prev.width).fill('stone'));
       const newManual = Array(prev.height).fill(null).map(() => Array(prev.width).fill(null));
 
-      // Deterministic pseudo noise
       const pseudoNoise = (x: number, y: number, scale: number) => {
         return (Math.sin(x / scale * 3.14 + y / scale * 1.618) + Math.cos(x / scale * 0.8 + y / scale * 2.2)) * 0.5 + 0.5;
       };
 
       for (let y = 0; y < prev.height; y++) {
         for (let x = 0; x < prev.width; x++) {
-          // Determine biome based on macro regions
           const val = pseudoNoise(x, y, 16);
           let assignedBiome = biomes[0];
           if (biomes.length > 1) {
@@ -156,7 +155,6 @@ export const useMapEditor = () => {
 
           newProcedural[y][x] = assignedBiome.id;
 
-          // Scatter decor based on frequency
           for (const decor of assignedBiome.decorItems) {
             if (Math.random() < decor.frequency * assignedBiome.noise.scatterDensity * 0.6) {
               newManual[y][x] = decor.id;
@@ -181,6 +179,8 @@ export const useMapEditor = () => {
     setMapData,
     biomes,
     setBiomes,
+    tileTypes,
+    setTileTypes,
     activeBiomeId,
     setActiveBiomeId,
     mode,

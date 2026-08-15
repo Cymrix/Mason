@@ -1,0 +1,6 @@
+{
+  "name": "Mason Map Editor",
+  "description": "Web-based in-game map and world authoring tool for the Fray multiverse.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

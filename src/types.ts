@@ -1,4 +1,4 @@
-import { BiomeTileType, DamageType, TraversalModifierTag } from './engine/refinedBiomeSchema';
+import { BiomeTileType, DamageType, TraversalModifierTag, TileShape } from './engine/refinedBiomeSchema';
 
 export interface RefinedCellState {
   biome_id: string; // The biome this cell belongs to (for biome background, ambient light & parallax)
@@ -8,6 +8,9 @@ export interface RefinedCellState {
   environmental_detail_id?: string | null;
   interactive_detail_id?: string | null;
   wildlife_id?: string | null;
+  shape?: TileShape; // 'full', 45° slopes, gentle slopes, or half-slabs
+  fullness?: number; // 0.0 to 1.0 (defaults to 1.0; fractional for sand dunes / soft settling)
+  persists_across_reset?: boolean; // For delta save persistence
 }
 
 export interface RefinedMapData {

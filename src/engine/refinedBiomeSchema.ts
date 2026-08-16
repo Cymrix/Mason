@@ -1,3 +1,6 @@
+import { TileShape } from './tileShape';
+export * from './tileShape';
+
 export type DamageType = 'kinetic' | 'thermal' | 'cryo' | 'galvanic' | 'toxic' | 'radiant' | 'void' | 'psionic';
 export type ConditionType = 'vulnerable' | 'stunned' | 'burning' | 'frozen' | 'shocked';
 export type BlendStyle = 'fade' | 'line' | 'dither';
@@ -166,6 +169,12 @@ export interface BiomeTileType {
   traversal_tags: TraversalModifierTag[];
   speed_modifier: number; // 1.0 = normal
   hazard_damage?: DamageInstance;
+
+  // Soft Material & Slopes (e.g. Sand, Silt, Snow, Soft Dirt)
+  isSoft?: boolean; // When true, material defaults to soft 45° angular corners / natural dunes
+  softness?: number; // 0.0 (rigid stone/brick) to 1.0 (loose powdery sand)
+  allowsSlopes?: boolean; // Whether slopes/ramps are enabled for this tile type
+  defaultSlopeShape?: TileShape;
 }
 
 /**

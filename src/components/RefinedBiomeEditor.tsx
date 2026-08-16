@@ -1130,6 +1130,56 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                         </div>
                       </div>
 
+                      {/* Soft Material & Slopes (Sand / Silt / Snow) */}
+                      <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800 space-y-2.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-neutral-200">
+                            <input
+                              type="checkbox"
+                              checked={!!selectedTileType.isSoft}
+                              onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, isSoft: e.target.checked }))}
+                              className="rounded accent-amber-500 cursor-pointer"
+                            />
+                            <span>Soft Tile Material (Sand / Snow / Loam)</span>
+                          </label>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.isSoft ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-neutral-900 text-neutral-500'}`}>
+                            {selectedTileType.isSoft ? 'Soft & Deformable' : 'Rigid'}
+                          </span>
+                        </div>
+
+                        {selectedTileType.isSoft && (
+                          <div className="space-y-2 pt-1 border-t border-neutral-800/80">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[10px] text-neutral-400">
+                                <span>Softness / Granular Permeability</span>
+                                <span className="font-mono text-amber-300 font-bold">
+                                  {Math.round((selectedTileType.softness ?? 0.8) * 100)}%
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0.0"
+                                max="1.0"
+                                step="0.05"
+                                value={selectedTileType.softness ?? 0.8}
+                                onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, softness: parseFloat(e.target.value) || 0 }))}
+                                className="w-full accent-amber-500 cursor-pointer h-1.5"
+                              />
+                            </div>
+
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-300 pt-1">
+                              <input
+                                type="checkbox"
+                                checked={selectedTileType.allowsSlopes !== false}
+                                onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, allowsSlopes: e.target.checked }))}
+                                className="rounded accent-amber-500 cursor-pointer"
+                              />
+                              <span>Support 45° & 22.5° Natural Dune Slopes</span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
                     </div>
 
                   </div>

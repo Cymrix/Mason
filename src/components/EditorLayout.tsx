@@ -55,6 +55,8 @@ import {
   Plus
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
+import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
+import { globalChunkCache } from '../engine/chunkCacheManager';
 import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
 import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
 import { usePWA } from '../hooks/usePWA';
@@ -97,6 +99,8 @@ export const EditorLayout: React.FC = () => {
   const [activeTool, setActiveTool] = useState<ToolType>('brush');
   const [paintCategory, setPaintCategory] = useState<PaintCategory>('tile_type');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('ashen_basalt');
+  const [selectedShape, setSelectedShape] = useState<TileShape>('full');
+  const [selectedFullness, setSelectedFullness] = useState<number>(1.0);
   const [brushSize, setBrushSize] = useState<number>(1);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [showDamageMasks, setShowDamageMasks] = useState<boolean>(true);
@@ -223,11 +227,17 @@ export const EditorLayout: React.FC = () => {
                 target.environmental_detail_id = null;
                 target.interactive_detail_id = null;
                 target.wildlife_id = null;
+                target.shape = 'full';
+                target.fullness = 1.0;
+                globalChunkCache.invalidateCell(cx, cy);
               } else {
                 if (paintCategory === 'tile_type') {
                   target.tile_type_id = selectedAssetId;
                   target.current_health = 100;
                   target.damage_threshold_index = 0;
+                  target.shape = selectedShape;
+                  target.fullness = selectedFullness;
+                  globalChunkCache.invalidateCell(cx, cy);
                 } else if (paintCategory === 'environmental') {
                   target.environmental_detail_id = selectedAssetId || null;
                 } else if (paintCategory === 'interactive') {
@@ -608,7 +618,66 @@ export const EditorLayout: React.FC = () => {
 
                       {/* Terrain Tiles & Open Air */}
                       {paintCategory === 'tile_type' && (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
+                          {/* Tile Shape & Slope Selector */}
+                          <div className="p-3 bg-neutral-900/90 rounded-xl border border-neutral-800 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300">
+                                Shape & Slope Mode
+                              </span>
+                              <span className="text-[10px] font-mono text-cyan-400 font-semibold truncate max-w-[140px]">
+                                {TILE_SHAPE_DEFINITIONS[selectedShape]?.name || 'Solid Block'}
+                              </span>
+                            </div>
+
+                            {/* Shape Grid Buttons */}
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {(Object.keys(TILE_SHAPE_DEFINITIONS) as TileShape[]).map(shapeKey => {
+                                const def = TILE_SHAPE_DEFINITIONS[shapeKey];
+                                const isShapeActive = selectedShape === shapeKey;
+                                return (
+                                  <button
+                                    key={shapeKey}
+                                    type="button"
+                                    onClick={() => setSelectedShape(shapeKey)}
+                                    className={`py-1.5 px-1 rounded-lg text-center border transition flex flex-col items-center gap-0.5 ${
+                                      isShapeActive
+                                        ? 'bg-cyan-950 border-cyan-500 text-cyan-200 shadow-sm'
+                                        : 'bg-neutral-950 border-neutral-800/80 text-neutral-400 hover:text-white hover:bg-neutral-800'
+                                    }`}
+                                    title={def.name}
+                                  >
+                                    <span className="text-xs font-mono font-bold">
+                                      {def.shortLabel.split(' ')[0]}
+                                    </span>
+                                    <span className="text-[8px] font-mono truncate w-full px-0.5 leading-tight">
+                                      {def.shortLabel.split(' ').slice(1).join(' ') || def.name.split(' ')[0]}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Soft Dune Fullness Slider */}
+                            <div className="pt-2 border-t border-neutral-800/80 space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="text-neutral-400">Soft Dune Fullness</span>
+                                <span className="font-mono text-cyan-300 font-semibold">
+                                  {Math.round(selectedFullness * 100)}%
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0.1"
+                                max="1.0"
+                                step="0.05"
+                                value={selectedFullness}
+                                onChange={(e) => setSelectedFullness(parseFloat(e.target.value) || 1.0)}
+                                className="w-full accent-cyan-500 cursor-pointer h-1.5"
+                              />
+                            </div>
+                          </div>
+
                           <button
                             type="button"
                             onClick={() => setSelectedAssetId('')}

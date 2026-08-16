@@ -4,6 +4,7 @@ import { TILE_SIZE, RefinedBiome, BiomeTileType } from '../engine/refinedBiomeSc
 import { renderRefinedTileCell } from '../engine/tileMaterialRenderer';
 import { drawThresholdCrackMask } from '../engine/heightBlendShader';
 import { renderParallaxLayer } from '../engine/parallaxRenderer';
+import { globalChunkCache, CHUNK_SIZE } from '../engine/chunkCacheManager';
 import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
 import { ZoomIn, ZoomOut, RotateCcw, Move, Layers, Eye, EyeOff } from 'lucide-react';
 
@@ -31,6 +32,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showParallaxBg, setShowParallaxBg] = useState<boolean>(true);
   const [showForegroundLayer, setShowForegroundLayer] = useState<boolean>(true);
+  const [, setRenderTrigger] = useState(0);
 
   const canvasWidth = mapData.width * TILE_SIZE;
   const canvasHeight = mapData.height * TILE_SIZE;
@@ -155,51 +157,26 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     }
 
     // ==========================================
-    // 3. LAYER 0: MAIN GAMEPLAY PLANE (Solid Tiles & Platforms)
+    // 3. LAYER 0: MAIN GAMEPLAY PLANE (Lazy Per-Chunk Cached Rendering with Slope/Shape Support)
     // ==========================================
-    for (let y = 0; y < mapData.height; y++) {
-      for (let x = 0; x < mapData.width; x++) {
-        const cell = mapData.cells[y][x];
-        const tileTypeId = cell.tile_type_id;
-        
-        // Blank air tile (no solid physical tile to step on)
-        if (!tileTypeId) continue;
+    const numChunksX = Math.ceil(mapData.width / CHUNK_SIZE);
+    const numChunksY = Math.ceil(mapData.height / CHUNK_SIZE);
 
-        // Lookup TileType
-        const record = tileTypeMap[tileTypeId];
-        if (!record) continue;
-
-        const screenX = x * TILE_SIZE;
-        const screenY = y * TILE_SIZE;
-
-        // Neighbor check for auto-tiling composite edges
-        const hasTop = y > 0 && mapData.cells[y - 1][x].tile_type_id === tileTypeId;
-        const hasBottom = y < mapData.height - 1 && mapData.cells[y + 1][x].tile_type_id === tileTypeId;
-        const hasLeft = x > 0 && mapData.cells[y][x - 1].tile_type_id === tileTypeId;
-        const hasRight = x < mapData.width - 1 && mapData.cells[y][x + 1].tile_type_id === tileTypeId;
-
-        renderRefinedTileCell(
-          ctx,
-          x,
-          y,
-          screenX,
-          screenY,
-          TILE_SIZE,
-          record.tileType,
-          { hasTop, hasBottom, hasLeft, hasRight }
+    for (let cy = 0; cy < numChunksY; cy++) {
+      for (let cx = 0; cx < numChunksX; cx++) {
+        const chunkCanvas = globalChunkCache.getOrBakeChunk(
+          cx,
+          cy,
+          mapData,
+          tileTypeMap,
+          showDamageMasks,
+          () => setRenderTrigger(t => t + 1)
         );
 
-        // Cracking overlay if damaged
-        if (showDamageMasks && cell.damage_threshold_index > 0) {
-          drawThresholdCrackMask(
-            ctx, 
-            screenX, 
-            screenY, 
-            TILE_SIZE, 
-            cell.damage_threshold_index, 
-            record.tileType.shares_damage_overlay, 
-            42
-          );
+        if (chunkCanvas) {
+          const chunkScreenX = cx * CHUNK_SIZE * TILE_SIZE;
+          const chunkScreenY = cy * CHUNK_SIZE * TILE_SIZE;
+          ctx.drawImage(chunkCanvas, chunkScreenX, chunkScreenY);
         }
       }
     }

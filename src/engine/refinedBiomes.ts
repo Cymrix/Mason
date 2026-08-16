@@ -100,6 +100,9 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
           leftSide: { enabled: false, color: '#27170b', thicknessPx: 2, noiseEdge: false },
           rightSide: { enabled: false, color: '#27170b', thicknessPx: 2, noiseEdge: false }
         },
+        isSoft: true,
+        softness: 0.85,
+        allowsSlopes: true,
         isDestructible: true,
         health: 50,
         defense_type: 'toxic',

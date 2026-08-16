@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { BiomeTileType } from '../engine/refinedBiomeSchema';
 import { renderRefinedTileCell, renderPureAlbedoCell, AutotileNeighborMask } from '../engine/tileMaterialRenderer';
 import { BLOB_47_TILESET, BlobTileDefinition } from '../engine/blobTilesetConfig';
+import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
 import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
 import { 
   Layers, 
@@ -14,7 +15,9 @@ import {
   ZoomOut, 
   RefreshCw, 
   Move, 
-  RotateCcw 
+  RotateCcw,
+  Triangle,
+  Sliders
 } from 'lucide-react';
 
 interface BlobTilesetPreviewProps {
@@ -26,10 +29,11 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   tileType,
   onUpdateTileType
 }) => {
-  const [viewMode, setViewMode] = useState<'albedo' | 'matrix' | 'sandbox' | 'diagnostics'>('albedo');
+  const [viewMode, setViewMode] = useState<'albedo' | 'matrix' | 'sandbox' | 'slopes' | 'diagnostics'>('albedo');
   const tileSize = 64;
   const [showGrid, setShowGrid] = useState<boolean>(true);
   const [hoveredTileDef, setHoveredTileDef] = useState<BlobTileDefinition | null>(null);
+  const [slopeFullness, setSlopeFullness] = useState<number>(1.0);
 
   // Sandbox interactive grid (7x7 default layout with an island and pond)
   const [sandboxGrid, setSandboxGrid] = useState<number[][]>([
@@ -45,6 +49,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   const albedoCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const matrixCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sandboxCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const slopesCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderTrigger, setRenderTrigger] = useState(0);
 
   const albedoCols = 8;
@@ -61,6 +66,11 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   const sandboxCols = sandboxGrid[0].length;
   const sandboxWidth = sandboxCols * tileSize;
   const sandboxHeight = sandboxRows * tileSize;
+
+  const slopesCols = 8;
+  const slopesRows = 4;
+  const slopesWidth = slopesCols * tileSize;
+  const slopesHeight = slopesRows * tileSize;
 
   // Pan & Zoom for Albedo Canvas
   const albedoPanZoom = useCanvasPanZoom({
@@ -80,6 +90,14 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
 
   // Pan & Zoom for Sandbox Canvas
   const sandboxPanZoom = useCanvasPanZoom({
+    minScale: 0.25,
+    maxScale: 4.5,
+    initialScale: 1.0,
+    zoomSensitivity: 1.15
+  });
+
+  // Pan & Zoom for Slopes Showcase Canvas
+  const slopesPanZoom = useCanvasPanZoom({
     minScale: 0.25,
     maxScale: 4.5,
     initialScale: 1.0,
@@ -106,6 +124,13 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
       sandboxPanZoom.centerContent(sandboxWidth, sandboxHeight, 1.0);
     }
   }, [viewMode, tileSize, sandboxWidth, sandboxHeight]);
+
+  // Auto center slopes view on mode change
+  useEffect(() => {
+    if (viewMode === 'slopes' && slopesPanZoom.containerRef.current) {
+      slopesPanZoom.centerContent(slopesWidth, slopesHeight, 1.0);
+    }
+  }, [viewMode, tileSize, slopesWidth, slopesHeight]);
 
   const forceRerender = useCallback(() => {
     setRenderTrigger(prev => prev + 1);
@@ -289,6 +314,102 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     }
   }, [sandboxGrid, tileType, tileSize, showGrid, viewMode, renderTrigger, forceRerender, sandboxWidth, sandboxHeight, sandboxRows, sandboxCols]);
 
+  // 3. Render Slopes and Soft Shapes Showcase
+  useEffect(() => {
+    if (viewMode !== 'slopes') return;
+    const canvas = slopesCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
+    canvas.width = slopesWidth;
+    canvas.height = slopesHeight;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Background subtle terrain styling
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Slopes showroom layout
+    // Row 0: Standalone individual shapes (Full, 45 Up-R, 45 Up-L, 45 Down-R, 45 Down-L, Gentle R1, Gentle R2, Half Bottom)
+    // Row 1: Dune / Hill Formation (Flat, Gentle R1, Gentle R2, Full, Full, Gentle L1, Gentle L2, Flat)
+    // Row 2: Sand settling with variable fullness (1.0, 0.85, 0.7, 0.55, 0.4, 0.25, Half Bottom, Half Top)
+    // Row 3: Ceiling cave & archway with slopes
+    const slopeShowcaseGrid: { shape: TileShape; fullness: number; active: boolean }[][] = [
+      [
+        { shape: 'full', fullness: 1.0, active: true },
+        { shape: 'slope_up_right_45', fullness: 1.0, active: true },
+        { shape: 'slope_up_left_45', fullness: 1.0, active: true },
+        { shape: 'slope_down_right_45', fullness: 1.0, active: true },
+        { shape: 'slope_down_left_45', fullness: 1.0, active: true },
+        { shape: 'gentle_up_right_1', fullness: 1.0, active: true },
+        { shape: 'gentle_up_right_2', fullness: 1.0, active: true },
+        { shape: 'half_bottom', fullness: 1.0, active: true },
+      ],
+      [
+        { shape: 'full', fullness: 1.0, active: false },
+        { shape: 'gentle_up_right_1', fullness: 1.0, active: true },
+        { shape: 'gentle_up_right_2', fullness: 1.0, active: true },
+        { shape: 'full', fullness: 1.0, active: true },
+        { shape: 'full', fullness: 1.0, active: true },
+        { shape: 'gentle_up_left_1', fullness: 1.0, active: true },
+        { shape: 'gentle_up_left_2', fullness: 1.0, active: true },
+        { shape: 'full', fullness: 1.0, active: false },
+      ],
+      [
+        { shape: 'full', fullness: 1.0 * slopeFullness, active: true },
+        { shape: 'full', fullness: 0.85 * slopeFullness, active: true },
+        { shape: 'full', fullness: 0.70 * slopeFullness, active: true },
+        { shape: 'full', fullness: 0.55 * slopeFullness, active: true },
+        { shape: 'full', fullness: 0.40 * slopeFullness, active: true },
+        { shape: 'full', fullness: 0.25 * slopeFullness, active: true },
+        { shape: 'half_bottom', fullness: 1.0, active: true },
+        { shape: 'half_top', fullness: 1.0, active: true },
+      ],
+      [
+        { shape: 'full', fullness: 1.0, active: true },
+        { shape: 'slope_down_right_45', fullness: 1.0, active: true },
+        { shape: 'half_top', fullness: 1.0, active: true },
+        { shape: 'half_top', fullness: 1.0, active: true },
+        { shape: 'half_top', fullness: 1.0, active: true },
+        { shape: 'slope_down_left_45', fullness: 1.0, active: true },
+        { shape: 'full', fullness: 1.0, active: true },
+        { shape: 'full', fullness: 1.0, active: true },
+      ]
+    ];
+
+    for (let r = 0; r < slopesRows; r++) {
+      for (let c = 0; c < slopesCols; c++) {
+        const item = slopeShowcaseGrid[r][c];
+        if (!item || !item.active) continue;
+
+        const screenX = c * tileSize;
+        const screenY = r * tileSize;
+
+        renderRefinedTileCell(
+          ctx,
+          c,
+          r,
+          screenX,
+          screenY,
+          tileSize,
+          tileType,
+          { hasTop: false, hasBottom: false, hasLeft: false, hasRight: false },
+          forceRerender,
+          item.shape,
+          item.fullness
+        );
+
+        if (showGrid) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+          ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+        }
+      }
+    }
+  }, [viewMode, tileType, tileSize, showGrid, slopeFullness, renderTrigger, forceRerender, slopesWidth, slopesHeight]);
+
   // Handle matrix hover
   const handleMatrixMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = matrixCanvasRef.current;
@@ -432,6 +553,17 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
           >
             <Play className="w-3.5 h-3.5" />
             Live Sandbox Canvas
+          </button>
+          <button
+            onClick={() => setViewMode('slopes')}
+            className={`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all ${
+              viewMode === 'slopes'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Triangle className="w-3.5 h-3.5" />
+            Slopes & Soft Shapes
           </button>
           <button
             onClick={() => setViewMode('diagnostics')}
@@ -788,6 +920,118 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
             <span>🖱️ Left-Click: Toggle Cell</span>
             <span>🖱️ Right-Click + Drag: Pan View</span>
             <span>🎡 Wheel: Zoom to Cursor</span>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'slopes' && (
+        <div className="flex flex-col gap-3">
+          {/* Controls Bar for Soft Material Dunes & Fullness */}
+          <div className="bg-slate-950 px-4 py-2.5 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                <Sliders size={13} className="text-emerald-400" />
+                Soft Sand Fullness / Settlement:
+              </span>
+              <input
+                type="range"
+                min="0.1"
+                max="1.0"
+                step="0.05"
+                value={slopeFullness}
+                onChange={(e) => setSlopeFullness(parseFloat(e.target.value) || 1.0)}
+                className="w-36 accent-emerald-500 cursor-pointer"
+              />
+              <span className="font-mono text-emerald-300 font-bold w-12 text-right">
+                {Math.round(slopeFullness * 100)}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+              <span className={`px-2 py-0.5 rounded font-mono ${tileType.isSoft ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-800 text-slate-400'}`}>
+                {tileType.isSoft ? 'Soft Material (Sand/Loam)' : 'Solid Strata'}
+              </span>
+              <span className="text-slate-500">• 45° & 22.5° Gentle Slopes + Hypotenuse Trim Overlays</span>
+            </div>
+          </div>
+
+          {/* Slopes Viewport Container with Cursor-Centered Zoom and Right-Click Pan */}
+          <div 
+            ref={slopesPanZoom.containerRef}
+            onMouseDown={slopesPanZoom.handleMouseDown}
+            onContextMenu={slopesPanZoom.handleContextMenu}
+            className={`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none ${
+              slopesPanZoom.isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
+            }`}
+            style={{ touchAction: 'none' }}
+          >
+            {/* Transformed Slopes Canvas Wrapper */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: `${slopesWidth}px`,
+                height: `${slopesHeight}px`,
+                transform: `translate(${slopesPanZoom.pan.x}px, ${slopesPanZoom.pan.y}px) scale(${slopesPanZoom.scale})`,
+                transformOrigin: '0 0',
+                willChange: 'transform'
+              }}
+            >
+              <canvas
+                ref={slopesCanvasRef}
+                className="block border border-slate-750 shadow-2xl rounded"
+              />
+            </div>
+
+            {/* Slopes Viewport HUD */}
+            <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs select-none">
+              <div className="flex items-center gap-1 px-2 text-[10px] font-mono text-slate-400 border-r border-slate-800">
+                <Move size={11} className="text-emerald-400" />
+                <span>R-Click Pan • Wheel Zoom</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={slopesPanZoom.zoomOut}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom Out"
+              >
+                <ZoomOut size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => slopesPanZoom.centerContent(slopesWidth, slopesHeight, 1.0)}
+                className="px-1.5 py-0.5 rounded text-slate-200 hover:text-white hover:bg-slate-800 font-mono text-[11px] font-semibold transition"
+                title="Reset Zoom to 100% & Center"
+              >
+                {Math.round(slopesPanZoom.scale * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={slopesPanZoom.zoomIn}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom In"
+              >
+                <ZoomIn size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => slopesPanZoom.centerContent(slopesWidth, slopesHeight, 1.0)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="Center Slopes"
+              >
+                <RotateCcw size={12} />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-950 px-3 py-2 rounded-lg border border-slate-800 flex items-center justify-between text-xs text-slate-400">
+            <span>Row 0: 45° & Gentle Ramps | Row 1: Smooth Dune Ridge | Row 2: Variable Fullness (Settling) | Row 3: Cave Archways</span>
+            <span className="font-mono text-emerald-400">64px Sub-Grid Precision</span>
           </div>
         </div>
       )}

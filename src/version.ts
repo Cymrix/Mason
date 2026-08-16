@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.53.3
+ * Current Release: v0.53.4
  * 
  * HARD RULE:
  * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37 -> v0.38 -> v0.40 -> v0.41 -> v0.42 -> v0.43).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.53.3';
-export const MASON_VERSION_DISPLAY = 'v0.53.3';
-export const MASON_FULL_VERSION = 'v0.53.3';
+export const MASON_VERSION = '0.53.4';
+export const MASON_VERSION_DISPLAY = 'v0.53.4';
+export const MASON_FULL_VERSION = 'v0.53.4';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,14 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.53.4',
+    date: '2026-08-16',
+    changes: [
+      'Simplified Tilemap Studio biome selector dropdown to show clean biome names without parenthetical filenames',
+      'Removed submode status text to the right of Lit/Unlit Mode toggle'
+    ]
+  },
   {
     version: 'v0.53.3',
     date: '2026-08-16',

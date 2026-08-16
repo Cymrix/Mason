@@ -57,7 +57,8 @@ import {
   Download,
   Plus,
   Sun,
-  Moon
+  Moon,
+  ChevronDown
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
@@ -513,16 +514,6 @@ export const EditorLayout: React.FC = () => {
                 <span>🧩 Modules</span>
               </button>
 
-              {/* Map Macro Button */}
-              <button
-                type="button"
-                onClick={() => handleLaunchModule('macro')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-semibold transition shadow-sm"
-              >
-                <Compass size={14} />
-                <span className="hidden sm:inline">Map Macro</span>
-              </button>
-
               {/* Virtual Files Explorer Button */}
               <button
                 type="button"
@@ -723,10 +714,6 @@ export const EditorLayout: React.FC = () => {
                         <span>{isLitMode ? 'Lit Mode' : 'Unlit Mode'}</span>
                       </button>
                     )}
-                    <div className="text-[11px] text-neutral-400 font-mono flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                      <span>{mapsSubMode === 'tilemap' ? 'Painting Strata & Full Autotiling' : 'Procedural Cellular & Biome Synthesis'}</span>
-                    </div>
                   </div>
                 </div>
 
@@ -868,9 +855,59 @@ export const EditorLayout: React.FC = () => {
 
                   {/* Right Palette */}
                   <aside className="w-80 border-l border-neutral-800 bg-neutral-900/80 backdrop-blur flex flex-col shrink-0 z-10">
-                    <div className="p-4 border-b border-neutral-800">
-                      <h2 className="font-semibold text-sm text-neutral-200">Level Strata & Scatter</h2>
-                      <p className="text-[11px] text-neutral-400 mt-0.5">Author terrain, open air, and entities</p>
+                    {/* Active Biome Switcher */}
+                    <div className="p-3.5 border-b border-neutral-800 bg-neutral-950/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                          Active Biome
+                        </span>
+                        <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-1.5 py-0.5 rounded">
+                          {activeBiome?.tileTypes?.length || 0} Tiles
+                        </span>
+                      </div>
+                      
+                      {project?.fileSystem?.biomes && project.fileSystem.biomes.length > 0 ? (
+                        <div className="relative">
+                          <select
+                            value={currentBiomeFile?.fileName || project.fileSystem.biomes[0]?.fileName}
+                            onChange={(e) => {
+                              const targetFileName = e.target.value;
+                              const targetFile = project.fileSystem.biomes.find(b => b.fileName === targetFileName);
+                              if (targetFile) {
+                                handleUpdateProject(p => ({
+                                  ...p,
+                                  activeFiles: {
+                                    ...p.activeFiles,
+                                    biomeFileName: targetFileName
+                                  }
+                                }));
+                                const firstTile = targetFile.biomeData?.tileTypes?.[0];
+                                if (firstTile && paintCategory === 'tile_type') {
+                                  setSelectedAssetId(firstTile.id);
+                                } else {
+                                  setSelectedAssetId('');
+                                }
+                              }
+                            }}
+                            className="w-full appearance-none bg-neutral-900 border border-neutral-700 hover:border-cyan-500/60 text-neutral-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500 transition cursor-pointer pr-9"
+                          >
+                            {project.fileSystem.biomes.map((biomeFile) => (
+                              <option key={biomeFile.fileName} value={biomeFile.fileName} className="bg-neutral-900 text-neutral-200">
+                                {biomeFile.biomeData.name}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                            <div 
+                              className="w-3 h-3 rounded-full border border-white/20 shadow-sm shrink-0"
+                              style={{ backgroundColor: activeBiome?.regionColor || '#06b6d4' }}
+                            />
+                            <ChevronDown size={14} className="text-neutral-400" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-neutral-400 italic">No Biomes Found</div>
+                      )}
                     </div>
                     <div className="p-4 overflow-y-auto flex-1 space-y-4">
                       {/* Category Picker */}
@@ -887,7 +924,10 @@ export const EditorLayout: React.FC = () => {
                             <button
                               key={cat.id}
                               type="button"
-                              onClick={() => setPaintCategory(cat.id as PaintCategory)}
+                              onClick={() => {
+                                setPaintCategory(cat.id as PaintCategory);
+                                setSelectedAssetId('');
+                              }}
                               className={`py-1.5 px-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 transition ${
                                 active ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:text-white'
                               }`}
@@ -962,7 +1002,7 @@ export const EditorLayout: React.FC = () => {
                             </div>
                           </button>
 
-                          {activeBiome.tileTypes?.map(t => {
+                          {activeBiome?.tileTypes?.map(t => {
                             const isSelected = selectedAssetId === t.id;
                             return (
                               <button
@@ -990,6 +1030,183 @@ export const EditorLayout: React.FC = () => {
                               </button>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* Environmental / Flora */}
+                      {paintCategory === 'environmental' && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssetId('')}
+                            className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                              selectedAssetId === '' 
+                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-850'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-cyan-400 text-xs">
+                                ∅
+                              </div>
+                              <div className="text-xs font-bold">Clear Flora / Detail</div>
+                            </div>
+                          </button>
+
+                          {activeBiome?.environmentalDetails && activeBiome.environmentalDetails.length > 0 ? (
+                            activeBiome.environmentalDetails.map(env => {
+                              const isSelected = selectedAssetId === env.id;
+                              return (
+                                <button
+                                  key={env.id}
+                                  type="button"
+                                  onClick={() => setSelectedAssetId(env.id)}
+                                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                                    isSelected 
+                                      ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                      : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:bg-neutral-850'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div 
+                                      className="w-6 h-6 rounded border border-neutral-700 flex items-center justify-center text-xs font-bold"
+                                      style={{ backgroundColor: env.color || '#10b981' }}
+                                    >
+                                      {env.icon || '🌲'}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-bold">{env.name}</div>
+                                      <div className="text-[10px] text-neutral-500 font-mono">
+                                        {env.category} • {env.widthTiles}×{env.heightTiles} tiles
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="text-xs text-neutral-500 italic p-3 text-center bg-neutral-950 rounded-xl border border-neutral-800">
+                              No flora details defined in {activeBiome?.name}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Interactive Props */}
+                      {paintCategory === 'interactive' && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssetId('')}
+                            className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                              selectedAssetId === '' 
+                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-850'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-cyan-400 text-xs">
+                                ∅
+                              </div>
+                              <div className="text-xs font-bold">Clear Interactive Prop</div>
+                            </div>
+                          </button>
+
+                          {activeBiome?.interactiveDetails && activeBiome.interactiveDetails.length > 0 ? (
+                            activeBiome.interactiveDetails.map(item => {
+                              const isSelected = selectedAssetId === item.id;
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => setSelectedAssetId(item.id)}
+                                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                                    isSelected 
+                                      ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                      : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:bg-neutral-850'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div 
+                                      className="w-6 h-6 rounded border border-neutral-700 flex items-center justify-center text-xs font-bold"
+                                      style={{ backgroundColor: item.color || '#f59e0b' }}
+                                    >
+                                      {item.icon || '📦'}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-bold">{item.name}</div>
+                                      <div className="text-[10px] text-neutral-500 font-mono">
+                                        {item.type} • {item.interactionPrompt || 'Interact'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="text-xs text-neutral-500 italic p-3 text-center bg-neutral-950 rounded-xl border border-neutral-800">
+                              No interactive props defined in {activeBiome?.name}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Wildlife / Entities */}
+                      {paintCategory === 'wildlife' && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssetId('')}
+                            className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                              selectedAssetId === '' 
+                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-850'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-cyan-400 text-xs">
+                                ∅
+                              </div>
+                              <div className="text-xs font-bold">Clear Wildlife / Entity</div>
+                            </div>
+                          </button>
+
+                          {activeBiome?.wildlife && activeBiome.wildlife.length > 0 ? (
+                            activeBiome.wildlife.map(fauna => {
+                              const isSelected = selectedAssetId === fauna.id;
+                              return (
+                                <button
+                                  key={fauna.id}
+                                  type="button"
+                                  onClick={() => setSelectedAssetId(fauna.id)}
+                                  className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                                    isSelected 
+                                      ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                      : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:bg-neutral-850'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div 
+                                      className="w-6 h-6 rounded border border-neutral-700 flex items-center justify-center text-xs font-bold"
+                                      style={{ backgroundColor: fauna.color || '#a855f7' }}
+                                    >
+                                      {fauna.icon || '👾'}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-bold">{fauna.name}</div>
+                                      <div className="text-[10px] text-neutral-500 font-mono">
+                                        Spawn Frequency: {Math.round(fauna.spawnFrequency * 100)}%
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="text-xs text-neutral-500 italic p-3 text-center bg-neutral-950 rounded-xl border border-neutral-800">
+                              No wildlife defined in {activeBiome?.name}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -294,6 +294,103 @@ export function drawWrappedImageBlock(
 }
 
 /**
+ * Render a pure base albedo tile cell (Base Material A + Base Material B via Dual-Noise Blend Map)
+ * without autotiling edge overlays.
+ */
+export function renderPureAlbedoCell(
+  ctx: CanvasRenderingContext2D,
+  tileX: number,
+  tileY: number,
+  screenX: number,
+  screenY: number,
+  tileSizePx: number,
+  tileType: BiomeTileType,
+  onImageLoaded?: () => void
+) {
+  // Nearest neighbor pixel art smoothing
+  ctx.imageSmoothingEnabled = false;
+
+  const pixelStep = 4; // 4px micro-blocks for smooth noise blending performance
+
+  // Check if uploaded custom base textures exist
+  const imgA = getCachedImage(tileType.baseMaterialA.albedoTextureUrl, onImageLoaded);
+  const imgB = getCachedImage(tileType.baseMaterialBTextureUrl, onImageLoaded);
+  const heightImg = getCachedImage(tileType.heightMapTextureUrl, onImageLoaded);
+  const roughnessImg = getCachedImage(tileType.roughnessMapTextureUrl, onImageLoaded);
+  const surfaceOverlayImg = getCachedImage((tileType as any).overlayTextureUrl || (tileType as any).surfaceOverlayUrl, onImageLoaded);
+
+  const fallbackColorA = tileType.baseMaterialA.albedoColor || tileType.mapColor || '#334155';
+  const fallbackColorB = tileType.baseMaterialBAlbedoColor || '#64748b';
+
+  // 1. Render World-Aligned Base Material A across the entire tile
+  ctx.save();
+  if (imgA) {
+    drawWorldAlignedTexture(ctx, imgA, tileX, tileY, screenX, screenY, tileSizePx);
+  } else {
+    ctx.fillStyle = fallbackColorA;
+    ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx);
+  }
+
+  // 1a. Alpha-blend Base Material B over Material A using Dual-Noise Map
+  const hasMaterialB = !!imgB || !!tileType.baseMaterialBTextureUrl || !!tileType.baseMaterialBAlbedoColor;
+
+  if (hasMaterialB) {
+    for (let py = 0; py < tileSizePx; py += pixelStep) {
+      for (let px = 0; px < tileSizePx; px += pixelStep) {
+        const worldPixelX = tileX * tileSizePx + px;
+        const worldPixelY = tileY * tileSizePx + py;
+
+        const blendWeightB = evaluateDualNoiseBlend(worldPixelX, worldPixelY, tileType.blendMap);
+
+        if (blendWeightB > 0.001) {
+          ctx.globalAlpha = blendWeightB;
+          if (imgB) {
+            drawWrappedImageBlock(ctx, imgB, worldPixelX, worldPixelY, pixelStep, screenX + px, screenY + py);
+          } else {
+            ctx.fillStyle = fallbackColorB;
+            ctx.fillRect(screenX + px, screenY + py, pixelStep, pixelStep);
+          }
+        }
+      }
+    }
+  }
+  ctx.restore();
+
+  // 1b. Render full surface tile overlay if uploaded
+  if (surfaceOverlayImg) {
+    ctx.save();
+    ctx.drawImage(surfaceOverlayImg, 0, 0, surfaceOverlayImg.width, surfaceOverlayImg.height, screenX, screenY, tileSizePx, tileSizePx);
+    ctx.restore();
+  }
+
+  // 2. Heightmap and Roughness Shading (World-Aligned Repeating matching Albedo Map)
+  if (heightImg) {
+    ctx.save();
+    ctx.globalAlpha = tileType.baseMaterialA.heightMapScale * 0.25;
+    drawWorldAlignedTexture(ctx, heightImg, tileX, tileY, screenX, screenY, tileSizePx);
+    ctx.restore();
+  } else {
+    const heightFactor = tileType.baseMaterialA.heightMapScale;
+    if (heightFactor > 0.5) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(screenX, screenY, tileSizePx, 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+      ctx.fillRect(screenX, screenY + tileSizePx - 2, tileSizePx, 2);
+    }
+  }
+
+  if (roughnessImg) {
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    drawWorldAlignedTexture(ctx, roughnessImg, tileX, tileY, screenX, screenY, tileSizePx);
+    ctx.restore();
+  } else if (tileType.baseMaterialA.roughness < 0.4) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx * 0.25);
+  }
+}
+
+/**
  * Render a full tile cell with world-aligned repeating dual base materials,
  * dual-noise blend map, uploaded textures / procedural fallbacks, and composite autotiling edge overlays.
  */

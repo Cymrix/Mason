@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { BiomeTileType } from '../engine/refinedBiomeSchema';
-import { renderRefinedTileCell, AutotileNeighborMask } from '../engine/tileMaterialRenderer';
+import { renderRefinedTileCell, renderPureAlbedoCell, AutotileNeighborMask } from '../engine/tileMaterialRenderer';
 import { BLOB_47_TILESET, BlobTileDefinition } from '../engine/blobTilesetConfig';
 import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
 import { 
@@ -26,7 +26,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   tileType,
   onUpdateTileType
 }) => {
-  const [viewMode, setViewMode] = useState<'matrix' | 'sandbox' | 'diagnostics'>('matrix');
+  const [viewMode, setViewMode] = useState<'albedo' | 'matrix' | 'sandbox' | 'diagnostics'>('albedo');
   const tileSize = 64;
   const [showGrid, setShowGrid] = useState<boolean>(true);
   const [hoveredTileDef, setHoveredTileDef] = useState<BlobTileDefinition | null>(null);
@@ -42,9 +42,15 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     [0, 0, 0, 0, 0, 0, 0],
   ]);
 
+  const albedoCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const matrixCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sandboxCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderTrigger, setRenderTrigger] = useState(0);
+
+  const albedoCols = 8;
+  const albedoRows = 8;
+  const albedoWidth = albedoCols * tileSize;
+  const albedoHeight = albedoRows * tileSize;
 
   const matrixCols = 8;
   const matrixRows = 6;
@@ -55,6 +61,14 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   const sandboxCols = sandboxGrid[0].length;
   const sandboxWidth = sandboxCols * tileSize;
   const sandboxHeight = sandboxRows * tileSize;
+
+  // Pan & Zoom for Albedo Canvas
+  const albedoPanZoom = useCanvasPanZoom({
+    minScale: 0.25,
+    maxScale: 4.5,
+    initialScale: 1.0,
+    zoomSensitivity: 1.15
+  });
 
   // Pan & Zoom for Matrix Canvas
   const matrixPanZoom = useCanvasPanZoom({
@@ -72,8 +86,14 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     zoomSensitivity: 1.15
   });
 
+  // Auto center albedo view on mode change or tile size change
+  useEffect(() => {
+    if (viewMode === 'albedo' && albedoPanZoom.containerRef.current) {
+      albedoPanZoom.centerContent(albedoWidth, albedoHeight, 1.0);
+    }
+  }, [viewMode, tileSize, albedoWidth, albedoHeight]);
+
   // Auto center matrix view on mount or tile size change
-  const matrixCenteredRef = useRef(false);
   useEffect(() => {
     if (viewMode === 'matrix' && matrixPanZoom.containerRef.current) {
       matrixPanZoom.centerContent(matrixWidth, matrixHeight, 1.0);
@@ -90,6 +110,46 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   const forceRerender = useCallback(() => {
     setRenderTrigger(prev => prev + 1);
   }, []);
+
+  // 0. Render Pure Blended Albedo Map Grid
+  useEffect(() => {
+    if (viewMode !== 'albedo') return;
+    const canvas = albedoCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
+
+    canvas.width = albedoWidth;
+    canvas.height = albedoHeight;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let r = 0; r < albedoRows; r++) {
+      for (let c = 0; c < albedoCols; c++) {
+        const screenX = c * tileSize;
+        const screenY = r * tileSize;
+
+        renderPureAlbedoCell(
+          ctx,
+          c,
+          r,
+          screenX,
+          screenY,
+          tileSize,
+          tileType,
+          forceRerender
+        );
+
+        if (showGrid) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+        }
+      }
+    }
+  }, [tileType, tileSize, showGrid, viewMode, renderTrigger, forceRerender, albedoWidth, albedoHeight, albedoRows, albedoCols]);
 
   // 1. Render the 47-Blob Tileset Matrix
   useEffect(() => {
@@ -272,6 +332,16 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     }
   };
 
+  const handleExportAlbedo = () => {
+    const canvas = albedoCanvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `${tileType.id}_full_albedo_texture.png`;
+    link.href = dataUrl;
+    link.click();
+  };
+
   const handleExportAtlas = () => {
     const canvas = matrixCanvasRef.current;
     if (!canvas) return;
@@ -331,6 +401,17 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
         {/* View Mode Switcher */}
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
           <button
+            onClick={() => setViewMode('albedo')}
+            className={`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all ${
+              viewMode === 'albedo'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Full Albedo Texture
+          </button>
+          <button
             onClick={() => setViewMode('matrix')}
             className={`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all ${
               viewMode === 'matrix'
@@ -381,6 +462,17 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {viewMode === 'albedo' && (
+            <button
+              onClick={handleExportAlbedo}
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded flex items-center gap-1 font-medium transition-colors"
+              title="Download full blended albedo texture PNG"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export Albedo PNG
+            </button>
+          )}
+
           {viewMode === 'sandbox' && (
             <div className="flex items-center gap-1.5">
               <span className="text-slate-500 text-[11px]">Presets:</span>
@@ -419,6 +511,98 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
       </div>
 
       {/* Main Display Area */}
+      {viewMode === 'albedo' && (
+        <div className="flex flex-col gap-3">
+          {/* Albedo Viewport Container with Cursor-Centered Zoom and Right-Click Pan */}
+          <div 
+            ref={albedoPanZoom.containerRef}
+            onMouseDown={albedoPanZoom.handleMouseDown}
+            onContextMenu={albedoPanZoom.handleContextMenu}
+            className={`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none ${
+              albedoPanZoom.isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
+            }`}
+            style={{ touchAction: 'none' }}
+          >
+            {/* Transformed Albedo Canvas Wrapper */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: `${albedoWidth}px`,
+                height: `${albedoHeight}px`,
+                transform: `translate(${albedoPanZoom.pan.x}px, ${albedoPanZoom.pan.y}px) scale(${albedoPanZoom.scale})`,
+                transformOrigin: '0 0',
+                willChange: 'transform'
+              }}
+            >
+              <canvas
+                ref={albedoCanvasRef}
+                className="block border border-slate-750 shadow-2xl rounded"
+              />
+            </div>
+
+            {/* Albedo Viewport HUD */}
+            <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs select-none">
+              <div className="flex items-center gap-1 px-2 text-[10px] font-mono text-slate-400 border-r border-slate-800">
+                <Move size={11} className="text-cyan-400" />
+                <span>R-Click Pan • Wheel Zoom</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={albedoPanZoom.zoomOut}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom Out"
+              >
+                <ZoomOut size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => albedoPanZoom.centerContent(albedoWidth, albedoHeight, 1.0)}
+                className="px-1.5 py-0.5 rounded text-slate-200 hover:text-white hover:bg-slate-800 font-mono text-[11px] font-semibold transition"
+                title="Reset Zoom to 100% & Center"
+              >
+                {Math.round(albedoPanZoom.scale * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={albedoPanZoom.zoomIn}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom In"
+              >
+                <ZoomIn size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => albedoPanZoom.centerContent(albedoWidth, albedoHeight, 1.0)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="Center Albedo View"
+              >
+                <RotateCcw size={12} />
+              </button>
+            </div>
+          </div>
+
+          {/* Status Bar */}
+          <div className="min-h-[36px] bg-slate-950 px-3 py-2 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-cyan-400" />
+              <span className="text-slate-300 font-medium">Pure Seamless Albedo Map</span>
+              <span className="text-slate-500 font-mono text-[11px]">
+                (8×8 Grid World Projection • Dual-Noise Blend A ↔ B)
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              512×512 Texel Coverage
+            </span>
+          </div>
+        </div>
+      )}
+
       {viewMode === 'matrix' && (
         <div className="flex flex-col gap-3">
           {/* Matrix Viewport Container with Cursor-Centered Zoom and Right-Click Pan */}

@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.33
+ * Current Release: v0.35
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.33.0';
-export const MASON_VERSION_DISPLAY = 'v0.33';
-export const MASON_FULL_VERSION = 'v0.33';
+export const MASON_VERSION = '0.35.0';
+export const MASON_VERSION_DISPLAY = 'v0.35';
+export const MASON_FULL_VERSION = 'v0.35';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,24 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.35',
+    date: '2026-08-16',
+    changes: [
+      'Added Full Albedo Texture preview tab to the left of 47-Blob Matrix in Biome Studio preview workspace',
+      'Implemented pure seamless blended albedo canvas (Base Material A ↔ Base Material B dual-noise projection)',
+      'Added interactive cursor-centered wheel zoom, right-click panning, reset HUD, and grid border toggle support',
+      'Added Export Albedo PNG download feature for standalone map exports'
+    ]
+  },
+  {
+    version: 'v0.34',
+    date: '2026-08-16',
+    changes: [
+      'Relocated Dual Overlapping Noise Blend Map controls directly to the left side of the Blob Tileset Preview section',
+      'Created side-by-side side panel layout enabling instant real-time visualization of noise scale, weight, seed, contrast, and threshold adjustments on the preview canvas'
+    ]
+  },
   {
     version: 'v0.33',
     date: '2026-08-16',

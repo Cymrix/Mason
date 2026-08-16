@@ -224,7 +224,7 @@ export const exportGameStructureFile = (file: GameStructureFile) => {
 
 export const exportFullProjectBundle = (project: MasonProject) => {
   const safeName = project.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-  downloadJsonFile(`${safeName}_project_bundle.mason.json`, project);
+  downloadJsonFile(`${safeName}_project_bundle.mason`, project);
 };
 
 // ==================================================

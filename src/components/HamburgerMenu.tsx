@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
-import { MASON_FULL_VERSION } from '../version';
+import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { usePWA } from '../hooks/usePWA';
 import { DownloadCloud, WifiOff } from 'lucide-react';
 
@@ -284,7 +284,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
                 <span>{isInstalled ? 'Mason PWA Installed' : 'Install Mason PWA...'}</span>
               </div>
-              <span className="text-[9px] font-mono text-cyan-400/70 uppercase">v0.24</span>
+              <span className="text-[9px] font-mono text-cyan-400/70 uppercase">{MASON_VERSION_DISPLAY}</span>
             </button>
           </div>
 

@@ -59,7 +59,7 @@ export const LoadProjectModal: React.FC<LoadProjectModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-neutral-100">Load Project</h3>
-              <p className="text-[10px] text-neutral-400">Select a local save or import a .mason.json bundle</p>
+              <p className="text-[10px] text-neutral-400">Select a local save or import a .mason bundle</p>
             </div>
           </div>
 
@@ -78,13 +78,13 @@ export const LoadProjectModal: React.FC<LoadProjectModalProps> = ({
           className="p-5 rounded-2xl border-2 border-dashed border-neutral-700 hover:border-cyan-500 bg-neutral-950/60 flex flex-col items-center justify-center gap-2 cursor-pointer transition text-center group"
         >
           <Upload size={24} className="text-neutral-400 group-hover:text-cyan-400 transition" />
-          <div className="text-xs font-bold text-neutral-200">Import .mason.json Bundle</div>
+          <div className="text-xs font-bold text-neutral-200">Import .mason Bundle</div>
           <p className="text-[10px] text-neutral-500">Click or drag file here to restore an exported project</p>
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFileUpload}
-            accept=".json,.mason.json"
+            accept=".mason,.mason.json,.json"
             className="hidden"
           />
         </div>

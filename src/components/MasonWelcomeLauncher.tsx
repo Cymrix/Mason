@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { ProjectIndexItem } from '../utils/masonStorage';
 import { MASON_MODULES } from '../engine/modulesRegistry';
-import { MASON_FULL_VERSION } from '../version';
+import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { usePWA } from '../hooks/usePWA';
 import { DownloadCloud } from 'lucide-react';
 
@@ -69,7 +69,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
             >
               <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
               <span>{isInstalled ? 'Mason PWA App Mode Active' : 'Install Mason as Desktop / Mobile App (PWA)'}</span>
-              <span className="text-[10px] bg-cyan-900/60 px-1.5 py-0.2 rounded font-mono text-cyan-200">v0.24</span>
+              <span className="text-[10px] bg-cyan-900/60 px-1.5 py-0.2 rounded font-mono text-cyan-200">{MASON_VERSION_DISPLAY}</span>
             </button>
           </div>
         </div>

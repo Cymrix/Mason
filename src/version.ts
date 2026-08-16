@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.27
+ * Current Release: v0.28
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.26 -> v0.27 -> v0.28).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.27 -> v0.28 -> v0.29).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.27.0';
-export const MASON_VERSION_DISPLAY = 'v0.27';
-export const MASON_FULL_VERSION = 'v0.27';
+export const MASON_VERSION = '0.28.0';
+export const MASON_VERSION_DISPLAY = 'v0.28';
+export const MASON_FULL_VERSION = 'v0.28';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -31,6 +31,15 @@ export const getMasonVersionString = (revision?: number): string => {
  */
 export const MASON_RELEASE_HISTORY = [
   {
+    version: 'v0.28',
+    date: '2026-08-16',
+    changes: [
+      'Added primary Biome creation (+ New Biome) and deletion capabilities in Biome Studio',
+      'Aligned 64x64 tile overlays to render 1:1 directly over base tiles in autotile preview and level maps',
+      'Enforced crisp nearest-neighbor pixel art scaling globally across all canvas renders and image elements'
+    ]
+  },
+  {
     version: 'v0.27',
     date: '2026-08-16',
     changes: [
@@ -46,15 +55,6 @@ export const MASON_RELEASE_HISTORY = [
       'Standardized project bundle extension strictly to .mason',
       'Cleaned versioning display to v0.26 without alpha suffix',
       'Unified app title to strictly "Mason" across document, PWA manifest, and install prompts'
-    ]
-  },
-  {
-    version: 'v0.25',
-    date: '2026-08-16',
-    changes: [
-      'Enforced mandatory version increment protocol across all releases',
-      'Refined PWA prompt modal, standalone app installer, and direct browser guides',
-      'Added high-resolution vector and PNG app icons for desktop and mobile home screens'
     ]
   }
 ];

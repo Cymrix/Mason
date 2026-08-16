@@ -199,6 +199,9 @@ export function renderRefinedTileCell(
   neighborMask: AutotileNeighborMask,
   onImageLoaded?: () => void
 ) {
+  // Nearest neighbor pixel art smoothing
+  ctx.imageSmoothingEnabled = false;
+
   const pixelStep = 4; // 4px micro-blocks for smooth noise blending performance
 
   // Check if uploaded custom base textures exist
@@ -206,6 +209,7 @@ export function renderRefinedTileCell(
   const imgB = getCachedImage(tileType.baseMaterialBTextureUrl, onImageLoaded);
   const heightImg = getCachedImage(tileType.heightMapTextureUrl, onImageLoaded);
   const roughnessImg = getCachedImage(tileType.roughnessMapTextureUrl, onImageLoaded);
+  const surfaceOverlayImg = getCachedImage((tileType as any).overlayTextureUrl || (tileType as any).surfaceOverlayUrl, onImageLoaded);
 
   const fallbackColorA = tileType.baseMaterialA.albedoColor || tileType.mapColor || '#334155';
   const fallbackColorB = tileType.baseMaterialBAlbedoColor || '#64748b';
@@ -257,6 +261,13 @@ export function renderRefinedTileCell(
     }
   }
 
+  // 1b. Render full surface tile overlay if uploaded
+  if (surfaceOverlayImg) {
+    ctx.save();
+    ctx.drawImage(surfaceOverlayImg, 0, 0, surfaceOverlayImg.width, surfaceOverlayImg.height, screenX, screenY, tileSizePx, tileSizePx);
+    ctx.restore();
+  }
+
   // 2. Heightmap and Roughness Shading
   if (heightImg) {
     // Render heightmap overlay
@@ -289,12 +300,13 @@ export function renderRefinedTileCell(
   // 3. Composite Autotiling Overlays (Top, Left, Right, Bottom, and Inner Corners)
   const details = tileType.tileDetails;
 
-  // TOP Edge Overlay
+  // TOP Edge Overlay: 64x64 full overlay or thickness trim
   if (details.top.enabled && !neighborMask.hasTop) {
     const topImg = getCachedImage(details.top.overlayTextureUrl, onImageLoaded);
     const h = details.top.thicknessPx;
     if (topImg) {
-      ctx.drawImage(topImg, screenX, screenY, tileSizePx, h);
+      // Exactly over the top of base tiles (full 64x64 preview alignment)
+      ctx.drawImage(topImg, 0, 0, topImg.width, topImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
       ctx.fillStyle = details.top.color || 'rgba(255, 255, 255, 0.35)';
       ctx.fillRect(screenX, screenY, tileSizePx, h);
@@ -312,7 +324,7 @@ export function renderRefinedTileCell(
     const botImg = getCachedImage(details.bottom.overlayTextureUrl, onImageLoaded);
     const h = details.bottom.thicknessPx;
     if (botImg) {
-      ctx.drawImage(botImg, screenX, screenY + tileSizePx - h, tileSizePx, h);
+      ctx.drawImage(botImg, 0, 0, botImg.width, botImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
       ctx.fillStyle = details.bottom.color || 'rgba(0, 0, 0, 0.35)';
       ctx.fillRect(screenX, screenY + tileSizePx - h, tileSizePx, h);
@@ -324,7 +336,7 @@ export function renderRefinedTileCell(
     const leftImg = getCachedImage(details.leftSide.overlayTextureUrl, onImageLoaded);
     const w = details.leftSide.thicknessPx;
     if (leftImg) {
-      ctx.drawImage(leftImg, screenX, screenY, w, tileSizePx);
+      ctx.drawImage(leftImg, 0, 0, leftImg.width, leftImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
       ctx.fillStyle = details.leftSide.color || 'rgba(0, 0, 0, 0.2)';
       ctx.fillRect(screenX, screenY, w, tileSizePx);
@@ -336,7 +348,7 @@ export function renderRefinedTileCell(
     const rightImg = getCachedImage(details.rightSide.overlayTextureUrl, onImageLoaded);
     const w = details.rightSide.thicknessPx;
     if (rightImg) {
-      ctx.drawImage(rightImg, screenX + tileSizePx - w, screenY, w, tileSizePx);
+      ctx.drawImage(rightImg, 0, 0, rightImg.width, rightImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
       ctx.fillStyle = details.rightSide.color || 'rgba(0, 0, 0, 0.2)';
       ctx.fillRect(screenX + tileSizePx - w, screenY, w, tileSizePx);

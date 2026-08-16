@@ -101,6 +101,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    ctx.imageSmoothingEnabled = false;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // ==========================================

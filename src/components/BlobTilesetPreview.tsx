@@ -99,6 +99,8 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    ctx.imageSmoothingEnabled = false;
+
     canvas.width = matrixWidth;
     canvas.height = matrixHeight;
 
@@ -158,6 +160,8 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
 
     canvas.width = sandboxWidth;
     canvas.height = sandboxHeight;

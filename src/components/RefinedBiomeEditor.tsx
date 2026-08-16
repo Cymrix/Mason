@@ -10,6 +10,7 @@ import {
   DamageType
 } from '../engine/refinedBiomeSchema';
 import { INITIAL_REFINED_BIOMES } from '../engine/refinedBiomes';
+import { DEFAULT_PARALLAX_LAYERS } from '../engine/parallaxConfig';
 import { BlobTilesetPreview } from './BlobTilesetPreview';
 import { ParallaxLayersEditor } from './ParallaxLayersEditor';
 import { 
@@ -346,6 +347,98 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
     setSelectedTileTypeIndex(selectedBiome.tileTypes.length);
   };
 
+  // Handler: Add Brand New Biome
+  const handleAddNewBiome = () => {
+    const newId = `biome_${Date.now()}`;
+    const primaryTileId = `tile_${newId}_primary`;
+    const newBiome: RefinedBiome = {
+      id: newId,
+      name: 'New Custom Biome',
+      description: 'Custom regional strata with dual-noise blended materials and parallax backdrop.',
+      regionColor: '#10b981',
+      ambientBackgroundColor: '#0f172a',
+      atmosphereFogColor: '#1e293b',
+      atmosphereFogDensity: 0.2,
+      primaryTileTypeId: primaryTileId,
+      tileTypes: [
+        {
+          id: primaryTileId,
+          name: 'Primary Terrain Strata',
+          category: 'natural',
+          mapColor: '#10b981',
+          baseMaterialA: {
+            albedoColor: '#059669',
+            heightMapScale: 0.6,
+            roughness: 0.7,
+            normalStrength: 1.0
+          },
+          baseMaterialBAlbedoColor: '#34d399',
+          blendMap: {
+            noiseA: { scale: 32, octaves: 2, persistence: 0.5, lacunarity: 2.0, offset: { x: 0, y: 0 }, weight: 0.6 },
+            noiseB: { scale: 16, octaves: 2, persistence: 0.5, lacunarity: 2.0, offset: { x: 10, y: 10 }, weight: 0.4 },
+            blendThreshold: 0.5,
+            blendContrast: 1.2,
+            invert: false
+          },
+          tileDetails: {
+            top: { enabled: true, color: '#6ee7b7', thicknessPx: 6, noiseEdge: true },
+            bottom: { enabled: true, color: '#047857', thicknessPx: 4, noiseEdge: false },
+            leftSide: { enabled: false, thicknessPx: 3, noiseEdge: false },
+            rightSide: { enabled: false, thicknessPx: 3, noiseEdge: false }
+          },
+          isDestructible: true,
+          health: 100,
+          defense_type: 'kinetic',
+          armor_deduction: 5,
+          damage_affinities: { kinetic: 1.0, thermal: 1.0 },
+          shares_damage_overlay: true,
+          traversal_tags: [],
+          speed_modifier: 1.0
+        }
+      ],
+      environmentalDetails: [],
+      interactiveDetails: [],
+      wildlife: [],
+      soundtrack: {
+        ambientExplorationTrack: 'synth_droning_echoes.mp3',
+        combatTrack: 'heavy_percussion_tension.mp3',
+        reverbDecaySeconds: 1.2,
+        windIntensity: 0.3
+      },
+      noiseRules: {
+        macroScale: 48,
+        elevationRange: [0.0, 1.0],
+        moistureRange: [0.0, 1.0]
+      },
+      parallaxLayers: DEFAULT_PARALLAX_LAYERS.mourne_ashen_steppes ? JSON.parse(JSON.stringify(DEFAULT_PARALLAX_LAYERS.mourne_ashen_steppes)) : []
+    };
+
+    onUpdateBiomes([...biomes, newBiome]);
+    setSelectedBiomeId(newId);
+    setSelectedTileTypeIndex(0);
+  };
+
+  // Handler: Delete Biome
+  const handleDeleteBiome = (biomeIdToDelete: string) => {
+    if (biomes.length <= 1) {
+      alert('Cannot delete the last remaining biome. Projects must contain at least one regional biome.');
+      return;
+    }
+
+    const targetBiome = biomes.find(b => b.id === biomeIdToDelete);
+    if (!targetBiome) return;
+
+    if (window.confirm(`Are you sure you want to delete the biome "${targetBiome.name}"? This action cannot be undone.`)) {
+      const remaining = biomes.filter(b => b.id !== biomeIdToDelete);
+      onUpdateBiomes(remaining);
+
+      if (selectedBiomeId === biomeIdToDelete) {
+        setSelectedBiomeId(remaining[0].id);
+        setSelectedTileTypeIndex(0);
+      }
+    }
+  };
+
   return (
     <div className="flex h-full w-full bg-neutral-950 text-neutral-100 overflow-hidden select-none">
       
@@ -359,20 +452,30 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             </h2>
             <p className="text-[11px] text-neutral-400 mt-0.5">Multi-Tile, Dual-Noise PBR Strata</p>
           </div>
-          <button
-            onClick={() => {
-              const newId = `biome_${Date.now()}`;
-              const cloned = JSON.parse(JSON.stringify(selectedBiome)) as RefinedBiome;
-              cloned.id = newId;
-              cloned.name = `${selectedBiome.name} (Copy)`;
-              onUpdateBiomes([...biomes, cloned]);
-              setSelectedBiomeId(newId);
-            }}
-            className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow border border-neutral-700"
-            title="Duplicate selected Biome"
-          >
-            <Copy size={13} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleAddNewBiome}
+              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow"
+              title="Add New Biome"
+            >
+              <Plus size={13} />
+              <span>New</span>
+            </button>
+            <button
+              onClick={() => {
+                const newId = `biome_${Date.now()}`;
+                const cloned = JSON.parse(JSON.stringify(selectedBiome)) as RefinedBiome;
+                cloned.id = newId;
+                cloned.name = `${selectedBiome.name} (Copy)`;
+                onUpdateBiomes([...biomes, cloned]);
+                setSelectedBiomeId(newId);
+              }}
+              className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow border border-neutral-700"
+              title="Duplicate selected Biome"
+            >
+              <Copy size={13} />
+            </button>
+          </div>
         </div>
 
         {/* Biome List */}
@@ -388,28 +491,43 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                   setSelectedBiomeId(biome.id);
                   setSelectedTileTypeIndex(0);
                 }}
-                className={`p-3 rounded-xl border text-left cursor-pointer transition-all duration-150 flex flex-col gap-1.5 relative ${
+                className={`p-3 rounded-xl border text-left cursor-pointer transition-all duration-150 flex flex-col gap-1.5 relative group ${
                   isSelected
                     ? 'border-emerald-500 bg-emerald-950/30 ring-1 ring-emerald-500/50'
                     : 'border-neutral-800/80 bg-neutral-950/60 hover:border-neutral-700 hover:bg-neutral-800/40'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <div 
-                      className="w-4 h-4 rounded-md border border-white/20 shadow-sm"
+                      className="w-4 h-4 rounded-md border border-white/20 shadow-sm shrink-0"
                       style={{ backgroundColor: biome.regionColor }}
                     />
-                    <span className="font-semibold text-xs text-neutral-200 truncate max-w-[130px]">
+                    <span className="font-semibold text-xs text-neutral-200 truncate">
                       {biome.name}
                     </span>
                   </div>
 
-                  {isPainting && (
-                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono font-semibold">
-                      ACTIVE
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isPainting && (
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono font-semibold">
+                        ACTIVE
+                      </span>
+                    )}
+                    {biomes.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteBiome(biome.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-400 hover:bg-red-950/40 rounded transition"
+                        title="Delete Biome"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between text-[10px] text-neutral-500 pt-1 border-t border-neutral-800/60">
@@ -462,6 +580,18 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                 className="w-5 h-5 rounded cursor-pointer bg-transparent border border-neutral-700 ml-1"
               />
             </div>
+
+            {biomes.length > 1 && (
+              <button
+                type="button"
+                onClick={() => handleDeleteBiome(selectedBiome.id)}
+                className="px-3 py-1.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-800 hover:border-red-500/50 text-neutral-400 hover:text-red-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                title="Delete this Biome"
+              >
+                <Trash2 size={13} />
+                <span>Delete Biome</span>
+              </button>
+            )}
           </div>
         </div>
 

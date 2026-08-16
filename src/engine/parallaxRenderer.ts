@@ -34,6 +34,7 @@ export function renderParallaxLayer(
   if (layer.opacity <= 0.001) return;
 
   ctx.save();
+  ctx.imageSmoothingEnabled = false;
   ctx.globalAlpha = layer.opacity;
 
   // Calculate parallax offset based on camera pan and layer speed factors

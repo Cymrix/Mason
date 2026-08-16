@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.35
+ * Current Release: v0.36
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.35.0';
-export const MASON_VERSION_DISPLAY = 'v0.35';
-export const MASON_FULL_VERSION = 'v0.35';
+export const MASON_VERSION = '0.36.0';
+export const MASON_VERSION_DISPLAY = 'v0.36';
+export const MASON_FULL_VERSION = 'v0.36';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.36',
+    date: '2026-08-16',
+    changes: [
+      'Regenerated 100% compliant, pristine PNG icons (192x192, 512x512, 512x512 maskable) fixing corrupted IHDR bytes',
+      'Updated web manifest with PWA id, display_override, prefer_related_applications, and wide desktop screenshot',
+      'Updated index.html with explicit 192px/512px PNG and SVG favicon & apple-touch-icon links',
+      'Updated Service Worker cache (v0.36) to precache all high-res PWA PNG icons and screenshots for offline installability'
+    ]
+  },
   {
     version: 'v0.35',
     date: '2026-08-16',

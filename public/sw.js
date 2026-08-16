@@ -1,9 +1,13 @@
-const CACHE_NAME = 'mason-v0.35';
+const CACHE_NAME = 'mason-v0.36';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable.png',
+  '/screenshot-desktop.png',
   '/modules/maps/index.html',
   '/modules/biomes/index.html',
   '/modules/archetypes/index.html',

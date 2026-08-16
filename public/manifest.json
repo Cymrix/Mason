@@ -1,10 +1,13 @@
 {
-  "name": "Mason",
+  "id": "/?source=pwa",
+  "name": "Mason — 2D Metroidvania World Studio",
   "short_name": "Mason",
   "description": "Modular 2D Metroidvania & Sidescroller world authoring system with mini-apps",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui", "browser"],
+  "prefer_related_applications": false,
   "background_color": "#0a0a0a",
   "theme_color": "#06b6d4",
   "orientation": "any",
@@ -33,6 +36,15 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Mason Studio Workspace"
     }
   ],
   "shortcuts": [

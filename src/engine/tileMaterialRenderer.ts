@@ -229,6 +229,49 @@ export function drawWorldAlignedTexture(
 }
 
 /**
+ * Safe helper to draw a wrapped pixel block from an image onto canvas without boundary clipping or transparent border artifacts
+ */
+export function drawWrappedImageBlock(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  worldX: number,
+  worldY: number,
+  blockSize: number,
+  destX: number,
+  destY: number
+) {
+  const w = img.width;
+  const h = img.height;
+  if (w <= 0 || h <= 0) return;
+
+  const sx = ((worldX % w) + w) % w;
+  const sy = ((worldY % h) + h) % h;
+
+  const sw = Math.min(blockSize, w - sx);
+  const sh = Math.min(blockSize, h - sy);
+
+  // Main block
+  ctx.drawImage(img, sx, sy, sw, sh, destX, destY, sw, sh);
+
+  // Horizontal wrap if block overflows right edge
+  if (sw < blockSize) {
+    const remW = blockSize - sw;
+    ctx.drawImage(img, 0, sy, remW, sh, destX + sw, destY, remW, sh);
+  }
+
+  // Vertical wrap if block overflows bottom edge
+  if (sh < blockSize) {
+    const remH = blockSize - sh;
+    ctx.drawImage(img, sx, 0, sw, remH, destX, destY + sh, sw, remH);
+
+    if (sw < blockSize) {
+      const remW = blockSize - sw;
+      ctx.drawImage(img, 0, 0, remW, remH, destX + sw, destY + sh, remW, remH);
+    }
+  }
+}
+
+/**
  * Render a full tile cell with world-aligned repeating dual base materials,
  * dual-noise blend map, uploaded textures / procedural fallbacks, and composite autotiling edge overlays.
  */
@@ -258,47 +301,39 @@ export function renderRefinedTileCell(
   const fallbackColorA = tileType.baseMaterialA.albedoColor || tileType.mapColor || '#334155';
   const fallbackColorB = tileType.baseMaterialBAlbedoColor || '#64748b';
 
-  // 1. Render World-Aligned Repeating Base Material Blend (Base A vs Base B)
-  if (imgA && imgB) {
-    // Draw Base A first with world-aligned texture repeating
-    ctx.save();
+  // 1. Render World-Aligned Base Material A across the entire tile
+  ctx.save();
+  if (imgA) {
     drawWorldAlignedTexture(ctx, imgA, tileX, tileY, screenX, screenY, tileSizePx);
+  } else {
+    ctx.fillStyle = fallbackColorA;
+    ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx);
+  }
 
-    // Alpha mask blend Base B with dual noise
+  // 1a. Alpha-blend Base Material B over Material A using Dual-Noise Map
+  const hasMaterialB = !!imgB || (!!tileType.baseMaterialBAlbedoColor && tileType.baseMaterialBAlbedoColor !== fallbackColorA);
+
+  if (hasMaterialB) {
     for (let py = 0; py < tileSizePx; py += pixelStep) {
       for (let px = 0; px < tileSizePx; px += pixelStep) {
         const worldPixelX = tileX * tileSizePx + px;
         const worldPixelY = tileY * tileSizePx + py;
+
         const blendWeightB = evaluateDualNoiseBlend(worldPixelX, worldPixelY, tileType.blendMap);
-        if (blendWeightB > 0.1) {
+
+        if (blendWeightB > 0.001) {
           ctx.globalAlpha = blendWeightB;
-          const sbx = ((worldPixelX % imgB.width) + imgB.width) % imgB.width;
-          const sby = ((worldPixelY % imgB.height) + imgB.height) % imgB.height;
-          ctx.drawImage(imgB, sbx, sby, pixelStep, pixelStep, screenX + px, screenY + py, pixelStep, pixelStep);
+          if (imgB) {
+            drawWrappedImageBlock(ctx, imgB, worldPixelX, worldPixelY, pixelStep, screenX + px, screenY + py);
+          } else {
+            ctx.fillStyle = fallbackColorB;
+            ctx.fillRect(screenX + px, screenY + py, pixelStep, pixelStep);
+          }
         }
       }
     }
-    ctx.restore();
-  } else if (imgA) {
-    // If only image A is uploaded, draw with world-aligned texture repeating
-    ctx.save();
-    drawWorldAlignedTexture(ctx, imgA, tileX, tileY, screenX, screenY, tileSizePx);
-    ctx.restore();
-  } else {
-    // Procedural Dual-Noise Color Blend
-    for (let py = 0; py < tileSizePx; py += pixelStep) {
-      for (let px = 0; px < tileSizePx; px += pixelStep) {
-        const worldPixelX = tileX * tileSizePx + px;
-        const worldPixelY = tileY * tileSizePx + py;
-
-        const blendWeightB = evaluateDualNoiseBlend(worldPixelX, worldPixelY, tileType.blendMap);
-        const blendedColor = interpolateHexColor(fallbackColorA, fallbackColorB, blendWeightB);
-
-        ctx.fillStyle = blendedColor;
-        ctx.fillRect(screenX + px, screenY + py, pixelStep, pixelStep);
-      }
-    }
   }
+  ctx.restore();
 
   // 1b. Render full surface tile overlay if uploaded
   if (surfaceOverlayImg) {

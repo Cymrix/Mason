@@ -27,7 +27,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   onUpdateTileType
 }) => {
   const [viewMode, setViewMode] = useState<'matrix' | 'sandbox' | 'diagnostics'>('matrix');
-  const [tileSize, setTileSize] = useState<number>(48);
+  const tileSize = 64;
   const [showGrid, setShowGrid] = useState<boolean>(true);
   const [hoveredTileDef, setHoveredTileDef] = useState<BlobTileDefinition | null>(null);
 
@@ -369,28 +369,6 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
       {/* Control Toolstrip */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
         <div className="flex items-center gap-3">
-          <span className="text-slate-400 font-medium">Tile Scale:</span>
-          <div className="flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-750">
-            <button
-              onClick={() => setTileSize(32)}
-              className={`px-2 py-0.5 rounded ${tileSize === 32 ? 'bg-cyan-500/20 text-cyan-300 font-bold' : 'text-slate-400'}`}
-            >
-              32px
-            </button>
-            <button
-              onClick={() => setTileSize(48)}
-              className={`px-2 py-0.5 rounded ${tileSize === 48 ? 'bg-cyan-500/20 text-cyan-300 font-bold' : 'text-slate-400'}`}
-            >
-              48px
-            </button>
-            <button
-              onClick={() => setTileSize(64)}
-              className={`px-2 py-0.5 rounded ${tileSize === 64 ? 'bg-cyan-500/20 text-cyan-300 font-bold' : 'text-slate-400'}`}
-            >
-              64px (PBR)
-            </button>
-          </div>
-
           <label className="flex items-center gap-1.5 text-slate-300 cursor-pointer select-none">
             <input
               type="checkbox"

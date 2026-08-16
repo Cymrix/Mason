@@ -22,20 +22,38 @@ export function useCanvasPanZoom(options: PanZoomOptions = {}) {
   const [isPanning, setIsPanning] = useState<boolean>(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
+
+  // Callback ref that updates containerNode state so useEffect re-binds wheel events when container mounts or switches
+  const setRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    setContainerNode(node);
+  }, []);
+
+  // Backwards compatibility getter/setter for containerRef.current
+  const combinedRef = React.useMemo(() => {
+    const fn = (node: HTMLDivElement | null) => setRef(node);
+    Object.defineProperty(fn, 'current', {
+      get() { return containerRef.current; },
+      set(val: HTMLDivElement | null) { setRef(val); },
+      configurable: true
+    });
+    return fn as unknown as React.RefObject<HTMLDivElement>;
+  }, [setRef]);
+
   const isDraggingRef = useRef<boolean>(false);
   const startMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const startPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Handle non-passive wheel event to zoom centered on mouse cursor
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    if (!containerNode) return;
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
 
-      const rect = container.getBoundingClientRect();
+      const rect = containerNode.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
@@ -59,9 +77,9 @@ export function useCanvasPanZoom(options: PanZoomOptions = {}) {
       });
     };
 
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, [minScale, maxScale, zoomSensitivity]);
+    containerNode.addEventListener('wheel', handleWheel, { passive: false });
+    return () => containerNode.removeEventListener('wheel', handleWheel);
+  }, [containerNode, minScale, maxScale, zoomSensitivity]);
 
   // Window mouse move & up listeners for smooth right-click panning even if cursor leaves container
   useEffect(() => {
@@ -170,7 +188,7 @@ export function useCanvasPanZoom(options: PanZoomOptions = {}) {
     scale,
     pan,
     isPanning,
-    containerRef,
+    containerRef: combinedRef,
     handleMouseDown,
     handleContextMenu,
     resetView,

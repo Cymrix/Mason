@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.30
+ * Current Release: v0.31
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.29 -> v0.30 -> v0.31).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.30.0';
-export const MASON_VERSION_DISPLAY = 'v0.30';
-export const MASON_FULL_VERSION = 'v0.30';
+export const MASON_VERSION = '0.31.0';
+export const MASON_VERSION_DISPLAY = 'v0.31';
+export const MASON_FULL_VERSION = 'v0.31';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -31,6 +31,15 @@ export const getMasonVersionString = (revision?: number): string => {
  */
 export const MASON_RELEASE_HISTORY = [
   {
+    version: 'v0.31',
+    date: '2026-08-16',
+    changes: [
+      'Fixed mouse wheel cursor-centered zoom in Biome Studio blob matrix and live sandbox preview',
+      'Hardcoded tile size to 64px and removed tile scale UI selectors from Biome preview',
+      'Fixed Base Material B albedo texture wrapping to support 100% full opacity blending'
+    ]
+  },
+  {
     version: 'v0.30',
     date: '2026-08-16',
     changes: [
@@ -44,15 +53,6 @@ export const MASON_RELEASE_HISTORY = [
     changes: [
       'Removed "MENU" text label from the main hamburger trigger button',
       'Automatically hide PWA install buttons once the application is running in installed mode'
-    ]
-  },
-  {
-    version: 'v0.28',
-    date: '2026-08-16',
-    changes: [
-      'Added primary Biome creation (+ New Biome) and deletion capabilities in Biome Studio',
-      'Aligned 64x64 tile overlays to render 1:1 directly over base tiles in autotile preview and level maps',
-      'Enforced crisp nearest-neighbor pixel art scaling globally across all canvas renders and image elements'
     ]
   }
 ];

@@ -1,38 +1,47 @@
 {
-  "id": "/?source=pwa",
+  "id": ".",
   "name": "Mason — 2D Metroidvania World Studio",
   "short_name": "Mason",
   "description": "Modular 2D Metroidvania & Sidescroller world authoring system with mini-apps",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui", "browser"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
   "prefer_related_applications": false,
   "background_color": "#0a0a0a",
   "theme_color": "#06b6d4",
   "orientation": "any",
-  "categories": ["developer", "games", "productivity"],
+  "categories": [
+    "developer",
+    "games",
+    "productivity"
+  ],
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "./icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "./icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-maskable.png",
+      "src": "./icon-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/favicon.svg",
+      "src": "./favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
@@ -40,7 +49,7 @@
   ],
   "screenshots": [
     {
-      "src": "/screenshot-desktop.png",
+      "src": "./screenshot-desktop.png",
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
@@ -52,15 +61,25 @@
       "name": "New Project",
       "short_name": "New",
       "description": "Create a new Metroidvania project in Mason",
-      "url": "/?action=new",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "url": "./?action=new",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "1px:1tile Studio",
       "short_name": "Macro",
       "description": "Launch procedural biome macro studio",
-      "url": "/?action=macro",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "url": "./?action=macro",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

@@ -107,14 +107,29 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const logicalMapWidth = mapData.width * TILE_SIZE;
   const logicalMapHeight = mapData.height * TILE_SIZE;
 
-  // Auto-center content on initial mount
-  const hasAutoCentered = useRef(false);
+  const handleFitMap = React.useCallback(() => {
+    const bounds = calculateMapBounds(mapData);
+    const minX = bounds.minX;
+    const maxX = bounds.maxX;
+    const minY = bounds.minY;
+    const maxY = bounds.maxY;
+
+    const mapPixelWidth = (maxX - minX + 1) * TILE_SIZE;
+    const mapPixelHeight = (maxY - minY + 1) * TILE_SIZE;
+    const originPixelX = minX * TILE_SIZE;
+    const originPixelY = minY * TILE_SIZE;
+
+    fitContent(mapPixelWidth, mapPixelHeight, 48, originPixelX, originPixelY);
+  }, [mapData, fitContent]);
+
+  // Auto-fit chunks on initial mount or map change
+  const lastMapIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!hasAutoCentered.current && containerRef.current) {
-      hasAutoCentered.current = true;
-      centerContent(logicalMapWidth, logicalMapHeight, 0.75);
+    if (containerRef.current && lastMapIdRef.current !== mapData.id) {
+      lastMapIdRef.current = mapData.id;
+      handleFitMap();
     }
-  }, [canvasWidth, canvasHeight, centerContent]);
+  }, [mapData.id, handleFitMap, canvasWidth, canvasHeight]);
 
   // Biome and TileType lookup caches
   const { biomeMap, tileTypeMap, envDetailMap, interactiveDetailMap, wildlifeMap } = React.useMemo(() => {
@@ -544,21 +559,6 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   };
 
     const lastTileCoordRef = useRef<{ x: number; y: number } | null>(null);
-
-  const handleFitMap = React.useCallback(() => {
-    const bounds = calculateMapBounds(mapData);
-    const minX = bounds.minX;
-    const maxX = bounds.maxX;
-    const minY = bounds.minY;
-    const maxY = bounds.maxY;
-
-    const mapPixelWidth = Math.max((maxX - minX + 1) * TILE_SIZE, (mapData.width || 32) * TILE_SIZE);
-    const mapPixelHeight = Math.max((maxY - minY + 1) * TILE_SIZE, (mapData.height || 24) * TILE_SIZE);
-    const originPixelX = Math.min(minX * TILE_SIZE, 0);
-    const originPixelY = Math.min(minY * TILE_SIZE, 0);
-
-    fitContent(mapPixelWidth, mapPixelHeight, 48, originPixelX, originPixelY);
-  }, [mapData, fitContent]);
 
   // Window-level pointer release to prevent stuck drawing
   useEffect(() => {

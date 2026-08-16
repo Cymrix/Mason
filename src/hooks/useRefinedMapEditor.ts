@@ -223,7 +223,7 @@ export const useRefinedMapEditor = () => {
         if (activeTool === 'chunk_delete') {
           if (newMap.chunks && newMap.chunks[key]) {
             delete newMap.chunks[key];
-            globalChunkCache.invalidateCell(centerX, centerY);
+            globalChunkCache.invalidateMap(newMap.id);
           }
         } else if (activeTool === 'chunk_add') {
           if (!newMap.chunks) newMap.chunks = {};
@@ -233,9 +233,13 @@ export const useRefinedMapEditor = () => {
               tile_type_id: '',
               current_health: 100,
               damage_threshold_index: 0,
-              shape: 'block'
+              shape: 'full',
+              fullness: 1.0,
+              environmental_detail_id: null,
+              interactive_detail_id: null,
+              wildlife_id: null
             }));
-            globalChunkCache.invalidateCell(centerX, centerY);
+            globalChunkCache.invalidateMap(newMap.id);
           }
         }
         return newMap;

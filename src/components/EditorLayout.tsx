@@ -275,6 +275,70 @@ export const EditorLayout: React.FC = () => {
             }
           }
 
+          if (activeTool === 'chunk_add' || activeTool === 'chunk_delete') {
+            const processedChunks = new Set<string>();
+
+            for (const pt of pointsToApply) {
+              const chunkX = Math.floor(pt.x / 16);
+              const chunkY = Math.floor(pt.y / 16);
+              const chunkKey = `${chunkX},${chunkY}`;
+
+              if (processedChunks.has(chunkKey)) continue;
+              processedChunks.add(chunkKey);
+
+              if (activeTool === 'chunk_add') {
+                if (!newChunks[chunkKey]) {
+                  newChunks[chunkKey] = new Array(256).fill(null).map(() => ({
+                    biome_id: activeBiome.id,
+                    tile_type_id: '',
+                    current_health: 100,
+                    damage_threshold_index: 0,
+                    shape: 'full',
+                    fullness: 1.0,
+                    environmental_detail_id: null,
+                    interactive_detail_id: null,
+                    wildlife_id: null
+                  }));
+                }
+              } else if (activeTool === 'chunk_delete') {
+                if (newChunks[chunkKey]) {
+                  delete newChunks[chunkKey];
+                }
+                if (newCells) {
+                  for (let cy = chunkY * 16; cy < (chunkY + 1) * 16; cy++) {
+                    if (newCells[cy]) {
+                      for (let cx = chunkX * 16; cx < (chunkX + 1) * 16; cx++) {
+                        if (newCells[cy][cx]) {
+                          newCells[cy][cx] = {
+                            biome_id: activeBiome.id,
+                            tile_type_id: '',
+                            current_health: 100,
+                            damage_threshold_index: 0,
+                            shape: 'full',
+                            fullness: 1.0,
+                            environmental_detail_id: null,
+                            interactive_detail_id: null,
+                            wildlife_id: null
+                          };
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            globalChunkCache.invalidateMap(m.id);
+
+            return {
+              ...m,
+              updatedAt: new Date().toISOString(),
+              cells: newCells,
+              chunks: newChunks,
+              ...(m.data ? { data: { ...m.data, chunks: newChunks } } : {})
+            };
+          }
+
           const dummyMap: RefinedMapData = {
             id: m.id,
             name: m.name,

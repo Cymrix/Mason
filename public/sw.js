@@ -1,19 +1,19 @@
 const CACHE_NAME = 'mason-v0.36';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-maskable.png',
-  '/screenshot-desktop.png',
-  '/modules/maps/index.html',
-  '/modules/biomes/index.html',
-  '/modules/archetypes/index.html',
-  '/modules/ui/index.html',
-  '/modules/gamestructure/index.html',
-  '/modules/macro/index.html'
+  '.',
+  './index.html',
+  './manifest.json',
+  './favicon.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable.png',
+  './screenshot-desktop.png',
+  './modules/maps/index.html',
+  './modules/biomes/index.html',
+  './modules/archetypes/index.html',
+  './modules/ui/index.html',
+  './modules/gamestructure/index.html',
+  './modules/macro/index.html'
 ];
 
 // Install Event
@@ -77,7 +77,7 @@ self.addEventListener('fetch', (event) => {
         .catch((error) => {
           // If offline and request is navigation, return cached root or index
           if (event.request.mode === 'navigate') {
-            return caches.match('/index.html') || cachedResponse;
+            return caches.match('./index.html') || cachedResponse;
           }
           return cachedResponse;
         });

@@ -6,7 +6,7 @@ export const registerServiceWorker = () => {
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
-        .register('/sw.js')
+        .register(import.meta.env.BASE_URL + 'sw.js')
         .then((reg) => {
           console.log('[Mason PWA] Service Worker registered with scope:', reg.scope);
 

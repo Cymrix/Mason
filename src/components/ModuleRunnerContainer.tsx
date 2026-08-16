@@ -17,6 +17,11 @@ import {
 // Child module views
 import { ArchetypeEditor } from './ArchetypeEditor';
 import { UIThemeModule } from './UIThemeModule';
+import { RefinedBiomeEditor } from './RefinedBiomeEditor';
+import { GameStructureModule } from './GameStructureModule';
+import { BiomeMacroMapModal } from './BiomeMacroMapModal';
+import { RefinedBiome } from '../engine/refinedBiomeSchema';
+import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle } from '../engine/metroidvaniaGenerator';
 
 interface ModuleRunnerContainerProps {
   moduleId: string;
@@ -91,6 +96,53 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
 
   const activeFileName = getActiveFileName();
 
+  const biomesList: RefinedBiome[] = project.fileSystem.biomes.map(b => b.biomeData);
+  const currentMapFile = project.fileSystem.maps.find(m => m.fileName === project.activeFiles.mapFileName) || project.fileSystem.maps[0];
+
+  const handleUpdateBiomes = (updatedBiomes: RefinedBiome[]) => {
+    onUpdateProject({
+      ...project,
+      fileSystem: {
+        ...project.fileSystem,
+        biomes: updatedBiomes.map(b => {
+          const existing = project.fileSystem.biomes.find(f => f.biomeData.id === b.id);
+          return {
+            id: b.id,
+            fileName: existing?.fileName || `${b.id}.biome`,
+            subfolder: 'biomes',
+            updatedAt: new Date().toISOString(),
+            biomeData: b
+          };
+        })
+      }
+    });
+  };
+
+  const handleApplyMacroToLevel = (matrix: BiomeAllocationMatrix, layoutStyle: MetroidvaniaLayoutStyle) => {
+    if (!currentMapFile) return;
+    const generated = buildMapFromBiomeMatrix(matrix, biomesList, layoutStyle);
+    
+    onUpdateProject({
+      ...project,
+      fileSystem: {
+        ...project.fileSystem,
+        maps: project.fileSystem.maps.map(m => {
+          if (m.fileName === currentMapFile.fileName) {
+            return {
+              ...m,
+              width: generated.width,
+              height: generated.height,
+              cells: generated.cells,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return m;
+        })
+      }
+    });
+    onBackToProjectInfo();
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-neutral-950 select-none">
       
@@ -140,7 +192,7 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
                   : 'text-neutral-400 hover:text-neutral-200'
               }`}
             >
-              Interactive
+              Interactive Engine
             </button>
             <button
               type="button"
@@ -151,7 +203,7 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
                   : 'text-neutral-400 hover:text-neutral-200'
               }`}
             >
-              HTML Mini-App
+              Standalone App
             </button>
           </div>
 
@@ -191,7 +243,7 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
           />
         ) : (
           // Interactive Full-Engine React View
-          <>
+          <div className="w-full h-full flex flex-col overflow-hidden">
             {moduleId === 'archetypes' && (
               <ArchetypeEditor
                 project={project}
@@ -206,18 +258,49 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
                 onOpenFiles={onOpenExplorer}
               />
             )}
-            {moduleId !== 'archetypes' && moduleId !== 'ui' && (
-              // For other modules in interactive mode, we load the mini-app runner with full message sync
-              <iframe
-                key={`interactive_${iframeKey}`}
-                ref={iframeRef}
-                src={modDef.entryHtml}
-                onLoad={handleIframeLoad}
-                title={modDef.name}
-                className="w-full h-full border-none bg-neutral-950"
+            {moduleId === 'biomes' && (
+              <RefinedBiomeEditor
+                biomes={biomesList}
+                onUpdateBiomes={handleUpdateBiomes}
               />
             )}
-          </>
+            {moduleId === 'gamestructure' && (
+              <GameStructureModule
+                project={project}
+                onUpdateProject={(updater) => onUpdateProject(updater(project))}
+                onNavigateToModule={(modId) => {
+                  onOpenModulesModal();
+                }}
+              />
+            )}
+            {moduleId === 'macro' && (
+              <BiomeMacroMapModal
+                isOpen={true}
+                onClose={onBackToProjectInfo}
+                biomes={biomesList}
+                currentWidth={currentMapFile?.width || 32}
+                currentHeight={currentMapFile?.height || 24}
+                onApplyToLevel={handleApplyMacroToLevel}
+              />
+            )}
+            {moduleId === 'maps' && (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-neutral-300 gap-4">
+                <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-400 text-center max-w-md">
+                  <h3 className="font-bold text-base text-white">Map & Tilemap Editor</h3>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    Edit levels, rooms, and terrain strata in the main level canvas.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onBackToProjectInfo}
+                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs transition"
+                >
+                  Return to Main Editor Canvas
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

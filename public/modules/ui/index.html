@@ -3,13 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mason — HUD & UI Theme Forge (modules/ui)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Mason — HUD & UI Theme Forge</title>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: #09090b;
       color: #f4f4f5;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
     }
   </style>
 </head>

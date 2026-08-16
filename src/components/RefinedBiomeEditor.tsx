@@ -910,8 +910,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           label="Top Edge Overlay Trim"
                           badge="Top"
                           imageUrl={selectedTileType.tileDetails.top.overlayTextureUrl}
-                          fallbackColor="#052e16"
-                          fallbackText="Top"
+                          
                           accentColor="emerald"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
@@ -936,8 +935,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           label="Bottom Edge Trim"
                           badge="Bottom"
                           imageUrl={selectedTileType.tileDetails.bottom.overlayTextureUrl}
-                          fallbackColor="#1e1e1e"
-                          fallbackText="Bottom"
+                          
                           accentColor="purple"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
@@ -962,8 +960,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           label="Left Wall Trim"
                           badge="Left"
                           imageUrl={selectedTileType.tileDetails.leftSide.overlayTextureUrl}
-                          fallbackColor="#2d2d2d"
-                          fallbackText="Left"
+                          
                           accentColor="blue"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
@@ -988,8 +985,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           label="Right Wall Trim"
                           badge="Right"
                           imageUrl={selectedTileType.tileDetails.rightSide.overlayTextureUrl}
-                          fallbackColor="#2d2d2d"
-                          fallbackText="Right"
+                          
                           accentColor="blue"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
@@ -1009,13 +1005,13 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
 
                       {/* Slope Overlay */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Slope Overlay</span></div>
+                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Slope Overlay <span className="text-neutral-500 font-normal">(Auto-Rotates)</span></span></div>
                         <ImageUploadThumbnailField
                           label="45° Slope Trim"
                           badge="Slope"
+                          sublabel="Upload a 45° Up-Right slope (◢). The engine will automatically rotate/flip it for all other slope angles."
                           imageUrl={(selectedTileType.tileDetails as any).slope?.overlayTextureUrl}
-                          fallbackColor="#2c1a1a"
-                          fallbackText="Slope"
+                          
                           accentColor="orange"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
@@ -1040,8 +1036,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           label="Inside Corner Trim"
                           badge="Inner"
                           imageUrl={(selectedTileType.tileDetails as any).innerCorner?.overlayTextureUrl}
-                          fallbackColor="#1e1e38"
-                          fallbackText="Inner"
+                          
                           accentColor="emerald"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({

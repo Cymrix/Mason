@@ -14,8 +14,8 @@ import { renderRefinedTileCell } from './tileMaterialRenderer';
 import { TileShape } from './tileShape';
 import { drawThresholdCrackMask } from './heightBlendShader';
 
-export const CHUNK_SIZE = 16; // 16x16 tiles = 1024x1024px per chunk
-export const MAX_CACHED_CHUNKS = 64; // Retain up to 64 loaded chunk textures (~64MB-128MB max texture footprint)
+export const CHUNK_SIZE = 32; // 32x32 tiles (at 16px = 512x512px per chunk)
+export const MAX_CACHED_CHUNKS = 128; // Retain up to 128 loaded chunk textures (~64MB-128MB max texture footprint)
 
 export interface ChunkKey {
   chunkX: number;

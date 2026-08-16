@@ -1,5 +1,5 @@
 import { BiomeTileType, DualNoiseBlendMapConfig } from './refinedBiomeSchema';
-import { TileShape, buildTileShapePath } from './tileShape';
+import { TileShape, buildTileShapePath, TILE_SHAPE_DEFINITIONS } from './tileShape';
 
 // Global texture cache for uploaded images (data URLs or URLs)
 const imageCache: Map<string, HTMLImageElement> = new Map();
@@ -320,7 +320,8 @@ export function renderPureAlbedoCell(
     ctx.clip();
   }
 
-  const pixelStep = 4; // 4px micro-blocks for smooth noise blending performance
+  // Micro-step adapts to resolution (1px for 16px tiles for razor-sharp pixel art)
+  const pixelStep = tileSizePx <= 24 ? 1 : (tileSizePx <= 48 ? 2 : 4);
 
   // Check if uploaded custom base textures exist
   const imgA = getCachedImage(tileType.baseMaterialA.albedoTextureUrl, onImageLoaded);
@@ -405,7 +406,7 @@ export function renderPureAlbedoCell(
 }
 
 /**
- * Helper to render sloped diagonal trim fringes along ramp hypotenuse
+ * Helper to render sloped diagonal and trimmed edge fringes along shape boundaries
  */
 export function drawSlopedEdgeTrim(
   ctx: CanvasRenderingContext2D,
@@ -416,69 +417,59 @@ export function drawSlopedEdgeTrim(
   tileType: BiomeTileType,
   fullness: number = 1.0
 ) {
-  const details = tileType.tileDetails.top;
-  if (!details.enabled) return;
+  // Try to use the dedicated slope overlay; if missing/disabled, fallback to the top overlay
+  const slopeDetails = (tileType.tileDetails as any).slope;
+  const details = (slopeDetails && (slopeDetails.overlayTextureUrl || slopeDetails.color)) ? slopeDetails : tileType.tileDetails.top;
+    
+  if (!details || (!details.overlayTextureUrl && !details.color)) return;
+
+  const def = TILE_SHAPE_DEFINITIONS[shape];
+  if (!def || !def.trimEdge) return;
 
   const f = Math.max(0.05, Math.min(1.0, fullness));
-  const topYOffset = tileSizePx * (1.0 - f);
   const color = details.color || 'rgba(255, 255, 255, 0.35)';
   const thickness = details.thicknessPx || 4;
+
+  const [nx0, ny0, nx1, ny1] = def.trimEdge;
+  const isCeil = shape.includes('top') || shape.includes('ceil') || shape.includes('down');
+
+  // Compute scaled Y positions based on fullness
+  let py0 = ny0;
+  let py1 = ny1;
+  if (f < 0.999) {
+    if (isCeil) {
+      py0 = ny0 * f;
+      py1 = ny1 * f;
+    } else {
+      py0 = 1.0 - (1.0 - ny0) * f;
+      py1 = 1.0 - (1.0 - ny1) * f;
+    }
+  }
+
+  const startX = screenX + nx0 * tileSizePx;
+  const startY = screenY + py0 * tileSizePx;
+  const endX = screenX + nx1 * tileSizePx;
+  const endY = screenY + py1 * tileSizePx;
 
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = thickness;
   ctx.lineCap = 'round';
   ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
 
-  if (shape === 'slope_up_right_45') {
-    // Diag: (0, S) to (S, topYOffset)
-    ctx.moveTo(screenX, screenY + tileSizePx);
-    ctx.lineTo(screenX + tileSizePx, screenY + topYOffset);
-    ctx.stroke();
-
-    if (details.noiseEdge || tileType.isSoft) {
-      // Soft sand grains / grass tufts along slope
-      ctx.fillStyle = color;
-      ctx.fillRect(screenX + tileSizePx * 0.25 - 2, screenY + tileSizePx * 0.75 - 3, 4, 3);
-      ctx.fillRect(screenX + tileSizePx * 0.55 - 2, screenY + tileSizePx * 0.45 - 4, 5, 4);
-      ctx.fillRect(screenX + tileSizePx * 0.85 - 2, screenY + tileSizePx * 0.15 - 3, 4, 3);
-    }
-  } else if (shape === 'slope_up_left_45') {
-    // Diag: (S, S) to (0, topYOffset)
-    ctx.moveTo(screenX + tileSizePx, screenY + tileSizePx);
-    ctx.lineTo(screenX, screenY + topYOffset);
-    ctx.stroke();
-
-    if (details.noiseEdge || tileType.isSoft) {
-      ctx.fillStyle = color;
-      ctx.fillRect(screenX + tileSizePx * 0.75 - 2, screenY + tileSizePx * 0.75 - 3, 4, 3);
-      ctx.fillRect(screenX + tileSizePx * 0.45 - 2, screenY + tileSizePx * 0.45 - 4, 5, 4);
-      ctx.fillRect(screenX + tileSizePx * 0.15 - 2, screenY + tileSizePx * 0.15 - 3, 4, 3);
-    }
-  } else if (shape === 'gentle_up_right_1') {
-    const halfRise = (tileSizePx * 0.5) * f;
-    ctx.moveTo(screenX, screenY + tileSizePx);
-    ctx.lineTo(screenX + tileSizePx, screenY + tileSizePx - halfRise);
-    ctx.stroke();
-  } else if (shape === 'gentle_up_right_2') {
-    const midRise = (tileSizePx * 0.5) * f;
-    ctx.moveTo(screenX, screenY + tileSizePx - midRise);
-    ctx.lineTo(screenX + tileSizePx, screenY + topYOffset);
-    ctx.stroke();
-  } else if (shape === 'gentle_up_left_1') {
-    const halfRise = (tileSizePx * 0.5) * f;
-    ctx.moveTo(screenX + tileSizePx, screenY + tileSizePx);
-    ctx.lineTo(screenX, screenY + tileSizePx - halfRise);
-    ctx.stroke();
-  } else if (shape === 'gentle_up_left_2') {
-    const midRise = (tileSizePx * 0.5) * f;
-    ctx.moveTo(screenX + tileSizePx, screenY + tileSizePx - midRise);
-    ctx.lineTo(screenX, screenY + topYOffset);
-    ctx.stroke();
-  } else if (shape === 'half_bottom') {
-    const slabH = (tileSizePx * 0.5) * f;
+  // Noise tufts / sand grains along the trim line
+  if (details.noiseEdge || tileType.materialType === 'soft') {
     ctx.fillStyle = color;
-    ctx.fillRect(screenX, screenY + tileSizePx - slabH, tileSizePx, thickness);
+    const steps = 4;
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const tx = startX + (endX - startX) * t;
+      const ty = startY + (endY - startY) * t;
+      ctx.fillRect(tx - 2, ty - 2, 4, 3);
+    }
   }
 
   ctx.restore();
@@ -512,7 +503,8 @@ export function renderRefinedTileCell(
     ctx.clip();
   }
 
-  const pixelStep = 4; // 4px micro-blocks for smooth noise blending performance
+  // Micro-step adapts to resolution (1px for 16px tiles for razor-sharp pixel art)
+  const pixelStep = tileSizePx <= 24 ? 1 : (tileSizePx <= 48 ? 2 : 4);
 
   // Check if uploaded custom base textures exist
   const imgA = getCachedImage(tileType.baseMaterialA.albedoTextureUrl, onImageLoaded);
@@ -593,11 +585,12 @@ export function renderRefinedTileCell(
 
   // 3. Composite Autotiling Overlays (Order: Sides -> Bottom -> Top)
   const details = tileType.tileDetails;
+  const scaleRatio = tileSizePx / 64;
 
   // 3a. LEFT Edge Overlay
-  if (details.leftSide.enabled && !neighborMask.hasLeft && (shape === 'full' || shape === 'half_bottom' || shape === 'half_top' || shape === 'slope_up_left_45')) {
+  if ((details.leftSide.overlayTextureUrl || details.leftSide.color) && !neighborMask.hasLeft && (shape === 'full' || shape === 'slope_up_left_45' || shape === 'slope_down_left_45')) {
     const leftImg = getCachedImage(details.leftSide.overlayTextureUrl, onImageLoaded);
-    const w = details.leftSide.thicknessPx;
+    const w = Math.max(1, Math.round(details.leftSide.thicknessPx * scaleRatio));
     if (leftImg) {
       ctx.drawImage(leftImg, 0, 0, leftImg.width, leftImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
@@ -607,9 +600,9 @@ export function renderRefinedTileCell(
   }
 
   // 3b. RIGHT Edge Overlay
-  if (details.rightSide.enabled && !neighborMask.hasRight && (shape === 'full' || shape === 'half_bottom' || shape === 'half_top' || shape === 'slope_up_right_45')) {
+  if ((details.rightSide.overlayTextureUrl || details.rightSide.color) && !neighborMask.hasRight && (shape === 'full' || shape === 'slope_up_right_45' || shape === 'slope_down_right_45')) {
     const rightImg = getCachedImage(details.rightSide.overlayTextureUrl, onImageLoaded);
-    const w = details.rightSide.thicknessPx;
+    const w = Math.max(1, Math.round(details.rightSide.thicknessPx * scaleRatio));
     if (rightImg) {
       ctx.drawImage(rightImg, 0, 0, rightImg.width, rightImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
@@ -619,9 +612,9 @@ export function renderRefinedTileCell(
   }
 
   // 3c. BOTTOM Edge Overlay
-  if (details.bottom.enabled && !neighborMask.hasBottom && shape !== 'slope_down_left_45' && shape !== 'slope_down_right_45' && shape !== 'half_top') {
+  if ((details.bottom.overlayTextureUrl || details.bottom.color) && !neighborMask.hasBottom && (shape === 'full' || shape === 'slope_up_left_45' || shape === 'slope_up_right_45')) {
     const botImg = getCachedImage(details.bottom.overlayTextureUrl, onImageLoaded);
-    const h = details.bottom.thicknessPx;
+    const h = Math.max(1, Math.round(details.bottom.thicknessPx * scaleRatio));
     if (botImg) {
       ctx.drawImage(botImg, 0, 0, botImg.width, botImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
@@ -631,19 +624,21 @@ export function renderRefinedTileCell(
   }
 
   // 3d. TOP Edge Overlay (for non-slope blocks)
-  if (shape === 'full' && details.top.enabled && !neighborMask.hasTop) {
+  if ((shape === 'full' || shape === 'slope_down_left_45' || shape === 'slope_down_right_45') && (details.top.overlayTextureUrl || details.top.color) && !neighborMask.hasTop) {
     const topImg = getCachedImage(details.top.overlayTextureUrl, onImageLoaded);
-    const h = details.top.thicknessPx;
+    const h = Math.max(1, Math.round(details.top.thicknessPx * scaleRatio));
     if (topImg) {
       ctx.drawImage(topImg, 0, 0, topImg.width, topImg.height, screenX, screenY, tileSizePx, tileSizePx);
     } else {
       ctx.fillStyle = details.top.color || 'rgba(255, 255, 255, 0.35)';
       ctx.fillRect(screenX, screenY, tileSizePx, h);
       if (details.top.noiseEdge) {
-        ctx.fillRect(screenX + 4, screenY + h, 8, 2);
-        ctx.fillRect(screenX + 18, screenY + h, 12, 3);
-        ctx.fillRect(screenX + 38, screenY + h, 10, 2);
-        ctx.fillRect(screenX + 54, screenY + h, 6, 3);
+        const p1 = Math.max(1, Math.round(2 * scaleRatio));
+        const p2 = Math.max(1, Math.round(3 * scaleRatio));
+        ctx.fillRect(screenX + Math.round(4 * scaleRatio), screenY + h, Math.round(8 * scaleRatio), p1);
+        ctx.fillRect(screenX + Math.round(18 * scaleRatio), screenY + h, Math.round(12 * scaleRatio), p2);
+        ctx.fillRect(screenX + Math.round(38 * scaleRatio), screenY + h, Math.round(10 * scaleRatio), p1);
+        ctx.fillRect(screenX + Math.round(54 * scaleRatio), screenY + h, Math.round(6 * scaleRatio), p2);
       }
     }
   }
@@ -659,20 +654,43 @@ export function renderRefinedTileCell(
   }
 
   // 4. Inner Corner Trims
-  if (shape === 'full' && neighborMask.hasTop && neighborMask.hasLeft && neighborMask.hasTopLeft === false && details.top.enabled) {
-    ctx.fillStyle = details.top.color || 'rgba(255, 255, 255, 0.25)';
-    ctx.fillRect(screenX, screenY, 6, 6);
-  }
-  if (shape === 'full' && neighborMask.hasTop && neighborMask.hasRight && neighborMask.hasTopRight === false && details.top.enabled) {
-    ctx.fillStyle = details.top.color || 'rgba(255, 255, 255, 0.25)';
-    ctx.fillRect(screenX + tileSizePx - 6, screenY, 6, 6);
-  }
-  if (shape === 'full' && neighborMask.hasBottom && neighborMask.hasLeft && neighborMask.hasBottomLeft === false && details.bottom.enabled) {
-    ctx.fillStyle = details.bottom.color || 'rgba(0, 0, 0, 0.3)';
-    ctx.fillRect(screenX, screenY + tileSizePx - 6, 6, 6);
-  }
-  if (shape === 'full' && neighborMask.hasBottom && neighborMask.hasRight && neighborMask.hasBottomRight === false && details.bottom.enabled) {
-    ctx.fillStyle = details.bottom.color || 'rgba(0, 0, 0, 0.3)';
-    ctx.fillRect(screenX + tileSizePx - 6, screenY + tileSizePx - 6, 6, 6);
+  const innerDetails = (tileType.tileDetails as any).innerCorner;
+  
+  if (shape === 'full') {
+    const drawInnerCorner = (cx: number, cy: number, w: number, h: number, defaultColor: string, rotationDeg: number) => {
+      // First try to use the dedicated inner corner overlay image
+      if (innerDetails && (innerDetails.overlayTextureUrl || innerDetails.color)) {
+        const icImg = getCachedImage(innerDetails.overlayTextureUrl, onImageLoaded);
+        if (icImg) {
+          ctx.save();
+          ctx.translate(screenX + tileSizePx / 2, screenY + tileSizePx / 2);
+          ctx.rotate((rotationDeg * Math.PI) / 180);
+          ctx.drawImage(icImg, 0, 0, icImg.width, icImg.height, -tileSizePx / 2, -tileSizePx / 2, tileSizePx, tileSizePx);
+          ctx.restore();
+          return;
+        }
+      }
+      // Fallback to a simple colored notch box
+      ctx.fillStyle = (innerDetails && innerDetails.color) || defaultColor;
+      ctx.fillRect(cx, cy, w, h);
+    };
+
+    const notch = Math.max(1, Math.round(6 * scaleRatio));
+    if (neighborMask.hasTop && neighborMask.hasLeft && neighborMask.hasTopLeft === false && (details.top.overlayTextureUrl || details.top.color)) {
+      // Top-Left inner corner (0 degrees rotation assumed for the source image)
+      drawInnerCorner(screenX, screenY, notch, notch, details.top.color || 'rgba(255, 255, 255, 0.25)', 0);
+    }
+    if (neighborMask.hasTop && neighborMask.hasRight && neighborMask.hasTopRight === false && (details.top.overlayTextureUrl || details.top.color)) {
+      // Top-Right inner corner (90 degrees)
+      drawInnerCorner(screenX + tileSizePx - notch, screenY, notch, notch, details.top.color || 'rgba(255, 255, 255, 0.25)', 90);
+    }
+    if (neighborMask.hasBottom && neighborMask.hasLeft && neighborMask.hasBottomLeft === false && (details.bottom.overlayTextureUrl || details.bottom.color)) {
+      // Bottom-Left inner corner (270 degrees)
+      drawInnerCorner(screenX, screenY + tileSizePx - notch, notch, notch, details.bottom.color || 'rgba(0, 0, 0, 0.3)', 270);
+    }
+    if (neighborMask.hasBottom && neighborMask.hasRight && neighborMask.hasBottomRight === false && (details.bottom.overlayTextureUrl || details.bottom.color)) {
+      // Bottom-Right inner corner (180 degrees)
+      drawInnerCorner(screenX + tileSizePx - notch, screenY + tileSizePx - notch, notch, notch, details.bottom.color || 'rgba(0, 0, 0, 0.3)', 180);
+    }
   }
 }

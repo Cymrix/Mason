@@ -326,12 +326,16 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         invert: false
       },
       tileDetails: {
-        top: { enabled: true, thicknessPx: 6, noiseEdge: true },
-        bottom: { enabled: false, thicknessPx: 4, noiseEdge: false },
-        leftSide: { enabled: false, thicknessPx: 3, noiseEdge: false },
-        rightSide: { enabled: false, thicknessPx: 3, noiseEdge: false }
+        top: {  thicknessPx: 6, noiseEdge: true },
+        bottom: {  thicknessPx: 4, noiseEdge: false },
+        leftSide: {  thicknessPx: 3, noiseEdge: false },
+        rightSide: {  thicknessPx: 3, noiseEdge: false },
+        innerCorner: {  },
+        slope: {  thicknessPx: 4, noiseEdge: false }
       },
       isDestructible: true,
+      materialType: 'hard',
+      bevelProbability: 0,
       health: 100,
       defense_type: 'kinetic',
       armor_deduction: 5,
@@ -382,12 +386,16 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             invert: false
           },
           tileDetails: {
-            top: { enabled: true, color: '#6ee7b7', thicknessPx: 6, noiseEdge: true },
-            bottom: { enabled: true, color: '#047857', thicknessPx: 4, noiseEdge: false },
-            leftSide: { enabled: false, thicknessPx: 3, noiseEdge: false },
-            rightSide: { enabled: false, thicknessPx: 3, noiseEdge: false }
+            top: {  color: '#6ee7b7', thicknessPx: 6, noiseEdge: true },
+            bottom: {  color: '#047857', thicknessPx: 4, noiseEdge: false },
+            leftSide: {  thicknessPx: 3, noiseEdge: false },
+            rightSide: {  thicknessPx: 3, noiseEdge: false },
+            innerCorner: {  },
+        slope: {  thicknessPx: 4, noiseEdge: false }
           },
           isDestructible: true,
+      materialType: 'hard',
+      bevelProbability: 0,
           health: 100,
           defense_type: 'kinetic',
           armor_deduction: 5,
@@ -897,177 +905,26 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
 
                       {/* Top Overlay */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selectedTileType.tileDetails.top.enabled}
-                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, top: { ...tt.tileDetails.top, enabled: e.target.checked } }
-                              }))}
-                              className="rounded accent-emerald-500 cursor-pointer"
-                            />
-                            <span className="text-xs font-semibold text-neutral-200">Top Edge (Grass / Ridge Trim)</span>
-                          </label>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.top.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
-                            {selectedTileType.tileDetails.top.enabled ? 'Active' : 'Disabled'}
-                          </span>
-                        </div>
+                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Inner Corner Overlay</span></div>
 
-                        {selectedTileType.tileDetails.top.enabled && (
+                        {true && (
                           <ImageUploadThumbnailField
-                            label="Top Edge Overlay Trim"
-                            badge="Top Trim"
-                            imageUrl={selectedTileType.tileDetails.top.overlayTextureUrl}
-                            fallbackColor="#052e16"
-                            fallbackText="Top Edge"
-                            accentColor="emerald"
-                            onUpload={(url) => {
-                              handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, top: { ...tt.tileDetails.top, overlayTextureUrl: url } }
-                              }));
-                            }}
-                            onClear={() => {
-                              handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, top: { ...tt.tileDetails.top, overlayTextureUrl: undefined } }
-                              }));
-                            }}
-                            onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
-                          />
-                        )}
-                      </div>
-
-                      {/* Bottom Overlay */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selectedTileType.tileDetails.bottom.enabled}
-                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, bottom: { ...tt.tileDetails.bottom, enabled: e.target.checked } }
-                              }))}
-                              className="rounded accent-emerald-500 cursor-pointer"
-                            />
-                            <span className="text-xs font-semibold text-neutral-200">Bottom Shadow Trim</span>
-                          </label>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.bottom.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
-                            {selectedTileType.tileDetails.bottom.enabled ? 'Active' : 'Disabled'}
-                          </span>
-                        </div>
-
-                        {selectedTileType.tileDetails.bottom.enabled && (
-                          <ImageUploadThumbnailField
-                            label="Bottom Under-Ledge Trim"
-                            badge="Bottom"
-                            imageUrl={selectedTileType.tileDetails.bottom.overlayTextureUrl}
-                            fallbackColor="#0f172a"
-                            fallbackText="Bottom"
-                            accentColor="emerald"
-                            onUpload={(url) => {
-                              handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, bottom: { ...tt.tileDetails.bottom, overlayTextureUrl: url } }
-                              }));
-                            }}
-                            onClear={() => {
-                              handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, bottom: { ...tt.tileDetails.bottom, overlayTextureUrl: undefined } }
-                              }));
-                            }}
-                            onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
-                          />
-                        )}
-                      </div>
-
-                      {/* Left Side Overlay */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selectedTileType.tileDetails.leftSide.enabled}
-                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, leftSide: { ...tt.tileDetails.leftSide, enabled: e.target.checked } }
-                              }))}
-                              className="rounded accent-emerald-500 cursor-pointer"
-                            />
-                            <span className="text-xs font-semibold text-neutral-200">Left Side Overlay</span>
-                          </label>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.leftSide.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
-                            {selectedTileType.tileDetails.leftSide.enabled ? 'Active' : 'Disabled'}
-                          </span>
-                        </div>
-
-                        {selectedTileType.tileDetails.leftSide.enabled && (
-                          <ImageUploadThumbnailField
-                            label="Left Side Wall Trim"
-                            badge="Left"
-                            imageUrl={selectedTileType.tileDetails.leftSide.overlayTextureUrl}
+                            label="Inside Corner Trim"
+                            badge="Inner"
+                            imageUrl={(selectedTileType.tileDetails as any).innerCorner?.overlayTextureUrl}
                             fallbackColor="#1e1e38"
-                            fallbackText="Left"
+                            fallbackText="Inner"
                             accentColor="emerald"
                             onUpload={(url) => {
                               handleUpdateCurrentTileType(tt => ({
                                 ...tt,
-                                tileDetails: { ...tt.tileDetails, leftSide: { ...tt.tileDetails.leftSide, overlayTextureUrl: url } }
+                                tileDetails: { ...tt.tileDetails, innerCorner: { ...((tt.tileDetails as any).innerCorner || {}), overlayTextureUrl: url } }
                               }));
                             }}
                             onClear={() => {
                               handleUpdateCurrentTileType(tt => ({
                                 ...tt,
-                                tileDetails: { ...tt.tileDetails, leftSide: { ...tt.tileDetails.leftSide, overlayTextureUrl: undefined } }
-                              }));
-                            }}
-                            onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
-                          />
-                        )}
-                      </div>
-
-                      {/* Right Side Overlay */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selectedTileType.tileDetails.rightSide.enabled}
-                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, rightSide: { ...tt.tileDetails.rightSide, enabled: e.target.checked } }
-                              }))}
-                              className="rounded accent-emerald-500 cursor-pointer"
-                            />
-                            <span className="text-xs font-semibold text-neutral-200">Right Side Overlay</span>
-                          </label>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.rightSide.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
-                            {selectedTileType.tileDetails.rightSide.enabled ? 'Active' : 'Disabled'}
-                          </span>
-                        </div>
-
-                        {selectedTileType.tileDetails.rightSide.enabled && (
-                          <ImageUploadThumbnailField
-                            label="Right Side Wall Trim"
-                            badge="Right"
-                            imageUrl={selectedTileType.tileDetails.rightSide.overlayTextureUrl}
-                            fallbackColor="#1e1e38"
-                            fallbackText="Right"
-                            accentColor="emerald"
-                            onUpload={(url) => {
-                              handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, rightSide: { ...tt.tileDetails.rightSide, overlayTextureUrl: url } }
-                              }));
-                            }}
-                            onClear={() => {
-                              handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, rightSide: { ...tt.tileDetails.rightSide, overlayTextureUrl: undefined } }
+                                tileDetails: { ...tt.tileDetails, innerCorner: { ...((tt.tileDetails as any).innerCorner || {}), overlayTextureUrl: undefined } }
                               }));
                             }}
                             onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
@@ -1130,52 +987,55 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                         </div>
                       </div>
 
-                      {/* Soft Material & Slopes (Sand / Silt / Snow) */}
+                      {/* Soft Material & 45° Corner Bevels (Sand / Silt / Snow) */}
                       <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800 space-y-2.5">
                         <div className="flex items-center justify-between text-xs">
-                          <label className="flex items-center gap-2 cursor-pointer font-bold text-neutral-200">
-                            <input
-                              type="checkbox"
-                              checked={!!selectedTileType.isSoft}
-                              onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, isSoft: e.target.checked }))}
-                              className="rounded accent-amber-500 cursor-pointer"
-                            />
-                            <span>Soft Tile Material (Sand / Snow / Loam)</span>
+                          <label className="flex items-center gap-2 font-bold text-amber-200">
+                            <span>Material Type (Physics/Wear)</span>
                           </label>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.isSoft ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-neutral-900 text-neutral-500'}`}>
-                            {selectedTileType.isSoft ? 'Soft & Deformable' : 'Rigid'}
+                          <select
+                            value={selectedTileType.materialType || 'hard'}
+                            onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, materialType: e.target.value as any }))}
+                            className="text-xs bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-neutral-200 focus:outline-none focus:border-amber-500"
+                          >
+                            <option value="hard">Hard</option>
+                            <option value="soft">Soft</option>
+                            <option value="water">Water</option>
+                          </select>
+                        </div>
+                        <p className="text-[11px] text-neutral-400 leading-relaxed">
+                          Determines the gameplay mechanics for this material (e.g. footsteps, sinking, rendering layers).
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800 space-y-2.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <label className="flex items-center gap-2 font-bold text-teal-200">
+                            <span>Auto-Bevel Slopes Probability</span>
+                          </label>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${(selectedTileType.bevelProbability ?? 0) > 0 ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'bg-neutral-900 text-neutral-500'}`}>
+                            {Math.round((selectedTileType.bevelProbability ?? 0) * 100)}%
                           </span>
                         </div>
+                        <div className="pt-2 pb-1 px-1">
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={selectedTileType.bevelProbability ?? 0}
+                            onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, bevelProbability: parseFloat(e.target.value) }))}
+                            className="w-full accent-teal-500 h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
+                          />
+                        </div>
+                        <p className="text-[11px] text-neutral-400 leading-relaxed">
+                          Determines the chance that exposed outer corners automatically bevel into smooth 45° diagonal ramps instead of sharp 90° block edges. 0% = always square, 100% = always sloped.
+                        </p>
 
-                        {selectedTileType.isSoft && (
-                          <div className="space-y-2 pt-1 border-t border-neutral-800/80">
-                            <div className="space-y-1">
-                              <div className="flex justify-between text-[10px] text-neutral-400">
-                                <span>Softness / Granular Permeability</span>
-                                <span className="font-mono text-amber-300 font-bold">
-                                  {Math.round((selectedTileType.softness ?? 0.8) * 100)}%
-                                </span>
-                              </div>
-                              <input
-                                type="range"
-                                min="0.0"
-                                max="1.0"
-                                step="0.05"
-                                value={selectedTileType.softness ?? 0.8}
-                                onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, softness: parseFloat(e.target.value) || 0 }))}
-                                className="w-full accent-amber-500 cursor-pointer h-1.5"
-                              />
-                            </div>
-
-                            <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-300 pt-1">
-                              <input
-                                type="checkbox"
-                                checked={selectedTileType.allowsSlopes !== false}
-                                onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, allowsSlopes: e.target.checked }))}
-                                className="rounded accent-amber-500 cursor-pointer"
-                              />
-                              <span>Support 45° & 22.5° Natural Dune Slopes</span>
-                            </label>
+                        {(selectedTileType.bevelProbability ?? 0) > 0 && (
+                          <div className="p-2 bg-teal-950/20 border border-teal-800/40 rounded flex items-center gap-2 text-[11px] text-teal-300/90 font-mono">
+                            <span className="text-teal-400 font-bold">✓ Active:</span>
+                            <span>16px micro-grid contouring enabled (◤ ◥ ◣ ◢ diagonal corner transitions)</span>
                           </div>
                         )}
                       </div>

@@ -18,6 +18,8 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         name: 'Ashen Basalt Rock',
         category: 'natural',
         mapColor: '#475569',
+        materialType: 'soft',
+        bevelProbability: 1.0,
         baseMaterialA: {
           albedoColor: '#334155', // Dark charcoal slate
           heightMapScale: 0.75,
@@ -47,10 +49,12 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
           invert: false
         },
         tileDetails: {
-          top: { enabled: true, color: '#94a3b8', thicknessPx: 6, texturePattern: 'ash_crust', noiseEdge: true },
-          bottom: { enabled: true, color: '#1e293b', thicknessPx: 4, noiseEdge: false },
-          leftSide: { enabled: true, color: '#334155', thicknessPx: 3, noiseEdge: true },
-          rightSide: { enabled: true, color: '#1e293b', thicknessPx: 3, noiseEdge: true }
+          top: {  color: '#94a3b8', thicknessPx: 6, texturePattern: 'ash_crust', noiseEdge: true },
+          bottom: {  color: '#1e293b', thicknessPx: 4, noiseEdge: false },
+          leftSide: {  color: '#334155', thicknessPx: 3, noiseEdge: true },
+          rightSide: {  color: '#1e293b', thicknessPx: 3, noiseEdge: true },
+          innerCorner: {  color: "#94a3b8" },
+          slope: {  color: "#94a3b8", thicknessPx: 4, noiseEdge: true }
         },
         isDestructible: true,
         health: 140,
@@ -66,6 +70,8 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         name: 'Volcanic Loam Soil',
         category: 'natural',
         mapColor: '#78350f',
+        materialType: 'hard',
+        bevelProbability: 0,
         baseMaterialA: {
           albedoColor: '#3d2617', // Dark smoldering dirt
           heightMapScale: 0.35,
@@ -95,14 +101,15 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
           invert: false
         },
         tileDetails: {
-          top: { enabled: true, color: '#78350f', thicknessPx: 8, texturePattern: 'embers', noiseEdge: true },
-          bottom: { enabled: false, color: '#27170b', thicknessPx: 2, noiseEdge: false },
-          leftSide: { enabled: false, color: '#27170b', thicknessPx: 2, noiseEdge: false },
-          rightSide: { enabled: false, color: '#27170b', thicknessPx: 2, noiseEdge: false }
+          top: {  color: '#78350f', thicknessPx: 8, texturePattern: 'embers', noiseEdge: true },
+          bottom: {  color: '#27170b', thicknessPx: 2, noiseEdge: false },
+          leftSide: {  color: '#27170b', thicknessPx: 2, noiseEdge: false },
+          rightSide: {  color: '#27170b', thicknessPx: 2, noiseEdge: false },
+          innerCorner: {  color: "#94a3b8" },
+          slope: {  color: "#94a3b8", thicknessPx: 4, noiseEdge: true }
         },
-        isSoft: true,
         softness: 0.85,
-        allowsSlopes: true,
+        
         isDestructible: true,
         health: 50,
         defense_type: 'toxic',
@@ -117,6 +124,8 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         name: 'Empire Cinder Fortification',
         category: 'structure',
         mapColor: '#3f3f46',
+        materialType: 'hard',
+        bevelProbability: 0,
         baseMaterialA: {
           albedoColor: '#27272a', // Zinc dark brick
           heightMapScale: 0.9,
@@ -146,10 +155,12 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
           invert: false
         },
         tileDetails: {
-          top: { enabled: true, color: '#52525b', thicknessPx: 4, noiseEdge: false },
-          bottom: { enabled: true, color: '#18181b', thicknessPx: 4, noiseEdge: false },
-          leftSide: { enabled: true, color: '#27272a', thicknessPx: 3, noiseEdge: false },
-          rightSide: { enabled: true, color: '#18181b', thicknessPx: 3, noiseEdge: false }
+          top: {  color: '#52525b', thicknessPx: 4, noiseEdge: false },
+          bottom: {  color: '#18181b', thicknessPx: 4, noiseEdge: false },
+          leftSide: {  color: '#27272a', thicknessPx: 3, noiseEdge: false },
+          rightSide: {  color: '#18181b', thicknessPx: 3, noiseEdge: false },
+          innerCorner: {  color: "#94a3b8" },
+          slope: {  color: "#94a3b8", thicknessPx: 4, noiseEdge: true }
         },
         isDestructible: true,
         health: 220,
@@ -307,6 +318,8 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         name: 'Bioluminescent Turf',
         category: 'natural',
         mapColor: '#06b6d4',
+        materialType: 'hard',
+        bevelProbability: 0,
         baseMaterialA: {
           albedoColor: '#083344', // Dark cyan mycelium
           heightMapScale: 0.5,
@@ -336,10 +349,12 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
           invert: false
         },
         tileDetails: {
-          top: { enabled: true, color: '#22d3ee', thicknessPx: 8, texturePattern: 'spores', noiseEdge: true },
-          bottom: { enabled: true, color: '#042f2e', thicknessPx: 4, noiseEdge: false },
-          leftSide: { enabled: true, color: '#083344', thicknessPx: 3, noiseEdge: true },
-          rightSide: { enabled: true, color: '#083344', thicknessPx: 3, noiseEdge: true }
+          top: {  color: '#22d3ee', thicknessPx: 8, texturePattern: 'spores', noiseEdge: true },
+          bottom: {  color: '#042f2e', thicknessPx: 4, noiseEdge: false },
+          leftSide: {  color: '#083344', thicknessPx: 3, noiseEdge: true },
+          rightSide: {  color: '#083344', thicknessPx: 3, noiseEdge: true },
+          innerCorner: {  color: "#94a3b8" },
+          slope: {  color: "#94a3b8", thicknessPx: 4, noiseEdge: true }
         },
         isDestructible: true,
         health: 45,
@@ -355,6 +370,8 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         name: 'Subterranean Quartz Wall',
         category: 'natural',
         mapColor: '#4338ca',
+        materialType: 'hard',
+        bevelProbability: 0,
         baseMaterialA: {
           albedoColor: '#1e1b4b', // Deep indigo crystal base
           heightMapScale: 0.9,
@@ -384,10 +401,12 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
           invert: false
         },
         tileDetails: {
-          top: { enabled: true, color: '#818cf8', thicknessPx: 6, texturePattern: 'crystal_ridges', noiseEdge: true },
-          bottom: { enabled: true, color: '#0f172a', thicknessPx: 4, noiseEdge: false },
-          leftSide: { enabled: true, color: '#1e1b4b', thicknessPx: 3, noiseEdge: false },
-          rightSide: { enabled: true, color: '#1e1b4b', thicknessPx: 3, noiseEdge: false }
+          top: {  color: '#818cf8', thicknessPx: 6, texturePattern: 'crystal_ridges', noiseEdge: true },
+          bottom: {  color: '#0f172a', thicknessPx: 4, noiseEdge: false },
+          leftSide: {  color: '#1e1b4b', thicknessPx: 3, noiseEdge: false },
+          rightSide: {  color: '#1e1b4b', thicknessPx: 3, noiseEdge: false },
+          innerCorner: {  color: "#94a3b8" },
+          slope: {  color: "#94a3b8", thicknessPx: 4, noiseEdge: true }
         },
         isDestructible: true,
         health: 180,
@@ -503,6 +522,8 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         name: 'Glacial Permafrost Ice',
         category: 'natural',
         mapColor: '#38bdf8',
+        materialType: 'hard',
+        bevelProbability: 0,
         baseMaterialA: {
           albedoColor: '#0369a1', // Deep arctic blue
           heightMapScale: 0.6,
@@ -532,10 +553,12 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
           invert: false
         },
         tileDetails: {
-          top: { enabled: true, color: '#e0f2fe', thicknessPx: 7, texturePattern: 'snow_sheet', noiseEdge: true },
-          bottom: { enabled: true, color: '#0c4a6e', thicknessPx: 4, noiseEdge: false },
-          leftSide: { enabled: true, color: '#0369a1', thicknessPx: 3, noiseEdge: true },
-          rightSide: { enabled: true, color: '#0369a1', thicknessPx: 3, noiseEdge: true }
+          top: {  color: '#e0f2fe', thicknessPx: 7, texturePattern: 'snow_sheet', noiseEdge: true },
+          bottom: {  color: '#0c4a6e', thicknessPx: 4, noiseEdge: false },
+          leftSide: {  color: '#0369a1', thicknessPx: 3, noiseEdge: true },
+          rightSide: {  color: '#0369a1', thicknessPx: 3, noiseEdge: true },
+          innerCorner: {  color: "#94a3b8" },
+          slope: {  color: "#94a3b8", thicknessPx: 4, noiseEdge: true }
         },
         isDestructible: true,
         health: 70,

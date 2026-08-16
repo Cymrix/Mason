@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+const fs = require('fs');
+const content = `import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { BiomeTileType } from '../engine/refinedBiomeSchema';
 import { renderRefinedTileCell, renderPureAlbedoCell } from '../engine/tileMaterialRenderer';
 import { TileShape } from '../engine/tileShape';
@@ -168,8 +169,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     ctx.fillStyle = '#090d16';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const materialType = tileType.materialType || 'hard';
-    const bevelProbability = tileType.bevelProbability ?? 0;
+    const isSoft = Boolean(tileType.isSoft);
 
     for (let r = 0; r < sandboxRows; r++) {
       for (let c = 0; c < sandboxCols; c++) {
@@ -187,7 +187,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
           const hasBottomLeft = r < sandboxRows - 1 && c > 0 && sandboxGrid[r + 1][c - 1] === 1;
           const hasBottomRight = r < sandboxRows - 1 && c < sandboxCols - 1 && sandboxGrid[r + 1][c + 1] === 1;
 
-          const effectiveShape: TileShape = resolveAutoTileShape(tileType.bevelProbability ?? 0, c, r, {
+          const effectiveShape: TileShape = resolveAutoTileShape(isSoft, {
             hasTop,
             hasBottom,
             hasLeft,
@@ -230,21 +230,21 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     }
   }, [sandboxGrid, tileType, tileSize, showGrid, viewMode, renderTrigger, forceRerender, sandboxWidth, sandboxHeight, sandboxRows, sandboxCols]);
 
-  const dragTargetValRef = useRef<number>(1);
-  const lastTouchedCellRef = useRef<string | null>(null);
+  const applySandboxTileAtEvent = (e: React.MouseEvent<HTMLCanvasElement>, targetVal?: number) => {
+    const canvas = sandboxCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
 
-  // Global mouseup window listener so releasing mouse anywhere stops drawing cleanly
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      setIsDrawing(false);
-      lastTouchedCellRef.current = null;
-    };
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, []);
+    const col = Math.floor((clickX / rect.width) * sandboxCols);
+    const row = Math.floor((clickY / rect.height) * sandboxRows);
 
-  const applySandboxTile = (row: number, col: number, valToSet: number) => {
     if (row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
+      const valToSet = targetVal !== undefined 
+        ? targetVal 
+        : (sandboxTool === 'draw' ? 1 : 0);
+
       setSandboxGrid(prev => {
         if (prev[row][col] === valToSet) return prev;
         const next = prev.map(r => [...r]);
@@ -255,64 +255,37 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   };
 
   const handleMouseDownSandbox = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.button !== 0) return;
-    
-    // Important: don't start drawing if the user is holding Alt/Ctrl or panning
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const canvas = sandboxCanvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
-
-    const col = Math.floor((clickX / rect.width) * sandboxCols);
-    const row = Math.floor((clickY / rect.height) * sandboxRows);
-
-    if (row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
+    if (e.button === 0) {
       setIsDrawing(true);
-      const currentVal = sandboxGrid[row][col];
-      const targetVal = sandboxTool === 'erase' ? 0 : (currentVal === 1 ? 0 : 1);
-      
-      dragTargetValRef.current = targetVal;
-      lastTouchedCellRef.current = `${row},${col}`;
-      applySandboxTile(row, col, targetVal);
+      const canvas = sandboxCanvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const col = Math.floor(((e.clientX - rect.left) / rect.width) * sandboxCols);
+        const row = Math.floor(((e.clientY - rect.top) / rect.height) * sandboxRows);
+        if (row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
+          const current = sandboxGrid[row][col];
+          const nextVal = current === 1 ? 0 : 1;
+          applySandboxTileAtEvent(e, nextVal);
+        }
+      }
     }
   };
 
   const handleMouseMoveSandbox = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || e.buttons !== 1) return;
-    const canvas = sandboxCanvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
-
-    const col = Math.floor((clickX / rect.width) * sandboxCols);
-    const row = Math.floor((clickY / rect.height) * sandboxRows);
-
-    const cellKey = `${row},${col}`;
-    if (cellKey !== lastTouchedCellRef.current && row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
-      lastTouchedCellRef.current = cellKey;
-      applySandboxTile(row, col, dragTargetValRef.current);
+    if (isDrawing && e.buttons === 1) {
+      applySandboxTileAtEvent(e);
     }
   };
 
   const handleMouseUpSandbox = () => {
     setIsDrawing(false);
-    lastTouchedCellRef.current = null;
   };
 
   const handleExportAlbedo = () => {
     const canvas = albedoCanvasRef.current;
     if (!canvas) return;
     const link = document.createElement('a');
-    link.download = `${tileType.name.toLowerCase().replace(/\s+/g, '_')}_albedo_map.png`;
+    link.download = \`\${tileType.name.toLowerCase().replace(/\\s+/g, '_')}_albedo_map.png\`;
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
@@ -327,12 +300,12 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
           <div>
             <h3 className="font-semibold text-sm text-slate-100 flex items-center gap-2">
               <span>{tileType.name}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono border ${
-                (tileType.bevelProbability ?? 0) > 0
+              <span className={\`text-[10px] px-1.5 py-0.5 rounded font-mono border \${
+                tileType.isSoft
                   ? 'bg-amber-950 text-amber-300 border-amber-800'
                   : 'bg-cyan-950 text-cyan-400 border-cyan-800'
-              }`}>
-                {(tileType.bevelProbability ?? 0) > 0 ? `${Math.round((tileType.bevelProbability ?? 0) * 100)}% Auto-Bevels` : 'Rigid Solid Block'}
+              }\`}>
+                {tileType.isSoft ? 'Soft Material (Auto 45° Corner Bevels)' : 'Rigid Solid Block'}
               </span>
             </h3>
             <p className="text-xs text-slate-400">
@@ -344,33 +317,33 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
           <button
             onClick={() => setViewMode('albedo')}
-            className={`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all ${
+            className={\`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all \${
               viewMode === 'albedo'
                 ? 'bg-cyan-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
-            }`}
+            }\`}
           >
             <Sparkles className="w-3.5 h-3.5" />
             Albedo Texture Map
           </button>
           <button
             onClick={() => setViewMode('sandbox')}
-            className={`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all ${
+            className={\`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all \${
               viewMode === 'sandbox'
                 ? 'bg-cyan-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
-            }`}
+            }\`}
           >
             <Play className="w-3.5 h-3.5" />
             Live Autotile Sandbox
           </button>
           <button
             onClick={() => setViewMode('diagnostics')}
-            className={`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all ${
+            className={\`px-3 py-1.5 rounded font-medium flex items-center gap-1.5 transition-all \${
               viewMode === 'diagnostics'
                 ? 'bg-cyan-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
-            }`}
+            }\`}
           >
             <Eye className="w-3.5 h-3.5" />
             Material Layers
@@ -401,11 +374,11 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
                 key={item.sz}
                 type="button"
                 onClick={() => setTileSize(item.sz)}
-                className={`px-1.5 py-0.5 rounded transition ${
+                className={\`px-1.5 py-0.5 rounded transition \${
                   tileSize === item.sz
                     ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
                     : 'text-slate-400 hover:text-white'
-                }`}
+                }\`}
               >
                 {item.label}
               </button>
@@ -417,11 +390,11 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
               <button
                 type="button"
                 onClick={() => setSandboxTool('draw')}
-                className={`px-2 py-1 rounded flex items-center gap-1 text-[11px] font-medium transition ${
+                className={\`px-2 py-1 rounded flex items-center gap-1 text-[11px] font-medium transition \${
                   sandboxTool === 'draw'
                     ? 'bg-cyan-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
-                }`}
+                }\`}
               >
                 <Paintbrush size={12} />
                 Place Block
@@ -429,11 +402,11 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
               <button
                 type="button"
                 onClick={() => setSandboxTool('erase')}
-                className={`px-2 py-1 rounded flex items-center gap-1 text-[11px] font-medium transition ${
+                className={\`px-2 py-1 rounded flex items-center gap-1 text-[11px] font-medium transition \${
                   sandboxTool === 'erase'
                     ? 'bg-amber-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
-                }`}
+                }\`}
               >
                 <Eraser size={12} />
                 Erase
@@ -486,9 +459,9 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
             ref={albedoPanZoom.containerRef}
             onMouseDown={albedoPanZoom.handleMouseDown}
             onContextMenu={albedoPanZoom.handleContextMenu}
-            className={`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none ${
+            className={\`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none \${
               albedoPanZoom.isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
-            }`}
+            }\`}
             style={{ touchAction: 'none' }}
           >
             <div
@@ -496,9 +469,9 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
                 position: 'absolute',
                 left: 0,
                 top: 0,
-                width: `${albedoWidth}px`,
-                height: `${albedoHeight}px`,
-                transform: `translate(${albedoPanZoom.pan.x}px, ${albedoPanZoom.pan.y}px) scale(${albedoPanZoom.scale})`,
+                width: \`\${albedoWidth}px\`,
+                height: \`\${albedoHeight}px\`,
+                transform: \`translate(\${albedoPanZoom.pan.x}px, \${albedoPanZoom.pan.y}px) scale(\${albedoPanZoom.scale})\`,
                 transformOrigin: '0 0',
                 willChange: 'transform'
               }}
@@ -566,9 +539,9 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
             ref={sandboxPanZoom.containerRef}
             onMouseDown={sandboxPanZoom.handleMouseDown}
             onContextMenu={sandboxPanZoom.handleContextMenu}
-            className={`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none ${
+            className={\`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none \${
               sandboxPanZoom.isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
-            }`}
+            }\`}
             style={{ touchAction: 'none' }}
           >
             <div
@@ -576,9 +549,9 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
                 position: 'absolute',
                 left: 0,
                 top: 0,
-                width: `${sandboxWidth}px`,
-                height: `${sandboxHeight}px`,
-                transform: `translate(${sandboxPanZoom.pan.x}px, ${sandboxPanZoom.pan.y}px) scale(${sandboxPanZoom.scale})`,
+                width: \`\${sandboxWidth}px\`,
+                height: \`\${sandboxHeight}px\`,
+                transform: \`translate(\${sandboxPanZoom.pan.x}px, \${sandboxPanZoom.pan.y}px) scale(\${sandboxPanZoom.scale})\`,
                 transformOrigin: '0 0',
                 willChange: 'transform'
               }}
@@ -589,7 +562,6 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
                 onMouseMove={handleMouseMoveSandbox}
                 onMouseUp={handleMouseUpSandbox}
                 onMouseLeave={handleMouseUpSandbox}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 className="block border border-slate-750 shadow-2xl rounded"
               />
             </div>
@@ -713,14 +685,8 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
             <span className="text-xs font-semibold text-slate-300 mb-1">Corner Topology</span>
             <div className="flex items-center justify-between text-slate-400">
               <span>Behavior:</span>
-              <span className={`font-mono font-bold capitalize ${(tileType.materialType || 'hard') === 'soft' ? 'text-amber-400' : ((tileType.materialType || 'hard') === 'water' ? 'text-blue-400' : 'text-cyan-300')}`}>
-                {tileType.materialType || 'hard'} Material
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-slate-400 mt-1">
-              <span>Shape:</span>
-              <span className={`font-mono font-bold ${(tileType.bevelProbability ?? 0) > 0 ? 'text-amber-400' : 'text-cyan-300'}`}>
-                {(tileType.bevelProbability ?? 0) > 0 ? `${Math.round((tileType.bevelProbability ?? 0) * 100)}% Auto-Bevels` : 'Square Blocks'}
+              <span className={\`font-mono font-bold \${tileType.isSoft ? 'text-amber-400' : 'text-cyan-300'}\`}>
+                {tileType.isSoft ? 'Soft (45° Bevel)' : 'Rigid (Square)'}
               </span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
@@ -737,3 +703,5 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     </div>
   );
 };
+`
+fs.writeFileSync('src/components/BlobTilesetPreview.tsx', content);

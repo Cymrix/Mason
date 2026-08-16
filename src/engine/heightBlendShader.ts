@@ -102,19 +102,23 @@ export function drawThresholdCrackMask(
   const midX = screenX + tileSize / 2;
   const midY = screenY + tileSize / 2;
 
+  const scale = tileSize / 64;
+  const off1 = Math.max(1, Math.round(3 * scale));
+  const off2 = Math.max(1, Math.round(4 * scale));
+
   if (thresholdIndex >= 1) {
     // Stage 1: Minor stress hairline fracture
-    ctx.moveTo(screenX + 3, screenY + 4);
-    ctx.lineTo(midX - 2, midY + 1);
-    ctx.lineTo(screenX + tileSize - 3, screenY + tileSize - 2);
+    ctx.moveTo(screenX + off1, screenY + off2);
+    ctx.lineTo(midX - Math.max(1, Math.round(2 * scale)), midY + Math.max(1, Math.round(1 * scale)));
+    ctx.lineTo(screenX + tileSize - off1, screenY + tileSize - Math.max(1, Math.round(2 * scale)));
   }
 
   if (thresholdIndex >= 2) {
     // Stage 2: Heavy fracture branching to edges (contiguous bleed)
-    ctx.moveTo(midX - 2, midY + 1);
-    ctx.lineTo(screenX + tileSize - 2, screenY + 3);
+    ctx.moveTo(midX - Math.max(1, Math.round(2 * scale)), midY + Math.max(1, Math.round(1 * scale)));
+    ctx.lineTo(screenX + tileSize - Math.max(1, Math.round(2 * scale)), screenY + off1);
     ctx.moveTo(midX, midY);
-    ctx.lineTo(screenX + 4, screenY + tileSize - 3);
+    ctx.lineTo(screenX + off2, screenY + tileSize - off1);
   }
 
   if (thresholdIndex >= 3) {

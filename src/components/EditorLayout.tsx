@@ -100,7 +100,6 @@ export const EditorLayout: React.FC = () => {
   const [paintCategory, setPaintCategory] = useState<PaintCategory>('tile_type');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('ashen_basalt');
   const [selectedShape, setSelectedShape] = useState<TileShape>('full');
-  const [selectedFullness, setSelectedFullness] = useState<number>(1.0);
   const [brushSize, setBrushSize] = useState<number>(1);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [showDamageMasks, setShowDamageMasks] = useState<boolean>(true);
@@ -236,7 +235,7 @@ export const EditorLayout: React.FC = () => {
                   target.current_health = 100;
                   target.damage_threshold_index = 0;
                   target.shape = selectedShape;
-                  target.fullness = selectedFullness;
+                  target.fullness = 1.0;
                   globalChunkCache.invalidateCell(cx, cy);
                 } else if (paintCategory === 'environmental') {
                   target.environmental_detail_id = selectedAssetId || null;
@@ -545,8 +544,8 @@ export const EditorLayout: React.FC = () => {
 
                     <div className="w-8 h-px bg-neutral-800 my-2" />
 
-                    {/* Brush Size Picker */}
-                    {[1, 2, 3].map(sz => (
+                    {/* Brush Size Picker (16px micro-grid sizes: 1x=16px, 2x=32px, 4x=64px, 8x=128px) */}
+                    {[1, 2, 4, 8].map(sz => (
                       <button
                         key={sz}
                         type="button"
@@ -554,6 +553,7 @@ export const EditorLayout: React.FC = () => {
                         className={`w-7 h-7 rounded-lg text-xs font-mono font-bold flex items-center justify-center transition ${
                           brushSize === sz ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-500 hover:text-white'
                         }`}
+                        title={`Brush Size: ${sz} cells (${sz * 16}px)`}
                       >
                         {sz}x
                       </button>
@@ -576,7 +576,9 @@ export const EditorLayout: React.FC = () => {
                     {/* Canvas Status Badge */}
                     <div className="absolute bottom-4 left-4 pointer-events-none z-20">
                       <div className="bg-neutral-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs border border-neutral-700 text-neutral-300 shadow-xl flex items-center gap-3">
-                        <span className="font-mono text-cyan-400">{currentMapFile.fileName} ({currentMapData.width}×{currentMapData.height} Tiles @ 64px)</span>
+                        <span className="font-mono text-cyan-400">{currentMapFile.fileName} ({currentMapData.width}×{currentMapData.height} @ 16px/cell)</span>
+                        <span className="text-neutral-500">|</span>
+                        <span className="font-mono text-emerald-400">128px Metroidvania Scale</span>
                         <span className="text-neutral-600">•</span>
                         <span>Biome: <strong className="text-white">{activeBiome.name}</strong></span>
                       </div>
@@ -619,11 +621,11 @@ export const EditorLayout: React.FC = () => {
                       {/* Terrain Tiles & Open Air */}
                       {paintCategory === 'tile_type' && (
                         <div className="space-y-3">
-                          {/* Tile Shape & Slope Selector */}
+                          {/* Tile Shape Selector (Solid & 45° Slopes) */}
                           <div className="p-3 bg-neutral-900/90 rounded-xl border border-neutral-800 space-y-2.5">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300">
-                                Shape & Slope Mode
+                                Tile Shape
                               </span>
                               <span className="text-[10px] font-mono text-cyan-400 font-semibold truncate max-w-[140px]">
                                 {TILE_SHAPE_DEFINITIONS[selectedShape]?.name || 'Solid Block'}
@@ -631,7 +633,7 @@ export const EditorLayout: React.FC = () => {
                             </div>
 
                             {/* Shape Grid Buttons */}
-                            <div className="grid grid-cols-4 gap-1.5">
+                            <div className="grid grid-cols-5 gap-1.5">
                               {(Object.keys(TILE_SHAPE_DEFINITIONS) as TileShape[]).map(shapeKey => {
                                 const def = TILE_SHAPE_DEFINITIONS[shapeKey];
                                 const isShapeActive = selectedShape === shapeKey;
@@ -656,25 +658,6 @@ export const EditorLayout: React.FC = () => {
                                   </button>
                                 );
                               })}
-                            </div>
-
-                            {/* Soft Dune Fullness Slider */}
-                            <div className="pt-2 border-t border-neutral-800/80 space-y-1">
-                              <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-neutral-400">Soft Dune Fullness</span>
-                                <span className="font-mono text-cyan-300 font-semibold">
-                                  {Math.round(selectedFullness * 100)}%
-                                </span>
-                              </div>
-                              <input
-                                type="range"
-                                min="0.1"
-                                max="1.0"
-                                step="0.05"
-                                value={selectedFullness}
-                                onChange={(e) => setSelectedFullness(parseFloat(e.target.value) || 1.0)}
-                                className="w-full accent-cyan-500 cursor-pointer h-1.5"
-                              />
                             </div>
                           </div>
 

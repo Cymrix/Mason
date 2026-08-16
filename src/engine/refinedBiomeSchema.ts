@@ -6,7 +6,7 @@ export type ConditionType = 'vulnerable' | 'stunned' | 'burning' | 'frozen' | 's
 export type BlendStyle = 'fade' | 'line' | 'dither';
 export type TraversalModifierTag = 'climbable' | 'sticky' | 'bouncy' | 'slippery' | 'hazard' | 'sinkable';
 
-export const TILE_SIZE = 64; // 64px square tiles
+export const TILE_SIZE = 16; // 16px square micro-tiles (128px player = 8 tiles tall)
 
 export interface DamageInstance {
   amount: number;
@@ -93,7 +93,7 @@ export interface PBRMaterialSpec {
  */
 export interface AutoTileDetails {
   top: {
-    enabled: boolean;
+    
     color?: string; // Optional fallback color
     overlayTextureUrl?: string; // Uploaded custom top trim image (DataURL or URL)
     thicknessPx: number; // e.g., 4px - 16px
@@ -101,7 +101,7 @@ export interface AutoTileDetails {
     noiseEdge: boolean;
   };
   bottom: {
-    enabled: boolean;
+    
     color?: string;
     overlayTextureUrl?: string;
     thicknessPx: number;
@@ -109,7 +109,7 @@ export interface AutoTileDetails {
     noiseEdge: boolean;
   };
   leftSide: {
-    enabled: boolean;
+    
     color?: string;
     overlayTextureUrl?: string;
     thicknessPx: number;
@@ -117,7 +117,20 @@ export interface AutoTileDetails {
     noiseEdge: boolean;
   };
   rightSide: {
-    enabled: boolean;
+    
+    color?: string;
+    overlayTextureUrl?: string;
+    thicknessPx: number;
+    texturePattern?: string;
+    noiseEdge: boolean;
+  };
+  innerCorner: {
+    
+    color?: string;
+    overlayTextureUrl?: string;
+  };
+  slope: {
+    
     color?: string;
     overlayTextureUrl?: string;
     thicknessPx: number;
@@ -171,9 +184,9 @@ export interface BiomeTileType {
   hazard_damage?: DamageInstance;
 
   // Soft Material & Slopes (e.g. Sand, Silt, Snow, Soft Dirt)
-  isSoft?: boolean; // When true, material defaults to soft 45° angular corners / natural dunes
+  materialType: 'hard' | 'soft' | 'water'; // When true, material defaults to soft 45° angular corners / natural dunes
   softness?: number; // 0.0 (rigid stone/brick) to 1.0 (loose powdery sand)
-  allowsSlopes?: boolean; // Whether slopes/ramps are enabled for this tile type
+  bevelProbability: number; // Whether slopes/ramps are enabled for this tile type
   defaultSlopeShape?: TileShape;
 }
 

@@ -25,6 +25,7 @@ interface MasonWelcomeLauncherProps {
   onLoadProjectFromFile: () => void;
   onSelectSavedProject: (id: string) => void;
   onDeleteSavedProject: (id: string, e: React.MouseEvent) => void;
+  onOpenPWAInstallModal: () => void;
 }
 
 export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
@@ -32,9 +33,10 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
   onCreateNewProject,
   onLoadProjectFromFile,
   onSelectSavedProject,
-  onDeleteSavedProject
+  onDeleteSavedProject,
+  onOpenPWAInstallModal
 }) => {
-  const { isInstallable, installPWA } = usePWA();
+  const { isInstalled } = usePWA();
 
   return (
     <div className="flex-1 bg-neutral-950 overflow-y-auto flex flex-col items-center justify-center p-6 md:p-12 select-none relative">
@@ -58,19 +60,18 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
             Modular 2D Metroidvania & Sidescroller world authoring system. Load independent HTML mini-apps for level editing, biomes, archetypes, and game flow.
           </p>
 
-          {/* PWA Install Action if prompt is available */}
-          {isInstallable && (
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={installPWA}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/50 text-cyan-300 text-xs font-bold transition shadow-lg"
-              >
-                <DownloadCloud size={15} />
-                <span>Install Mason as Desktop / Mobile App (PWA)</span>
-              </button>
-            </div>
-          )}
+          {/* PWA Install Action */}
+          <div className="pt-2 flex justify-center">
+            <button
+              type="button"
+              onClick={onOpenPWAInstallModal}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition shadow-lg shadow-cyan-950/50 group"
+            >
+              <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
+              <span>{isInstalled ? 'Mason PWA App Mode Active' : 'Install Mason as Desktop / Mobile App (PWA)'}</span>
+              <span className="text-[10px] bg-cyan-900/60 px-1.5 py-0.2 rounded font-mono text-cyan-200">v0.24</span>
+            </button>
+          </div>
         </div>
 
         {/* Primary Action Buttons (Create & Load) */}

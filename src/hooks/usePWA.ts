@@ -9,17 +9,46 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+export type DetectedPlatform = 'ios' | 'android' | 'chrome' | 'edge' | 'safari' | 'firefox' | 'other';
+
 export const usePWA = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
+  const [hasNativePrompt, setHasNativePrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isInIframe, setIsInIframe] = useState(false);
+  const [platform, setPlatform] = useState<DetectedPlatform>('other');
 
   useEffect(() => {
+    // Detect iframe environment
+    try {
+      setIsInIframe(window.self !== window.top);
+    } catch {
+      setIsInIframe(true);
+    }
+
+    // Detect browser / OS platform
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    if (/iphone|ipad|ipod/.test(userAgent)) {
+      setPlatform('ios');
+    } else if (/android/.test(userAgent)) {
+      setPlatform('android');
+    } else if (/edg/.test(userAgent)) {
+      setPlatform('edge');
+    } else if (/chrome|crios/.test(userAgent) && !/edg/.test(userAgent)) {
+      setPlatform('chrome');
+    } else if (/safari/.test(userAgent) && !/chrome|crios/.test(userAgent)) {
+      setPlatform('safari');
+    } else if (/firefox|fxios/.test(userAgent)) {
+      setPlatform('firefox');
+    } else {
+      setPlatform('other');
+    }
+
     // Check if app is already running in standalone PWA mode
     const isStandalone = 
       window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone ||
+      (window.navigator as any).standalone === true ||
       document.referrer.includes('android-app://');
     
     setIsInstalled(isStandalone);
@@ -27,12 +56,12 @@ export const usePWA = () => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setIsInstallable(true);
+      setHasNativePrompt(true);
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
-      setIsInstallable(false);
+      setHasNativePrompt(false);
       setDeferredPrompt(null);
       console.log('[Mason PWA] App installed successfully');
     };
@@ -53,10 +82,9 @@ export const usePWA = () => {
     };
   }, []);
 
-  const installPWA = async () => {
+  const triggerNativeInstall = async (): Promise<boolean> => {
     if (!deferredPrompt) {
-      alert('PWA installation is available via your browser menu (e.g. "Install App" or "Add to Home Screen").');
-      return;
+      return false;
     }
 
     try {
@@ -65,20 +93,25 @@ export const usePWA = () => {
       if (choiceResult.outcome === 'accepted') {
         console.log('[Mason PWA] User accepted installation prompt');
         setIsInstalled(true);
-        setIsInstallable(false);
+        setHasNativePrompt(false);
+        setDeferredPrompt(null);
+        return true;
       } else {
         console.log('[Mason PWA] User dismissed installation prompt');
+        return false;
       }
-      setDeferredPrompt(null);
     } catch (err) {
       console.error('[Mason PWA] Installation prompt failed:', err);
+      return false;
     }
   };
 
   return {
-    isInstallable,
+    hasNativePrompt,
     isInstalled,
     isOffline,
-    installPWA
+    isInIframe,
+    platform,
+    triggerNativeInstall
   };
 };

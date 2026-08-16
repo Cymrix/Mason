@@ -33,6 +33,7 @@ interface HamburgerMenuProps {
   onExportBundle: () => void;
   onCloseProject: () => void;
   onSelectModule: (moduleId: string) => void;
+  onOpenPWAInstallModal: () => void;
   activeModuleId: string | null;
 }
 
@@ -47,12 +48,13 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onExportBundle,
   onCloseProject,
   onSelectModule,
+  onOpenPWAInstallModal,
   activeModuleId
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { isInstallable, isOffline, installPWA } = usePWA();
+  const { isInstalled, isOffline } = usePWA();
 
   // Close when clicking outside
   useEffect(() => {
@@ -269,22 +271,21 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
             )}
 
             {/* PWA App Install Action */}
-            {isInstallable && (
-              <>
-                <div className="h-px bg-neutral-800 my-1"></div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsOpen(false);
-                    installPWA();
-                  }}
-                  className="w-full px-3 py-1.5 rounded-xl text-left text-xs font-bold text-cyan-300 bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-500/30 flex items-center gap-2.5 transition"
-                >
-                  <DownloadCloud size={14} className="text-cyan-400" />
-                  <span>Install Mason PWA</span>
-                </button>
-              </>
-            )}
+            <div className="h-px bg-neutral-800 my-1"></div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenPWAInstallModal();
+              }}
+              className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 flex items-center justify-between transition group"
+            >
+              <div className="flex items-center gap-2.5">
+                <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
+                <span>{isInstalled ? 'Mason PWA Installed' : 'Install Mason PWA...'}</span>
+              </div>
+              <span className="text-[9px] font-mono text-cyan-400/70 uppercase">v0.24</span>
+            </button>
           </div>
 
           {/* Footer Version & Status */}

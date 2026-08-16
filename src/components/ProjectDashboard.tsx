@@ -14,13 +14,14 @@ import {
   Layers, 
   Compass, 
   Download, 
-  ExternalLink,
-  ChevronRight,
-  Shield,
-  Palette,
-  Layout,
-  Globe,
-  Settings
+  ExternalLink, 
+  ChevronRight, 
+  Shield, 
+  Palette, 
+  Layout, 
+  Globe, 
+  Settings,
+  DownloadCloud
 } from 'lucide-react';
 
 interface ProjectDashboardProps {
@@ -30,6 +31,7 @@ interface ProjectDashboardProps {
   onOpenExplorer: () => void;
   onOpenModulesModal: () => void;
   onExportBundle: () => void;
+  onOpenPWAInstallModal?: () => void;
 }
 
 export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
@@ -38,7 +40,8 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onLaunchModule,
   onOpenExplorer,
   onOpenModulesModal,
-  onExportBundle
+  onExportBundle,
+  onOpenPWAInstallModal
 }) => {
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [name, setName] = useState(project.name);
@@ -123,6 +126,17 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             >
               <span>📂 Virtual Files Hub</span>
             </button>
+
+            {onOpenPWAInstallModal && (
+              <button
+                type="button"
+                onClick={onOpenPWAInstallModal}
+                className="px-5 py-2 rounded-2xl bg-cyan-950/60 border border-cyan-500/40 hover:bg-cyan-900/80 text-cyan-300 text-xs font-bold flex items-center justify-center gap-2 transition"
+              >
+                <DownloadCloud size={14} className="text-cyan-400" />
+                <span>Install Mason PWA</span>
+              </button>
+            )}
 
             <button
               type="button"

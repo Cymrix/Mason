@@ -59,13 +59,21 @@ import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } f
 import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
 import { usePWA } from '../hooks/usePWA';
 import { DownloadCloud, WifiOff } from 'lucide-react';
+import { PWAInstallModal } from './PWAInstallModal';
 
 export const EditorLayout: React.FC = () => {
   // Master Mason Project State (null when no project is loaded)
   const [project, setProject] = useState<MasonProject | null>(() => getActiveMasonProject());
   
   // PWA Support Hook
-  const { isInstallable, isOffline, installPWA } = usePWA();
+  const { 
+    hasNativePrompt, 
+    isInstalled, 
+    isOffline, 
+    isInIframe, 
+    platform, 
+    triggerNativeInstall 
+  } = usePWA();
 
   // Active Module State (null by default when a project is loaded, showing Project Info until clicked)
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
@@ -79,6 +87,7 @@ export const EditorLayout: React.FC = () => {
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [isExplorerModalOpen, setIsExplorerModalOpen] = useState(false);
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
+  const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -274,6 +283,7 @@ export const EditorLayout: React.FC = () => {
             onExportBundle={handleExportBundle}
             onCloseProject={handleCloseProject}
             onSelectModule={(modId) => setActiveModuleId(modId)}
+            onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
             activeModuleId={activeModuleId}
           />
 
@@ -314,18 +324,23 @@ export const EditorLayout: React.FC = () => {
 
         {/* Right Action Tools */}
         <div className="flex items-center gap-2">
-          {/* PWA Install Button */}
-          {isInstallable && (
-            <button
-              type="button"
-              onClick={installPWA}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-xl text-xs font-bold transition shadow-sm animate-pulse"
-              title="Install Mason Desktop/Mobile App (PWA)"
-            >
-              <DownloadCloud size={14} />
-              <span className="hidden lg:inline">Install App</span>
-            </button>
-          )}
+          {/* PWA Install Action (Always accessible so users can install to desktop/phone anytime) */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (hasNativePrompt) {
+                const installed = await triggerNativeInstall();
+                if (!installed) setIsPWAInstallModalOpen(true);
+              } else {
+                setIsPWAInstallModalOpen(true);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-bold transition shadow-sm group"
+            title="Install Mason Studio as Standalone App (PWA)"
+          >
+            <DownloadCloud size={14} className="text-cyan-400 group-hover:scale-110 transition" />
+            <span className="hidden sm:inline">{isInstalled ? 'Mason App' : 'Install App'}</span>
+          </button>
 
           {project && (
             <>
@@ -409,6 +424,7 @@ export const EditorLayout: React.FC = () => {
             onLoadProjectFromFile={() => setIsLoadModalOpen(true)}
             onSelectSavedProject={handleSelectSavedProject}
             onDeleteSavedProject={handleDeleteSavedProject}
+            onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
           />
         )}
 
@@ -421,6 +437,7 @@ export const EditorLayout: React.FC = () => {
             onOpenExplorer={() => setIsExplorerModalOpen(true)}
             onOpenModulesModal={() => setIsModulesModalOpen(true)}
             onExportBundle={handleExportBundle}
+            onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
           />
         )}
 
@@ -756,6 +773,17 @@ export const EditorLayout: React.FC = () => {
           }}
         />
       )}
+
+      {/* PWA Direct Installation & Guidance Modal */}
+      <PWAInstallModal
+        isOpen={isPWAInstallModalOpen}
+        onClose={() => setIsPWAInstallModalOpen(false)}
+        hasNativePrompt={hasNativePrompt}
+        isInIframe={isInIframe}
+        isInstalled={isInstalled}
+        platform={platform}
+        onTriggerNativeInstall={triggerNativeInstall}
+      />
 
       {/* Toast Notification Alerts */}
       {toast && (

@@ -129,13 +129,34 @@ export interface AutoTileDetails {
     color?: string;
     overlayTextureUrl?: string;
   };
-  slope: {
+  slopeInnerCorner?: {
+    
+    color?: string;
+    overlayTextureUrl?: string;
+  };
+  slope?: {
     
     color?: string;
     overlayTextureUrl?: string;
     thicknessPx: number;
     texturePattern?: string;
     noiseEdge: boolean;
+  };
+  slopeTop?: {
+    
+    color?: string;
+    overlayTextureUrl?: string;
+    thicknessPx?: number;
+    texturePattern?: string;
+    noiseEdge?: boolean;
+  };
+  slopeBottom?: {
+    
+    color?: string;
+    overlayTextureUrl?: string;
+    thicknessPx?: number;
+    texturePattern?: string;
+    noiseEdge?: boolean;
   };
 }
 

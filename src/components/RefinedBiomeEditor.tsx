@@ -1003,39 +1003,80 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                         />
                       </div>
 
-                      {/* Slope Overlay */}
+                      {/* Top Slope Overlay (Floor) */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Slope Overlay <span className="text-neutral-500 font-normal">(Auto-Rotates)</span></span></div>
+                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Top Slope Overlay <span className="text-neutral-500 font-normal">(Floor Ramps ◢ / ◣)</span></span></div>
                         <ImageUploadThumbnailField
-                          label="45° Slope Trim"
-                          badge="Slope"
-                          sublabel="Upload a 45° Up-Right slope (◢). The engine will automatically rotate/flip it for all other slope angles."
-                          imageUrl={(selectedTileType.tileDetails as any).slope?.overlayTextureUrl}
+                          label="Top Slope Trim (Floor)"
+                          badge="Top Slope"
+                          sublabel="Upload a 45° Up-Right slope (◢). Mirrored horizontally for Up-Left (◣)."
+                          imageUrl={selectedTileType.tileDetails.slopeTop?.overlayTextureUrl || (selectedTileType.tileDetails as any).slope?.overlayTextureUrl}
                           
                           accentColor="orange"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
                               ...tt,
-                              tileDetails: { ...tt.tileDetails, slope: { ...((tt.tileDetails as any).slope || {}), overlayTextureUrl: url } }
+                              tileDetails: {
+                                ...tt.tileDetails,
+                                slope: { ...((tt.tileDetails as any).slope || {}), overlayTextureUrl: url, thicknessPx: (tt.tileDetails as any).slope?.thicknessPx ?? 4, noiseEdge: true },
+                                slopeTop: { ...((tt.tileDetails as any).slopeTop || {}), overlayTextureUrl: url, thicknessPx: 4, noiseEdge: true }
+                              }
                             }));
                           }}
                           onClear={() => {
                             handleUpdateCurrentTileType(tt => ({
                               ...tt,
-                              tileDetails: { ...tt.tileDetails, slope: { ...((tt.tileDetails as any).slope || {}), overlayTextureUrl: undefined } }
+                              tileDetails: {
+                                ...tt.tileDetails,
+                                slope: { ...((tt.tileDetails as any).slope || {}), overlayTextureUrl: undefined },
+                                slopeTop: { ...((tt.tileDetails as any).slopeTop || {}), overlayTextureUrl: undefined }
+                              }
                             }));
                           }}
                           onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
                         />
                       </div>
 
-                      {/* Inner Corner Overlay */}
+                      {/* Bottom Slope Overlay (Ceiling) */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Inner Corner Overlay</span></div>
+                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Bottom Slope Overlay <span className="text-neutral-500 font-normal">(Ceiling ◥ / ◤)</span></span></div>
                         <ImageUploadThumbnailField
-                          label="Inside Corner Trim"
-                          badge="Inner"
-                          imageUrl={(selectedTileType.tileDetails as any).innerCorner?.overlayTextureUrl}
+                          label="Bottom Slope Trim (Ceiling)"
+                          badge="Bot Slope"
+                          sublabel="Upload a 45° Ceil Down-Right slope (◥). Mirrored horizontally for Ceil Down-Left (◤)."
+                          imageUrl={selectedTileType.tileDetails.slopeBottom?.overlayTextureUrl}
+                          
+                          accentColor="amber"
+                          onUpload={(url) => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              tileDetails: {
+                                ...tt.tileDetails,
+                                slopeBottom: { ...((tt.tileDetails as any).slopeBottom || {}), overlayTextureUrl: url, thicknessPx: 4, noiseEdge: true }
+                              }
+                            }));
+                          }}
+                          onClear={() => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              tileDetails: {
+                                ...tt.tileDetails,
+                                slopeBottom: { ...((tt.tileDetails as any).slopeBottom || {}), overlayTextureUrl: undefined }
+                              }
+                            }));
+                          }}
+                          onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                        />
+                      </div>
+
+                      {/* Block Inner Corner Overlay */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Block Inner Corner Overlay</span></div>
+                        <ImageUploadThumbnailField
+                          label="Block Inner Corner Trim"
+                          badge="Block Inner"
+                          sublabel="Concave inside corner between adjacent solid blocks."
+                          imageUrl={selectedTileType.tileDetails.innerCorner?.overlayTextureUrl}
                           
                           accentColor="emerald"
                           onUpload={(url) => {
@@ -1048,6 +1089,32 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                             handleUpdateCurrentTileType(tt => ({
                               ...tt,
                               tileDetails: { ...tt.tileDetails, innerCorner: { ...((tt.tileDetails as any).innerCorner || {}), overlayTextureUrl: undefined } }
+                            }));
+                          }}
+                          onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                        />
+                      </div>
+
+                      {/* Slope Inner Corner Overlay */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1"><span className="text-xs font-semibold text-neutral-200">Slope Inner Corner Overlay</span></div>
+                        <ImageUploadThumbnailField
+                          label="Slope Inner Corner Trim"
+                          badge="Slope Inner"
+                          sublabel="Concave corner transition where slopes meet adjacent ground or walls."
+                          imageUrl={selectedTileType.tileDetails.slopeInnerCorner?.overlayTextureUrl}
+                          
+                          accentColor="teal"
+                          onUpload={(url) => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              tileDetails: { ...tt.tileDetails, slopeInnerCorner: { ...((tt.tileDetails as any).slopeInnerCorner || {}), overlayTextureUrl: url } }
+                            }));
+                          }}
+                          onClear={() => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              tileDetails: { ...tt.tileDetails, slopeInnerCorner: { ...((tt.tileDetails as any).slopeInnerCorner || {}), overlayTextureUrl: undefined } }
                             }));
                           }}
                           onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}

@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.37
+ * Current Release: v0.38
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37 -> v0.38).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.37.0';
-export const MASON_VERSION_DISPLAY = 'v0.37';
-export const MASON_FULL_VERSION = 'v0.37';
+export const MASON_VERSION = '0.38.0';
+export const MASON_VERSION_DISPLAY = 'v0.38';
+export const MASON_FULL_VERSION = 'v0.38';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,17 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.38',
+    date: '2026-08-16',
+    changes: [
+      'Separated slope overlays into dedicated Top Slope (Floor Ramps ◢ / ◣) and Bottom Slope (Ceilings ◥ / ◤)',
+      'Converted slope rendering to pure horizontal mirroring (flipH) without rotation, keeping slope trims upright',
+      'Added dedicated Inner Corner for Slopes in addition to standard Inner Corner for solid Blocks',
+      'Preserved overlay Z-order hierarchy (Right Side -> Left Side -> Inner Corners -> Slopes -> Bottom -> Top)',
+      'Updated Biome Studio Overlay panel with clear helper sublabels and thumbnail controls for top/bottom slopes and inner corners'
+    ]
+  },
   {
     version: 'v0.37',
     date: '2026-08-16',

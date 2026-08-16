@@ -45,6 +45,7 @@ export function getCachedImage(url: string | undefined, onLoaded?: () => void): 
 
 /**
  * Draws a deterministic frame from a 16px-grid spritesheet overlay.
+ * Supports optional horizontal mirroring (flipH) without rotation.
  */
 function drawRandomSpriteFromGrid(
   ctx: CanvasRenderingContext2D,
@@ -54,7 +55,8 @@ function drawRandomSpriteFromGrid(
   w: number,
   h: number,
   tileX: number,
-  tileY: number
+  tileY: number,
+  flipH: boolean = false
 ) {
   const GRID_SIZE = 16;
   const cols = Math.max(1, Math.floor(img.width / GRID_SIZE));
@@ -73,7 +75,15 @@ function drawRandomSpriteFromGrid(
   const drawW = Math.min(GRID_SIZE, img.width - sx);
   const drawH = Math.min(GRID_SIZE, img.height - sy);
 
-  ctx.drawImage(img, sx, sy, drawW, drawH, x, y, w, h);
+  if (flipH) {
+    ctx.save();
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, sx, sy, drawW, drawH, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, sx, sy, drawW, drawH, x, y, w, h);
+  }
 }
 
 function seededValueNoise2D(x: number, y: number, seed: number = 0): number {
@@ -440,7 +450,8 @@ export function renderPureAlbedoCell(
 }
 
 /**
- * Helper to render sloped diagonal and trimmed edge fringes along shape boundaries
+ * Helper to render sloped diagonal and trimmed edge fringes along shape boundaries.
+ * Strictly uses horizontal mirroring (flipH) - NO ROTATIONS - so sprites remain upright.
  */
 export function drawSlopedEdgeTrim(
   ctx: CanvasRenderingContext2D,
@@ -451,40 +462,34 @@ export function drawSlopedEdgeTrim(
   tileType: BiomeTileType,
   tileX: number,
   tileY: number,
-  fullness: number = 1.0
+  _fullness: number = 1.0
 ) {
-  const slopeDetails = (tileType.tileDetails as any).slope;
-  const details = slopeDetails?.overlayTextureUrl ? slopeDetails : tileType.tileDetails.top;
-  
-  if (!details || !details.overlayTextureUrl) return;
+  const details = tileType.tileDetails;
+  if (!details) return;
 
-  const def = TILE_SHAPE_DEFINITIONS[shape];
-  if (!def || !def.trimEdge) return;
-
-  const img = getCachedImage(details.overlayTextureUrl);
-  if (!img) return;
-
-  ctx.save();
-  ctx.translate(screenX + tileSizePx / 2, screenY + tileSizePx / 2);
-
-  // Rotate slope based on its shape so the user only has to upload one 45-degree Up-Right slope (◢)
-  // ◢ slope_up_right_45 (0 deg)
-  // ◣ slope_up_left_45 (270 deg / -90 deg)
-  // ◥ slope_down_right_45 (90 deg)
-  // ◤ slope_down_left_45 (180 deg)
-  
-  if (shape === 'slope_up_left_45') {
-    ctx.rotate(-Math.PI / 2); // -90 deg
-  } else if (shape === 'slope_down_right_45') {
-    ctx.rotate(Math.PI / 2); // 90 deg
-  } else if (shape === 'slope_down_left_45') {
-    ctx.rotate(Math.PI); // 180 deg
+  // 1. Top Slopes (Floor Ramps: slope_up_right_45 ◢ and slope_up_left_45 ◣)
+  if (shape === 'slope_up_right_45' || shape === 'slope_up_left_45') {
+    const slopeTopUrl = details.slopeTop?.overlayTextureUrl || details.slope?.overlayTextureUrl;
+    if (slopeTopUrl) {
+      const img = getCachedImage(slopeTopUrl);
+      if (img) {
+        const flipH = shape === 'slope_up_left_45';
+        drawRandomSpriteFromGrid(ctx, img, screenX, screenY, tileSizePx, tileSizePx, tileX, tileY, flipH);
+      }
+    }
   }
 
-  // Draw the sprite, offset back to top-left
-  drawRandomSpriteFromGrid(ctx, img, -tileSizePx / 2, -tileSizePx / 2, tileSizePx, tileSizePx, tileX, tileY);
-  
-  ctx.restore();
+  // 2. Bottom Slopes (Ceiling Slopes: slope_down_right_45 ◥ and slope_down_left_45 ◤)
+  if (shape === 'slope_down_right_45' || shape === 'slope_down_left_45') {
+    const slopeBottomUrl = details.slopeBottom?.overlayTextureUrl;
+    if (slopeBottomUrl) {
+      const img = getCachedImage(slopeBottomUrl);
+      if (img) {
+        const flipH = shape === 'slope_down_left_45';
+        drawRandomSpriteFromGrid(ctx, img, screenX, screenY, tileSizePx, tileSizePx, tileX, tileY, flipH);
+      }
+    }
+  }
 }
 
 export function renderRefinedTileCell(
@@ -590,9 +595,8 @@ export function renderRefinedTileCell(
     ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx * 0.25);
   }
 
-  // 3. Composite Autotiling Overlays
+  // 3. Composite Autotiling Overlays (Z-Hierarchy: Top -> Bottom -> Slope -> Inner Corner -> Left -> Right)
   const details = tileType.tileDetails;
-  const scaleRatio = tileSizePx / 64;
 
   // -- 1. RIGHT Edge Overlay (Lowest Z)
   if (details.rightSide.overlayTextureUrl && !neighborMask.hasRight && (shape === 'full' || shape === 'slope_up_right_45' || shape === 'slope_down_right_45')) {
@@ -610,33 +614,48 @@ export function renderRefinedTileCell(
     }
   }
 
-  // -- 3. Inner Corner Trims
-  const innerDetails = (tileType.tileDetails as any).innerCorner;
-  if (shape === 'full') {
-    const drawInnerCorner = (rotationDeg: number) => {
-      if (innerDetails && innerDetails.overlayTextureUrl) {
-        const icImg = getCachedImage(innerDetails.overlayTextureUrl, onImageLoaded);
-        if (icImg) {
-          ctx.save();
-          ctx.translate(screenX + tileSizePx / 2, screenY + tileSizePx / 2);
-          ctx.rotate((rotationDeg * Math.PI) / 180);
-          drawRandomSpriteFromGrid(ctx, icImg, -tileSizePx / 2, -tileSizePx / 2, tileSizePx, tileSizePx, tileX, tileY);
-          ctx.restore();
-        }
-      }
-    };
+  // -- 3a. Block Inner Corner Overlay (Concave corners on solid blocks)
+  const blockInnerDetails = details.innerCorner;
+  if (shape === 'full' && blockInnerDetails?.overlayTextureUrl) {
+    const icImg = getCachedImage(blockInnerDetails.overlayTextureUrl, onImageLoaded);
+    if (icImg) {
+      const drawInnerCorner = (rotationDeg: number) => {
+        ctx.save();
+        ctx.translate(screenX + tileSizePx / 2, screenY + tileSizePx / 2);
+        ctx.rotate((rotationDeg * Math.PI) / 180);
+        drawRandomSpriteFromGrid(ctx, icImg, -tileSizePx / 2, -tileSizePx / 2, tileSizePx, tileSizePx, tileX, tileY);
+        ctx.restore();
+      };
 
-    if (neighborMask.hasTop && neighborMask.hasLeft && neighborMask.hasTopLeft === false && details.top.overlayTextureUrl) {
-      drawInnerCorner(0);
+      if (neighborMask.hasTop && neighborMask.hasLeft && neighborMask.hasTopLeft === false) {
+        drawInnerCorner(0);
+      }
+      if (neighborMask.hasTop && neighborMask.hasRight && neighborMask.hasTopRight === false) {
+        drawInnerCorner(90);
+      }
+      if (neighborMask.hasBottom && neighborMask.hasLeft && neighborMask.hasBottomLeft === false) {
+        drawInnerCorner(270);
+      }
+      if (neighborMask.hasBottom && neighborMask.hasRight && neighborMask.hasBottomRight === false) {
+        drawInnerCorner(180);
+      }
     }
-    if (neighborMask.hasTop && neighborMask.hasRight && neighborMask.hasTopRight === false && details.top.overlayTextureUrl) {
-      drawInnerCorner(90);
-    }
-    if (neighborMask.hasBottom && neighborMask.hasLeft && neighborMask.hasBottomLeft === false && details.bottom.overlayTextureUrl) {
-      drawInnerCorner(270);
-    }
-    if (neighborMask.hasBottom && neighborMask.hasRight && neighborMask.hasBottomRight === false && details.bottom.overlayTextureUrl) {
-      drawInnerCorner(180);
+  }
+
+  // -- 3b. Slope Inner Corner Overlay (Concave corner transitions where slopes meet adjacent walls/ground)
+  const slopeInnerUrl = details.slopeInnerCorner?.overlayTextureUrl;
+  if (slopeInnerUrl && shape !== 'full') {
+    const slopeInnerImg = getCachedImage(slopeInnerUrl, onImageLoaded);
+    if (slopeInnerImg) {
+      if (shape === 'slope_up_right_45' && neighborMask.hasLeft) {
+        drawRandomSpriteFromGrid(ctx, slopeInnerImg, screenX, screenY, tileSizePx, tileSizePx, tileX, tileY, false);
+      } else if (shape === 'slope_up_left_45' && neighborMask.hasRight) {
+        drawRandomSpriteFromGrid(ctx, slopeInnerImg, screenX, screenY, tileSizePx, tileSizePx, tileX, tileY, true);
+      } else if (shape === 'slope_down_right_45' && neighborMask.hasLeft) {
+        drawRandomSpriteFromGrid(ctx, slopeInnerImg, screenX, screenY, tileSizePx, tileSizePx, tileX, tileY, false);
+      } else if (shape === 'slope_down_left_45' && neighborMask.hasRight) {
+        drawRandomSpriteFromGrid(ctx, slopeInnerImg, screenX, screenY, tileSizePx, tileSizePx, tileX, tileY, true);
+      }
     }
   }
 
@@ -647,7 +666,7 @@ export function renderRefinedTileCell(
     isClipped = false; // Prevent double restore
   }
 
-  // -- 4. Slope Overlay
+  // -- 4. Slope Overlays (Top Slopes & Bottom Slopes)
   if (shape !== 'full') {
     drawSlopedEdgeTrim(ctx, screenX, screenY, tileSizePx, shape, tileType, tileX, tileY, fullness);
   }
@@ -667,5 +686,4 @@ export function renderRefinedTileCell(
       drawRandomSpriteFromGrid(ctx, topImg, screenX, screenY, tileSizePx, tileSizePx, tileX, tileY);
     }
   }
-
-      }
+}

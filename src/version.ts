@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.36
+ * Current Release: v0.37
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.36.0';
-export const MASON_VERSION_DISPLAY = 'v0.36';
-export const MASON_FULL_VERSION = 'v0.36';
+export const MASON_VERSION = '0.37.0';
+export const MASON_VERSION_DISPLAY = 'v0.37';
+export const MASON_FULL_VERSION = 'v0.37';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,18 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.37',
+    date: '2026-08-16',
+    changes: [
+      'Implemented 16px-grid spritesheet multi-frame overlays with deterministic spatial random frame picking',
+      'Configured custom overlay Z-order hierarchy (Right -> Left -> Inner Corner -> Slope -> Bottom -> Top)',
+      'Added automatic rotation transforms (-90°, 90°, 180°) for slope trims from a single 45° Up-Right source image',
+      'Removed all vector/color fallback artifacts when overlay images are not provided',
+      'Streamlined project dashboard header badge to cleanly display version tag without redundant name prefix',
+      'Updated standalone PWA title and manifest metadata to strictly display "Mason"'
+    ]
+  },
   {
     version: 'v0.36',
     date: '2026-08-16',

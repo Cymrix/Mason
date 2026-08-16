@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mason-v0.36';
+const CACHE_NAME = 'mason-v0.37';
 const ASSETS_TO_CACHE = [
   '.',
   './index.html',

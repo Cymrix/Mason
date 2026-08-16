@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.53.9
+ * Current Release: v0.61
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37 -> v0.38 -> v0.40 -> v0.41 -> v0.42 -> v0.43).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.61 -> v0.62 -> v0.63 -> v0.64).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.53.9';
-export const MASON_VERSION_DISPLAY = 'v0.53.8';
-export const MASON_FULL_VERSION = 'v0.53.9';
+export const MASON_VERSION = '0.61';
+export const MASON_VERSION_DISPLAY = 'v0.61';
+export const MASON_FULL_VERSION = 'v0.61';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.61',
+    date: '2026-08-16',
+    changes: [
+      'Set project versioning standard to whole numbers starting at v0.61 (v0.61 -> v0.62 -> v0.63)',
+      'Added Add Layer modal dialog and Delete Layer buttons for custom background/foreground parallax depth layers with Main Layer safeguard',
+      'Implemented Stamp Chunk and Fill Map tools for active biome assignment across map chunks',
+      'Added canvas HUD grid toggle button and shortcut (G) for showing/hiding tile grid lines and chunk boundaries'
+    ]
+  },
   {
     version: 'v0.53.9',
     date: '2026-08-16',

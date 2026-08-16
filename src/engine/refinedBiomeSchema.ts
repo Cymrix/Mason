@@ -23,10 +23,10 @@ export interface Effect {
 }
 
 /**
- * Parallax Architecture (7 Layers from -5 to +1)
+ * Parallax Architecture (Dynamic Layers, negative for background, 0 for main gameplay, positive for foreground)
  * Sidescroller 2D Metroidvania Depth Layers
  */
-export type ParallaxLayerIndex = -5 | -4 | -3 | -2 | -1 | 0 | 1;
+export type ParallaxLayerIndex = number;
 
 export type ParallaxProceduralTheme = 
   | 'celestial_sky' 

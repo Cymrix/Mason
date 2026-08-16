@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
 import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
+import { usePWA } from '../hooks/usePWA';
 import { 
   Play, 
   Folder, 
@@ -65,6 +66,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   const gameCount = project.fileSystem?.game?.length || 0;
 
   const totalFiles = mapCount + biomeCount + archetypeCount + uiCount + gameCount;
+  const { isInstalled } = usePWA();
 
   return (
     <div className="flex-1 bg-neutral-950 overflow-y-auto p-6 md:p-8 space-y-6 select-none max-w-6xl mx-auto w-full">
@@ -127,7 +129,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               <span>📂 Virtual Files Hub</span>
             </button>
 
-            {onOpenPWAInstallModal && (
+            {onOpenPWAInstallModal && !isInstalled && (
               <button
                 type="button"
                 onClick={onOpenPWAInstallModal}

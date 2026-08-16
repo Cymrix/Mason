@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.28
+ * Current Release: v0.29
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.27 -> v0.28 -> v0.29).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.28 -> v0.29 -> v0.30).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.28.0';
-export const MASON_VERSION_DISPLAY = 'v0.28';
-export const MASON_FULL_VERSION = 'v0.28';
+export const MASON_VERSION = '0.29.0';
+export const MASON_VERSION_DISPLAY = 'v0.29';
+export const MASON_FULL_VERSION = 'v0.29';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -31,6 +31,14 @@ export const getMasonVersionString = (revision?: number): string => {
  */
 export const MASON_RELEASE_HISTORY = [
   {
+    version: 'v0.29',
+    date: '2026-08-16',
+    changes: [
+      'Removed "MENU" text label from the main hamburger trigger button',
+      'Automatically hide PWA install buttons once the application is running in installed mode'
+    ]
+  },
+  {
     version: 'v0.28',
     date: '2026-08-16',
     changes: [
@@ -46,15 +54,6 @@ export const MASON_RELEASE_HISTORY = [
       'Wired full native React interactive modules for Biomes, Game Structure, and Procedural Macro',
       'Eliminated external script CDN network calls causing 404 GitHub Pages errors',
       'Integrated live 1px:1tile procedural layout synthesis for level maps'
-    ]
-  },
-  {
-    version: 'v0.26',
-    date: '2026-08-16',
-    changes: [
-      'Standardized project bundle extension strictly to .mason',
-      'Cleaned versioning display to v0.26 without alpha suffix',
-      'Unified app title to strictly "Mason" across document, PWA manifest, and install prompts'
     ]
   }
 ];

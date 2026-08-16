@@ -60,18 +60,20 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
             Modular 2D Metroidvania & Sidescroller world authoring system. Load independent HTML mini-apps for level editing, biomes, archetypes, and game flow.
           </p>
 
-          {/* PWA Install Action */}
-          <div className="pt-2 flex justify-center">
-            <button
-              type="button"
-              onClick={onOpenPWAInstallModal}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition shadow-lg shadow-cyan-950/50 group"
-            >
-              <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
-              <span>{isInstalled ? 'Mason PWA App Mode Active' : 'Install Mason as Desktop / Mobile App (PWA)'}</span>
-              <span className="text-[10px] bg-cyan-900/60 px-1.5 py-0.2 rounded font-mono text-cyan-200">{MASON_VERSION_DISPLAY}</span>
-            </button>
-          </div>
+          {/* PWA Install Action (Only when not installed) */}
+          {!isInstalled && (
+            <div className="pt-2 flex justify-center">
+              <button
+                type="button"
+                onClick={onOpenPWAInstallModal}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition shadow-lg shadow-cyan-950/50 group"
+              >
+                <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
+                <span>Install Mason as Desktop / Mobile App (PWA)</span>
+                <span className="text-[10px] bg-cyan-900/60 px-1.5 py-0.2 rounded font-mono text-cyan-200">{MASON_VERSION_DISPLAY}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Primary Action Buttons (Create & Load) */}

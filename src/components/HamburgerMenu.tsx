@@ -78,7 +78,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition ${
+        className={`flex items-center justify-center p-2 rounded-xl border transition ${
           isOpen
             ? 'bg-neutral-800 border-neutral-600 text-white shadow-lg'
             : 'bg-neutral-900/90 border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800'
@@ -86,8 +86,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
         title="Mason Main Menu"
         aria-label="Open Mason Main Menu"
       >
-        <Menu size={16} className="text-neutral-300" />
-        <span className="text-xs font-bold font-mono tracking-tight text-neutral-200">MENU</span>
+        <Menu size={18} className="text-neutral-300" />
       </button>
 
       {/* Dropdown Menu */}
@@ -270,22 +269,26 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
               </>
             )}
 
-            {/* PWA App Install Action */}
-            <div className="h-px bg-neutral-800 my-1"></div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpen(false);
-                onOpenPWAInstallModal();
-              }}
-              className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 flex items-center justify-between transition group"
-            >
-              <div className="flex items-center gap-2.5">
-                <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
-                <span>{isInstalled ? 'Mason PWA Installed' : 'Install Mason PWA...'}</span>
-              </div>
-              <span className="text-[9px] font-mono text-cyan-400/70 uppercase">{MASON_VERSION_DISPLAY}</span>
-            </button>
+            {/* PWA App Install Action (Only when not installed) */}
+            {!isInstalled && (
+              <>
+                <div className="h-px bg-neutral-800 my-1"></div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onOpenPWAInstallModal();
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 flex items-center justify-between transition group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
+                    <span>Install Mason PWA...</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-cyan-400/70 uppercase">{MASON_VERSION_DISPLAY}</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Footer Version & Status */}

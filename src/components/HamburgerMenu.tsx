@@ -177,7 +177,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
               </button>
             )}
 
-            {/* 1px:1tile Macro Studio */}
+            {/* Map Macro (subset of Maps) */}
             {project && (
               <button
                 type="button"
@@ -190,8 +190,8 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">⚡</span>
                   <div>
-                    <span className="font-bold text-neutral-100 group-hover:text-rose-300 transition">1px:1tile Macro Studio</span>
-                    <p className="text-[10px] text-neutral-400">Procedural cellular generation</p>
+                    <span className="font-bold text-neutral-100 group-hover:text-rose-300 transition">Map Macro</span>
+                    <p className="text-[10px] text-neutral-400">1px:1tile procedural cellular generation</p>
                   </div>
                 </div>
                 <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />

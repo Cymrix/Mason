@@ -1,3 +1,31 @@
+
+function getLineGridCells(r0: number, c0: number, r1: number, c1: number): Array<{ row: number; col: number }> {
+  const points: Array<{ row: number; col: number }> = [];
+  const dx = Math.abs(c1 - c0);
+  const dy = Math.abs(r1 - r0);
+  const sx = c0 < c1 ? 1 : -1;
+  const sy = r0 < r1 ? 1 : -1;
+  let err = dx - dy;
+
+  let curX = c0;
+  let curY = r0;
+
+  while (true) {
+    points.push({ row: curY, col: curX });
+    if (curX === c1 && curY === r1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      curX += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      curY += sy;
+    }
+  }
+  return points;
+}
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { BiomeTileType } from '../engine/refinedBiomeSchema';
 import { renderRefinedTileCell, renderPureAlbedoCell } from '../engine/tileMaterialRenderer';
@@ -35,28 +63,38 @@ function createIslandPreset(rows = DEFAULT_ROWS, cols = DEFAULT_COLS): number[][
   const g = createEmptyGrid(rows, cols);
   for (let r = 2; r < rows - 1; r++) {
     for (let c = 2; c < cols - 2; c++) {
-      g[r][c] = 1;
+      if (g[r]) g[r][c] = 1;
     }
   }
-  g[1][4] = 1;
-  g[1][5] = 1;
-  g[1][6] = 1;
-  g[1][7] = 1;
-  g[4][4] = 0;
-  g[4][5] = 0;
-  g[5][4] = 0;
-  g[5][5] = 0;
+  if (g[1]) {
+    if (g[1].length > 4) g[1][4] = 1;
+    if (g[1].length > 5) g[1][5] = 1;
+    if (g[1].length > 6) g[1][6] = 1;
+    if (g[1].length > 7) g[1][7] = 1;
+  }
+  if (g[4]) {
+    if (g[4].length > 4) g[4][4] = 0;
+    if (g[4].length > 5) g[4][5] = 0;
+  }
+  if (g[5]) {
+    if (g[5].length > 4) g[5][4] = 0;
+    if (g[5].length > 5) g[5][5] = 0;
+  }
   return g;
 }
 
 function createPlatformPreset(rows = DEFAULT_ROWS, cols = DEFAULT_COLS): number[][] {
   const g = createEmptyGrid(rows, cols);
   for (let c = 0; c < cols; c++) {
-    g[rows - 2][c] = 1;
-    g[rows - 1][c] = 1;
+    if (rows >= 2 && g[rows - 2]) g[rows - 2][c] = 1;
+    if (rows >= 1 && g[rows - 1]) g[rows - 1][c] = 1;
   }
-  for (let c = 2; c <= 5; c++) g[3][c] = 1;
-  for (let c = 7; c <= 9; c++) g[4][c] = 1;
+  if (g[3]) {
+    for (let c = 2; c <= Math.min(5, cols - 1); c++) g[3][c] = 1;
+  }
+  if (g[4]) {
+    for (let c = 7; c <= Math.min(9, cols - 1); c++) g[4][c] = 1;
+  }
   return g;
 }
 
@@ -82,7 +120,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   const albedoHeight = albedoRows * tileSize;
 
   const sandboxRows = sandboxGrid.length;
-  const sandboxCols = sandboxGrid[0].length;
+  const sandboxCols = sandboxGrid[0]?.length || 0;
   const sandboxWidth = sandboxCols * tileSize;
   const sandboxHeight = sandboxRows * tileSize;
 
@@ -173,19 +211,19 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
 
     for (let r = 0; r < sandboxRows; r++) {
       for (let c = 0; c < sandboxCols; c++) {
-        const cellActive = sandboxGrid[r][c] === 1;
+        const cellActive = sandboxGrid[r]?.[c] === 1;
         const screenX = c * tileSize;
         const screenY = r * tileSize;
 
         if (cellActive) {
-          const hasTop = r > 0 && sandboxGrid[r - 1][c] === 1;
-          const hasBottom = r < sandboxRows - 1 && sandboxGrid[r + 1][c] === 1;
-          const hasLeft = c > 0 && sandboxGrid[r][c - 1] === 1;
-          const hasRight = c < sandboxCols - 1 && sandboxGrid[r][c + 1] === 1;
-          const hasTopLeft = r > 0 && c > 0 && sandboxGrid[r - 1][c - 1] === 1;
-          const hasTopRight = r > 0 && c < sandboxCols - 1 && sandboxGrid[r - 1][c + 1] === 1;
-          const hasBottomLeft = r < sandboxRows - 1 && c > 0 && sandboxGrid[r + 1][c - 1] === 1;
-          const hasBottomRight = r < sandboxRows - 1 && c < sandboxCols - 1 && sandboxGrid[r + 1][c + 1] === 1;
+          const hasTop = r > 0 && sandboxGrid[r - 1]?.[c] === 1;
+          const hasBottom = r < sandboxRows - 1 && sandboxGrid[r + 1]?.[c] === 1;
+          const hasLeft = c > 0 && sandboxGrid[r]?.[c - 1] === 1;
+          const hasRight = c < sandboxCols - 1 && sandboxGrid[r]?.[c + 1] === 1;
+          const hasTopLeft = r > 0 && c > 0 && sandboxGrid[r - 1]?.[c - 1] === 1;
+          const hasTopRight = r > 0 && c < sandboxCols - 1 && sandboxGrid[r - 1]?.[c + 1] === 1;
+          const hasBottomLeft = r < sandboxRows - 1 && c > 0 && sandboxGrid[r + 1]?.[c - 1] === 1;
+          const hasBottomRight = r < sandboxRows - 1 && c < sandboxCols - 1 && sandboxGrid[r + 1]?.[c + 1] === 1;
 
           const effectiveShape: TileShape = resolveAutoTileShape(tileType.bevelProbability ?? 0, c, r, {
             hasTop,
@@ -246,41 +284,54 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   const applySandboxTile = (row: number, col: number, valToSet: number) => {
     if (row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
       setSandboxGrid(prev => {
-        if (prev[row][col] === valToSet) return prev;
+        if (!prev[row] || prev[row][col] === valToSet) return prev;
         const next = prev.map(r => [...r]);
-        next[row][col] = valToSet;
+        if (next[row]) next[row][col] = valToSet;
         return next;
       });
     }
   };
 
-  const handleMouseDownSandbox = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.button !== 0) return;
-    
-    // Important: don't start drawing if the user is holding Alt/Ctrl or panning
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const lastGridCoordRef = useRef<{ row: number; col: number } | null>(null);
 
+  const applySandboxTilesBatch = (pts: Array<{ row: number; col: number }>, val: number) => {
+    setSandboxGrid(prev => {
+      let changed = false;
+      const next = prev.map(r => [...r]);
+      for (const pt of pts) {
+        if (pt.row >= 0 && pt.row < next.length && pt.col >= 0 && pt.col < (next[0]?.length || 0)) {
+          if (next[pt.row][pt.col] !== val) {
+            next[pt.row][pt.col] = val;
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : prev;
+    });
+  };
+
+  const handleMouseDownSandbox = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault();
     e.stopPropagation();
-
     const canvas = sandboxCanvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
-
     const col = Math.floor((clickX / rect.width) * sandboxCols);
     const row = Math.floor((clickY / rect.height) * sandboxRows);
 
     if (row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
       setIsDrawing(true);
-      const currentVal = sandboxGrid[row][col];
+      const currentVal = sandboxGrid[row]?.[col] ?? 0;
       const targetVal = sandboxTool === 'erase' ? 0 : (currentVal === 1 ? 0 : 1);
       
       dragTargetValRef.current = targetVal;
       lastTouchedCellRef.current = `${row},${col}`;
-      applySandboxTile(row, col, targetVal);
+      lastGridCoordRef.current = { row, col };
+      applySandboxTilesBatch([{ row, col }], targetVal);
     }
   };
 
@@ -292,20 +343,26 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     const rect = canvas.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
-
     const col = Math.floor((clickX / rect.width) * sandboxCols);
     const row = Math.floor((clickY / rect.height) * sandboxRows);
 
-    const cellKey = `${row},${col}`;
-    if (cellKey !== lastTouchedCellRef.current && row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
-      lastTouchedCellRef.current = cellKey;
-      applySandboxTile(row, col, dragTargetValRef.current);
+    if (row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
+      if (lastGridCoordRef.current) {
+        if (lastGridCoordRef.current.row === row && lastGridCoordRef.current.col === col) return;
+        const pts = getLineGridCells(lastGridCoordRef.current.row, lastGridCoordRef.current.col, row, col);
+        applySandboxTilesBatch(pts, dragTargetValRef.current);
+      } else {
+        applySandboxTilesBatch([{ row, col }], dragTargetValRef.current);
+      }
+      lastTouchedCellRef.current = `${row},${col}`;
+      lastGridCoordRef.current = { row, col };
     }
   };
 
   const handleMouseUpSandbox = () => {
     setIsDrawing(false);
     lastTouchedCellRef.current = null;
+    lastGridCoordRef.current = null;
   };
 
   const handleExportAlbedo = () => {
@@ -509,7 +566,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
               />
             </div>
 
-            <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs select-none">
+            <div data-no-paint="true" onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} className="absolute bottom-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs select-none">
               <div className="flex items-center gap-1 px-2 text-[10px] font-mono text-slate-400 border-r border-slate-800">
                 <Move size={11} className="text-cyan-400" />
                 <span>R-Click Pan • Wheel Zoom</span>

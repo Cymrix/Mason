@@ -271,17 +271,7 @@ export const createEmptyMap = (width: number, height: number, defaultTileTypeId:
   return {
     width,
     height,
-    cells: Array(height).fill(null).map(() => 
-      Array(width).fill(null).map(() => ({
-        tile_type_id: defaultTileTypeId,
-        biome_id: defaultBiomeId,
-        current_health: 100,
-        damage_threshold_index: 0,
-        environmental_detail_id: null,
-        interactive_detail_id: null,
-        wildlife_id: null
-      }))
-    ),
+    chunks: {},
   };
 };
 
@@ -296,7 +286,7 @@ export const createStarterProject = (
   const biomes = JSON.parse(JSON.stringify(INITIAL_REFINED_BIOMES)) as RefinedBiome[];
   
   const targetBiome = biomes.find(b => b.id === template.biomeId) || biomes[0];
-  const primaryTileId = targetBiome.primaryTileTypeId || targetBiome.tileTypes[0]?.id || 'ashen_basalt';
+  const primaryTileId = targetBiome.primaryTileTypeId || targetBiome.tileTypes?.[0]?.id || 'ashen_basalt';
 
   const map = createEmptyMap(width, height, primaryTileId, targetBiome.id);
 
@@ -307,26 +297,26 @@ export const createStarterProject = (
       for (let x = 0; x < width; x++) {
         const noise = (Math.sin(x * 0.45) + Math.cos(y * 0.45)) * 0.5 + 0.5;
         if (noise > 0.65 && targetBiome.tileTypes[1]) {
-          map.cells[y][x].tile_type_id = targetBiome.tileTypes[1].id;
+          if (map.cells[y] && map.cells[y][x]) map.cells[y][x].tile_type_id = targetBiome.tileTypes[1].id;
         } else if (noise > 0.85 && targetBiome.tileTypes[2]) {
-          map.cells[y][x].tile_type_id = targetBiome.tileTypes[2].id;
+          if (map.cells[y] && map.cells[y][x]) map.cells[y][x].tile_type_id = targetBiome.tileTypes[2].id;
         }
 
         // Scatter flora/rocks
         if (Math.random() < 0.12 && targetBiome.environmentalDetails.length > 0) {
           const randEnv = targetBiome.environmentalDetails[Math.floor(Math.random() * targetBiome.environmentalDetails.length)];
-          map.cells[y][x].environmental_detail_id = randEnv.id;
+          if (map.cells[y] && map.cells[y][x]) map.cells[y][x].environmental_detail_id = randEnv.id;
         }
 
         // Scatter wildlife
         if (Math.random() < 0.04 && targetBiome.wildlife.length > 0) {
           const randFauna = targetBiome.wildlife[Math.floor(Math.random() * targetBiome.wildlife.length)];
-          map.cells[y][x].wildlife_id = randFauna.id;
+          if (map.cells[y] && map.cells[y][x]) map.cells[y][x].wildlife_id = randFauna.id;
         }
 
         // Interactive altar/chest in center
         if (x === Math.floor(width / 2) && y === Math.floor(height / 2) && targetBiome.interactiveDetails[0]) {
-          map.cells[y][x].interactive_detail_id = targetBiome.interactiveDetails[0].id;
+          if (map.cells[y] && map.cells[y][x]) map.cells[y][x].interactive_detail_id = targetBiome.interactiveDetails[0].id;
         }
       }
     }
@@ -335,10 +325,10 @@ export const createStarterProject = (
       for (let x = 0; x < width; x++) {
         const distCenter = Math.sqrt((x - width / 2) ** 2 + (y - height / 2) ** 2);
         if (distCenter > (width * 0.35) && targetBiome.tileTypes[1]) {
-          map.cells[y][x].tile_type_id = targetBiome.tileTypes[1].id;
+          if (map.cells[y] && map.cells[y][x]) map.cells[y][x].tile_type_id = targetBiome.tileTypes[1].id;
         }
         if (Math.random() < 0.15 && targetBiome.environmentalDetails.length > 0) {
-          map.cells[y][x].environmental_detail_id = targetBiome.environmentalDetails[0].id;
+          if (map.cells[y] && map.cells[y][x]) map.cells[y][x].environmental_detail_id = targetBiome.environmentalDetails[0].id;
         }
       }
     }
@@ -408,14 +398,14 @@ export const parseProjectJson = (jsonStr: string): ProjectData => {
     ? parsed.biomes 
     : JSON.parse(JSON.stringify(INITIAL_REFINED_BIOMES));
 
-  const activeBiomeId = parsed.active_biome_id || parsed.activeBiomeId || biomes[0]?.id || 'mourne_ashen_steppes';
+  const activeBiomeId = parsed.active_biome_id || parsed.activeBiomeId || biomes?.[0]?.id || 'mourne_ashen_steppes';
   
   let mapData: RefinedMapData;
-  if (parsed.map && Array.isArray(parsed.map.cells)) {
+  if (parsed.map && (Array.isArray(parsed.map.cells) || parsed.map.chunks)) {
     mapData = parsed.map;
   } else if (parsed.cells && Array.isArray(parsed.cells)) {
     mapData = {
-      width: parsed.width || parsed.cells[0]?.length || 24,
+      width: parsed.width || parsed.cells?.[0]?.length || 24,
       height: parsed.height || parsed.cells.length || 24,
       cells: parsed.cells
     };

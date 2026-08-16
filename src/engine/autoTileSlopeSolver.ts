@@ -23,8 +23,8 @@ export function resolveAutoTileShape(
   neighbors: NeighborPresence,
   manualShape?: TileShape
 ): TileShape {
-  // If user specified an explicit non-full shape manually, honor it
-  if (manualShape && manualShape !== 'full') {
+  // If user specified an explicit non-auto shape manually, honor it
+  if (manualShape !== undefined && manualShape !== 'auto') {
     return manualShape;
   }
 

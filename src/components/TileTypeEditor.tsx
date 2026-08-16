@@ -50,7 +50,7 @@ export const TileTypeEditor: React.FC<TileTypeEditorProps> = ({
   activePaintTileId
 }) => {
   const tileList: TileType[] = Object.values(tileTypes);
-  const [selectedId, setSelectedId] = useState<string>(tileList[0]?.id || 'stone');
+  const [selectedId, setSelectedId] = useState<string>(tileList?.[0]?.id || 'stone');
   const [activeSubTab, setActiveSubTab] = useState<'shading' | 'combat' | 'traversal'>('shading');
 
   const selectedTile = tileTypes[selectedId] || tileList[0];

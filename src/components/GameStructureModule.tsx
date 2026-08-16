@@ -47,7 +47,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
   onUpdateProject,
   onNavigateToModule
 }) => {
-  const activeFileName = project.activeFiles.gameStructureFileName || project.fileSystem.game[0]?.fileName;
+  const activeFileName = project.activeFiles.gameStructureFileName || project.fileSystem.game?.[0]?.fileName;
   const currentStructureFile = project.fileSystem.game.find(g => g.fileName === activeFileName) || project.fileSystem.game[0];
 
   const [activeTab, setActiveTab] = useState<'world_graph' | 'entry_bindings' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags'>('world_graph');
@@ -83,8 +83,8 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
 
   // Add a new World Graph Link between maps
   const handleAddGraphLink = () => {
-    const defaultSourceMap = project.fileSystem.maps[0]?.fileName || 'ashen_outpost.map';
-    const defaultTargetMap = project.fileSystem.maps[1]?.fileName || project.fileSystem.maps[0]?.fileName || 'crystal_chasm.map';
+    const defaultSourceMap = project.fileSystem.maps?.[0]?.fileName || 'ashen_outpost.map';
+    const defaultTargetMap = project.fileSystem.maps[1]?.fileName || project.fileSystem.maps?.[0]?.fileName || 'crystal_chasm.map';
     
     const newLink: WorldGraphLink = {
       id: `link_${Date.now()}`,
@@ -202,7 +202,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
             const filtered = p.fileSystem.game.filter(g => g.fileName !== fName);
             return {
               ...p,
-              activeFiles: { ...p.activeFiles, gameStructureFileName: filtered[0]?.fileName || '' },
+              activeFiles: { ...p.activeFiles, gameStructureFileName: filtered?.[0]?.fileName || '' },
               fileSystem: { ...p.fileSystem, game: filtered }
             };
           });

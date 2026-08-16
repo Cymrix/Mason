@@ -56,8 +56,13 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
   const [newFileNameInput, setNewFileNameInput] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameInput, setRenameInput] = useState('');
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const currentFile = files.find(f => f.fileName === activeFileName) || files[0];
+
+  React.useEffect(() => {
+    setIsConfirmingDelete(false);
+  }, [activeFileName]);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,19 +263,38 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
           <Download size={13} />
         </button>
 
-        {onDeleteFile && files.length > 1 && currentFile && (
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm(`Delete ${currentFile.fileName}? This action cannot be undone.`)) {
-                onDeleteFile(currentFile.fileName);
-              }
-            }}
-            className="p-1.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-700/80 hover:border-red-500/40 rounded-lg text-xs text-neutral-400 hover:text-red-300 transition"
-            title="Delete this file"
-          >
-            <Trash2 size={13} />
-          </button>
+        {onDeleteFile && currentFile && (
+          isConfirmingDelete ? (
+            <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/60 rounded-lg p-0.5 animate-in fade-in zoom-in-95 duration-150">
+              <span className="text-[10px] text-red-300 font-semibold px-1">Delete {extension}?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirmingDelete(false);
+                  onDeleteFile(currentFile.fileName);
+                }}
+                className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition shadow"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDelete(false)}
+                className="px-1.5 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-[10px] transition"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsConfirmingDelete(true)}
+              className="p-1.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-700/80 hover:border-red-500/40 rounded-lg text-xs text-neutral-400 hover:text-red-300 transition"
+              title={`Delete ${currentFile.fileName}`}
+            >
+              <Trash2 size={13} />
+            </button>
+          )
         )}
       </div>
 

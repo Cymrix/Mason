@@ -252,13 +252,14 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   onSelectForPainting,
   activePaintBiomeId
 }) => {
-  const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes[0]?.id || 'mourne_ashen_steppes');
+  const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes?.[0]?.id || 'mourne_ashen_steppes');
   const [activeSubTab, setActiveSubTab] = useState<'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax'>('tile_types');
   const [selectedTileTypeIndex, setSelectedTileTypeIndex] = useState<number>(0);
   const [previewModalImage, setPreviewModalImage] = useState<{ title: string; url: string } | null>(null);
+  const [deleteConfirmBiomeId, setDeleteConfirmBiomeId] = useState<string | null>(null);
 
   const selectedBiome = biomes.find(b => b.id === selectedBiomeId) || biomes[0];
-  const selectedTileType = selectedBiome.tileTypes[selectedTileTypeIndex] || selectedBiome.tileTypes[0];
+  const selectedTileType = selectedBiome?.tileTypes?.[selectedTileTypeIndex] || selectedBiome?.tileTypes?.[0];
 
   const handleUpdateCurrentBiome = (updater: (prev: RefinedBiome) => RefinedBiome) => {
     const updatedList = biomes.map(b => b.id === selectedBiome.id ? updater(b) : b);
@@ -524,17 +525,42 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                       </span>
                     )}
                     {biomes.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteBiome(biome.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-400 hover:bg-red-950/40 rounded transition"
-                        title="Delete Biome"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      deleteConfirmBiomeId === biome.id ? (
+                        <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/50 rounded p-0.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteBiome(biome.id);
+                            }}
+                            className="px-1.5 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded text-[9px] font-bold"
+                          >
+                            Del
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmBiomeId(null);
+                            }}
+                            className="px-1 py-0.5 bg-neutral-800 text-neutral-300 rounded text-[9px]"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmBiomeId(biome.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-400 hover:bg-red-950/40 rounded transition"
+                          title="Delete Biome"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -591,15 +617,35 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             </div>
 
             {biomes.length > 1 && (
-              <button
-                type="button"
-                onClick={() => handleDeleteBiome(selectedBiome.id)}
-                className="px-3 py-1.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-800 hover:border-red-500/50 text-neutral-400 hover:text-red-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
-                title="Delete this Biome"
-              >
-                <Trash2 size={13} />
-                <span>Delete Biome</span>
-              </button>
+              deleteConfirmBiomeId === selectedBiome.id ? (
+                <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/60 rounded-lg p-1 animate-in fade-in duration-150">
+                  <span className="text-[11px] text-red-300 font-semibold px-1">Delete Biome?</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBiome(selectedBiome.id)}
+                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-md text-xs font-bold transition shadow"
+                  >
+                    Yes, Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmBiomeId(null)}
+                    className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-md text-xs transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmBiomeId(selectedBiome.id)}
+                  className="px-3 py-1.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-800 hover:border-red-500/50 text-neutral-400 hover:text-red-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                  title="Delete this Biome"
+                >
+                  <Trash2 size={13} />
+                  <span>Delete Biome</span>
+                </button>
+              )
             )}
           </div>
         </div>
@@ -612,7 +658,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
               activeSubTab === 'tile_types' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <Layers size={14} /> 1. Tile Types, Textures & Autotiling ({selectedBiome.tileTypes.length})
+            <Layers size={14} /> 1. Tile Types, Textures & Autotiling ({selectedBiome?.tileTypes?.length || 0})
           </button>
           <button
             onClick={() => setActiveSubTab('environmental')}
@@ -620,7 +666,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
               activeSubTab === 'environmental' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <TreePine size={14} /> 2. Environmental Non-Tile Details ({selectedBiome.environmentalDetails.length})
+            <TreePine size={14} /> 2. Environmental Non-Tile Details ({selectedBiome?.environmentalDetails?.length || 0})
           </button>
           <button
             onClick={() => setActiveSubTab('interactive')}
@@ -628,7 +674,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
               activeSubTab === 'interactive' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <Box size={14} /> 3. Interactive Placements ({selectedBiome.interactiveDetails.length})
+            <Box size={14} /> 3. Interactive Placements ({selectedBiome?.interactiveDetails?.length || 0})
           </button>
           <button
             onClick={() => setActiveSubTab('wildlife')}
@@ -636,7 +682,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
               activeSubTab === 'wildlife' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <Zap size={14} /> 4. Wildlife ({selectedBiome.wildlife.length})
+            <Zap size={14} /> 4. Wildlife ({selectedBiome?.wildlife?.length || 0})
           </button>
           <button
             onClick={() => setActiveSubTab('soundtrack')}

@@ -1,5 +1,8 @@
+import { getChunkCoords, getChunkKey, CHUNK_SIZE } from "../engine/mapChunkHelper";
+import { globalChunkCache } from "../engine/chunkCacheManager";
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { RefinedMapData, ToolType, ModeType, PaintCategory } from '../types';
+import { getCell, setCell, calculateMapBounds } from '../engine/mapChunkHelper';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { INITIAL_REFINED_BIOMES } from '../engine/refinedBiomes';
 import { 
@@ -150,7 +153,7 @@ export const useRefinedMapEditor = () => {
 
     if (project.map && project.map.cells) {
       // Ensure all cells have biome_id
-      const normalizedCells = project.map.cells.map(row => row.map(cell => ({
+      const normalizedCells = project.map.cells?.map(row => row.map(cell => ({
         ...cell,
         biome_id: cell.biome_id || validBiomeId,
         tile_type_id: cell.tile_type_id !== undefined ? cell.tile_type_id : ''
@@ -167,7 +170,7 @@ export const useRefinedMapEditor = () => {
       if (project.settings.autoScatterWildlife !== undefined) setAutoScatterWildlife(project.settings.autoScatterWildlife);
     }
 
-    const firstTile = project.biomes?.find(b => b.id === validBiomeId)?.tileTypes[0]?.id || 'ashen_basalt';
+    const firstTile = project.biomes?.find(b => b.id === validBiomeId)?.tileTypes?.[0]?.id || 'ashen_basalt';
     setSelectedAssetId(firstTile);
     setPaintCategory('tile_type');
 
@@ -208,15 +211,58 @@ export const useRefinedMapEditor = () => {
   }, [hasUnsavedChanges, getCurrentProjectData]);
 
   const applyTool = useCallback((centerX: number, centerY: number) => {
-    if (centerX < 0 || centerX >= mapData.width || centerY < 0 || centerY >= mapData.height) return;
+    
 
     setMapData(prev => {
-      const newCells = prev.cells.map(row => row.map(cell => ({ ...cell })));
+      const newMap = { ...prev };
+      if (newMap.chunks) newMap.chunks = { ...newMap.chunks }; // shallow clone chunks dict
+      
+      if (activeTool === 'chunk_add' || activeTool === 'chunk_delete') {
+        const { cx, cy } = getChunkCoords(centerX, centerY);
+        const key = getChunkKey(cx, cy);
+        if (activeTool === 'chunk_delete') {
+          if (newMap.chunks && newMap.chunks[key]) {
+            delete newMap.chunks[key];
+            globalChunkCache.invalidateCell(centerX, centerY);
+          }
+        } else if (activeTool === 'chunk_add') {
+          if (!newMap.chunks) newMap.chunks = {};
+          if (!newMap.chunks[key]) {
+            newMap.chunks[key] = new Array(CHUNK_SIZE * CHUNK_SIZE).fill(null).map(() => ({
+              biome_id: activeBiome.id,
+              tile_type_id: '',
+              current_health: 100,
+              damage_threshold_index: 0,
+              shape: 'block'
+            }));
+            globalChunkCache.invalidateCell(centerX, centerY);
+          }
+        }
+        return newMap;
+      }
+
       const radius = Math.floor(brushSize / 2);
 
+
       const paintCell = (x: number, y: number) => {
-        if (x < 0 || x >= prev.width || y < 0 || y >= prev.height) return;
-        const target = newCells[y][x];
+        
+        // Auto-create chunk if it doesn't exist
+        let target = getCell(newMap, x, y);
+        if (!target) {
+          const { cx, cy } = getChunkCoords(x, y);
+          const key = getChunkKey(cx, cy);
+          if (!newMap.chunks) newMap.chunks = {};
+          if (!newMap.chunks[key]) {
+            newMap.chunks[key] = new Array(CHUNK_SIZE * CHUNK_SIZE).fill(null).map(() => ({
+              biome_id: activeBiome.id,
+              tile_type_id: '',
+              current_health: 100,
+              damage_threshold_index: 0,
+              shape: 'block'
+            }));
+          }
+          target = getCell(newMap, x, y)!;
+        }
 
         // Always stamp the cell with the active biome
         target.biome_id = activeBiome.id;
@@ -270,10 +316,13 @@ export const useRefinedMapEditor = () => {
             target.wildlife_id = null;
           }
         }
+        setCell(newMap, x, y, target);
       };
 
       if (activeTool === 'bucket' && paintCategory === 'tile_type') {
-        const originTileId = prev.cells[centerY][centerX].tile_type_id;
+        const originCell = getCell(prev, centerX, centerY);
+        if (!originCell) return prev;
+        const originTileId = originCell.tile_type_id;
         if (originTileId === selectedAssetId) return prev;
 
         const stack = [[centerX, centerY]];
@@ -285,11 +334,14 @@ export const useRefinedMapEditor = () => {
           if (visited.has(key)) continue;
           visited.add(key);
 
-          if (cx < 0 || cx >= prev.width || cy < 0 || cy >= prev.height) continue;
-          if (newCells[cy][cx].tile_type_id !== originTileId) continue;
+          if (cx < -100 || cx > prev.width + 100 || cy < -100 || cy > prev.height + 100) continue; // Basic bounds limit to avoid infinite fills on infinite canvas
+          const currentBucketCell = getCell(newMap, cx, cy);
+          if (!currentBucketCell || currentBucketCell.tile_type_id !== originTileId) continue;
 
-          newCells[cy][cx].tile_type_id = selectedAssetId;
-          newCells[cy][cx].biome_id = activeBiome.id;
+          currentBucketCell.tile_type_id = selectedAssetId;
+          currentBucketCell.shape = "full";
+          currentBucketCell.biome_id = activeBiome.id;
+          setCell(newMap, cx, cy, currentBucketCell);
 
           stack.push([cx + 1, cy]);
           stack.push([cx - 1, cy]);
@@ -297,7 +349,7 @@ export const useRefinedMapEditor = () => {
           stack.push([cx, cy - 1]);
         }
 
-        return { ...prev, cells: newCells };
+        return newMap;
       }
 
       for (let dy = -radius; dy <= radius; dy++) {
@@ -307,7 +359,7 @@ export const useRefinedMapEditor = () => {
         }
       }
 
-      return { ...prev, cells: newCells };
+      return newMap;
     });
   }, [mapData.width, mapData.height, brushSize, activeTool, paintCategory, selectedAssetId, autoScatterEnvironmental, autoScatterWildlife, activeBiome]);
 

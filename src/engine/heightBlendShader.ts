@@ -66,7 +66,7 @@ export function computeHeightBlend(
     // Dithered threshold using 4x4 matrix
     const matrixX = Math.abs(Math.floor(worldX)) % 4;
     const matrixY = Math.abs(Math.floor(worldY)) % 4;
-    const ditherThreshold = BAYER_4X4[matrixY][matrixX] / 16.0;
+    const ditherThreshold = (BAYER_4X4[matrixY]?.[matrixX] ?? 0) / 16.0;
 
     const dithered = rawBlend >= ditherThreshold ? 1.0 : 0.0;
     rawBlend = dithered * (1 - fadeCurve) + rawBlend * fadeCurve;

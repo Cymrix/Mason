@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.38
+ * Current Release: v0.53.3
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37 -> v0.38).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37 -> v0.38 -> v0.40 -> v0.41 -> v0.42 -> v0.43).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.38.0';
-export const MASON_VERSION_DISPLAY = 'v0.38';
-export const MASON_FULL_VERSION = 'v0.38';
+export const MASON_VERSION = '0.53.3';
+export const MASON_VERSION_DISPLAY = 'v0.53.3';
+export const MASON_FULL_VERSION = 'v0.53.3';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,161 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.53.3',
+    date: '2026-08-16',
+    changes: [
+      'Updated dashboard card label for .ui files to "UI & HUD"'
+    ]
+  },
+  {
+    version: 'v0.53.2',
+    date: '2026-08-16',
+    changes: [
+      'Cleaned up dashboard file category card titles (Maps, Biomes, Archetypes, UI Themes, Game Structure)'
+    ]
+  },
+  {
+    version: 'v0.53.1',
+    date: '2026-08-16',
+    changes: [
+      'Fixed ReferenceError: deleteConfirmBiomeId is not defined in RefinedBiomeEditor',
+      'Added id and name definitions to RefinedMapData TypeScript interface'
+    ]
+  },
+  {
+    version: 'v0.53',
+    date: '2026-08-16',
+    changes: [
+      'Removed fixed 2×2 chunk dimension ceiling in ChunkCacheManager, enabling full rendering across all infinite/arbitrary chunk coordinates in chunked maps',
+      'Fixed issue where painting outside the first 4 chunks failed to composite baked tile textures'
+    ]
+  },
+  {
+    version: 'v0.52',
+    date: '2026-08-16',
+    changes: [
+      'Implemented Map-ID scoped isolation in ChunkCacheManager to prevent cross-map offscreen canvas cache bleed',
+      'Fixed empty chunk painting bug where newly created maps displayed cached tile data from previous maps',
+      'Added deep chunk array cloning during map tile edits and map cache invalidation on level creation'
+    ]
+  },
+  {
+    version: 'v0.51',
+    date: '2026-08-16',
+    changes: [
+      'Replaced browser window.confirm() dialogs with interactive inline confirmation badges to fix deletion inside sandboxed iframes',
+      'Fixed map, biome, and asset file deletion across FileSubfolderHeader and Biome Editor',
+      'Added fallback creation when deleting the last remaining map so the studio state remains consistent'
+    ]
+  },
+  {
+    version: 'v0.50',
+    date: '2026-08-16',
+    changes: [
+      'Implemented IndexedDB persistence layer to eliminate localStorage 5MB quota errors for large maps and chunked projects',
+      'Purged obsolete all-project JSON stores that caused quota overflow',
+      'Added asynchronous IndexedDB project resolution and memory-cached multi-tier storage'
+    ]
+  },
+  {
+    version: 'v0.49',
+    date: '2026-08-16',
+    changes: [
+      'Isolated Zoom HUD and Info Bar pointer events to prevent unintentional tile interactions on the map',
+      'Added strict target verification and event bubbling prevention on floating toolbars and status overlays'
+    ]
+  },
+  {
+    version: 'v0.48',
+    date: '2026-08-16',
+    changes: [
+      'Added Bresenham stroke interpolation for seamless, buttery smooth tilemap brush and eraser painting',
+      'Implemented dedicated "Fit" button in Tilemap Studio HUD to automatically fit and center maps of any size',
+      'Added stroke interpolation to Macro Biome Map painter and Autotile Live Sandbox',
+      'Optimized batch stroke updates across chunks and cell matrices'
+    ]
+  },
+  {
+    version: 'v0.47',
+    date: '2026-08-16',
+    changes: [
+      'Resolved uncaught TypeError when interacting with chunked and blank maps by supporting both chunks and legacy cells in EditorLayout',
+      'Synchronized MapFile schema to support chunks, data envelope, and cell arrays seamlessly',
+      'Prevented undefined coordinate indexing during map canvas brush strokes and entity painting'
+    ]
+  },
+  {
+    version: 'v0.46',
+    date: '2026-08-16',
+    changes: [
+      'Hardened BlobTilesetPreview island and platform preset generators against out-of-bounds column access',
+      'Added array and null guards to all 4 chunk rendering layers in RefinedMapCanvas',
+      'Safeguarded subtab count badges and tile type selections in RefinedBiomeEditor and ParallaxLayersEditor'
+    ]
+  },
+  {
+    version: 'v0.45',
+    date: '2026-08-16',
+    changes: [
+      'Comprehensive array safety audit across BlobTilesetPreview, mapChunkHelper, and paint tool pipelines',
+      'Protected 2D grid neighbor lookups in sandbox live preview and flood-fill bucket solvers against undefined coordinates'
+    ]
+  },
+  {
+    version: 'v0.44',
+    date: '2026-08-16',
+    changes: [
+      'Hardened 2D array grid bounds checks preventing undefined coordinate crashes during map generation and painting',
+      'Added optional chaining across EditorLayout, RefinedMapEditor, MapCanvas, and BiomeMacroMapModal',
+      'Resolved TypeError out-of-bounds coordinate indexing for brush strokes and procedural fills'
+    ]
+  },
+  {
+    version: 'v0.43',
+    date: '2026-08-16',
+    changes: [
+      'Added visual chunk outlines bound to a new showGrid UI toggle button',
+      'Moved canvas HUD overlay to top-right to prevent clipping with main editor layout status bar',
+      'Updated default map file generation to produce pristine blank slates completely devoid of pre-rendered level chunks',
+      'Implemented dynamic cursor-centered parallax backdrop rendering that fades out into black void when pointing at non-biome empty space',
+      'Fixed brush tool collision to automatically allocate new data chunks if painting on a missing grid coordinate'
+    ]
+  },
+  {
+    version: 'v0.42',
+    date: '2026-08-16',
+    changes: [
+      'Fixed cursor-centered zooming math by eliminating React 18 automatic batching race conditions during native high-frequency wheel events',
+      'Migrated useCanvasPanZoom state to immediate synchronous Refs to guarantee mathematically perfect matrix panning on every tick'
+    ]
+  },
+    {
+    version: 'v0.41',
+    date: '2026-08-16',
+    changes: [
+      'Fixed infinite canvas viewport scaling by migrating off logical map bounds directly to window resizing with ResizeObserver',
+      'Implemented full Screen-to-World camera transform pipeline with ctx.scale and ctx.translate to resolve zoom misalignment',
+      'Fixed parallax and foreground layers so they stretch to the screen bounds rather than the cached data chunk bounds'
+    ]
+  },
+  {
+    version: 'v0.40',
+    date: '2026-08-16',
+    changes: [
+      'Migrated 2D map rendering from standard array to dynamic 16x16 chunk engine to allow infinite canvas and fast repainting',
+      'Added Add Chunk and Delete Chunk tools to let creators forcefully manage chunk allocations and map sizes',
+      'Updated lit mode global darkness overlay bounds and bound background painting to world tile limits'
+    ]
+  },
+  {
+    version: 'v0.39',
+    date: '2026-08-16',
+    changes: [
+      'Fixed panning collision issues where Middle-click and Spacebar-drag inputs incorrectly triggered map tile painting',
+      'Decoupled canvas drawing event listeners to only listen for Left-Click actions'
+    ]
+  },
   {
     version: 'v0.38',
     date: '2026-08-16',

@@ -255,7 +255,7 @@ export const ParallaxLayersEditor: React.FC<ParallaxLayersEditorProps> = ({
                         {layer.layerIndex > 0 ? `+${layer.layerIndex}` : layer.layerIndex}
                       </span>
                       <span className="text-xs font-semibold truncate">
-                        {meta?.title.split(':')[1] || `Layer ${layer.layerIndex}`}
+                        {meta?.title ? (meta.title.split(':')[1] || `Layer ${layer.layerIndex}`) : `Layer ${layer.layerIndex}`}
                       </span>
                     </div>
                     <p className="text-[10px] text-neutral-500 truncate">
@@ -279,10 +279,10 @@ export const ParallaxLayersEditor: React.FC<ParallaxLayersEditorProps> = ({
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <div>
                 <h4 className="text-sm font-bold text-neutral-100">
-                  {LAYER_TITLES[selectedLayer.layerIndex as ParallaxLayerIndex]?.title}
+                  {selectedLayer ? LAYER_TITLES[selectedLayer.layerIndex as ParallaxLayerIndex]?.title : ''}
                 </h4>
                 <p className="text-xs text-neutral-400">
-                  {LAYER_TITLES[selectedLayer.layerIndex as ParallaxLayerIndex]?.desc}
+                  {selectedLayer ? LAYER_TITLES[selectedLayer.layerIndex as ParallaxLayerIndex]?.desc : ''}
                 </p>
               </div>
 

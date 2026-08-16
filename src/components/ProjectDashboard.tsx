@@ -83,7 +83,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 Active Mason Project
               </span>
               <span className="text-xs font-mono text-cyan-400/80 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded">
-                {MASON_FULL_VERSION}
+                {MASON_VERSION_DISPLAY}
               </span>
             </div>
 
@@ -214,7 +214,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-white group-hover:text-cyan-400 transition font-mono">{mapCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Level Maps</div>
+            <div className="text-[11px] font-bold text-neutral-300">Maps</div>
             <div className="text-[9px] text-neutral-500 font-mono">/maps/</div>
           </div>
         </div>
@@ -230,7 +230,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-white group-hover:text-emerald-400 transition font-mono">{biomeCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Biome Horiz.</div>
+            <div className="text-[11px] font-bold text-neutral-300">Biomes</div>
             <div className="text-[9px] text-neutral-500 font-mono">/biomes/</div>
           </div>
         </div>
@@ -251,7 +251,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           </div>
         </div>
 
-        {/* UI Themes */}
+        {/* UI & HUD */}
         <div 
           onClick={() => onLaunchModule('ui')}
           className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-amber-500/60 transition cursor-pointer group"
@@ -262,7 +262,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-white group-hover:text-amber-400 transition font-mono">{uiCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">HUD Themes</div>
+            <div className="text-[11px] font-bold text-neutral-300">UI & HUD</div>
             <div className="text-[9px] text-neutral-500 font-mono">/ui/</div>
           </div>
         </div>
@@ -278,7 +278,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-white group-hover:text-purple-400 transition font-mono">{gameCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Game Graph</div>
+            <div className="text-[11px] font-bold text-neutral-300">Game Structure</div>
             <div className="text-[9px] text-neutral-500 font-mono">/game/</div>
           </div>
         </div>

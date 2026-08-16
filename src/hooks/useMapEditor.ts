@@ -54,7 +54,7 @@ export const useMapEditor = () => {
 
         if (activeTool === 'brush') {
           if (activeLayer === 'procedural') {
-            newMap.layers.procedural[y][x] = selectedTile;
+            if (newMap.layers.procedural[y]) newMap.layers.procedural[y][x] = selectedTile;
 
             // Auto-scatter for biome painting
             if (autoScatterEnabled && activeBiome && activeBiome.decorItems.length > 0) {
@@ -66,24 +66,25 @@ export const useMapEditor = () => {
                 }
               }
               if (placedDecor) {
-                newMap.layers.manual[y][x] = placedDecor;
+                if (newMap.layers.manual[y]) newMap.layers.manual[y][x] = placedDecor;
               }
             }
           } else {
             // Manual layer placement
-            newMap.layers.manual[y][x] = selectedTile;
+            if (newMap.layers.manual[y]) newMap.layers.manual[y][x] = selectedTile;
           }
         } else if (activeTool === 'eraser') {
           if (activeLayer === 'procedural') {
-            newMap.layers.procedural[y][x] = 'stone';
+            if (newMap.layers.procedural[y]) newMap.layers.procedural[y][x] = 'stone';
           } else {
-            newMap.layers.manual[y][x] = null;
+            if (newMap.layers.manual[y]) newMap.layers.manual[y][x] = null;
           }
         }
       };
 
       if (activeTool === 'bucket') {
-        const targetTile = prev.layers[activeLayer][centerY][centerX];
+        const targetTile = prev.layers?.[activeLayer]?.[centerY]?.[centerX];
+      if (targetTile === undefined) return prev;
         const replacement = activeTool === 'eraser' 
           ? (activeLayer === 'procedural' ? 'stone' : null) 
           : selectedTile;
@@ -100,14 +101,14 @@ export const useMapEditor = () => {
           visited.add(key);
 
           if (cx < 0 || cx >= prev.width || cy < 0 || cy >= prev.height) continue;
-          if (newMap.layers[activeLayer][cy][cx] !== targetTile) continue;
+          if (newMap.layers[activeLayer][cy]?.[cx] !== targetTile) continue;
 
-          newMap.layers[activeLayer][cy][cx] = replacement as any;
+          if (newMap.layers[activeLayer][cy]) newMap.layers[activeLayer][cy][cx] = replacement as any;
 
           if (activeLayer === 'procedural' && autoScatterEnabled && activeBiome && replacement) {
             for (const decor of activeBiome.decorItems) {
               if (Math.random() < decor.frequency * 0.3) {
-                newMap.layers.manual[cy][cx] = decor.id;
+                if(newMap.layers.manual[cy]) newMap.layers.manual[cy][cx] = decor.id;
                 break;
               }
             }
@@ -153,11 +154,11 @@ export const useMapEditor = () => {
             assignedBiome = biomes[index];
           }
 
-          newProcedural[y][x] = assignedBiome.id;
+          if(newProcedural[y]) newProcedural[y][x] = assignedBiome.id;
 
           for (const decor of assignedBiome.decorItems) {
             if (Math.random() < decor.frequency * assignedBiome.noise.scatterDensity * 0.6) {
-              newManual[y][x] = decor.id;
+              if(newManual[y]) newManual[y][x] = decor.id;
               break;
             }
           }

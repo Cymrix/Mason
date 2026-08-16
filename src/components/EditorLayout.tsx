@@ -21,7 +21,8 @@ import {
   exportMapFile, 
   exportBiomeFile,
   createNewMapInProject,
-  ProjectIndexItem
+  ProjectIndexItem,
+  idbGetProject
 } from '../utils/masonStorage';
 import { HamburgerMenu } from './HamburgerMenu';
 import { ModulesModal } from './ModulesModal';
@@ -38,9 +39,11 @@ import { ArchetypeEditor } from './ArchetypeEditor';
 import { UIThemeModule } from './UIThemeModule';
 import { GameStructureModule } from './GameStructureModule';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
-import { 
-  Paintbrush, 
-  Eraser, 
+import {
+  Paintbrush,
+  Eraser,
+  PlusSquare,
+  MinusSquare, 
   Layers, 
   TreePine, 
   Users, 
@@ -52,11 +55,15 @@ import {
   AlertTriangle, 
   HardDrive,
   Download,
-  Plus
+  Plus,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
 import { globalChunkCache } from '../engine/chunkCacheManager';
+import { getCell, setCell } from '../engine/mapChunkHelper';
+import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle } from '../engine/metroidvaniaGenerator';
 import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
 import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
 import { usePWA } from '../hooks/usePWA';
@@ -79,6 +86,19 @@ export const EditorLayout: React.FC = () => {
 
   // Active Module State (null by default when a project is loaded, showing Project Info until clicked)
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
+  const [mapsSubMode, setMapsSubMode] = useState<'tilemap' | 'macro'>('tilemap');
+
+  const handleLaunchModule = (modId: string | null) => {
+    if (modId === 'macro') {
+      setActiveModuleId('maps');
+      setMapsSubMode('macro');
+    } else {
+      setActiveModuleId(modId);
+      if (modId === 'maps') {
+        setMapsSubMode('tilemap');
+      }
+    }
+  };
 
   // Saved projects index cache for launcher
   const [savedProjects, setSavedProjects] = useState<ProjectIndexItem[]>(() => listSavedProjects());
@@ -99,10 +119,22 @@ export const EditorLayout: React.FC = () => {
   const [activeTool, setActiveTool] = useState<ToolType>('brush');
   const [paintCategory, setPaintCategory] = useState<PaintCategory>('tile_type');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('ashen_basalt');
-  const [selectedShape, setSelectedShape] = useState<TileShape>('full');
-  const [brushSize, setBrushSize] = useState<number>(1);
+  const [selectedShape, setSelectedShape] = useState<TileShape>('auto');
+  const [brushSize, setBrushSizeState] = useState<number>(1);
+  const [recentBrushSizes, setRecentBrushSizes] = useState<number[]>([1]);
+
+  const setBrushSize = (size: number) => {
+    setBrushSizeState(size);
+    setRecentBrushSizes(prev => {
+      const filtered = prev.filter(s => s !== size);
+      return [size, ...filtered].slice(0, 4);
+    });
+  };
+
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [isLitMode, setIsLitMode] = useState<boolean>(false);
   const [showDamageMasks, setShowDamageMasks] = useState<boolean>(true);
+  const [showGrid, setShowGrid] = useState<boolean>(true);
 
   const refreshSavedProjects = () => {
     setSavedProjects(listSavedProjects());
@@ -131,13 +163,30 @@ export const EditorLayout: React.FC = () => {
     showToast(`Created new project: ${name}`, 'success');
   };
 
-  const handleSelectSavedProject = (id: string) => {
+  const handleSelectSavedProject = async (id: string) => {
     const loaded = loadSavedProjectById(id);
     if (loaded) {
       setProject(loaded);
       setActiveModuleId(null); // Show project info by default
       refreshSavedProjects();
       showToast(`Loaded project: ${loaded.name}`, 'success');
+      return;
+    }
+
+    // Asynchronous IndexedDB fallback
+    try {
+      const asyncLoaded = await idbGetProject(id);
+      if (asyncLoaded) {
+        setProject(asyncLoaded);
+        saveActiveMasonProject(asyncLoaded);
+        setActiveModuleId(null);
+        refreshSavedProjects();
+        showToast(`Loaded project: ${asyncLoaded.name}`, 'success');
+      } else {
+        showToast('Project could not be found in local storage or database', 'error');
+      }
+    } catch {
+      showToast('Error loading project from database', 'error');
     }
   };
 
@@ -194,56 +243,121 @@ export const EditorLayout: React.FC = () => {
   // Derived references for active project
   const currentMapFile = project ? (project.fileSystem.maps.find(m => m.fileName === project.activeFiles.mapFileName) || project.fileSystem.maps[0]) : null;
   const currentBiomeFile = project ? (project.fileSystem.biomes.find(b => b.fileName === project.activeFiles.biomeFileName) || project.fileSystem.biomes[0]) : null;
-  const activeBiome: RefinedBiome | null = currentBiomeFile?.biomeData || project?.fileSystem.biomes[0]?.biomeData || null;
-  const biomesList: RefinedBiome[] = project ? project.fileSystem.biomes.map(b => b.biomeData) : [];
+  const activeBiome: RefinedBiome | null = currentBiomeFile?.biomeData || project?.fileSystem.biomes?.[0]?.biomeData || null;
+  const biomesList: RefinedBiome[] = project ? project.fileSystem.biomes?.map(b => b.biomeData) : [];
 
   const currentMapData: RefinedMapData | null = currentMapFile ? {
-    width: currentMapFile.width,
-    height: currentMapFile.height,
-    cells: currentMapFile.cells
+    id: currentMapFile.id,
+    name: currentMapFile.name,
+    width: currentMapFile.width || 32,
+    height: currentMapFile.height || 24,
+    cells: currentMapFile.cells || (currentMapFile as any).data?.cells,
+    chunks: currentMapFile.chunks || (currentMapFile as any).data?.chunks || {}
   } : null;
 
   // Map tile editing handler
-  const handleMapTileInteract = (x: number, y: number) => {
+  const handleMapTileInteract = (x: number, y: number, points?: Array<{ x: number; y: number }>) => {
     if (!project || !currentMapFile || !activeBiome || mode !== 'paint') return;
+    const pointsToApply = points && points.length > 0 ? points : [{ x, y }];
 
     handleUpdateProject(p => {
-      const updatedMaps = p.fileSystem.maps.map(m => {
+      const updatedMaps = p.fileSystem.maps?.map(m => {
         if (m.fileName === currentMapFile.fileName) {
-          const newCells = m.cells.map(row => row.map(cell => ({ ...cell })));
-          const minX = Math.max(0, x - Math.floor((brushSize - 1) / 2));
-          const maxX = Math.min(m.width - 1, x + Math.ceil((brushSize - 1) / 2));
-          const minY = Math.max(0, y - Math.floor((brushSize - 1) / 2));
-          const maxY = Math.min(m.height - 1, y + Math.ceil((brushSize - 1) / 2));
+          const hasLegacyCells = Array.isArray(m.cells);
+          let newCells = hasLegacyCells ? m.cells!.map(row => row.map(cell => ({ ...cell }))) : undefined;
+          
+          let existingChunks = m.chunks || (m as any).data?.chunks;
+          let newChunks: Record<string, any[]> = {};
+          if (existingChunks) {
+            for (const key of Object.keys(existingChunks)) {
+              newChunks[key] = [...existingChunks[key]];
+            }
+          }
 
-          for (let cy = minY; cy <= maxY; cy++) {
-            for (let cx = minX; cx <= maxX; cx++) {
-              const target = newCells[cy][cx];
-              target.biome_id = activeBiome.id;
+          const dummyMap: RefinedMapData = {
+            id: m.id,
+            name: m.name,
+            width: m.width || 32,
+            height: m.height || 24,
+            cells: newCells,
+            chunks: newChunks
+          };
 
-              if (activeTool === 'eraser') {
-                target.tile_type_id = '';
-                target.environmental_detail_id = null;
-                target.interactive_detail_id = null;
-                target.wildlife_id = null;
-                target.shape = 'full';
-                target.fullness = 1.0;
-                globalChunkCache.invalidateCell(cx, cy);
-              } else {
-                if (paintCategory === 'tile_type') {
-                  target.tile_type_id = selectedAssetId;
-                  target.current_health = 100;
-                  target.damage_threshold_index = 0;
-                  target.shape = selectedShape;
-                  target.fullness = 1.0;
-                  globalChunkCache.invalidateCell(cx, cy);
-                } else if (paintCategory === 'environmental') {
-                  target.environmental_detail_id = selectedAssetId || null;
-                } else if (paintCategory === 'interactive') {
-                  target.interactive_detail_id = selectedAssetId || null;
-                } else if (paintCategory === 'wildlife') {
-                  target.wildlife_id = selectedAssetId || null;
+          for (const pt of pointsToApply) {
+            const px = pt.x;
+            const py = pt.y;
+            const minX = px - Math.floor((brushSize - 1) / 2);
+            const maxX = px + Math.ceil((brushSize - 1) / 2);
+            const minY = py - Math.floor((brushSize - 1) / 2);
+            const maxY = py + Math.ceil((brushSize - 1) / 2);
+
+            for (let cy = minY; cy <= maxY; cy++) {
+              for (let cx = minX; cx <= maxX; cx++) {
+                if (brushSize > 2 && ((cx - px) * (cx - px) + (cy - py) * (cy - py) > (brushSize / 2) * (brushSize / 2) + 1)) {
+                  continue;
                 }
+
+                if (newCells && newCells[cy] && newCells[cy][cx]) {
+                  const target = newCells[cy][cx];
+                  target.biome_id = activeBiome.id;
+                  if (activeTool === 'eraser') {
+                    target.tile_type_id = '';
+                    target.environmental_detail_id = null;
+                    target.interactive_detail_id = null;
+                    target.wildlife_id = null;
+                    target.shape = 'full';
+                    target.fullness = 1.0;
+                  } else {
+                    if (paintCategory === 'tile_type') {
+                      target.tile_type_id = selectedAssetId;
+                      target.current_health = 100;
+                      target.damage_threshold_index = 0;
+                      target.shape = selectedShape;
+                      target.fullness = 1.0;
+                    } else if (paintCategory === 'environmental') {
+                      target.environmental_detail_id = selectedAssetId || null;
+                    } else if (paintCategory === 'interactive') {
+                      target.interactive_detail_id = selectedAssetId || null;
+                    } else if (paintCategory === 'wildlife') {
+                      target.wildlife_id = selectedAssetId || null;
+                    }
+                  }
+                  globalChunkCache.invalidateCell(cx, cy, m.id);
+                }
+
+                // Always support chunked maps
+                let targetCell = getCell(dummyMap, cx, cy);
+                const currentCell: RefinedCellState = targetCell ? { ...targetCell } : {
+                  biome_id: activeBiome.id,
+                  tile_type_id: '',
+                  current_health: 100,
+                  damage_threshold_index: 0
+                };
+                currentCell.biome_id = activeBiome.id;
+                if (activeTool === 'eraser') {
+                  currentCell.tile_type_id = '';
+                  currentCell.environmental_detail_id = null;
+                  currentCell.interactive_detail_id = null;
+                  currentCell.wildlife_id = null;
+                  currentCell.shape = 'full';
+                  currentCell.fullness = 1.0;
+                } else {
+                  if (paintCategory === 'tile_type') {
+                    currentCell.tile_type_id = selectedAssetId;
+                    currentCell.current_health = 100;
+                    currentCell.damage_threshold_index = 0;
+                    currentCell.shape = selectedShape;
+                    currentCell.fullness = 1.0;
+                  } else if (paintCategory === 'environmental') {
+                    currentCell.environmental_detail_id = selectedAssetId || null;
+                  } else if (paintCategory === 'interactive') {
+                    currentCell.interactive_detail_id = selectedAssetId || null;
+                  } else if (paintCategory === 'wildlife') {
+                    currentCell.wildlife_id = selectedAssetId || null;
+                  }
+                }
+                setCell(dummyMap, cx, cy, currentCell, true);
+                globalChunkCache.invalidateCell(cx, cy, m.id);
               }
             }
           }
@@ -251,12 +365,20 @@ export const EditorLayout: React.FC = () => {
           return {
             ...m,
             updatedAt: new Date().toISOString(),
-            cells: newCells
+            cells: newCells,
+            chunks: newChunks,
+            data: {
+              id: m.id,
+              name: m.name,
+              width: m.width,
+              height: m.height,
+              chunks: newChunks,
+              cells: newCells
+            }
           };
         }
         return m;
       });
-
       return {
         ...p,
         fileSystem: {
@@ -265,6 +387,34 @@ export const EditorLayout: React.FC = () => {
         }
       };
     });
+  };
+
+  // Map Macro procedural synthesis handler
+  const handleApplyMacroToLevel = (matrix: BiomeAllocationMatrix, layoutStyle: MetroidvaniaLayoutStyle) => {
+    if (!project || !currentMapFile) return;
+    const generated = buildMapFromBiomeMatrix(matrix, biomesList, layoutStyle);
+
+    handleUpdateProject(p => ({
+      ...p,
+      fileSystem: {
+        ...p.fileSystem,
+        maps: p.fileSystem.maps?.map(m => {
+          if (m.fileName === currentMapFile.fileName) {
+            return {
+              ...m,
+              width: generated.width,
+              height: generated.height,
+              cells: generated.cells,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return m;
+        })
+      }
+    }));
+
+    globalChunkCache.clear();
+    showToast(`Synthesized level layout for ${currentMapFile.fileName}`, 'success');
   };
 
   return (
@@ -291,7 +441,7 @@ export const EditorLayout: React.FC = () => {
             }}
             onExportBundle={handleExportBundle}
             onCloseProject={handleCloseProject}
-            onSelectModule={(modId) => setActiveModuleId(modId)}
+            onSelectModule={(modId) => handleLaunchModule(modId)}
             onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
             activeModuleId={activeModuleId}
           />
@@ -363,14 +513,14 @@ export const EditorLayout: React.FC = () => {
                 <span>🧩 Modules</span>
               </button>
 
-              {/* 1px:1tile Studio Button */}
+              {/* Map Macro Button */}
               <button
                 type="button"
-                onClick={() => setIsBiomeMacroModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-semibold transition shadow-sm"
+                onClick={() => handleLaunchModule('macro')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-semibold transition shadow-sm"
               >
                 <Compass size={14} />
-                <span className="hidden sm:inline">1px:1tile Studio</span>
+                <span className="hidden sm:inline">Map Macro</span>
               </button>
 
               {/* Virtual Files Explorer Button */}
@@ -459,7 +609,7 @@ export const EditorLayout: React.FC = () => {
                 <FileSubfolderHeader
                   subfolderName="maps"
                   extension=".map"
-                  files={project.fileSystem.maps.map(m => ({
+                  files={project.fileSystem.maps?.map(m => ({
                     id: m.id,
                     name: m.name,
                     fileName: m.fileName,
@@ -473,7 +623,8 @@ export const EditorLayout: React.FC = () => {
                     }));
                   }}
                   onNewFile={(name) => {
-                    const { project: updated } = createNewMapInProject(project, name);
+                    const { project: updated, newFile } = createNewMapInProject(project, name);
+                    globalChunkCache.invalidateMap(newFile.id);
                     handleUpdateProject(updated);
                     showToast(`Created new level ${name}`, 'success');
                   }}
@@ -507,17 +658,94 @@ export const EditorLayout: React.FC = () => {
                   }}
                   onDeleteFile={(fName) => {
                     handleUpdateProject(p => {
-                      const filtered = p.fileSystem.maps.filter(m => m.fileName !== fName);
+                      let filtered = p.fileSystem.maps.filter(m => m.fileName !== fName);
+                      if (filtered.length === 0) {
+                        const newMap = createDefaultMapFile(
+                          `map_${Date.now()}`,
+                          'New Map',
+                          'new_map.map',
+                          32,
+                          24,
+                          p.fileSystem.biomes?.[0]?.id || 'mourne_ashen_steppes'
+                        );
+                        filtered = [newMap];
+                      }
                       return {
                         ...p,
-                        activeFiles: { ...p.activeFiles, mapFileName: filtered[0]?.fileName || '' },
+                        activeFiles: { ...p.activeFiles, mapFileName: filtered[0].fileName },
                         fileSystem: { ...p.fileSystem, maps: filtered }
                       };
                     });
+                    showToast(`Deleted map: ${fName}`, 'info');
                   }}
                   accentColor="cyan"
                 />
 
+                {/* Submode Switcher: Tilemap Studio vs Map Macro */}
+                <div className="h-10 bg-neutral-900/90 border-b border-neutral-800 px-4 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded-lg border border-neutral-800">
+                    <button
+                      type="button"
+                      onClick={() => setMapsSubMode('tilemap')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition ${
+                        mapsSubMode === 'tilemap'
+                          ? 'bg-cyan-600 text-white shadow-sm'
+                          : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
+                      }`}
+                    >
+                      <span>🗺️ Tilemap Studio</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapsSubMode('macro')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition ${
+                        mapsSubMode === 'macro'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
+                      }`}
+                    >
+                      <span>⚡ Map Macro (1px:1tile)</span>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {mapsSubMode === 'tilemap' && (
+                      <button
+                        type="button"
+                        onClick={() => setIsLitMode(!isLitMode)}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold transition border ${
+                          isLitMode 
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
+                            : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:text-neutral-200'
+                        }`}
+                        title="Toggle Lit / Unlit Mode"
+                      >
+                        {isLitMode ? <Sun size={14} /> : <Moon size={14} />}
+                        <span>{isLitMode ? 'Lit Mode' : 'Unlit Mode'}</span>
+                      </button>
+                    )}
+                    <div className="text-[11px] text-neutral-400 font-mono flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                      <span>{mapsSubMode === 'tilemap' ? 'Painting Strata & Full Autotiling' : 'Procedural Cellular & Biome Synthesis'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {mapsSubMode === 'macro' ? (
+                  <div className="flex-1 flex overflow-hidden bg-neutral-950">
+                    <BiomeMacroMapModal
+                      isOpen={true}
+                      embedded={true}
+                      onClose={() => setMapsSubMode('tilemap')}
+                      biomes={biomesList}
+                      currentWidth={currentMapData.width}
+                      currentHeight={currentMapData.height}
+                      onApplyToLevel={(matrix, layoutStyle) => {
+                        handleApplyMacroToLevel(matrix, layoutStyle);
+                        setMapsSubMode('tilemap');
+                      }}
+                    />
+                  </div>
+                ) : (
                 <div className="flex-1 flex overflow-hidden">
                   {/* Left Tool Rail */}
                   <aside className="w-16 border-r border-neutral-800 bg-neutral-900/60 backdrop-blur flex flex-col items-center py-4 shrink-0 z-10 gap-2">
@@ -542,22 +770,60 @@ export const EditorLayout: React.FC = () => {
                       <Eraser size={16} />
                     </button>
 
+                    <button
+                      type="button"
+                      onClick={() => setActiveTool('chunk_add')}
+                      className={`p-2.5 rounded-xl border transition ${
+                        activeTool === 'chunk_add' ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                      title="Add Chunk (Paints entire chunk)"
+                    >
+                      <PlusSquare size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTool('chunk_delete')}
+                      className={`p-2.5 rounded-xl border transition ${
+                        activeTool === 'chunk_delete' ? 'bg-red-600 text-white border-red-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                      title="Delete Chunk (Removes chunk completely)"
+                    >
+                      <MinusSquare size={16} />
+                    </button>
+
+
                     <div className="w-8 h-px bg-neutral-800 my-2" />
 
-                    {/* Brush Size Picker (16px micro-grid sizes: 1x=16px, 2x=32px, 4x=64px, 8x=128px) */}
-                    {[1, 2, 4, 8].map(sz => (
-                      <button
-                        key={sz}
-                        type="button"
-                        onClick={() => setBrushSize(sz)}
-                        className={`w-7 h-7 rounded-lg text-xs font-mono font-bold flex items-center justify-center transition ${
-                          brushSize === sz ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-500 hover:text-white'
-                        }`}
-                        title={`Brush Size: ${sz} cells (${sz * 16}px)`}
+                    {/* Brush Size Picker Dropdown */}
+                    <div className="flex flex-col items-center gap-2">
+                      <select
+                        value={brushSize}
+                        onChange={(e) => setBrushSize(Number(e.target.value))}
+                        className="w-10 h-8 bg-neutral-900 border border-neutral-700 text-cyan-300 text-xs font-mono font-bold rounded-lg text-center outline-none appearance-none cursor-pointer hover:bg-neutral-800 transition px-1"
+                        title="Select Brush Size"
                       >
-                        {sz}x
-                      </button>
-                    ))}
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(sz => (
+                          <option key={sz} value={sz}>{sz}x</option>
+                        ))}
+                      </select>
+
+                      {/* Recent Brush Sizes */}
+                      <div className="flex flex-col items-center gap-1 mt-1">
+                        {recentBrushSizes.map(sz => (
+                          <button
+                            key={`recent-${sz}`}
+                            type="button"
+                            onClick={() => setBrushSize(sz)}
+                            className={`w-7 h-7 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center transition ${
+                              brushSize === sz ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-500 hover:text-white bg-neutral-900/50'
+                            }`}
+                            title={`Recent Brush: ${sz}x`}
+                          >
+                            {sz}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </aside>
 
                   {/* Center Canvas */}
@@ -569,14 +835,29 @@ export const EditorLayout: React.FC = () => {
                       onTileInteract={handleMapTileInteract}
                       isDrawing={isDrawing}
                       setIsDrawing={setIsDrawing}
-                      showGrid={true}
+                      showGrid={showGrid}
                       showDamageMasks={showDamageMasks}
+                      isLitMode={isLitMode}
                     />
 
                     {/* Canvas Status Badge */}
-                    <div className="absolute bottom-4 left-4 pointer-events-none z-20">
-                      <div className="bg-neutral-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs border border-neutral-700 text-neutral-300 shadow-xl flex items-center gap-3">
-                        <span className="font-mono text-cyan-400">{currentMapFile.fileName} ({currentMapData.width}×{currentMapData.height} @ 16px/cell)</span>
+                    <div 
+                      data-no-paint="true"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseMove={(e) => e.stopPropagation()}
+                      onTouchMove={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute bottom-4 left-4 pointer-events-auto z-20 flex flex-col gap-2"
+                    >
+                      <div className="bg-neutral-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs border border-neutral-700 text-neutral-300 shadow-xl flex items-center gap-3 select-text">
+                        <span className="font-mono text-cyan-400">
+                          {currentMapFile.fileName} 
+                          {currentMapData.chunks 
+                            ? ` (${Object.keys(currentMapData.chunks).length} Chunks)` 
+                            : ` (${currentMapData.width}×${currentMapData.height} @ 16px/cell)`}
+                        </span>
                         <span className="text-neutral-500">|</span>
                         <span className="font-mono text-emerald-400">128px Metroidvania Scale</span>
                         <span className="text-neutral-600">•</span>
@@ -681,7 +962,7 @@ export const EditorLayout: React.FC = () => {
                             </div>
                           </button>
 
-                          {activeBiome.tileTypes.map(t => {
+                          {activeBiome.tileTypes?.map(t => {
                             const isSelected = selectedAssetId === t.id;
                             return (
                               <button
@@ -714,6 +995,7 @@ export const EditorLayout: React.FC = () => {
                     </div>
                   </aside>
                 </div>
+                )}
               </div>
             ) : (
               // For all other modules, render via ModuleRunnerContainer
@@ -735,7 +1017,7 @@ export const EditorLayout: React.FC = () => {
       <ModulesModal
         isOpen={isModulesModalOpen}
         onClose={() => setIsModulesModalOpen(false)}
-        onSelectModule={(modId) => setActiveModuleId(modId)}
+        onSelectModule={(modId) => handleLaunchModule(modId)}
         activeModuleId={activeModuleId}
       />
 
@@ -786,15 +1068,15 @@ export const EditorLayout: React.FC = () => {
           currentHeight={currentMapData.height}
           onApplyToLevel={(matrix, layout) => {
             handleUpdateProject(p => {
-              const updatedMaps = p.fileSystem.maps.map(m => {
+              const updatedMaps = p.fileSystem.maps?.map(m => {
                 if (m.fileName === currentMapFile.fileName) {
                   const newCells: RefinedCellState[][] = [];
                   for (let y = 0; y < matrix.height; y++) {
                     const row: RefinedCellState[] = [];
                     for (let x = 0; x < matrix.width; x++) {
-                      const bId = matrix.grid[y][x];
+                      const bId = matrix.biomeIds[y]?.[x];
                       const biomeObj = biomesList.find(b => b.id === bId) || biomesList[0];
-                      const primaryTile = biomeObj.primaryTileTypeId || biomeObj.tileTypes[0]?.id || 'ashen_basalt';
+                      const primaryTile = biomeObj?.primaryTileTypeId || biomeObj?.tileTypes?.[0]?.id || 'ashen_basalt';
                       
                       let isSolid = true;
                       if (layout === 'metroidvania_sidescroller') {

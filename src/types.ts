@@ -14,12 +14,18 @@ export interface RefinedCellState {
 }
 
 export interface RefinedMapData {
+  id?: string;
+  name?: string;
   width: number;
   height: number;
-  cells: RefinedCellState[][];
+  offsetX?: number;
+  offsetY?: number;
+  cells?: RefinedCellState[][];
+  chunks?: Record<string, RefinedCellState[]>;
+  chunkSize?: number;
 }
 
-export type ToolType = 'brush' | 'bucket' | 'eraser';
+export type ToolType = 'brush' | 'bucket' | 'eraser' | 'chunk_add' | 'chunk_delete';
 export type ModeType = 'paint' | 'play';
 export type PaintCategory = 'tile_type' | 'environmental' | 'interactive' | 'wildlife';
 

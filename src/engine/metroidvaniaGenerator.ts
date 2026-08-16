@@ -1,5 +1,6 @@
 import { RefinedBiome } from './refinedBiomeSchema';
 import { RefinedMapData, RefinedCellState } from '../types';
+import { setCell, getCell } from './mapChunkHelper';
 
 export interface BiomeAllocationMatrix {
   width: number;
@@ -78,7 +79,7 @@ export function generateProceduralBiomeMatrix(
   seed = 42
 ): BiomeAllocationMatrix {
   if (biomes.length <= 1) {
-    return createBiomeAllocationMatrix(width, height, biomes[0]?.id || 'mourne_ashen_steppes');
+    return createBiomeAllocationMatrix(width, height, biomes?.[0]?.id || 'mourne_ashen_steppes');
   }
 
   // Generate 4 to 8 Voronoi seed centroids across the 1px-per-tile matrix
@@ -192,14 +193,14 @@ export function buildMapFromBiomeMatrix(
   const biomeMap = new Map<string, RefinedBiome>();
   biomes.forEach(b => biomeMap.set(b.id, b));
 
-  const cells: RefinedCellState[][] = [];
+  const mapData: RefinedMapData = { width, height, chunks: {} };
 
   for (let y = 0; y < height; y++) {
-    const row: RefinedCellState[] = [];
+    
     for (let x = 0; x < width; x++) {
       const cellBiomeId = biomeIds[y]?.[x] || biomes[0].id;
       const currentBiome = biomeMap.get(cellBiomeId) || biomes[0];
-      const primaryTile = currentBiome.primaryTileTypeId || currentBiome.tileTypes[0]?.id || '';
+      const primaryTile = currentBiome.primaryTileTypeId || currentBiome.tileTypes?.[0]?.id || '';
 
       let tileTypeId = ''; // Default to blank / open air tile!
       let envDetail: string | null = null;
@@ -253,7 +254,7 @@ export function buildMapFromBiomeMatrix(
         tileTypeId = isEdge ? primaryTile : '';
       }
 
-      row.push({
+      setCell(mapData, x, y, {
         biome_id: cellBiomeId,
         tile_type_id: tileTypeId,
         current_health: 100,
@@ -263,21 +264,24 @@ export function buildMapFromBiomeMatrix(
         wildlife_id: wildlifeDetail
       });
     }
-    cells.push(row);
+    
   }
 
   // Ensure 1 Save Checkpoint / Binding Stone in the first open air tile near bottom-left
   for (let y = height - 3; y >= 2; y--) {
     for (let x = 2; x < width - 2; x++) {
-      if (cells[y][x].tile_type_id === '' && cells[y + 1]?.[x]?.tile_type_id !== '') {
-        const b = biomeMap.get(cells[y][x].biome_id) || biomes[0];
+      const cell = getCell(mapData, x, y);
+      const cellBelow = getCell(mapData, x, y + 1);
+      if (cell && cellBelow && cell.tile_type_id === '' && cellBelow.tile_type_id !== '') {
+        const b = biomeMap.get(cell.biome_id) || biomes[0];
         if (b.interactiveDetails.length > 0) {
-          cells[y][x].interactive_detail_id = b.interactiveDetails[0].id;
-          return { width, height, cells };
+          cell.interactive_detail_id = b.interactiveDetails[0].id;
+          setCell(mapData, x, y, cell);
+          return mapData;
         }
       }
     }
   }
 
-  return { width, height, cells };
+  return mapData;
 }

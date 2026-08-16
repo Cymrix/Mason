@@ -20,8 +20,8 @@ export interface MasonModuleDefinition {
 export const MASON_MODULES: MasonModuleDefinition[] = [
   {
     id: 'maps',
-    name: 'Level & Tilemap Studio',
-    tagline: '2D sidescroller rooms, terrain strata painting, destructible blocks & voids',
+    name: 'Maps',
+    tagline: '2D sidescroller rooms, terrain strata painting, full autotiling & Map Macro',
     category: 'World & Levels',
     subfolder: 'modules/maps',
     entryHtml: '/modules/maps/index.html',
@@ -29,19 +29,19 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     associatedExtension: '.map',
     icon: '🗺️',
     accentColor: 'cyan',
-    description: 'A dedicated mini-app to author 2D Metroidvania room geometry, terrain strata layers, destructible block health matrices, blank traversable airspaces, and room exit triggers.',
+    description: 'A dedicated mini-app to author 2D Metroidvania room geometry, terrain strata layers with comprehensive autotiling, destructible block matrices, blank traversable airspaces, and integrated Map Macro synthesis.',
     features: [
-      '64px Strata tile painting with real-time autotiling',
+      '64px Strata tile painting with real-time autotiling & slope trims',
       'Solid blocks vs traversable open air voids',
+      'Integrated Map Macro (1px:1tile) cellular & platform synthesis',
       'Environmental flora & entity scatter',
-      'Doorway exit markers & spawn points',
       'Multi-room level management (.map format)'
     ],
     version: MASON_VERSION_DISPLAY
   },
   {
     id: 'biomes',
-    name: 'Biome & Parallax Architect',
+    name: 'Biomes',
     tagline: '7-layer depth parallax (-5 to +1), PBR dual-noise materials & palettes',
     category: 'Biomes & Environment',
     subfolder: 'modules/biomes',
@@ -62,7 +62,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
   },
   {
     id: 'archetypes',
-    name: 'Hero & Archetype Forge',
+    name: 'Archetypes',
     tagline: 'Player classes, traversal tags, foci slots, damage affinities & narrative prose',
     category: 'Actors & Combat',
     subfolder: 'modules/archetypes',
@@ -83,7 +83,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
   },
   {
     id: 'ui',
-    name: 'HUD & UI Theme Forge',
+    name: 'UI & HUD',
     tagline: 'Gothic orbs, cyber gauges, minimap radars, dialogue boxes & boss bars',
     category: 'Interface & HUD',
     subfolder: 'modules/ui',
@@ -104,7 +104,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
   },
   {
     id: 'gamestructure',
-    name: 'Game Structure & World Graph',
+    name: 'World Graph',
     tagline: 'World map graph linker, main menu builder, loading wipes & progression flags',
     category: 'Game Architecture',
     subfolder: 'modules/gamestructure',
@@ -125,16 +125,16 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
   },
   {
     id: 'macro',
-    name: '1px:1tile Procedural Macro Studio',
-    tagline: 'Procedural cellular automata, biome zoning masks & level structure generation',
+    name: 'Map Macro',
+    tagline: '1px:1tile procedural cellular automata, biome zoning masks & level structure generation',
     category: 'Generative Tools',
-    subfolder: 'modules/macro',
+    subfolder: 'modules/maps/macro',
     entryHtml: '/modules/macro/index.html',
     associatedFolder: 'maps',
     associatedExtension: '.macro',
     icon: '⚡',
     accentColor: 'rose',
-    description: 'A dedicated mini-app to procedurally generate large-scale biome distribution heatmaps, cellular cave networks, and platforming layouts using the 1px:1tile macro synthesis engine.',
+    description: 'A dedicated subset studio inside the Maps module to procedurally generate large-scale biome distribution heatmaps, cellular cave networks, and platforming layouts using the 1px:1tile macro synthesis engine.',
     features: [
       'Perlin/Simplex macro biome allocation',
       'Metroidvania cave & platforming synthesis templates',

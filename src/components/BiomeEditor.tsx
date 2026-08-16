@@ -46,7 +46,7 @@ export const BiomeEditor: React.FC<BiomeEditorProps> = ({
   onSelectActiveBiomeForPainting,
   activePaintBiomeId
 }) => {
-  const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes[0]?.id || 'mourne_ashen_steppes');
+  const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes?.[0]?.id || 'mourne_ashen_steppes');
   const [activeSubTab, setActiveSubTab] = useState<'decor' | 'material' | 'noise'>('decor');
   const [previewSeed, setPreviewSeed] = useState<number>(1);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);

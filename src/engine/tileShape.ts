@@ -9,13 +9,14 @@
  */
 
 export type TileShape =
+  | 'auto'
   | 'full'
   | 'slope_up_right_45'
   | 'slope_up_left_45'
   | 'slope_down_right_45'
   | 'slope_down_left_45';
 
-export type ShapeCategory = 'block' | 'slope_45';
+export type ShapeCategory = 'auto' | 'block' | 'slope_45';
 
 export interface TileShapeDefinition {
   id: TileShape;
@@ -46,6 +47,14 @@ const FULL_POLYGON: [number, number][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
 const SLOPE_45_R_BASE: [number, number][] = [[0, 1], [1, 0], [1, 1]];
 
 export const TILE_SHAPE_DEFINITIONS: Record<TileShape, TileShapeDefinition> = {
+  auto: {
+    id: 'auto',
+    name: 'Autotile (Smart)',
+    shortLabel: '✨ Autotile',
+    category: 'auto',
+    isSlope: false,
+    normalizedPolygon: FULL_POLYGON
+  },
   full: {
     id: 'full',
     name: 'Solid Block (16x16)',

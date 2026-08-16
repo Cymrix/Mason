@@ -5,24 +5,28 @@
  * 1. Two-phase world rendering: cheap CPU layout data vs. deferred GPU/Canvas composite caching.
  * 2. Per-chunk (16×16 tiles = 1024×1024px) offscreen baked textures.
  * 3. Dirty-cell surgical invalidation with cross-chunk boundary consistency.
- * 4. LRU cache eviction for predictable VRAM/RAM budgeting.
+ * 4. Multi-level Map-scoped isolation preventing cross-map cache bleed.
+ * 5. LRU cache eviction for predictable VRAM/RAM budgeting.
  */
 
-import { RefinedMapData, RefinedCellState } from '../types';
+import { RefinedMapData } from '../types';
 import { BiomeTileType, RefinedBiome, TILE_SIZE } from './refinedBiomeSchema';
 import { renderRefinedTileCell } from './tileMaterialRenderer';
 import { TileShape } from './tileShape';
+import { resolveAutoTileShape } from './autoTileSlopeSolver';
 import { drawThresholdCrackMask } from './heightBlendShader';
+import { getCell, CHUNK_SIZE } from './mapChunkHelper';
 
-export const CHUNK_SIZE = 32; // 32x32 tiles (at 16px = 512x512px per chunk)
 export const MAX_CACHED_CHUNKS = 128; // Retain up to 128 loaded chunk textures (~64MB-128MB max texture footprint)
 
 export interface ChunkKey {
+  mapId: string;
   chunkX: number;
   chunkY: number;
 }
 
 export interface CachedChunk {
+  mapId: string;
   chunkX: number;
   chunkY: number;
   canvas: HTMLCanvasElement;
@@ -37,8 +41,8 @@ export class ChunkCacheManager {
   private cache: Map<string, CachedChunk> = new Map();
   private mapVersion: number = 0;
 
-  public static getChunkKey(chunkX: number, chunkY: number): string {
-    return `${chunkX},${chunkY}`;
+  public static getChunkKey(mapId: string = 'default', chunkX: number, chunkY: number): string {
+    return `${mapId || 'default'}:${chunkX},${chunkY}`;
   }
 
   public static worldTileToChunk(tileX: number, tileY: number): { chunkX: number; chunkY: number; localX: number; localY: number } {
@@ -50,43 +54,60 @@ export class ChunkCacheManager {
   }
 
   /**
+   * Invalidate all cached chunk textures for a specific map
+   */
+  public invalidateMap(mapId: string): void {
+    if (!mapId) {
+      this.clear();
+      return;
+    }
+    const prefix = `${mapId}:`;
+    for (const key of Array.from(this.cache.keys())) {
+      if (key.startsWith(prefix)) {
+        this.cache.delete(key);
+      }
+    }
+    this.mapVersion++;
+  }
+
+  /**
    * Invalidate a single world cell and all neighboring chunks if on the border
    */
-  public invalidateCell(worldTileX: number, worldTileY: number): void {
+  public invalidateCell(worldTileX: number, worldTileY: number, mapId: string = 'default'): void {
     const { chunkX, chunkY, localX, localY } = ChunkCacheManager.worldTileToChunk(worldTileX, worldTileY);
 
-    this.markChunkDirty(chunkX, chunkY, localX, localY);
+    this.markChunkDirty(chunkX, chunkY, localX, localY, mapId);
 
     // Cross-chunk boundary consistency checks (1-cell neighbor kernel)
     if (localX === 0) {
-      this.markChunkDirty(chunkX - 1, chunkY, CHUNK_SIZE - 1, localY);
+      this.markChunkDirty(chunkX - 1, chunkY, CHUNK_SIZE - 1, localY, mapId);
     } else if (localX === CHUNK_SIZE - 1) {
-      this.markChunkDirty(chunkX + 1, chunkY, 0, localY);
+      this.markChunkDirty(chunkX + 1, chunkY, 0, localY, mapId);
     }
 
     if (localY === 0) {
-      this.markChunkDirty(chunkX, chunkY - 1, localX, CHUNK_SIZE - 1);
+      this.markChunkDirty(chunkX, chunkY - 1, localX, CHUNK_SIZE - 1, mapId);
     } else if (localY === CHUNK_SIZE - 1) {
-      this.markChunkDirty(chunkX, chunkY + 1, localX, 0);
+      this.markChunkDirty(chunkX, chunkY + 1, localX, 0, mapId);
     }
 
     // Diagonal corners
     if (localX === 0 && localY === 0) {
-      this.markChunkDirty(chunkX - 1, chunkY - 1, CHUNK_SIZE - 1, CHUNK_SIZE - 1);
+      this.markChunkDirty(chunkX - 1, chunkY - 1, CHUNK_SIZE - 1, CHUNK_SIZE - 1, mapId);
     }
     if (localX === CHUNK_SIZE - 1 && localY === 0) {
-      this.markChunkDirty(chunkX + 1, chunkY - 1, 0, CHUNK_SIZE - 1);
+      this.markChunkDirty(chunkX + 1, chunkY - 1, 0, CHUNK_SIZE - 1, mapId);
     }
     if (localX === 0 && localY === CHUNK_SIZE - 1) {
-      this.markChunkDirty(chunkX - 1, chunkY + 1, CHUNK_SIZE - 1, 0);
+      this.markChunkDirty(chunkX - 1, chunkY + 1, CHUNK_SIZE - 1, 0, mapId);
     }
     if (localX === CHUNK_SIZE - 1 && localY === CHUNK_SIZE - 1) {
-      this.markChunkDirty(chunkX + 1, chunkY + 1, 0, 0);
+      this.markChunkDirty(chunkX + 1, chunkY + 1, 0, 0, mapId);
     }
   }
 
-  private markChunkDirty(chunkX: number, chunkY: number, localX: number, localY: number): void {
-    const key = ChunkCacheManager.getChunkKey(chunkX, chunkY);
+  private markChunkDirty(chunkX: number, chunkY: number, localX: number, localY: number, mapId: string = 'default'): void {
+    const key = ChunkCacheManager.getChunkKey(mapId, chunkX, chunkY);
     const cached = this.cache.get(key);
     if (!cached) return;
 
@@ -125,16 +146,18 @@ export class ChunkCacheManager {
     showDamageMasks: boolean = true,
     onAsyncImageLoaded?: () => void
   ): HTMLCanvasElement | null {
-    // Check bounds
-    const maxChunkX = Math.ceil(mapData.width / CHUNK_SIZE);
-    const maxChunkY = Math.ceil(mapData.height / CHUNK_SIZE);
-    if (chunkX < 0 || chunkY < 0 || chunkX >= maxChunkX || chunkY >= maxChunkY) {
-      return null;
+    // Only constrain bounds if mapData is purely using legacy 2D cells array without chunks
+    if (mapData.cells && (!mapData.chunks || Object.keys(mapData.chunks).length === 0)) {
+      const maxChunkX = Math.ceil((mapData.width || 32) / CHUNK_SIZE);
+      const maxChunkY = Math.ceil((mapData.height || 24) / CHUNK_SIZE);
+      if (chunkX < 0 || chunkY < 0 || chunkX >= maxChunkX || chunkY >= maxChunkY) {
+        return null;
+      }
     }
 
-    const key = ChunkCacheManager.getChunkKey(chunkX, chunkY);
+    const mapId = mapData.id || mapData.name || 'default';
+    const key = ChunkCacheManager.getChunkKey(mapId, chunkX, chunkY);
     let cached = this.cache.get(key);
-
     const now = Date.now();
 
     if (!cached) {
@@ -148,10 +171,10 @@ export class ChunkCacheManager {
       canvas.height = CHUNK_SIZE * TILE_SIZE;
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
-
       ctx.imageSmoothingEnabled = false;
 
       cached = {
+        mapId,
         chunkX,
         chunkY,
         canvas,
@@ -161,7 +184,6 @@ export class ChunkCacheManager {
         version: this.mapVersion,
         lastAccessTime: now
       };
-
       this.cache.set(key, cached);
     } else {
       cached.lastAccessTime = now;
@@ -207,13 +229,14 @@ export class ChunkCacheManager {
 
     for (let ly = startLocalY; ly <= endLocalY; ly++) {
       const worldY = chunkY * CHUNK_SIZE + ly;
-      if (worldY >= mapData.height) continue;
-
+      
       for (let lx = startLocalX; lx <= endLocalX; lx++) {
         const worldX = chunkX * CHUNK_SIZE + lx;
-        if (worldX >= mapData.width) continue;
+        
+        // Let getCell handle out of bounds or chunks
+        const cell = getCell(mapData, worldX, worldY);
+        if (!cell) continue;
 
-        const cell: RefinedCellState = mapData.cells[worldY][worldX];
         const tileTypeId = cell.tile_type_id;
         if (!tileTypeId) continue;
 
@@ -223,13 +246,39 @@ export class ChunkCacheManager {
         const screenX = lx * TILE_SIZE;
         const screenY = ly * TILE_SIZE;
 
-        // Neighbor check for auto-tiling composite edges
-        const hasTop = worldY > 0 && mapData.cells[worldY - 1][worldX].tile_type_id === tileTypeId;
-        const hasBottom = worldY < mapData.height - 1 && mapData.cells[worldY + 1][worldX].tile_type_id === tileTypeId;
-        const hasLeft = worldX > 0 && mapData.cells[worldY][worldX - 1].tile_type_id === tileTypeId;
-        const hasRight = worldX < mapData.width - 1 && mapData.cells[worldY][worldX + 1].tile_type_id === tileTypeId;
+        // 8-Directional Neighbor check for full autotiling (edges, corners, and slope transitions)
+        const isNeighborSolid = (ny: number, nx: number) => {
+          const neighbor = getCell(mapData, nx, ny);
+          return !!(neighbor && neighbor.tile_type_id);
+        };
 
-        const shape: TileShape = (cell as any).shape || 'full';
+        const hasTop = isNeighborSolid(worldY - 1, worldX);
+        const hasBottom = isNeighborSolid(worldY + 1, worldX);
+        const hasLeft = isNeighborSolid(worldY, worldX - 1);
+        const hasRight = isNeighborSolid(worldY, worldX + 1);
+        const hasTopLeft = isNeighborSolid(worldY - 1, worldX - 1);
+        const hasTopRight = isNeighborSolid(worldY - 1, worldX + 1);
+        const hasBottomLeft = isNeighborSolid(worldY + 1, worldX - 1);
+        const hasBottomRight = isNeighborSolid(worldY + 1, worldX + 1);
+
+        const manualShape: TileShape = (cell as any).shape || 'full';
+        const effectiveShape: TileShape = resolveAutoTileShape(
+          record.tileType.bevelProbability ?? 0,
+          worldX,
+          worldY,
+          {
+            hasTop,
+            hasBottom,
+            hasLeft,
+            hasRight,
+            hasTopLeft,
+            hasTopRight,
+            hasBottomLeft,
+            hasBottomRight
+          },
+          manualShape
+        );
+
         const fullness: number = (cell as any).fullness !== undefined ? (cell as any).fullness : 1.0;
 
         renderRefinedTileCell(
@@ -240,9 +289,18 @@ export class ChunkCacheManager {
           screenY,
           TILE_SIZE,
           record.tileType,
-          { hasTop, hasBottom, hasLeft, hasRight },
+          { 
+            hasTop, 
+            hasBottom, 
+            hasLeft, 
+            hasRight,
+            hasTopLeft,
+            hasTopRight,
+            hasBottomLeft,
+            hasBottomRight
+          },
           onAsyncImageLoaded,
-          shape,
+          effectiveShape,
           fullness
         );
 

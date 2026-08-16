@@ -16,7 +16,7 @@ import { MASON_VERSION_DISPLAY } from '../version';
 
 const MASON_PROJECT_STORAGE_KEY = 'mason_active_project_data';
 const MASON_PROJECT_LIST_INDEX = 'mason_projects_index';
-const MASON_ALL_PROJECTS_STORE = 'mason_all_saved_projects_store';
+const MASON_ACTIVE_ID_KEY = 'mason_active_project_id';
 
 export interface ProjectIndexItem {
   id: string;
@@ -29,24 +29,123 @@ export interface ProjectIndexItem {
   biomeCount: number;
 }
 
+// In-memory runtime cache for zero-latency synchronous access
+let inMemoryActiveProject: MasonProject | null = null;
+const inMemoryProjectsCache: Map<string, MasonProject> = new Map();
+
 // ==================================================
-// LOCAL STORAGE MANAGEMENT
+// INDEXED_DB PERSISTENCE (Quota-free high-capacity storage)
+// ==================================================
+const DB_NAME = 'mason_metroidvania_studio_idb';
+const DB_VERSION = 1;
+const STORE_PROJECTS = 'projects';
+const STORE_META = 'meta';
+
+let idbPromise: Promise<IDBDatabase | null> | null = null;
+
+function getIDB(): Promise<IDBDatabase | null> {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return Promise.resolve(null);
+  }
+  if (idbPromise) return idbPromise;
+
+  idbPromise = new Promise((resolve) => {
+    try {
+      const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
+          db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORE_META)) {
+          db.createObjectStore(STORE_META, { keyPath: 'key' });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => {
+        console.warn('Could not open IndexedDB, using fallback storage');
+        resolve(null);
+      };
+    } catch {
+      resolve(null);
+    }
+  });
+
+  return idbPromise;
+}
+
+export async function idbSaveProject(project: MasonProject): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (!db) return;
+    const tx = db.transaction([STORE_PROJECTS, STORE_META], 'readwrite');
+    tx.objectStore(STORE_PROJECTS).put(project);
+    tx.objectStore(STORE_META).put({ key: 'active_id', value: project.id });
+  } catch (err) {
+    console.warn('IndexedDB write error:', err);
+  }
+}
+
+export async function idbGetProject(id: string): Promise<MasonProject | null> {
+  try {
+    const db = await getIDB();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_PROJECTS, 'readonly');
+      const req = tx.objectStore(STORE_PROJECTS).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function idbDeleteProject(id: string): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (!db) return;
+    const tx = db.transaction(STORE_PROJECTS, 'readwrite');
+    tx.objectStore(STORE_PROJECTS).delete(id);
+  } catch (err) {
+    console.warn('IndexedDB delete error:', err);
+  }
+}
+
+// Self-clean legacy localStorage keys that previously caused quota crashes
+(() => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.removeItem('mason_all_saved_projects_store');
+    } catch {
+      // ignore
+    }
+  }
+})();
+
+// ==================================================
+// LOCAL & SESSION STORAGE INTERFACE
 // ==================================================
 
 /**
  * Loads the active project, or returns null if no project is currently open
  */
 export const getActiveMasonProject = (): MasonProject | null => {
+  if (inMemoryActiveProject) return inMemoryActiveProject;
+
   try {
     const raw = localStorage.getItem(MASON_PROJECT_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as MasonProject;
       if (parsed && parsed.fileSystem && parsed.id) {
+        inMemoryActiveProject = parsed;
+        inMemoryProjectsCache.set(parsed.id, parsed);
+        idbSaveProject(parsed);
         return parsed;
       }
     }
   } catch (err) {
-    console.error('Failed to load active Mason project from storage:', err);
+    console.warn('LocalStorage read warning:', err);
   }
   return null;
 };
@@ -57,66 +156,87 @@ export const getActiveMasonProject = (): MasonProject | null => {
 export const loadActiveMasonProject = (): MasonProject => {
   const existing = getActiveMasonProject();
   if (existing) return existing;
-
   const initial = createInitialMasonProject();
   saveActiveMasonProject(initial);
   return initial;
 };
 
 /**
- * Saves a project to active storage and library index
+ * Saves a project to active storage, memory cache, and library index
  */
 export const saveActiveMasonProject = (project: MasonProject): void => {
   try {
     project.updatedAt = new Date().toISOString();
     project.engineVersion = MASON_VERSION_DISPLAY;
-    localStorage.setItem(MASON_PROJECT_STORAGE_KEY, JSON.stringify(project));
     
-    // Also save in full project library
-    const allProjectsRaw = localStorage.getItem(MASON_ALL_PROJECTS_STORE);
-    let allProjects: Record<string, MasonProject> = allProjectsRaw ? JSON.parse(allProjectsRaw) : {};
-    allProjects[project.id] = project;
-    localStorage.setItem(MASON_ALL_PROJECTS_STORE, JSON.stringify(allProjects));
+    // 1. Update in-memory cache instantly
+    inMemoryActiveProject = project;
+    inMemoryProjectsCache.set(project.id, project);
 
-    // Update index list
-    const indexRaw = localStorage.getItem(MASON_PROJECT_LIST_INDEX);
-    let index: ProjectIndexItem[] = indexRaw ? JSON.parse(indexRaw) : [];
-    index = index.filter(p => p.id !== project.id);
-    index.unshift({
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      author: project.author,
-      updatedAt: project.updatedAt,
-      engineVersion: MASON_VERSION_DISPLAY,
-      mapCount: project.fileSystem?.maps?.length || 0,
-      biomeCount: project.fileSystem?.biomes?.length || 0
-    });
-    localStorage.setItem(MASON_PROJECT_LIST_INDEX, JSON.stringify(index.slice(0, 20)));
+    // 2. Persist asynchronously in IndexedDB
+    idbSaveProject(project);
+
+    // 3. Update index list in localStorage (lightweight metadata, few kilobytes only)
+    try {
+      const indexRaw = localStorage.getItem(MASON_PROJECT_LIST_INDEX);
+      let index: ProjectIndexItem[] = indexRaw ? JSON.parse(indexRaw) : [];
+      index = index.filter(p => p.id !== project.id);
+      index.unshift({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        author: project.author,
+        updatedAt: project.updatedAt,
+        engineVersion: MASON_VERSION_DISPLAY,
+        mapCount: project.fileSystem?.maps?.length || 0,
+        biomeCount: project.fileSystem?.biomes?.length || 0
+      });
+      localStorage.setItem(MASON_PROJECT_LIST_INDEX, JSON.stringify(index.slice(0, 50)));
+      localStorage.setItem(MASON_ACTIVE_ID_KEY, project.id);
+    } catch {
+      // index update fallback
+    }
+
+    // 4. Try saving to localStorage with safety catch for quota limits
+    try {
+      localStorage.removeItem('mason_all_saved_projects_store');
+      localStorage.setItem(MASON_PROJECT_STORAGE_KEY, JSON.stringify(project));
+    } catch (quotaErr) {
+      // If local storage is full, keep active project in memory + IndexedDB
+      try {
+        localStorage.removeItem('mason_all_saved_projects_store');
+        localStorage.removeItem(MASON_PROJECT_STORAGE_KEY);
+        localStorage.setItem(MASON_ACTIVE_ID_KEY, project.id);
+      } catch {
+        // Safe silence
+      }
+    }
   } catch (err) {
     console.error('Failed to save Mason project:', err);
   }
 };
 
 /**
- * Closes the active project (returns Mason to no-project launcher screen)
+ * Closes the active project
  */
 export const closeActiveMasonProject = (): void => {
+  inMemoryActiveProject = null;
   try {
     localStorage.removeItem(MASON_PROJECT_STORAGE_KEY);
+    localStorage.removeItem(MASON_ACTIVE_ID_KEY);
   } catch (err) {
     console.error('Failed to close active Mason project:', err);
   }
 };
 
 /**
- * Lists all saved projects from library index
+ * Lists all saved projects in local storage index
  */
 export const listSavedProjects = (): ProjectIndexItem[] => {
   try {
-    const indexRaw = localStorage.getItem(MASON_PROJECT_LIST_INDEX);
-    if (indexRaw) {
-      return JSON.parse(indexRaw);
+    const raw = localStorage.getItem(MASON_PROJECT_LIST_INDEX);
+    if (raw) {
+      return JSON.parse(raw) as ProjectIndexItem[];
     }
   } catch (err) {
     console.error('Failed to list saved projects:', err);
@@ -128,19 +248,38 @@ export const listSavedProjects = (): ProjectIndexItem[] => {
  * Loads a specific saved project by ID
  */
 export const loadSavedProjectById = (projectId: string): MasonProject | null => {
+  // Check memory cache first
+  if (inMemoryProjectsCache.has(projectId)) {
+    const cached = inMemoryProjectsCache.get(projectId)!;
+    saveActiveMasonProject(cached);
+    return cached;
+  }
+
+  // Check active project
+  if (inMemoryActiveProject && inMemoryActiveProject.id === projectId) {
+    return inMemoryActiveProject;
+  }
+
   try {
-    const allProjectsRaw = localStorage.getItem(MASON_ALL_PROJECTS_STORE);
-    if (allProjectsRaw) {
-      const allProjects = JSON.parse(allProjectsRaw);
-      if (allProjects[projectId]) {
-        const proj = allProjects[projectId];
-        saveActiveMasonProject(proj);
-        return proj;
+    const raw = localStorage.getItem(MASON_PROJECT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as MasonProject;
+      if (parsed && parsed.id === projectId) {
+        saveActiveMasonProject(parsed);
+        return parsed;
       }
     }
   } catch (err) {
     console.error(`Failed to load project with ID ${projectId}:`, err);
   }
+
+  // Trigger background IndexedDB fetch
+  idbGetProject(projectId).then(proj => {
+    if (proj) {
+      inMemoryProjectsCache.set(projectId, proj);
+    }
+  });
+
   return null;
 };
 
@@ -149,18 +288,16 @@ export const loadSavedProjectById = (projectId: string): MasonProject | null => 
  */
 export const deleteSavedProject = (projectId: string): void => {
   try {
+    inMemoryProjectsCache.delete(projectId);
+    idbDeleteProject(projectId);
+
     const indexRaw = localStorage.getItem(MASON_PROJECT_LIST_INDEX);
     if (indexRaw) {
       const index: ProjectIndexItem[] = JSON.parse(indexRaw);
       localStorage.setItem(MASON_PROJECT_LIST_INDEX, JSON.stringify(index.filter(p => p.id !== projectId)));
     }
-    const allProjectsRaw = localStorage.getItem(MASON_ALL_PROJECTS_STORE);
-    if (allProjectsRaw) {
-      const allProjects = JSON.parse(allProjectsRaw);
-      delete allProjects[projectId];
-      localStorage.setItem(MASON_ALL_PROJECTS_STORE, JSON.stringify(allProjects));
-    }
-    const current = getActiveMasonProject();
+
+    const current = inMemoryActiveProject || getActiveMasonProject();
     if (current && current.id === projectId) {
       closeActiveMasonProject();
     }
@@ -263,7 +400,7 @@ export const createNewBiomeInProject = (
   templateBiome?: RefinedBiome
 ): { project: MasonProject; newFile: BiomeFile } => {
   const safeFileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.biome`;
-  const baseBiome = templateBiome || project.fileSystem.biomes[0]?.biomeData;
+  const baseBiome = templateBiome || project.fileSystem.biomes?.[0]?.biomeData;
   const newBiomeData: RefinedBiome = {
     ...(baseBiome || ({} as RefinedBiome)),
     id: `biome_${Date.now()}`,

@@ -30,7 +30,7 @@ export const ArchetypeEditor: React.FC<ArchetypeEditorProps> = ({
   project,
   onUpdateProject
 }) => {
-  const activeFileName = project.activeFiles.archetypeFileName || project.fileSystem.archetypes[0]?.fileName;
+  const activeFileName = project.activeFiles.archetypeFileName || project.fileSystem.archetypes?.[0]?.fileName;
   const currentArchFile = project.fileSystem.archetypes.find(a => a.fileName === activeFileName) || project.fileSystem.archetypes[0];
 
   const arch = currentArchFile.archetypeData;
@@ -148,7 +148,7 @@ export const ArchetypeEditor: React.FC<ArchetypeEditorProps> = ({
             const filtered = p.fileSystem.archetypes.filter(a => a.fileName !== fName);
             return {
               ...p,
-              activeFiles: { ...p.activeFiles, archetypeFileName: filtered[0]?.fileName || '' },
+              activeFiles: { ...p.activeFiles, archetypeFileName: filtered?.[0]?.fileName || '' },
               fileSystem: { ...p.fileSystem, archetypes: filtered }
             };
           });

@@ -1,3 +1,31 @@
+
+function getLinePixels(x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
+  const points: Array<{ x: number; y: number }> = [];
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  let curX = x0;
+  let curY = y0;
+
+  while (true) {
+    points.push({ x: curX, y: curY });
+    if (curX === x1 && curY === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      curX += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      curY += sy;
+    }
+  }
+  return points;
+}
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { 
@@ -29,6 +57,7 @@ interface BiomeMacroMapModalProps {
   currentWidth: number;
   currentHeight: number;
   onApplyToLevel: (matrix: BiomeAllocationMatrix, layoutStyle: MetroidvaniaLayoutStyle) => void;
+  embedded?: boolean;
 }
 
 export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
@@ -37,11 +66,12 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
   biomes,
   currentWidth,
   currentHeight,
-  onApplyToLevel
+  onApplyToLevel,
+  embedded = false
 }) => {
   const [width, setWidth] = useState<number>(currentWidth || 24);
   const [height, setHeight] = useState<number>(currentHeight || 24);
-  const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes[0]?.id || 'mourne_ashen_steppes');
+  const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes?.[0]?.id || 'mourne_ashen_steppes');
   const [tool, setTool] = useState<'pencil' | 'bucket' | 'eyedropper'>('pencil');
   const [layoutStyle, setLayoutStyle] = useState<MetroidvaniaLayoutStyle>('blank_air');
   const [seed, setSeed] = useState<number>(1337);
@@ -50,7 +80,7 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
 
   // The 1px:1tile matrix state
   const [matrix, setMatrix] = useState<BiomeAllocationMatrix>(() => 
-    createBiomeAllocationMatrix(currentWidth || 24, currentHeight || 24, biomes[0]?.id || 'mourne_ashen_steppes')
+    createBiomeAllocationMatrix(currentWidth || 24, currentHeight || 24, biomes?.[0]?.id || 'mourne_ashen_steppes')
   );
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -160,9 +190,9 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
           visited.add(key);
 
           if (cx < 0 || cx >= prev.width || cy < 0 || cy >= prev.height) continue;
-          if (newIds[cy][cx] !== targetId) continue;
+          if (newIds[cy]?.[cx] !== targetId) continue;
 
-          newIds[cy][cx] = selectedBiomeId;
+          if (newIds[cy]) newIds[cy][cx] = selectedBiomeId;
           stack.push([cx + 1, cy]);
           stack.push([cx - 1, cy]);
           stack.push([cx, cy + 1]);
@@ -192,7 +222,7 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
     setMatrix(prev => {
       if (prev.biomeIds[y]?.[x] === selectedBiomeId) return prev;
       const newIds = prev.biomeIds.map(row => [...row]);
-      newIds[y][x] = selectedBiomeId;
+      if (newIds[y]) newIds[y][x] = selectedBiomeId;
       return { ...prev, biomeIds: newIds };
     });
   };
@@ -262,30 +292,30 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
     });
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !embedded) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150">
-      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 bg-neutral-950/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-              <Compass size={20} />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                1px:1tile Biome Allocation & Metroidvania Studio
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                  1 Pixel = 1 World Tile
-                </span>
-              </h2>
-              <p className="text-xs text-neutral-400">
-                Paint or import 1px-per-tile macro biome layouts. Blank tiles maintain the biome background without physical solid ground.
-              </p>
-            </div>
+  const content = (
+    <div className={`flex flex-col overflow-hidden ${embedded ? 'w-full h-full bg-neutral-950' : 'bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-5xl h-[88vh] shadow-2xl'}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-neutral-800 bg-neutral-950/80 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <Compass size={18} />
           </div>
+          <div>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              Map Macro (1px:1tile Studio)
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                1 Pixel = 1 World Tile
+              </span>
+            </h2>
+            <p className="text-[11px] text-neutral-400">
+              Procedurally synthesize biome allocation heatmaps, cave networks, and platforming layouts directly into your map.
+            </p>
+          </div>
+        </div>
 
+        {!embedded && (
           <button
             type="button"
             onClick={onClose}
@@ -293,7 +323,8 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
           >
             <X size={18} />
           </button>
-        </div>
+        )}
+      </div>
 
         {/* Content Body */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
@@ -521,30 +552,41 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 text-xs transition"
-                >
-                  Cancel
-                </button>
+                {!embedded && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 text-xs transition"
+                  >
+                    Cancel
+                  </button>
+                )}
 
                 <button
                   type="button"
                   onClick={() => {
                     onApplyToLevel(matrix, layoutStyle);
-                    onClose();
+                    if (!embedded) onClose();
                   }}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-xs shadow-lg shadow-cyan-500/20 transition"
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-rose-500 via-cyan-500 to-blue-600 hover:from-rose-400 hover:to-blue-500 text-white font-semibold text-xs shadow-lg shadow-cyan-500/20 transition"
                 >
                   <Check size={15} />
-                  <span>Apply & Bake to Level</span>
+                  <span>Synthesize & Apply to Level Map</span>
                 </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150">
+      {content}
     </div>
   );
 };

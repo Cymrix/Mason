@@ -42,7 +42,9 @@ export interface MapFile {
   ambientLightOverride?: string;
   playerSpawns: PlayerSpawnPoint[];
   exits: MapExit[];
-  cells: RefinedCellState[][];
+  cells?: RefinedCellState[][];
+  chunks?: Record<string, RefinedCellState[]>;
+  data?: any;
 }
 
 // ==========================================
@@ -573,25 +575,6 @@ export const createDefaultMapFile = (
   height: number = 24,
   biomeId: string = 'mourne_ashen_steppes'
 ): MapFile => {
-  const cells: RefinedCellState[][] = [];
-  for (let y = 0; y < height; y++) {
-    const row: RefinedCellState[] = [];
-    for (let x = 0; x < width; x++) {
-      // Create a nice sidescroller layout with platforms and open air
-      const isSolidGround = y >= height - 4 || (y === Math.floor(height * 0.6) && (x < 10 || x > 20)) || (y === Math.floor(height * 0.35) && x >= 10 && x <= 22);
-      row.push({
-        biome_id: biomeId,
-        tile_type_id: isSolidGround ? 'ashen_basalt' : '',
-        current_health: 100,
-        damage_threshold_index: 0,
-        environmental_detail_id: isSolidGround && y === height - 4 && (x === 4 || x === 14 || x === 26) ? 'ashen_crag_pillar' : null,
-        interactive_detail_id: isSolidGround && y === height - 4 && x === 8 ? 'shrine_of_ember' : null,
-        wildlife_id: !isSolidGround && y === 5 && x === 16 ? 'cinder_wisp' : null
-      });
-    }
-    cells.push(row);
-  }
-
   return {
     id,
     name,
@@ -605,33 +588,15 @@ export const createDefaultMapFile = (
     playerSpawns: [
       { spawnId: 'spawn_default', x: 4, y: height - 5, facing: 'right', isDefault: true }
     ],
-    exits: [
-      {
-        id: 'exit_east',
-        name: 'East Cavern Gate',
-        x: width - 1,
-        y: height - 6,
-        width: 1,
-        height: 3,
-        targetMapFileName: 'crystal_chasm.map',
-        targetExitId: 'exit_west',
-        transitionType: 'seamless',
-        direction: 'right'
-      },
-      {
-        id: 'exit_west',
-        name: 'West Ascent Ledge',
-        x: 0,
-        y: height - 6,
-        width: 1,
-        height: 3,
-        targetMapFileName: 'brimstone_caldera.map',
-        targetExitId: 'exit_east',
-        transitionType: 'door_fade',
-        direction: 'left'
-      }
-    ],
-    cells
+    exits: [],
+    data: {
+      id,
+      name,
+      width,
+      height,
+      chunks: {}
+    },
+    chunks: {}
   };
 };
 

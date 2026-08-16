@@ -95,7 +95,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     // 1. Procedural Base Layer
     for (let y = 0; y < mapData.height; y++) {
       for (let x = 0; x < mapData.width; x++) {
-        const tileTypeId = mapData.layers.procedural[y][x];
+        const tileTypeId = mapData.layers.procedural[y]?.[x];
         const tile = tileTypes[tileTypeId] || STANDARD_TILE_TYPES.stone;
 
         const screenX = x * TILE_SIZE;
@@ -109,7 +109,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     // 2. Interactive Details Layer
     for (let y = 0; y < mapData.height; y++) {
       for (let x = 0; x < mapData.width; x++) {
-        const decorId = mapData.layers.interactive[y][x];
+        const decorId = mapData.layers.interactive[y]?.[x];
         if (!decorId) continue;
 
         const decor = decorMap[decorId];
@@ -136,7 +136,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         for (let x = 0; x < mapData.width; x++) {
           const screenX = x * TILE_SIZE;
           const screenY = y * TILE_SIZE;
-          const hostId = mapData.layers.procedural[y][x];
+          const hostId = mapData.layers.procedural[y]?.[x];
           const tile = tileTypes[hostId] || STANDARD_TILE_TYPES.stone;
 
           if ((x === 12 && y === 12) || (x === 13 && y === 12) || (x === 14 && y === 12)) {

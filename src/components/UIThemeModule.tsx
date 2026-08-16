@@ -31,7 +31,7 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
   project,
   onUpdateProject
 }) => {
-  const activeFileName = project.activeFiles.uiFileName || project.fileSystem.ui[0]?.fileName;
+  const activeFileName = project.activeFiles.uiFileName || project.fileSystem.ui?.[0]?.fileName;
   const currentUiFile = project.fileSystem.ui.find(u => u.fileName === activeFileName) || project.fileSystem.ui[0];
 
   const [activeTab, setActiveTab] = useState<'health_mana' | 'minimap' | 'dialogue' | 'boss_bars' | 'combat_text'>('health_mana');
@@ -144,7 +144,7 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
             const filtered = p.fileSystem.ui.filter(u => u.fileName !== fName);
             return {
               ...p,
-              activeFiles: { ...p.activeFiles, uiFileName: filtered[0]?.fileName || '' },
+              activeFiles: { ...p.activeFiles, uiFileName: filtered?.[0]?.fileName || '' },
               fileSystem: { ...p.fileSystem, ui: filtered }
             };
           });

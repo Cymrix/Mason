@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.32
+ * Current Release: v0.33
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.32.0';
-export const MASON_VERSION_DISPLAY = 'v0.32';
-export const MASON_FULL_VERSION = 'v0.32';
+export const MASON_VERSION = '0.33.0';
+export const MASON_VERSION_DISPLAY = 'v0.33';
+export const MASON_FULL_VERSION = 'v0.33';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.33',
+    date: '2026-08-16',
+    changes: [
+      'Fixed albedo noise map range normalization (stretching raw noise from [0.25, 0.75] to full [0.0, 1.0] range)',
+      'Ensured Base Material B reaches 100% solid opacity at contrast 1.0 without requiring extreme contrast boosts',
+      'Fixed noise mask inversion (Base A <-> Base B swap) to produce immediate 100% pattern reversals',
+      'Added Layer 1 and Layer 2 Weight Influence sliders to Biome Studio noise blend controls'
+    ]
+  },
   {
     version: 'v0.32',
     date: '2026-08-16',

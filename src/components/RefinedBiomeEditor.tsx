@@ -925,6 +925,29 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           />
                         </div>
 
+                        {/* Weight Slider */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-neutral-400">
+                            <span>Layer 1 Weight Influence</span>
+                            <span className="font-mono text-blue-300 font-bold">{(selectedTileType.blendMap.noiseA.weight ?? 0.5).toFixed(2)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.0"
+                            max="1.0"
+                            step="0.05"
+                            value={selectedTileType.blendMap.noiseA.weight ?? 0.5}
+                            onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              blendMap: {
+                                ...tt.blendMap,
+                                noiseA: { ...tt.blendMap.noiseA, weight: parseFloat(e.target.value) }
+                              }
+                            }))}
+                            className="w-full accent-blue-500 cursor-pointer"
+                          />
+                        </div>
+
                         {/* Seed Input & Randomizer */}
                         <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-800/60">
                           <span className="text-[10px] font-bold text-neutral-400">Noise Seed 1:</span>
@@ -988,6 +1011,29 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                               blendMap: {
                                 ...tt.blendMap,
                                 noiseB: { ...tt.blendMap.noiseB, scale: parseInt(e.target.value) || 4 }
+                              }
+                            }))}
+                            className="w-full accent-indigo-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Weight Slider */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-neutral-400">
+                            <span>Layer 2 Weight Influence</span>
+                            <span className="font-mono text-indigo-300 font-bold">{(selectedTileType.blendMap.noiseB.weight ?? 0.5).toFixed(2)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.0"
+                            max="1.0"
+                            step="0.05"
+                            value={selectedTileType.blendMap.noiseB.weight ?? 0.5}
+                            onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              blendMap: {
+                                ...tt.blendMap,
+                                noiseB: { ...tt.blendMap.noiseB, weight: parseFloat(e.target.value) }
                               }
                             }))}
                             className="w-full accent-indigo-500 cursor-pointer"

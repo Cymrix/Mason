@@ -141,16 +141,27 @@ export function evaluateDualNoiseBlend(
   // Weighted combination
   const wA = Math.max(0, config.noiseA.weight ?? 0.5);
   const wB = Math.max(0, config.noiseB.weight ?? 0.5);
-  const combined = (nA * wA + nB * wB) / Math.max(0.001, wA + wB);
+  const totalWeight = wA + wB;
+  const rawNoise = totalWeight > 0.0001 ? (nA * wA + nB * wB) / totalWeight : nA;
 
-  // Shift by threshold & adjust contrast
+  // Remap raw fractal noise (which naturally clusters in [0.25, 0.75]) to fill full [0.0, 1.0] range
+  const normalizedNoise = (rawNoise - 0.5) * 2.2 + 0.5;
+
+  // Threshold & Contrast parameters
   const threshold = config.blendThreshold !== undefined ? config.blendThreshold : 0.5;
   const contrast = config.blendContrast !== undefined ? config.blendContrast : 1.0;
 
-  let centered = (combined - threshold) * contrast + 0.5;
-  centered = Math.max(0, Math.min(1, centered));
+  // Shift by threshold & adjust contrast slope around 0.5 pivot
+  const centered = (normalizedNoise - threshold) * contrast + 0.5;
 
-  return config.invert ? 1.0 - centered : centered;
+  // Clamp to [0, 1]
+  const clamped = Math.max(0, Math.min(1, centered));
+
+  // Smoothstep curve for natural gradient transition without edge clipping
+  const smoothWeight = clamped * clamped * (3.0 - 2.0 * clamped);
+
+  // Invert mask if enabled (Base A ↔ Base B swap)
+  return config.invert ? 1.0 - smoothWeight : smoothWeight;
 }
 
 /**

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mason — Level & Tilemap Studio (modules/maps)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    .grid-bg {
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+  <!-- Module Header Bar -->
+  <header class="h-12 border-b border-neutral-800 bg-neutral-900/90 px-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-sm">
+        🗺️
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-neutral-100">Level & Tilemap Studio</span>
+          <span class="text-[10px] font-mono bg-neutral-800 text-cyan-400 px-1.5 py-0.5 rounded">modules/maps/</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active File & Stats -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 bg-neutral-950 px-3 py-1 rounded-lg border border-neutral-800 text-xs font-mono">
+        <span class="text-neutral-500">File:</span>
+        <span id="active-file-label" class="text-cyan-300 font-bold">ashen_outpost.map</span>
+        <span id="dimensions-badge" class="text-neutral-500 text-[10px]">(32×24)</span>
+      </div>
+
+      <button id="btn-save" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+        <span>💾 Save Level</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Workspace: Left Tools | Center Grid Viewport | Right Palette -->
+  <div class="flex-1 flex overflow-hidden">
+    <!-- Left Toolbar -->
+    <aside class="w-14 border-r border-neutral-800 bg-neutral-950/80 p-2 flex flex-col items-center gap-2 shrink-0">
+      <button id="tool-brush" class="w-10 h-10 rounded-xl bg-cyan-600 text-white flex items-center justify-center text-sm shadow-md" title="Paint Brush (B)">
+        🖌️
+      </button>
+      <button id="tool-eraser" class="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center text-sm transition" title="Eraser / Void (E)">
+        🧹
+      </button>
+      <button id="tool-fill" class="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center text-sm transition" title="Bucket Fill (G)">
+        🪣
+      </button>
+      
+      <div class="w-6 h-px bg-neutral-800 my-1"></div>
+      
+      <button id="size-1" class="w-8 h-8 rounded-lg bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold">1x</button>
+      <button id="size-2" class="w-8 h-8 rounded-lg text-neutral-500 hover:text-white text-xs font-mono font-bold">2x</button>
+      <button id="size-3" class="w-8 h-8 rounded-lg text-neutral-500 hover:text-white text-xs font-mono font-bold">3x</button>
+    </aside>
+
+    <!-- Center Canvas Viewport -->
+    <main class="flex-1 bg-neutral-950 relative overflow-auto flex items-center justify-center p-6 grid-bg">
+      <div class="relative bg-black/60 border border-neutral-800 shadow-2xl rounded-xl overflow-hidden p-2">
+        <canvas id="map-canvas" width="768" height="576" class="cursor-crosshair bg-neutral-950/90 rounded border border-neutral-800/80 block"></canvas>
+      </div>
+
+      <div class="absolute bottom-4 left-6 pointer-events-none bg-neutral-900/90 border border-neutral-800 px-3 py-1.5 rounded-lg text-[11px] text-neutral-300 backdrop-blur shadow-lg flex items-center gap-2">
+        <span class="text-cyan-400">● Live Canvas</span>
+        <span>Left Click: Draw</span>
+        <span class="text-neutral-600">|</span>
+        <span>Right Click: Pan</span>
+      </div>
+    </main>
+
+    <!-- Right Tile & Prop Inspector -->
+    <aside class="w-64 border-l border-neutral-800 bg-neutral-900/80 backdrop-blur p-4 flex flex-col gap-3 shrink-0 overflow-y-auto">
+      <div>
+        <h3 class="text-xs font-bold text-neutral-200 uppercase tracking-wider">Tile Palette</h3>
+        <p class="text-[10px] text-neutral-400">Select material to paint</p>
+      </div>
+
+      <div class="space-y-1.5" id="tile-list">
+        <!-- Open Air -->
+        <button data-tile="" class="tile-btn w-full p-2 rounded-xl border border-neutral-800 bg-neutral-950 text-left text-xs flex items-center gap-2 hover:bg-neutral-850 transition">
+          <div class="w-5 h-5 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-[10px] text-cyan-400">∅</div>
+          <div>
+            <div class="font-bold text-neutral-200">Open Air Space</div>
+            <div class="text-[9px] text-neutral-500">Traversable Void</div>
+          </div>
+        </button>
+
+        <!-- Solid Basalt -->
+        <button data-tile="ashen_basalt" class="tile-btn w-full p-2 rounded-xl border border-cyan-500 bg-cyan-950/60 text-left text-xs flex items-center gap-2 transition">
+          <div class="w-5 h-5 rounded bg-zinc-700 border border-zinc-600"></div>
+          <div>
+            <div class="font-bold text-cyan-200">Ashen Basalt Rock</div>
+            <div class="text-[9px] text-neutral-400">Solid Terrain • 100 HP</div>
+          </div>
+        </button>
+
+        <!-- Obsidian Strata -->
+        <button data-tile="obsidian_crag" class="tile-btn w-full p-2 rounded-xl border border-neutral-800 bg-neutral-950 text-left text-xs flex items-center gap-2 hover:bg-neutral-850 transition">
+          <div class="w-5 h-5 rounded bg-purple-900 border border-purple-700"></div>
+          <div>
+            <div class="font-bold text-neutral-200">Obsidian Crystal</div>
+            <div class="text-[9px] text-neutral-500">Dense Strata • 250 HP</div>
+          </div>
+        </button>
+
+        <!-- Caldera Magma -->
+        <button data-tile="magma_crust" class="tile-btn w-full p-2 rounded-xl border border-neutral-800 bg-neutral-950 text-left text-xs flex items-center gap-2 hover:bg-neutral-850 transition">
+          <div class="w-5 h-5 rounded bg-amber-700 border border-amber-600"></div>
+          <div>
+            <div class="font-bold text-neutral-200">Caldera Crust</div>
+            <div class="text-[9px] text-neutral-500">Thermal Hazard • 80 HP</div>
+          </div>
+        </button>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-neutral-800 space-y-2">
+        <h4 class="text-xs font-bold text-neutral-300">Level Exits & Spawn</h4>
+        <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800 text-[11px] space-y-1 text-neutral-400">
+          <div class="flex justify-between"><span>Default Spawn:</span> <span class="font-mono text-cyan-400 font-bold">(X:4, Y:19)</span></div>
+          <div class="flex justify-between"><span>East Exit:</span> <span class="text-neutral-300">crystal_chasm.map</span></div>
+          <div class="flex justify-between"><span>West Exit:</span> <span class="text-neutral-300">brimstone_caldera.map</span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Module State
+    let mapWidth = 32;
+    let mapHeight = 24;
+    let tileSize = 24;
+    let currentTool = 'brush';
+    let currentTile = 'ashen_basalt';
+    let brushSize = 1;
+    let isDrawing = false;
+    let grid = Array(mapHeight).fill(null).map((_, y) => 
+      Array(mapWidth).fill(null).map((_, x) => {
+        return (y >= mapHeight - 4 || (y === Math.floor(mapHeight * 0.6) && (x < 10 || x > 20))) ? 'ashen_basalt' : '';
+      })
+    );
+
+    const canvas = document.getElementById('map-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const colors = {
+      '': '#09090b',
+      'ashen_basalt': '#3f3f46',
+      'obsidian_crag': '#581c87',
+      'magma_crust': '#c2410c'
+    };
+
+    function renderGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < mapHeight; y++) {
+        for (let x = 0; x < mapWidth; x++) {
+          const tile = grid[y][x];
+          const px = x * tileSize;
+          const py = y * tileSize;
+
+          if (tile) {
+            ctx.fillStyle = colors[tile] || '#3f3f46';
+            ctx.fillRect(px, py, tileSize, tileSize);
+            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+            ctx.strokeRect(px, py, tileSize, tileSize);
+          } else {
+            ctx.fillStyle = 'rgba(15, 15, 20, 0.6)';
+            ctx.fillRect(px, py, tileSize, tileSize);
+            ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+            ctx.strokeRect(px, py, tileSize, tileSize);
+          }
+        }
+      }
+
+      // Draw Spawn Point Marker
+      ctx.fillStyle = '#06b6d4';
+      ctx.beginPath();
+      ctx.arc(4 * tileSize + tileSize / 2, 19 * tileSize + tileSize / 2, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function applyPaint(x, y) {
+      if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return;
+      const targetTile = (currentTool === 'eraser') ? '' : currentTile;
+      
+      const r = Math.floor(brushSize / 2);
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < mapWidth && ny >= 0 && ny < mapHeight) {
+            grid[ny][nx] = targetTile;
+          }
+        }
+      }
+      renderGrid();
+      
+      // Notify parent Mason host
+      window.parent.postMessage({
+        type: 'MASON_MODULE_EVENT',
+        module: 'maps',
+        event: 'TILE_PAINTED',
+        data: { x, y, tile: targetTile }
+      }, '*');
+    }
+
+    function getGridCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = Math.floor(((e.clientX - rect.left) * scaleX) / tileSize);
+      const y = Math.floor(((e.clientY - rect.top) * scaleY) / tileSize);
+      return { x, y };
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDrawing = true;
+      const { x, y } = getGridCoords(e);
+      applyPaint(x, y);
+    });
+
+    window.addEventListener('mouseup', () => { isDrawing = false; });
+    canvas.addEventListener('mousemove', (e) => {
+      if (isDrawing) {
+        const { x, y } = getGridCoords(e);
+        applyPaint(x, y);
+      }
+    });
+
+    // Tool switching
+    document.getElementById('tool-brush').addEventListener('click', () => {
+      currentTool = 'brush';
+      document.getElementById('tool-brush').className = 'w-10 h-10 rounded-xl bg-cyan-600 text-white flex items-center justify-center text-sm shadow-md';
+      document.getElementById('tool-eraser').className = 'w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center text-sm transition';
+    });
+
+    document.getElementById('tool-eraser').addEventListener('click', () => {
+      currentTool = 'eraser';
+      document.getElementById('tool-eraser').className = 'w-10 h-10 rounded-xl bg-cyan-600 text-white flex items-center justify-center text-sm shadow-md';
+      document.getElementById('tool-brush').className = 'w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center text-sm transition';
+    });
+
+    // Tile palette buttons
+    document.querySelectorAll('.tile-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tile-btn').forEach(b => {
+          b.className = 'tile-btn w-full p-2 rounded-xl border border-neutral-800 bg-neutral-950 text-left text-xs flex items-center gap-2 hover:bg-neutral-850 transition';
+        });
+        btn.className = 'tile-btn w-full p-2 rounded-xl border border-cyan-500 bg-cyan-950/60 text-left text-xs flex items-center gap-2 transition';
+        currentTile = btn.getAttribute('data-tile');
+      });
+    });
+
+    // Save level
+    document.getElementById('btn-save').addEventListener('click', () => {
+      window.parent.postMessage({
+        type: 'MASON_MODULE_EVENT',
+        module: 'maps',
+        event: 'SAVE_FILE',
+        grid
+      }, '*');
+      const btn = document.getElementById('btn-save');
+      btn.innerText = '✓ Saved!';
+      setTimeout(() => { btn.innerText = '💾 Save Level'; }, 1500);
+    });
+
+    // Bi-directional postMessage listener from parent Mason
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'MASON_INIT_PROJECT_DATA') {
+        if (event.data.mapFile) {
+          document.getElementById('active-file-label').innerText = event.data.mapFile.fileName;
+          document.getElementById('dimensions-badge').innerText = `(${event.data.mapFile.width}×${event.data.mapFile.height})`;
+        }
+      }
+    });
+
+    renderGrid();
+  </script>
+</body>
+</html>

@@ -1,612 +1,749 @@
-import React, { useState } from 'react';
-import { useRefinedMapEditor } from '../hooks/useRefinedMapEditor';
+import React, { useState, useEffect } from 'react';
+import { 
+  MasonProject, 
+  MasonModuleId,
+  MapFile,
+  BiomeFile,
+  ArchetypeFile,
+  UIThemeFile,
+  GameStructureFile,
+  createDefaultMapFile
+} from '../engine/masonProjectSchema';
+import { 
+  getActiveMasonProject,
+  saveActiveMasonProject, 
+  closeActiveMasonProject,
+  listSavedProjects,
+  loadSavedProjectById,
+  deleteSavedProject,
+  createNewProject,
+  exportFullProjectBundle,
+  exportMapFile, 
+  exportBiomeFile,
+  createNewMapInProject,
+  ProjectIndexItem
+} from '../utils/masonStorage';
+import { HamburgerMenu } from './HamburgerMenu';
+import { ModulesModal } from './ModulesModal';
+import { ProjectDashboard } from './ProjectDashboard';
+import { MasonWelcomeLauncher } from './MasonWelcomeLauncher';
+import { CreateProjectModal } from './CreateProjectModal';
+import { LoadProjectModal } from './LoadProjectModal';
+import { ProjectExplorerModal } from './ProjectExplorerModal';
+import { BiomeMacroMapModal } from './BiomeMacroMapModal';
+import { ModuleRunnerContainer } from './ModuleRunnerContainer';
 import { RefinedMapCanvas } from './RefinedMapCanvas';
 import { RefinedBiomeEditor } from './RefinedBiomeEditor';
 import { ArchetypeEditor } from './ArchetypeEditor';
-import { LayoutSwitcherModal, WorkspaceLayout } from './LayoutSwitcherModal';
+import { UIThemeModule } from './UIThemeModule';
+import { GameStructureModule } from './GameStructureModule';
+import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { 
   Paintbrush, 
   Eraser, 
-  PaintBucket, 
   Layers, 
-  Play, 
-  PenTool, 
+  TreePine, 
+  Users, 
+  Box, 
+  Compass, 
+  FolderOpen, 
   Save, 
-  Settings,
-  Map as MapIcon,
-  TreePine,
-  Users,
-  Swords,
-  Box,
-  Layout,
-  Sparkles,
-  Sliders,
-  Wand2,
-  Brush,
-  Crosshair,
-  ShieldAlert,
-  Zap,
-  Music,
-  ChevronDown,
-  ChevronUp
+  CheckCircle2, 
+  AlertTriangle, 
+  HardDrive,
+  Download,
+  Plus
 } from 'lucide-react';
+import { RefinedBiome } from '../engine/refinedBiomeSchema';
+import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
 
 export const EditorLayout: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'map' | 'biomes' | 'archetypes' | 'foci' | 'combat'>('map');
-  const [layoutStyle, setLayoutStyle] = useState<WorkspaceLayout>('classic');
-  const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
-  const [isPaletteCollapsed, setIsPaletteCollapsed] = useState(false);
-  const [showDamageMasks, setShowDamageMasks] = useState(true);
+  // Master Mason Project State (null when no project is loaded)
+  const [project, setProject] = useState<MasonProject | null>(() => getActiveMasonProject());
+  
+  // Active Module State (null by default when a project is loaded, showing Project Info until clicked)
+  const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
 
-  const {
-    biomes,
-    setBiomes,
-    activeBiomeId,
-    setActiveBiomeId,
-    activeBiome,
-    mapData,
-    setMapData,
-    mode,
-    setMode,
-    paintCategory,
-    setPaintCategory,
-    selectedAssetId,
-    setSelectedAssetId,
-    activeTool,
-    setActiveTool,
-    brushSize,
-    setBrushSize,
-    isDrawing,
-    setIsDrawing,
-    applyTool,
-    autoScatterEnvironmental,
-    setAutoScatterEnvironmental,
-    autoScatterWildlife,
-    setAutoScatterWildlife,
-    generateBiomeWorld
-  } = useRefinedMapEditor();
+  // Saved projects index cache for launcher
+  const [savedProjects, setSavedProjects] = useState<ProjectIndexItem[]>(() => listSavedProjects());
 
-  const handleInteract = (x: number, y: number) => {
-    if (mode === 'paint') {
-      applyTool(x, y);
+  // Modals state
+  const [isModulesModalOpen, setIsModulesModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
+  const [isExplorerModalOpen, setIsExplorerModalOpen] = useState(false);
+  const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
+
+  // Toast feedback state
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  // Map Painting State (for maps module)
+  const [mode, setMode] = useState<ModeType>('paint');
+  const [activeTool, setActiveTool] = useState<ToolType>('brush');
+  const [paintCategory, setPaintCategory] = useState<PaintCategory>('tile_type');
+  const [selectedAssetId, setSelectedAssetId] = useState<string>('ashen_basalt');
+  const [brushSize, setBrushSize] = useState<number>(1);
+  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [showDamageMasks, setShowDamageMasks] = useState<boolean>(true);
+
+  const refreshSavedProjects = () => {
+    setSavedProjects(listSavedProjects());
+  };
+
+  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Sync project update
+  const handleUpdateProject = (updated: MasonProject | ((prev: MasonProject) => MasonProject)) => {
+    if (!project) return;
+    const newProject = typeof updated === 'function' ? updated(project) : updated;
+    setProject(newProject);
+    saveActiveMasonProject(newProject);
+    refreshSavedProjects();
+  };
+
+  // Project lifecycle handlers
+  const handleCreateNewProject = (name: string, description: string, author: string) => {
+    const newProj = createNewProject(name, description, author);
+    setProject(newProj);
+    setActiveModuleId(null); // Show project info by default
+    refreshSavedProjects();
+    showToast(`Created new project: ${name}`, 'success');
+  };
+
+  const handleSelectSavedProject = (id: string) => {
+    const loaded = loadSavedProjectById(id);
+    if (loaded) {
+      setProject(loaded);
+      setActiveModuleId(null); // Show project info by default
+      refreshSavedProjects();
+      showToast(`Loaded project: ${loaded.name}`, 'success');
     }
   };
 
-  const handleExport = () => {
-    const exportData = {
-      engine_version: '2.0-refined-biomes',
-      tile_size_px: 64,
-      map: mapData,
-      biomes: biomes,
-      active_biome_id: activeBiomeId
+  const handleDeleteSavedProject = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteSavedProject(id);
+    if (project && project.id === id) {
+      setProject(null);
+      setActiveModuleId(null);
+    }
+    refreshSavedProjects();
+    showToast('Deleted project from storage', 'info');
+  };
+
+  const handleCloseProject = () => {
+    closeActiveMasonProject();
+    setProject(null);
+    setActiveModuleId(null);
+    refreshSavedProjects();
+    showToast('Closed active project', 'info');
+  };
+
+  const handleImportBundle = (imported: MasonProject) => {
+    saveActiveMasonProject(imported);
+    setProject(imported);
+    setActiveModuleId(null);
+    refreshSavedProjects();
+    showToast(`Restored project bundle: ${imported.name}`, 'success');
+  };
+
+  const handleExportBundle = () => {
+    if (project) {
+      exportFullProjectBundle(project);
+      showToast(`Exported ${project.name} bundle`, 'success');
+    }
+  };
+
+  // Keyboard shortcut Ctrl+S
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (project) {
+          saveActiveMasonProject(project);
+          refreshSavedProjects();
+          showToast(`Saved ${project.name} to local storage`, 'success');
+        }
+      }
     };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "mourne_refined_world.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-  };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [project]);
 
-  const handleSelectBiomeToPaint = (biomeId: string, tileTypeId?: string) => {
-    setActiveBiomeId(biomeId);
-    const targetBiome = biomes.find(b => b.id === biomeId);
-    if (targetBiome) {
-      setPaintCategory('tile_type');
-      setSelectedAssetId(tileTypeId || targetBiome.primaryTileTypeId || targetBiome.tileTypes[0]?.id);
-    }
-    setActiveTab('map');
-  };
+  // Derived references for active project
+  const currentMapFile = project ? (project.fileSystem.maps.find(m => m.fileName === project.activeFiles.mapFileName) || project.fileSystem.maps[0]) : null;
+  const currentBiomeFile = project ? (project.fileSystem.biomes.find(b => b.fileName === project.activeFiles.biomeFileName) || project.fileSystem.biomes[0]) : null;
+  const activeBiome: RefinedBiome | null = currentBiomeFile?.biomeData || project?.fileSystem.biomes[0]?.biomeData || null;
+  const biomesList: RefinedBiome[] = project ? project.fileSystem.biomes.map(b => b.biomeData) : [];
 
-  const renderToolRail = (isVertical = true, compact = false) => (
-    <div className={`flex ${isVertical ? 'flex-col gap-2' : 'flex-row gap-1.5'} items-center`}>
-      <button 
-        title="Brush (B)"
-        onClick={() => setActiveTool('brush')}
-        className={`p-2.5 rounded-xl flex justify-center items-center transition-all ${
-          activeTool === 'brush' 
-            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
-            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
-        }`}
-      >
-        <Paintbrush size={compact ? 18 : 20} strokeWidth={1.75} />
-      </button>
-      <button 
-        title="Bucket Fill (G)"
-        onClick={() => setActiveTool('bucket')}
-        className={`p-2.5 rounded-xl flex justify-center items-center transition-all ${
-          activeTool === 'bucket' 
-            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
-            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
-        }`}
-      >
-        <PaintBucket size={compact ? 18 : 20} strokeWidth={1.75} />
-      </button>
-      <button 
-        title="Eraser (E)"
-        onClick={() => setActiveTool('eraser')}
-        className={`p-2.5 rounded-xl flex justify-center items-center transition-all ${
-          activeTool === 'eraser' 
-            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
-            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
-        }`}
-      >
-        <Eraser size={compact ? 18 : 20} strokeWidth={1.75} />
-      </button>
-    </div>
-  );
+  const currentMapData: RefinedMapData | null = currentMapFile ? {
+    width: currentMapFile.width,
+    height: currentMapFile.height,
+    cells: currentMapFile.cells
+  } : null;
 
-  const renderPaletteContent = () => (
-    <div className="space-y-5 text-xs">
-      
-      {/* Biome Quick-Switcher */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <label className="font-bold text-neutral-400 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-            <TreePine size={13} className="text-emerald-400" />
-            Active Biome Context
-          </label>
-          <button
-            onClick={() => setActiveTab('biomes')}
-            className="text-[10px] text-emerald-400 hover:underline"
-          >
-            Configure Biomes →
-          </button>
-        </div>
-        <select
-          value={activeBiomeId}
-          onChange={(e) => {
-            setActiveBiomeId(e.target.value);
-            const b = biomes.find(item => item.id === e.target.value);
-            if (b && b.tileTypes.length > 0) {
-              setPaintCategory('tile_type');
-              setSelectedAssetId(b.tileTypes[0].id);
+  // Map tile editing handler
+  const handleMapTileInteract = (x: number, y: number) => {
+    if (!project || !currentMapFile || !activeBiome || mode !== 'paint') return;
+
+    handleUpdateProject(p => {
+      const updatedMaps = p.fileSystem.maps.map(m => {
+        if (m.fileName === currentMapFile.fileName) {
+          const newCells = m.cells.map(row => row.map(cell => ({ ...cell })));
+          const minX = Math.max(0, x - Math.floor((brushSize - 1) / 2));
+          const maxX = Math.min(m.width - 1, x + Math.ceil((brushSize - 1) / 2));
+          const minY = Math.max(0, y - Math.floor((brushSize - 1) / 2));
+          const maxY = Math.min(m.height - 1, y + Math.ceil((brushSize - 1) / 2));
+
+          for (let cy = minY; cy <= maxY; cy++) {
+            for (let cx = minX; cx <= maxX; cx++) {
+              const target = newCells[cy][cx];
+              target.biome_id = activeBiome.id;
+
+              if (activeTool === 'eraser') {
+                target.tile_type_id = '';
+                target.environmental_detail_id = null;
+                target.interactive_detail_id = null;
+                target.wildlife_id = null;
+              } else {
+                if (paintCategory === 'tile_type') {
+                  target.tile_type_id = selectedAssetId;
+                  target.current_health = 100;
+                  target.damage_threshold_index = 0;
+                } else if (paintCategory === 'environmental') {
+                  target.environmental_detail_id = selectedAssetId || null;
+                } else if (paintCategory === 'interactive') {
+                  target.interactive_detail_id = selectedAssetId || null;
+                } else if (paintCategory === 'wildlife') {
+                  target.wildlife_id = selectedAssetId || null;
+                }
+              }
             }
-          }}
-          className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-2.5 py-1.5 font-semibold text-neutral-200 outline-none"
-        >
-          {biomes.map(b => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      </div>
+          }
 
-      {/* Paint Category Tabs */}
-      <div>
-        <div className="grid grid-cols-4 gap-1 bg-neutral-950 p-1 rounded-lg border border-neutral-800">
-          <button
-            onClick={() => {
-              setPaintCategory('tile_type');
-              if (activeBiome.tileTypes[0]) setSelectedAssetId(activeBiome.tileTypes[0].id);
-            }}
-            className={`py-1 rounded text-[10px] font-bold uppercase transition ${
-              paintCategory === 'tile_type' ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Tiles
-          </button>
-          <button
-            onClick={() => {
-              setPaintCategory('environmental');
-              if (activeBiome.environmentalDetails[0]) setSelectedAssetId(activeBiome.environmentalDetails[0].id);
-            }}
-            className={`py-1 rounded text-[10px] font-bold uppercase transition ${
-              paintCategory === 'environmental' ? 'bg-emerald-600 text-white' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Flora/Rock
-          </button>
-          <button
-            onClick={() => {
-              setPaintCategory('interactive');
-              if (activeBiome.interactiveDetails[0]) setSelectedAssetId(activeBiome.interactiveDetails[0].id);
-            }}
-            className={`py-1 rounded text-[10px] font-bold uppercase transition ${
-              paintCategory === 'interactive' ? 'bg-amber-600 text-white' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Interactive
-          </button>
-          <button
-            onClick={() => {
-              setPaintCategory('wildlife');
-              if (activeBiome.wildlife[0]) setSelectedAssetId(activeBiome.wildlife[0].id);
-            }}
-            className={`py-1 rounded text-[10px] font-bold uppercase transition ${
-              paintCategory === 'wildlife' ? 'bg-cyan-600 text-white' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Wildlife
-          </button>
-        </div>
-      </div>
+          return {
+            ...m,
+            updatedAt: new Date().toISOString(),
+            cells: newCells
+          };
+        }
+        return m;
+      });
 
-      {/* Asset Grid for Selected Category */}
-      <div>
-        {paintCategory === 'tile_type' && (
-          <div className="space-y-2">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
-              64px Dual-Noise Tile Types ({activeBiome.tileTypes.length})
-            </span>
-            <div className="grid grid-cols-1 gap-2">
-              {activeBiome.tileTypes.map(tt => (
-                <button
-                  key={tt.id}
-                  onClick={() => setSelectedAssetId(tt.id)}
-                  className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
-                    selectedAssetId === tt.id
-                      ? 'bg-blue-950/40 border-blue-500 text-white ring-1 ring-blue-500/50'
-                      : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div 
-                      className="w-7 h-7 rounded-md border border-white/20 shadow-inner flex items-center justify-center"
-                      style={{ backgroundColor: tt.baseMaterialA.albedoColor }}
-                    />
-                    <div>
-                      <span className="font-semibold text-xs block text-neutral-200">{tt.name}</span>
-                      <span className="text-[10px] text-neutral-500 font-mono">
-                        HP {tt.health} | Noise {tt.blendMap.noiseA.scale}/{tt.blendMap.noiseB.scale}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {paintCategory === 'environmental' && (
-          <div className="space-y-2">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
-              Non-Tile Flora & Rocks ({activeBiome.environmentalDetails.length})
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              {activeBiome.environmentalDetails.map(env => (
-                <button
-                  key={env.id}
-                  onClick={() => setSelectedAssetId(env.id)}
-                  className={`p-2 rounded-xl border flex flex-col items-center gap-1.5 transition ${
-                    selectedAssetId === env.id
-                      ? 'bg-emerald-950/40 border-emerald-500 text-white ring-1 ring-emerald-500/50'
-                      : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
-                  }`}
-                >
-                  <span className="text-2xl">{env.icon}</span>
-                  <span className="font-medium text-[11px] truncate w-full text-center">{env.name}</span>
-                  <span className="text-[9px] text-neutral-500">{env.widthTiles}x{env.heightTiles}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {paintCategory === 'interactive' && (
-          <div className="space-y-2">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
-              Interactive Placements ({activeBiome.interactiveDetails.length})
-            </span>
-            <div className="grid grid-cols-1 gap-2">
-              {activeBiome.interactiveDetails.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setSelectedAssetId(item.id)}
-                  className={`p-2 rounded-xl border flex items-center gap-2.5 transition text-left ${
-                    selectedAssetId === item.id
-                      ? 'bg-amber-950/40 border-amber-500 text-white ring-1 ring-amber-500/50'
-                      : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
-                  }`}
-                >
-                  <span className="text-xl">{item.icon}</span>
-                  <div>
-                    <span className="font-semibold text-xs text-neutral-200 block">{item.name}</span>
-                    <span className="text-[10px] text-blue-400 font-mono">{item.interactionPrompt}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {paintCategory === 'wildlife' && (
-          <div className="space-y-2">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
-              Wildlife & Ambient Fauna ({activeBiome.wildlife.length})
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              {activeBiome.wildlife.map(fauna => (
-                <button
-                  key={fauna.id}
-                  onClick={() => setSelectedAssetId(fauna.id)}
-                  className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition ${
-                    selectedAssetId === fauna.id
-                      ? 'bg-cyan-950/40 border-cyan-500 text-white ring-1 ring-cyan-500/50'
-                      : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
-                  }`}
-                >
-                  <span className="text-xl">{fauna.icon}</span>
-                  <span className="font-medium text-[11px] truncate w-full text-center">{fauna.name}</span>
-                  <span className="text-[9px] text-cyan-400">{Math.round(fauna.spawnFrequency * 100)}% spawn</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Auto-Scatter & Controls */}
-      <div className="p-3 bg-neutral-950/80 border border-neutral-800 rounded-xl space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-neutral-300 font-semibold flex items-center gap-1.5">
-            <TreePine size={13} className="text-emerald-400" />
-            Auto-Scatter Flora/Rocks
-          </span>
-          <input
-            type="checkbox"
-            checked={autoScatterEnvironmental}
-            onChange={(e) => setAutoScatterEnvironmental(e.target.checked)}
-            className="rounded accent-emerald-500 cursor-pointer"
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-neutral-300 font-semibold flex items-center gap-1.5">
-            <Zap size={13} className="text-cyan-400" />
-            Auto-Scatter Wildlife
-          </span>
-          <input
-            type="checkbox"
-            checked={autoScatterWildlife}
-            onChange={(e) => setAutoScatterWildlife(e.target.checked)}
-            className="rounded accent-cyan-500 cursor-pointer"
-          />
-        </div>
-
-        <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
-          <span className="text-neutral-400">Brush Radius</span>
-          <div className="flex items-center gap-1">
-            {[1, 2, 3].map(size => (
-              <button
-                key={size}
-                onClick={() => setBrushSize(size)}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${
-                  brushSize === size ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:text-white'
-                }`}
-              >
-                {size}x{size}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Procedural Generation Button */}
-      <button
-        onClick={generateBiomeWorld}
-        className="w-full py-2.5 bg-gradient-to-r from-emerald-900/40 to-teal-900/40 hover:from-emerald-900/60 hover:to-teal-900/60 border border-emerald-700/50 text-emerald-200 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow"
-      >
-        <Wand2 size={14} className="text-emerald-400" />
-        Generate Procedural Biome World
-      </button>
-
-    </div>
-  );
+      return {
+        ...p,
+        fileSystem: {
+          ...p.fileSystem,
+          maps: updatedMaps
+        }
+      };
+    });
+  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-neutral-950 text-neutral-100 font-sans overflow-hidden select-none">
-      {/* Top Navbar */}
+      
+      {/* Top Navbar: Hamburger Menu replaces the 2D-Metroidvania tag */}
       <header className="h-14 border-b border-neutral-800/80 bg-neutral-900/90 backdrop-blur flex items-center justify-between px-4 shrink-0 z-30">
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-lg flex items-center justify-center font-black text-white shadow-md shadow-emerald-600/30">
-              M
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-sm tracking-wide text-neutral-100">Mason</h1>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded font-mono">
-                  64px-PBR
-                </span>
-              </div>
-              <p className="text-[10px] text-neutral-400 leading-none">Mourne Edris IDE & Game Framework</p>
-            </div>
-          </div>
+        <div className="flex items-center gap-3">
           
-          <nav className="flex items-center gap-1 bg-neutral-950/80 p-1 rounded-lg border border-neutral-800">
-            <button 
-              onClick={() => setActiveTab('map')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'map' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              <MapIcon size={14} /> World Canvas (64px)
-            </button>
-            <button 
-              onClick={() => setActiveTab('biomes')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'biomes' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              <TreePine size={14} className="text-emerald-400" /> Biome Architect
-            </button>
-            <button 
-              onClick={() => setActiveTab('archetypes')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'archetypes' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              <Users size={14} /> Archetypes
-            </button>
-            <button 
-              onClick={() => setActiveTab('combat')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeTab === 'combat' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              <Swords size={14} /> Damage & Modalities
-            </button>
-          </nav>
+          {/* Hamburger Menu Navigation */}
+          <HamburgerMenu
+            project={project}
+            onOpenModulesModal={() => setIsModulesModalOpen(true)}
+            onOpenExplorerModal={() => setIsExplorerModalOpen(true)}
+            onShowProjectInfo={() => setActiveModuleId(null)}
+            onNewProject={() => setIsCreateModalOpen(true)}
+            onLoadProject={() => setIsLoadModalOpen(true)}
+            onSaveProject={() => {
+              if (project) {
+                saveActiveMasonProject(project);
+                refreshSavedProjects();
+                showToast(`Saved ${project.name}`, 'success');
+              }
+            }}
+            onExportBundle={handleExportBundle}
+            onCloseProject={handleCloseProject}
+            onSelectModule={(modId) => setActiveModuleId(modId)}
+            activeModuleId={activeModuleId}
+          />
+
+          <div className="h-4 w-px bg-neutral-800"></div>
+
+          {/* Project Title / Studio Brand */}
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm tracking-wide text-neutral-100">Mason</span>
+            {project ? (
+              <button
+                type="button"
+                onClick={() => setActiveModuleId(null)}
+                className="text-xs font-mono text-cyan-400 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800"
+                title="Click to view Project Info"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span className="truncate max-w-[200px]">{project.name}</span>
+              </button>
+            ) : (
+              <span className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800">
+                No Project Loaded
+              </span>
+            )}
+          </div>
         </div>
 
+        {/* Right Action Tools */}
         <div className="flex items-center gap-2">
-          {activeTab === 'map' && (
-            <div className="flex items-center bg-neutral-950 p-1 rounded-lg border border-neutral-800 mr-2">
-              <button 
-                onClick={() => setMode('paint')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
-                  mode === 'paint' ? 'bg-emerald-600 text-white shadow-sm' : 'text-neutral-400 hover:text-neutral-200'
-                }`}
+          {project && (
+            <>
+              {/* Modules Browser Button */}
+              <button
+                type="button"
+                onClick={() => setIsModulesModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl text-xs font-bold transition shadow-sm"
+                title="Browse & Launch Mini-Apps"
               >
-                <PenTool size={13} /> Author
+                <span>🧩 Modules</span>
               </button>
-              <button 
-                onClick={() => setMode('play')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
-                  mode === 'play' ? 'bg-teal-600 text-white shadow-sm' : 'text-neutral-400 hover:text-neutral-200'
-                }`}
+
+              {/* 1px:1tile Studio Button */}
+              <button
+                type="button"
+                onClick={() => setIsBiomeMacroModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-semibold transition shadow-sm"
               >
-                <Play size={13} /> Simulation
+                <Compass size={14} />
+                <span className="hidden sm:inline">1px:1tile Studio</span>
+              </button>
+
+              {/* Virtual Files Explorer Button */}
+              <button
+                type="button"
+                onClick={() => setIsExplorerModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl text-xs font-bold transition shadow-sm"
+                title="Virtual Files Explorer"
+              >
+                <FolderOpen size={14} className="text-amber-400" />
+                <span className="hidden md:inline">Files</span>
+              </button>
+
+              {/* Save Project Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  saveActiveMasonProject(project);
+                  refreshSavedProjects();
+                  showToast(`Saved ${project.name}`, 'success');
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-cyan-600/30"
+              >
+                <Save size={13} />
+                <span>Save</span>
+              </button>
+            </>
+          )}
+
+          {!project && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1"
+              >
+                <Plus size={14} />
+                <span>Create Project</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLoadModalOpen(true)}
+                className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-xl text-xs font-bold transition"
+              >
+                <span>Load Project</span>
               </button>
             </div>
           )}
-
-          <button
-            onClick={() => setIsLayoutModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700 text-neutral-200 rounded-lg text-xs font-medium transition shadow-sm"
-          >
-            <Layout size={14} className="text-emerald-400" />
-            <span className="capitalize">{layoutStyle.replace('_', ' ')}</span>
-          </button>
-
-          <button 
-            onClick={handleExport} 
-            className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white transition" 
-            title="Export 64px Level Manifest (JSON)"
-          >
-            <Save size={17} />
-          </button>
         </div>
       </header>
 
-      {/* Main Content Body */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {activeTab === 'map' && (
-          <>
-            {layoutStyle === 'classic' && (
-              <>
-                <aside className="w-16 border-r border-neutral-800 bg-neutral-900/60 backdrop-blur flex flex-col items-center py-4 shrink-0 z-10">
-                  {renderToolRail(true, false)}
-                </aside>
+      {/* Main Body Layout */}
+      <div className="flex-1 flex overflow-hidden relative">
+        
+        {/* CASE A: No Project Loaded -> Mason Welcome & Launcher View */}
+        {!project && (
+          <MasonWelcomeLauncher
+            savedProjects={savedProjects}
+            onCreateNewProject={() => setIsCreateModalOpen(true)}
+            onLoadProjectFromFile={() => setIsLoadModalOpen(true)}
+            onSelectSavedProject={handleSelectSavedProject}
+            onDeleteSavedProject={handleDeleteSavedProject}
+          />
+        )}
 
-                <main className="flex-1 bg-neutral-950 relative overflow-hidden flex flex-col">
-                  {mode === 'paint' ? (
+        {/* CASE B: Project Loaded & No Module Active -> Default Project Info / Dashboard View */}
+        {project && activeModuleId === null && (
+          <ProjectDashboard
+            project={project}
+            onUpdateProject={handleUpdateProject}
+            onLaunchModule={(modId) => setActiveModuleId(modId)}
+            onOpenExplorer={() => setIsExplorerModalOpen(true)}
+            onOpenModulesModal={() => setIsModulesModalOpen(true)}
+            onExportBundle={handleExportBundle}
+          />
+        )}
+
+        {/* CASE C: Project Loaded & A Module is Active -> Module Runner Container */}
+        {project && activeModuleId !== null && (
+          <>
+            {/* If maps module: Can render dedicated interactive full-scale canvas or iframe runner */}
+            {activeModuleId === 'maps' && currentMapFile && currentMapData && activeBiome ? (
+              <div className="flex-1 flex flex-col h-full overflow-hidden">
+                <FileSubfolderHeader
+                  subfolderName="maps"
+                  extension=".map"
+                  files={project.fileSystem.maps.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    fileName: m.fileName,
+                    updatedAt: m.updatedAt
+                  }))}
+                  activeFileName={currentMapFile.fileName}
+                  onSelectFile={(fName) => {
+                    handleUpdateProject(p => ({
+                      ...p,
+                      activeFiles: { ...p.activeFiles, mapFileName: fName }
+                    }));
+                  }}
+                  onNewFile={(name) => {
+                    const { project: updated } = createNewMapInProject(project, name);
+                    handleUpdateProject(updated);
+                    showToast(`Created new level ${name}`, 'success');
+                  }}
+                  onDuplicateFile={(fName) => {
+                    const target = project.fileSystem.maps.find(m => m.fileName === fName);
+                    if (!target) return;
+                    const dupeName = `${target.name} (Copy)`;
+                    const dupeFileName = `${target.fileName.replace('.map', '')}_copy.map`;
+                    const dupe: MapFile = {
+                      ...target,
+                      id: `map_${Date.now()}`,
+                      name: dupeName,
+                      fileName: dupeFileName,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    };
+                    handleUpdateProject(p => ({
+                      ...p,
+                      activeFiles: { ...p.activeFiles, mapFileName: dupeFileName },
+                      fileSystem: { ...p.fileSystem, maps: [...p.fileSystem.maps, dupe] }
+                    }));
+                    showToast(`Duplicated to ${dupeFileName}`, 'success');
+                  }}
+                  onSaveFile={() => {
+                    saveActiveMasonProject(project);
+                    showToast(`Saved ${currentMapFile.fileName}`, 'success');
+                  }}
+                  onExportFile={(fName) => {
+                    const target = project.fileSystem.maps.find(m => m.fileName === fName);
+                    if (target) exportMapFile(target);
+                  }}
+                  onDeleteFile={(fName) => {
+                    handleUpdateProject(p => {
+                      const filtered = p.fileSystem.maps.filter(m => m.fileName !== fName);
+                      return {
+                        ...p,
+                        activeFiles: { ...p.activeFiles, mapFileName: filtered[0]?.fileName || '' },
+                        fileSystem: { ...p.fileSystem, maps: filtered }
+                      };
+                    });
+                  }}
+                  accentColor="cyan"
+                />
+
+                <div className="flex-1 flex overflow-hidden">
+                  {/* Left Tool Rail */}
+                  <aside className="w-16 border-r border-neutral-800 bg-neutral-900/60 backdrop-blur flex flex-col items-center py-4 shrink-0 z-10 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTool('brush')}
+                      className={`p-2.5 rounded-xl border transition ${
+                        activeTool === 'brush' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                      title="Paint Brush"
+                    >
+                      <Paintbrush size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTool('eraser')}
+                      className={`p-2.5 rounded-xl border transition ${
+                        activeTool === 'eraser' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                      title="Eraser / Void"
+                    >
+                      <Eraser size={16} />
+                    </button>
+
+                    <div className="w-8 h-px bg-neutral-800 my-2" />
+
+                    {/* Brush Size Picker */}
+                    {[1, 2, 3].map(sz => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => setBrushSize(sz)}
+                        className={`w-7 h-7 rounded-lg text-xs font-mono font-bold flex items-center justify-center transition ${
+                          brushSize === sz ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-500 hover:text-white'
+                        }`}
+                      >
+                        {sz}x
+                      </button>
+                    ))}
+                  </aside>
+
+                  {/* Center Canvas */}
+                  <main className="flex-1 bg-neutral-950 relative overflow-hidden flex flex-col">
                     <RefinedMapCanvas 
-                      mapData={mapData} 
-                      biomes={biomes}
-                      onTileInteract={handleInteract}
+                      mapData={currentMapData}
+                      biomes={biomesList}
+                      activeBiome={activeBiome}
+                      onTileInteract={handleMapTileInteract}
                       isDrawing={isDrawing}
                       setIsDrawing={setIsDrawing}
                       showGrid={true}
                       showDamageMasks={showDamageMasks}
                     />
-                  ) : (
-                    <div className="flex items-center justify-center h-full flex-col gap-4 text-neutral-400">
-                      <div className="w-16 h-16 rounded-2xl bg-emerald-950/40 border border-emerald-800 flex items-center justify-center text-emerald-400 shadow-xl">
-                        <Play size={32} />
-                      </div>
-                      <div className="text-center">
-                        <h3 className="text-lg font-bold text-neutral-200">Simulation Scaffolding Active</h3>
-                        <p className="text-sm text-neutral-400 max-w-sm mt-1">
-                          64px world grid active. Soundtrack: <code className="text-emerald-400">{activeBiome.soundtrack.ambientExplorationTrack}</code>
-                        </p>
+
+                    {/* Canvas Status Badge */}
+                    <div className="absolute bottom-4 left-4 pointer-events-none z-20">
+                      <div className="bg-neutral-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs border border-neutral-700 text-neutral-300 shadow-xl flex items-center gap-3">
+                        <span className="font-mono text-cyan-400">{currentMapFile.fileName} ({currentMapData.width}×{currentMapData.height} Tiles @ 64px)</span>
+                        <span className="text-neutral-600">•</span>
+                        <span>Biome: <strong className="text-white">{activeBiome.name}</strong></span>
                       </div>
                     </div>
-                  )}
+                  </main>
 
-                  {/* Status Overlay */}
-                  <div className="absolute bottom-4 left-4 pointer-events-none z-20">
-                    <div className="bg-neutral-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl text-xs border border-neutral-700 text-neutral-300 shadow-xl flex items-center gap-3">
-                      <span className="font-mono text-emerald-400">{mapData.width}×{mapData.height} (64px Tiles)</span>
-                      <span className="text-neutral-600">•</span>
-                      <span>Biome: <strong className="text-white">{activeBiome.name}</strong></span>
-                      <span className="text-neutral-600">•</span>
-                      <span>Tool: <strong className="text-emerald-400 capitalize">{paintCategory} ({selectedAssetId})</strong></span>
+                  {/* Right Palette */}
+                  <aside className="w-80 border-l border-neutral-800 bg-neutral-900/80 backdrop-blur flex flex-col shrink-0 z-10">
+                    <div className="p-4 border-b border-neutral-800">
+                      <h2 className="font-semibold text-sm text-neutral-200">Level Strata & Scatter</h2>
+                      <p className="text-[11px] text-neutral-400 mt-0.5">Author terrain, open air, and entities</p>
                     </div>
-                  </div>
-                </main>
+                    <div className="p-4 overflow-y-auto flex-1 space-y-4">
+                      {/* Category Picker */}
+                      <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-950 rounded-xl border border-neutral-800">
+                        {[
+                          { id: 'tile_type', label: 'Terrain', icon: Layers },
+                          { id: 'environmental', label: 'Flora', icon: TreePine },
+                          { id: 'interactive', label: 'Props', icon: Box },
+                          { id: 'wildlife', label: 'Entities', icon: Users },
+                        ].map(cat => {
+                          const Icon = cat.icon;
+                          const active = paintCategory === cat.id;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setPaintCategory(cat.id as PaintCategory)}
+                              className={`py-1.5 px-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 transition ${
+                                active ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:text-white'
+                              }`}
+                            >
+                              <Icon size={13} />
+                              <span>{cat.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
 
-                <aside className="w-80 border-l border-neutral-800 bg-neutral-900/80 backdrop-blur flex flex-col shrink-0 z-10">
-                  <div className="p-4 border-b border-neutral-800">
-                    <h2 className="font-semibold text-sm text-neutral-200">Biome Palette & Scatter</h2>
-                    <p className="text-[11px] text-neutral-400 mt-0.5">2-Material Dual-Noise World Tiles</p>
-                  </div>
-                  <div className="p-4 overflow-y-auto flex-1">
-                    {renderPaletteContent()}
-                  </div>
-                </aside>
-              </>
-            )}
+                      {/* Terrain Tiles & Open Air */}
+                      {paintCategory === 'tile_type' && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssetId('')}
+                            className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                              selectedAssetId === '' 
+                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-850'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-cyan-400 text-xs">
+                                ∅
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold">Blank Air Space (Open Void)</div>
+                                <div className="text-[10px] text-neutral-500">Traversable player airspace</div>
+                              </div>
+                            </div>
+                          </button>
 
-            {layoutStyle !== 'classic' && (
-              <div className="relative w-full h-full overflow-hidden bg-neutral-950 flex">
-                <aside className="w-16 border-r border-neutral-800 bg-neutral-900/60 backdrop-blur flex flex-col items-center py-4 shrink-0 z-10">
-                  {renderToolRail(true, false)}
-                </aside>
-                <div className="flex-1 relative">
-                  <RefinedMapCanvas 
-                    mapData={mapData} 
-                    biomes={biomes}
-                    onTileInteract={handleInteract}
-                    isDrawing={isDrawing}
-                    setIsDrawing={setIsDrawing}
-                    showGrid={true}
-                    showDamageMasks={showDamageMasks}
-                  />
+                          {activeBiome.tileTypes.map(t => {
+                            const isSelected = selectedAssetId === t.id;
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setSelectedAssetId(t.id)}
+                                className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                                  isSelected 
+                                    ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                    : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:bg-neutral-850'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div 
+                                    className="w-6 h-6 rounded border border-neutral-700 shadow-sm"
+                                    style={{ backgroundColor: t.mapColor || t.baseMaterialA?.albedoColor || '#3f3f46' }}
+                                  />
+                                  <div>
+                                    <div className="text-xs font-bold">{t.name}</div>
+                                    <div className="text-[10px] text-neutral-500 font-mono">
+                                      {t.category} • {t.health} HP
+                                    </div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </aside>
                 </div>
-                <aside className="w-80 border-l border-neutral-800 bg-neutral-900/80 backdrop-blur flex flex-col shrink-0 z-10 p-4 overflow-y-auto">
-                  {renderPaletteContent()}
-                </aside>
               </div>
+            ) : (
+              // For all other modules, render via ModuleRunnerContainer
+              <ModuleRunnerContainer
+                moduleId={activeModuleId}
+                project={project}
+                onUpdateProject={handleUpdateProject}
+                onBackToProjectInfo={() => setActiveModuleId(null)}
+                onOpenModulesModal={() => setIsModulesModalOpen(true)}
+                onOpenExplorer={() => setIsExplorerModalOpen(true)}
+              />
             )}
           </>
         )}
 
-        {/* BIOME ARCHITECT TAB */}
-        {activeTab === 'biomes' && (
-          <RefinedBiomeEditor 
-            biomes={biomes}
-            onUpdateBiomes={setBiomes}
-            onSelectForPainting={handleSelectBiomeToPaint}
-            activePaintBiomeId={activeBiomeId}
-          />
-        )}
-
-        {/* ARCHETYPES TAB */}
-        {activeTab === 'archetypes' && <ArchetypeEditor />}
-
-        {/* COMBAT & MODALITY */}
-        {activeTab === 'combat' && (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-neutral-400">
-            <div className="w-16 h-16 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-emerald-400 mb-4 shadow-xl">
-              <Swords size={32} />
-            </div>
-            <h2 className="text-xl font-bold text-neutral-200">8-Point Modality & Destructible Resolver</h2>
-            <p className="text-sm text-neutral-400 max-w-md mt-2">
-              Damage pipeline for environmental flora, destructible 64px tiles, wildlife, and combat entities.
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* Layout Switcher Modal */}
-      <LayoutSwitcherModal
-        isOpen={isLayoutModalOpen}
-        onClose={() => setIsLayoutModalOpen(false)}
-        currentLayout={layoutStyle}
-        onSelectLayout={(layout) => setLayoutStyle(layout)}
+      {/* Modules Directory Modal */}
+      <ModulesModal
+        isOpen={isModulesModalOpen}
+        onClose={() => setIsModulesModalOpen(false)}
+        onSelectModule={(modId) => setActiveModuleId(modId)}
+        activeModuleId={activeModuleId}
       />
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreateProject={handleCreateNewProject}
+      />
+
+      {/* Load Project Modal */}
+      <LoadProjectModal
+        isOpen={isLoadModalOpen}
+        onClose={() => setIsLoadModalOpen(false)}
+        savedProjects={savedProjects}
+        onSelectProject={handleSelectSavedProject}
+        onDeleteProject={handleDeleteSavedProject}
+        onImportBundle={handleImportBundle}
+      />
+
+      {/* Project Explorer Modal */}
+      {project && (
+        <ProjectExplorerModal 
+          isOpen={isExplorerModalOpen}
+          onClose={() => setIsExplorerModalOpen(false)}
+          project={project}
+          onUpdateProject={handleUpdateProject}
+          onNavigateToModule={(mod, file) => {
+            setActiveModuleId(mod);
+            if (file) {
+              if (mod === 'maps') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, mapFileName: file } }));
+              else if (mod === 'biomes') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, biomeFileName: file } }));
+              else if (mod === 'archetypes') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, archetypeFileName: file } }));
+              else if (mod === 'ui') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, uiFileName: file } }));
+              else if (mod === 'gamestructure') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, gameStructureFileName: file } }));
+            }
+          }}
+        />
+      )}
+
+      {/* 1px:1tile Macro Modal */}
+      {project && currentMapFile && currentMapData && (
+        <BiomeMacroMapModal
+          isOpen={isBiomeMacroModalOpen}
+          onClose={() => setIsBiomeMacroModalOpen(false)}
+          biomes={biomesList}
+          currentWidth={currentMapData.width}
+          currentHeight={currentMapData.height}
+          onApplyToLevel={(matrix, layout) => {
+            handleUpdateProject(p => {
+              const updatedMaps = p.fileSystem.maps.map(m => {
+                if (m.fileName === currentMapFile.fileName) {
+                  const newCells: RefinedCellState[][] = [];
+                  for (let y = 0; y < matrix.height; y++) {
+                    const row: RefinedCellState[] = [];
+                    for (let x = 0; x < matrix.width; x++) {
+                      const bId = matrix.grid[y][x];
+                      const biomeObj = biomesList.find(b => b.id === bId) || biomesList[0];
+                      const primaryTile = biomeObj.primaryTileTypeId || biomeObj.tileTypes[0]?.id || 'ashen_basalt';
+                      
+                      let isSolid = true;
+                      if (layout === 'metroidvania_sidescroller') {
+                        isSolid = y >= matrix.height - 4 || (y === Math.floor(matrix.height * 0.6) && (x < 10 || x > 20)) || (y === Math.floor(matrix.height * 0.35) && x >= 10 && x <= 22);
+                      } else if (layout === 'blank_open_air') {
+                        isSolid = false;
+                      }
+
+                      row.push({
+                        biome_id: bId,
+                        tile_type_id: isSolid ? primaryTile : '',
+                        current_health: 100,
+                        damage_threshold_index: 0,
+                        environmental_detail_id: null,
+                        interactive_detail_id: null,
+                        wildlife_id: null
+                      });
+                    }
+                    newCells.push(row);
+                  }
+                  return { ...m, cells: newCells, updatedAt: new Date().toISOString() };
+                }
+                return m;
+              });
+              return { ...p, fileSystem: { ...p.fileSystem, maps: updatedMaps } };
+            });
+            showToast(`Applied 1px:1tile layout to ${currentMapFile.fileName}`, 'success');
+          }}
+        />
+      )}
+
+      {/* Toast Notification Alerts */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+          <div className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
+            toast.type === 'success'
+              ? 'bg-cyan-950/90 border-cyan-500/60 text-cyan-200'
+              : toast.type === 'error'
+              ? 'bg-red-950/90 border-red-500/60 text-red-200'
+              : 'bg-neutral-900/90 border-neutral-700 text-neutral-200'
+          }`}>
+            {toast.type === 'success' && <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />}
+            {toast.type === 'error' && <AlertTriangle size={15} className="text-red-400 shrink-0" />}
+            {toast.type === 'info' && <HardDrive size={15} className="text-cyan-400 shrink-0" />}
+            <span>{toast.text}</span>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

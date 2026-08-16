@@ -2,7 +2,20 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { BiomeTileType } from '../engine/refinedBiomeSchema';
 import { renderRefinedTileCell, AutotileNeighborMask } from '../engine/tileMaterialRenderer';
 import { BLOB_47_TILESET, BlobTileDefinition } from '../engine/blobTilesetConfig';
-import { Layers, Play, Grid, Download, Eye, Sparkles, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
+import { 
+  Layers, 
+  Play, 
+  Grid, 
+  Download, 
+  Eye, 
+  Sparkles, 
+  ZoomIn, 
+  ZoomOut, 
+  RefreshCw, 
+  Move, 
+  RotateCcw 
+} from 'lucide-react';
 
 interface BlobTilesetPreviewProps {
   tileType: BiomeTileType;
@@ -33,6 +46,47 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
   const sandboxCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderTrigger, setRenderTrigger] = useState(0);
 
+  const matrixCols = 8;
+  const matrixRows = 6;
+  const matrixWidth = matrixCols * tileSize;
+  const matrixHeight = matrixRows * tileSize;
+
+  const sandboxRows = sandboxGrid.length;
+  const sandboxCols = sandboxGrid[0].length;
+  const sandboxWidth = sandboxCols * tileSize;
+  const sandboxHeight = sandboxRows * tileSize;
+
+  // Pan & Zoom for Matrix Canvas
+  const matrixPanZoom = useCanvasPanZoom({
+    minScale: 0.25,
+    maxScale: 4.5,
+    initialScale: 1.0,
+    zoomSensitivity: 1.15
+  });
+
+  // Pan & Zoom for Sandbox Canvas
+  const sandboxPanZoom = useCanvasPanZoom({
+    minScale: 0.25,
+    maxScale: 4.5,
+    initialScale: 1.0,
+    zoomSensitivity: 1.15
+  });
+
+  // Auto center matrix view on mount or tile size change
+  const matrixCenteredRef = useRef(false);
+  useEffect(() => {
+    if (viewMode === 'matrix' && matrixPanZoom.containerRef.current) {
+      matrixPanZoom.centerContent(matrixWidth, matrixHeight, 1.0);
+    }
+  }, [viewMode, tileSize, matrixWidth, matrixHeight]);
+
+  // Auto center sandbox view on mode change or tile size change
+  useEffect(() => {
+    if (viewMode === 'sandbox' && sandboxPanZoom.containerRef.current) {
+      sandboxPanZoom.centerContent(sandboxWidth, sandboxHeight, 1.0);
+    }
+  }, [viewMode, tileSize, sandboxWidth, sandboxHeight]);
+
   const forceRerender = useCallback(() => {
     setRenderTrigger(prev => prev + 1);
   }, []);
@@ -45,10 +99,8 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const cols = 8;
-    const rows = 6;
-    canvas.width = cols * tileSize;
-    canvas.height = rows * tileSize;
+    canvas.width = matrixWidth;
+    canvas.height = matrixHeight;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -97,7 +149,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
       ctx.font = '9px monospace';
       ctx.fillText(`#${blobDef.id}`, screenX + 4, screenY + 11);
     });
-  }, [tileType, tileSize, showGrid, viewMode, renderTrigger, forceRerender]);
+  }, [tileType, tileSize, showGrid, viewMode, renderTrigger, forceRerender, matrixWidth, matrixHeight]);
 
   // 2. Render Sandbox Playground
   useEffect(() => {
@@ -107,10 +159,8 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rows = sandboxGrid.length;
-    const cols = sandboxGrid[0].length;
-    canvas.width = cols * tileSize;
-    canvas.height = rows * tileSize;
+    canvas.width = sandboxWidth;
+    canvas.height = sandboxHeight;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -121,27 +171,27 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
     // Subtle background grid
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < sandboxRows; r++) {
+      for (let c = 0; c < sandboxCols; c++) {
         ctx.strokeRect(c * tileSize, r * tileSize, tileSize, tileSize);
       }
     }
 
     // Render cells
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < sandboxRows; r++) {
+      for (let c = 0; c < sandboxCols; c++) {
         if (sandboxGrid[r][c] === 1) {
           const screenX = c * tileSize;
           const screenY = r * tileSize;
 
           const hasTop = r > 0 && sandboxGrid[r - 1][c] === 1;
-          const hasBottom = r < rows - 1 && sandboxGrid[r + 1][c] === 1;
+          const hasBottom = r < sandboxRows - 1 && sandboxGrid[r + 1][c] === 1;
           const hasLeft = c > 0 && sandboxGrid[r][c - 1] === 1;
-          const hasRight = c < cols - 1 && sandboxGrid[r][c + 1] === 1;
+          const hasRight = c < sandboxCols - 1 && sandboxGrid[r][c + 1] === 1;
           const hasTopLeft = r > 0 && c > 0 && sandboxGrid[r - 1][c - 1] === 1;
-          const hasTopRight = r > 0 && c < cols - 1 && sandboxGrid[r - 1][c + 1] === 1;
-          const hasBottomLeft = r < rows - 1 && c > 0 && sandboxGrid[r + 1][c - 1] === 1;
-          const hasBottomRight = r < rows - 1 && c < cols - 1 && sandboxGrid[r + 1][c + 1] === 1;
+          const hasTopRight = r > 0 && c < sandboxCols - 1 && sandboxGrid[r - 1][c + 1] === 1;
+          const hasBottomLeft = r < sandboxRows - 1 && c > 0 && sandboxGrid[r + 1][c - 1] === 1;
+          const hasBottomRight = r < sandboxRows - 1 && c < sandboxCols - 1 && sandboxGrid[r + 1][c + 1] === 1;
 
           const mask: AutotileNeighborMask = {
             hasTop,
@@ -173,38 +223,48 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
         }
       }
     }
-  }, [sandboxGrid, tileType, tileSize, showGrid, viewMode, renderTrigger, forceRerender]);
+  }, [sandboxGrid, tileType, tileSize, showGrid, viewMode, renderTrigger, forceRerender, sandboxWidth, sandboxHeight, sandboxRows, sandboxCols]);
 
   // Handle matrix hover
   const handleMatrixMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = matrixCanvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const col = Math.floor(x / tileSize);
-    const row = Math.floor(y / tileSize);
+    const normX = (e.clientX - rect.left) / rect.width;
+    const normY = (e.clientY - rect.top) / rect.height;
 
-    const found = BLOB_47_TILESET.find(b => b.gridCol === col && b.gridRow === row);
-    setHoveredTileDef(found || null);
+    if (normX >= 0 && normX < 1 && normY >= 0 && normY < 1) {
+      const col = Math.floor(normX * matrixCols);
+      const row = Math.floor(normY * matrixRows);
+      const found = BLOB_47_TILESET.find(b => b.gridCol === col && b.gridRow === row);
+      setHoveredTileDef(found || null);
+    } else {
+      setHoveredTileDef(null);
+    }
   };
 
   // Handle sandbox click
   const handleSandboxClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Only handle left click for cell toggling
+    if (e.button !== 0 || sandboxPanZoom.isPanning) return;
+
     const canvas = sandboxCanvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const col = Math.floor(x / tileSize);
-    const row = Math.floor(y / tileSize);
+    const normX = (e.clientX - rect.left) / rect.width;
+    const normY = (e.clientY - rect.top) / rect.height;
 
-    if (row >= 0 && row < sandboxGrid.length && col >= 0 && col < sandboxGrid[0].length) {
-      setSandboxGrid(prev => {
-        const next = prev.map(r => [...r]);
-        next[row][col] = next[row][col] === 1 ? 0 : 1;
-        return next;
-      });
+    if (normX >= 0 && normX < 1 && normY >= 0 && normY < 1) {
+      const col = Math.floor(normX * sandboxCols);
+      const row = Math.floor(normY * sandboxRows);
+
+      if (row >= 0 && row < sandboxRows && col >= 0 && col < sandboxCols) {
+        setSandboxGrid(prev => {
+          const next = prev.map(r => [...r]);
+          next[row][col] = next[row][col] === 1 ? 0 : 1;
+          return next;
+        });
+      }
     }
   };
 
@@ -379,13 +439,80 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
       {/* Main Display Area */}
       {viewMode === 'matrix' && (
         <div className="flex flex-col gap-3">
-          <div className="overflow-x-auto bg-slate-950/80 p-3 rounded-lg border border-slate-800/80 flex flex-col items-center justify-center min-h-[320px]">
-            <canvas
-              ref={matrixCanvasRef}
-              onMouseMove={handleMatrixMouseMove}
-              onMouseLeave={() => setHoveredTileDef(null)}
-              className="border border-slate-750 shadow-2xl rounded cursor-crosshair max-w-full"
-            />
+          {/* Matrix Viewport Container with Cursor-Centered Zoom and Right-Click Pan */}
+          <div 
+            ref={matrixPanZoom.containerRef}
+            onMouseDown={matrixPanZoom.handleMouseDown}
+            onContextMenu={matrixPanZoom.handleContextMenu}
+            className={`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none ${
+              matrixPanZoom.isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
+            }`}
+            style={{ touchAction: 'none' }}
+          >
+            {/* Transformed Matrix Canvas Wrapper */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: `${matrixWidth}px`,
+                height: `${matrixHeight}px`,
+                transform: `translate(${matrixPanZoom.pan.x}px, ${matrixPanZoom.pan.y}px) scale(${matrixPanZoom.scale})`,
+                transformOrigin: '0 0',
+                willChange: 'transform'
+              }}
+            >
+              <canvas
+                ref={matrixCanvasRef}
+                onMouseMove={handleMatrixMouseMove}
+                onMouseLeave={() => setHoveredTileDef(null)}
+                className="block border border-slate-750 shadow-2xl rounded"
+              />
+            </div>
+
+            {/* Matrix Viewport HUD */}
+            <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs select-none">
+              <div className="flex items-center gap-1 px-2 text-[10px] font-mono text-slate-400 border-r border-slate-800">
+                <Move size={11} className="text-cyan-400" />
+                <span>R-Click Pan • Wheel Zoom</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={matrixPanZoom.zoomOut}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom Out"
+              >
+                <ZoomOut size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => matrixPanZoom.centerContent(matrixWidth, matrixHeight, 1.0)}
+                className="px-1.5 py-0.5 rounded text-slate-200 hover:text-white hover:bg-slate-800 font-mono text-[11px] font-semibold transition"
+                title="Reset Zoom to 100% & Center"
+              >
+                {Math.round(matrixPanZoom.scale * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={matrixPanZoom.zoomIn}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom In"
+              >
+                <ZoomIn size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => matrixPanZoom.centerContent(matrixWidth, matrixHeight, 1.0)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="Center Matrix"
+              >
+                <RotateCcw size={12} />
+              </button>
+            </div>
           </div>
 
           {/* Hover Status Bar */}
@@ -413,20 +540,88 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
       {viewMode === 'sandbox' && (
         <div className="flex flex-col items-center gap-3">
           <div className="text-xs text-slate-400 text-center">
-            Click any cell below to paint / erase and watch autotile edges, inner notches, and dual-noise blends adapt in real time:
+            Click any cell to paint / erase. Use <strong>Right Mouse Drag</strong> to pan and <strong>Mouse Wheel</strong> to zoom centered on cursor:
           </div>
 
-          <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 flex items-center justify-center">
-            <canvas
-              ref={sandboxCanvasRef}
-              onClick={handleSandboxClick}
-              className="border border-slate-700 shadow-2xl rounded cursor-pointer"
-            />
+          {/* Sandbox Viewport Container with Cursor-Centered Zoom and Right-Click Pan */}
+          <div 
+            ref={sandboxPanZoom.containerRef}
+            onMouseDown={sandboxPanZoom.handleMouseDown}
+            onContextMenu={sandboxPanZoom.handleContextMenu}
+            className={`relative w-full h-[380px] bg-slate-950/90 rounded-xl border border-slate-800/80 overflow-hidden select-none ${
+              sandboxPanZoom.isPanning ? 'cursor-grabbing' : 'cursor-pointer'
+            }`}
+            style={{ touchAction: 'none' }}
+          >
+            {/* Transformed Sandbox Canvas Wrapper */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: `${sandboxWidth}px`,
+                height: `${sandboxHeight}px`,
+                transform: `translate(${sandboxPanZoom.pan.x}px, ${sandboxPanZoom.pan.y}px) scale(${sandboxPanZoom.scale})`,
+                transformOrigin: '0 0',
+                willChange: 'transform'
+              }}
+            >
+              <canvas
+                ref={sandboxCanvasRef}
+                onClick={handleSandboxClick}
+                className="block border border-slate-700 shadow-2xl rounded"
+              />
+            </div>
+
+            {/* Sandbox Viewport HUD */}
+            <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs select-none">
+              <div className="flex items-center gap-1 px-2 text-[10px] font-mono text-slate-400 border-r border-slate-800">
+                <Move size={11} className="text-cyan-400" />
+                <span>R-Click Pan • Wheel Zoom</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={sandboxPanZoom.zoomOut}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom Out"
+              >
+                <ZoomOut size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => sandboxPanZoom.centerContent(sandboxWidth, sandboxHeight, 1.0)}
+                className="px-1.5 py-0.5 rounded text-slate-200 hover:text-white hover:bg-slate-800 font-mono text-[11px] font-semibold transition"
+                title="Reset Zoom to 100% & Center"
+              >
+                {Math.round(sandboxPanZoom.scale * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={sandboxPanZoom.zoomIn}
+                className="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                title="Zoom In"
+              >
+                <ZoomIn size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => sandboxPanZoom.centerContent(sandboxWidth, sandboxHeight, 1.0)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="Center Sandbox"
+              >
+                <RotateCcw size={12} />
+              </button>
+            </div>
           </div>
 
           <div className="text-[11px] text-slate-500 flex items-center gap-4">
-            <span>🖱️ Click to toggle cell</span>
-            <span>✨ Automatically computes 8-way bitmasks & inner notches</span>
+            <span>🖱️ Left-Click: Toggle Cell</span>
+            <span>🖱️ Right-Click + Drag: Pan View</span>
+            <span>🎡 Wheel: Zoom to Cursor</span>
           </div>
         </div>
       )}

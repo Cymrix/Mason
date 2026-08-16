@@ -20,6 +20,39 @@ export interface Effect {
 }
 
 /**
+ * Parallax Architecture (7 Layers from -5 to +1)
+ * Sidescroller 2D Metroidvania Depth Layers
+ */
+export type ParallaxLayerIndex = -5 | -4 | -3 | -2 | -1 | 0 | 1;
+
+export type ParallaxProceduralTheme = 
+  | 'celestial_sky' 
+  | 'distant_mountain_range' 
+  | 'ruined_megastructures' 
+  | 'cavern_pillars' 
+  | 'interior_masonry_backwall' 
+  | 'foreground_overgrowth' 
+  | 'custom_image';
+
+export interface ParallaxLayerConfig {
+  layerIndex: ParallaxLayerIndex;
+  name: string;
+  speedFactorX: number; // e.g. -5: 0.04, -4: 0.12, -3: 0.28, -2: 0.5, -1: 0.78, 0: 1.0, 1: 1.35
+  speedFactorY: number; // Vertical scroll parallax factor
+  opacity: number; // 0.0 to 1.0
+  tintColor: string;
+  gradientTop?: string;
+  gradientBottom?: string;
+  textureUrl?: string; // Uploaded custom PNG/SVG
+  proceduralTheme: ParallaxProceduralTheme;
+  repeatX: boolean;
+  repeatY: boolean;
+  offsetY: number; // Vertical shift in px
+  scale: number;
+  blurPx?: number;
+}
+
+/**
  * Noise Configuration for dual-overlapping noise blend map
  */
 export interface NoiseLayerConfig {
@@ -66,7 +99,7 @@ export interface AutoTileDetails {
   bottom: {
     enabled: boolean;
     color?: string;
-    overlayTextureUrl?: string; // Uploaded custom bottom trim image
+    overlayTextureUrl?: string;
     thicknessPx: number;
     texturePattern?: string;
     noiseEdge: boolean;
@@ -74,7 +107,7 @@ export interface AutoTileDetails {
   leftSide: {
     enabled: boolean;
     color?: string;
-    overlayTextureUrl?: string; // Uploaded custom left trim image
+    overlayTextureUrl?: string;
     thicknessPx: number;
     texturePattern?: string;
     noiseEdge: boolean;
@@ -82,7 +115,7 @@ export interface AutoTileDetails {
   rightSide: {
     enabled: boolean;
     color?: string;
-    overlayTextureUrl?: string; // Uploaded custom right trim image
+    overlayTextureUrl?: string;
     thicknessPx: number;
     texturePattern?: string;
     noiseEdge: boolean;
@@ -106,7 +139,6 @@ export interface BiomeTileType {
   mapColor: string;
 
   // Base Materials A and B
-  // Base materials are identical in all regards (heightmap, roughness) except albedo
   baseMaterialA: PBRMaterialSpec;
   baseMaterialBAlbedoColor?: string; // Differing albedo variant color fallback
   baseMaterialBTextureUrl?: string; // Uploaded custom Base Material B image
@@ -207,6 +239,14 @@ export interface RefinedBiome {
   description: string;
   regionColor: string; // Identification tint in map view
   
+  // Background & Atmosphere
+  ambientBackgroundColor?: string;
+  atmosphereFogColor?: string;
+  atmosphereFogDensity?: number; // 0.0 to 1.0
+
+  // 7-Layer Parallax Configuration (-5 to +1)
+  parallaxLayers: ParallaxLayerConfig[];
+
   // Multiple Tile Types per Biome
   tileTypes: BiomeTileType[];
   primaryTileTypeId: string;
@@ -235,7 +275,8 @@ export interface RefinedBiome {
  * Map Cell & Level Data Structure
  */
 export interface RefinedMapCell {
-  tile_type_id: string; // References BiomeTileType ID
+  biome_id: string; // References RefinedBiome ID
+  tile_type_id: string; // References BiomeTileType ID, or empty string '' for Open Air / Blank Space
   current_health: number;
   damage_threshold_index: number;
   environmental_detail_id?: string | null;

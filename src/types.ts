@@ -1,7 +1,8 @@
 import { BiomeTileType, DamageType, TraversalModifierTag } from './engine/refinedBiomeSchema';
 
 export interface RefinedCellState {
-  tile_type_id: string;
+  biome_id: string; // The biome this cell belongs to (for biome background, ambient light & parallax)
+  tile_type_id: string; // If empty string '', this is Open Air / Traversable space without a physical solid tile
   current_health: number;
   damage_threshold_index: number;
   environmental_detail_id?: string | null;

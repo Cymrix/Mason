@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mason — Biome & Parallax Architect (modules/biomes)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+  <!-- Module Header Bar -->
+  <header class="h-12 border-b border-neutral-800 bg-neutral-900/90 px-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg bg-emerald-950 border border-emerald-500/40 flex items-center justify-center text-sm">
+        🌲
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-neutral-100">Biome & Parallax Architect</span>
+          <span class="text-[10px] font-mono bg-neutral-800 text-emerald-400 px-1.5 py-0.5 rounded">modules/biomes/</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Biome -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 bg-neutral-950 px-3 py-1 rounded-lg border border-neutral-800 text-xs font-mono">
+        <span class="text-neutral-500">Biome:</span>
+        <span id="biome-name-label" class="text-emerald-300 font-bold">Mourne Ashen Steppes</span>
+        <span class="text-neutral-500 text-[10px]">(.biome)</span>
+      </div>
+
+      <button id="btn-save-biome" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition">
+        <span>💾 Save Biome</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Workspace: Parallax Viewport + Calibration Sliders -->
+  <div class="flex-1 flex overflow-hidden">
+    <!-- Center Live Parallax Simulator -->
+    <main class="flex-1 bg-neutral-950 flex flex-col overflow-hidden p-6 gap-4">
+      <div class="relative flex-1 rounded-2xl border border-neutral-800 bg-black overflow-hidden shadow-2xl flex flex-col justify-end">
+        <!-- Parallax Horizon Simulator Layers -->
+        <div id="sky-layer" class="absolute inset-0 bg-gradient-to-b from-indigo-950 via-slate-900 to-black transition-transform"></div>
+        <div id="far-mtn" class="absolute inset-x-0 bottom-0 h-48 bg-contain bg-bottom bg-repeat-x opacity-60 pointer-events-none" style="background-image: radial-gradient(ellipse at 50% 100%, #1e1b4b 0%, transparent 70%);"></div>
+        <div id="mid-ruins" class="absolute inset-x-0 bottom-0 h-32 bg-contain bg-bottom bg-repeat-x opacity-80 pointer-events-none" style="background-image: radial-gradient(ellipse at 50% 100%, #0f172a 0%, transparent 60%);"></div>
+        <div id="ground-strata" class="absolute inset-x-0 bottom-0 h-16 bg-neutral-900 border-t-2 border-emerald-500/40"></div>
+
+        <!-- Parallax Camera Slider -->
+        <div class="relative z-20 p-4 bg-neutral-950/80 backdrop-blur border-t border-neutral-800 flex items-center justify-between gap-4">
+          <div class="flex items-center gap-2 text-xs font-mono text-neutral-400">
+            <span>Camera Horizon:</span>
+            <span id="cam-val" class="text-emerald-400 font-bold">0 px</span>
+          </div>
+          <input id="cam-slider" type="range" min="-300" max="300" value="0" class="flex-1 accent-emerald-500 cursor-pointer">
+        </div>
+      </div>
+
+      <!-- Quick Biome Attributes -->
+      <div class="grid grid-cols-4 gap-3">
+        <div class="p-3 bg-neutral-900/80 border border-neutral-800 rounded-xl">
+          <span class="text-[10px] font-bold text-neutral-500 uppercase block">Ambient Light</span>
+          <span class="text-xs font-mono text-emerald-400 font-bold">#2a2035 (Twilight)</span>
+        </div>
+        <div class="p-3 bg-neutral-900/80 border border-neutral-800 rounded-xl">
+          <span class="text-[10px] font-bold text-neutral-500 uppercase block">Atmosphere Fog</span>
+          <span class="text-xs font-mono text-emerald-400 font-bold">45% Density (Ashen Mist)</span>
+        </div>
+        <div class="p-3 bg-neutral-900/80 border border-neutral-800 rounded-xl">
+          <span class="text-[10px] font-bold text-neutral-500 uppercase block">Audio BGM Track</span>
+          <span class="text-xs font-mono text-emerald-400 font-bold">bgm_ashen_requiem.ogg</span>
+        </div>
+        <div class="p-3 bg-neutral-900/80 border border-neutral-800 rounded-xl">
+          <span class="text-[10px] font-bold text-neutral-500 uppercase block">Parallax Horizons</span>
+          <span class="text-xs font-mono text-emerald-400 font-bold">7 Active Layers (-5 to +1)</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Biome Strata & Flora Inspector -->
+    <aside class="w-80 border-l border-neutral-800 bg-neutral-900/80 backdrop-blur p-4 flex flex-col gap-4 shrink-0 overflow-y-auto">
+      <div>
+        <h3 class="text-xs font-bold text-neutral-200 uppercase tracking-wider">7-Layer Parallax Config</h3>
+        <p class="text-[10px] text-neutral-400">Configure depth scales & opacity</p>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800 flex items-center justify-between">
+          <span>Layer -5 (Deep Skybox)</span>
+          <span class="font-mono text-emerald-400 font-bold">0.05x Speed</span>
+        </div>
+        <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800 flex items-center justify-between">
+          <span>Layer -3 (Far Mountain Ridges)</span>
+          <span class="font-mono text-emerald-400 font-bold">0.20x Speed</span>
+        </div>
+        <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800 flex items-center justify-between">
+          <span>Layer -1 (Midground Titan Ruins)</span>
+          <span class="font-mono text-emerald-400 font-bold">0.60x Speed</span>
+        </div>
+        <div class="p-2.5 bg-neutral-950 rounded-xl border border-emerald-500/40 bg-emerald-950/20 flex items-center justify-between">
+          <span>Layer 0 (Player Gameplay Plane)</span>
+          <span class="font-mono text-emerald-400 font-bold">1.00x Speed</span>
+        </div>
+        <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800 flex items-center justify-between">
+          <span>Layer +1 (Foreground Occlusion)</span>
+          <span class="font-mono text-emerald-400 font-bold">1.30x Speed</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const camSlider = document.getElementById('cam-slider');
+    const camVal = document.getElementById('cam-val');
+    const skyLayer = document.getElementById('sky-layer');
+    const farMtn = document.getElementById('far-mtn');
+    const midRuins = document.getElementById('mid-ruins');
+
+    camSlider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      camVal.innerText = `${val} px`;
+      skyLayer.style.transform = `translateX(${-val * 0.05}px)`;
+      farMtn.style.transform = `translateX(${-val * 0.25}px)`;
+      midRuins.style.transform = `translateX(${-val * 0.65}px)`;
+    });
+
+    document.getElementById('btn-save-biome').addEventListener('click', () => {
+      window.parent.postMessage({
+        type: 'MASON_MODULE_EVENT',
+        module: 'biomes',
+        event: 'SAVE_FILE'
+      }, '*');
+      const btn = document.getElementById('btn-save-biome');
+      btn.innerText = '✓ Saved!';
+      setTimeout(() => { btn.innerText = '💾 Save Biome'; }, 1500);
+    });
+  </script>
+</body>
+</html>

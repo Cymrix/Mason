@@ -1,6 +1,6 @@
 {
   "name": "Mason Map Editor",
-  "description": "Web-based in-game map and world authoring tool for the Fray multiverse.",
+  "description": "2D Sidescroller & Metroidvania world authoring tool with 7-layer parallax backgrounds, 1px:1tile procedural biome allocation, and dual-noise autotiling.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

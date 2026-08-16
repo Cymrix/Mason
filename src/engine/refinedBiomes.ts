@@ -1,4 +1,5 @@
 import { RefinedBiome, BiomeTileType, EnvironmentalDetail, InteractivePlacementDetail, BiomeWildlife } from './refinedBiomeSchema';
+import { DEFAULT_PARALLAX_LAYERS } from './parallaxConfig';
 
 export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
   {
@@ -6,6 +7,10 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
     name: 'Mourne Ashen Steppes',
     description: 'Wind-scoured basalt wastes layered in volcanic loam and ancient calcified petrified trunks.',
     regionColor: '#64748b',
+    ambientBackgroundColor: '#181420',
+    atmosphereFogColor: '#311c28',
+    atmosphereFogDensity: 0.25,
+    parallaxLayers: DEFAULT_PARALLAX_LAYERS.mourne_ashen_steppes,
     primaryTileTypeId: 'ashen_basalt',
     tileTypes: [
       {
@@ -288,6 +293,10 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
     name: 'Luminescent Hollow',
     description: 'Subterranean fungal caverns overflowing with bioluminescent spore-canopies and glowing mycelium veins.',
     regionColor: '#06b6d4',
+    ambientBackgroundColor: '#020617',
+    atmosphereFogColor: '#042f2e',
+    atmosphereFogDensity: 0.35,
+    parallaxLayers: DEFAULT_PARALLAX_LAYERS.luminescent_hollow,
     primaryTileTypeId: 'bioluminescent_turf',
     tileTypes: [
       {
@@ -466,7 +475,7 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
       combatTrack: 'ost_hollow_fungal_frenzy.ogg',
       bossEngagementTrack: 'ost_boss_mycelium_matriarch.ogg',
       hazardAtmosphereTrack: 'sfx_hollow_drips_and_whispers.ogg',
-      reverbDecaySeconds: 2.4, // Long cave reverb
+      reverbDecaySeconds: 2.4,
       windIntensity: 0.1
     },
     noiseRules: {
@@ -480,6 +489,10 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
     name: 'Cryo Glacial Shelf',
     description: 'Permafrost ridges, razor-sharp ice needles, and sub-zero blizzard plateaus.',
     regionColor: '#38bdf8',
+    ambientBackgroundColor: '#030a16',
+    atmosphereFogColor: '#0c4a6e',
+    atmosphereFogDensity: 0.3,
+    parallaxLayers: DEFAULT_PARALLAX_LAYERS.cryo_frost_shelf,
     primaryTileTypeId: 'glacial_ice',
     tileTypes: [
       {

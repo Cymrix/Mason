@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mason — Game Structure & World Graph (modules/gamestructure)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+  <!-- Module Header Bar -->
+  <header class="h-12 border-b border-neutral-800 bg-neutral-900/90 px-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg bg-purple-950 border border-purple-500/40 flex items-center justify-center text-sm">
+        🌐
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-neutral-100">Game Structure & World Graph</span>
+          <span class="text-[10px] font-mono bg-neutral-800 text-purple-400 px-1.5 py-0.5 rounded">modules/gamestructure/</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Structure & Actions -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 bg-neutral-950 px-3 py-1 rounded-lg border border-neutral-800 text-xs font-mono">
+        <span class="text-neutral-500">Structure:</span>
+        <span class="text-purple-300 font-bold">main_campaign.gamestructure</span>
+      </div>
+
+      <button id="btn-save-game" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition">
+        <span>💾 Save Structure</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- World Graph Viewport & Framework Options -->
+  <div class="flex-1 flex overflow-hidden">
+    <main class="flex-1 bg-neutral-950 p-6 flex flex-col gap-6 overflow-y-auto">
+      <!-- Title & Entry Attachments -->
+      <div class="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 shadow-xl flex items-center justify-between">
+        <div>
+          <span class="text-[10px] font-bold text-neutral-500 uppercase">Game Title & Campaign</span>
+          <h2 class="text-lg font-black text-white">ECHOES OF THE ASHEN VOID</h2>
+          <p class="text-xs text-neutral-400">A 2D Metroidvania Odyssey</p>
+        </div>
+        <div class="flex gap-4 text-xs">
+          <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800">
+            <span class="text-[10px] font-bold text-neutral-500 block">Entry Level</span>
+            <span class="font-mono text-cyan-400 font-bold">ashen_outpost.map</span>
+          </div>
+          <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800">
+            <span class="text-[10px] font-bold text-neutral-500 block">Default Hero</span>
+            <span class="font-mono text-blue-400 font-bold">korrath_steelhand.arch</span>
+          </div>
+          <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800">
+            <span class="text-[10px] font-bold text-neutral-500 block">HUD Theme</span>
+            <span class="font-mono text-amber-400 font-bold">classic_gothic_hud.ui</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- World Map Graph Links -->
+      <div class="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 space-y-3">
+        <h3 class="text-xs font-bold text-neutral-200 uppercase tracking-wider">World Map Room Connections</h3>
+        <div class="space-y-2 text-xs">
+          <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="font-mono text-cyan-400 font-bold">ashen_outpost.map (exit_east)</span>
+              <span class="text-neutral-500">⟷</span>
+              <span class="font-mono text-purple-400 font-bold">crystal_chasm.map (exit_west)</span>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">Bi-directional • Seamless</span>
+          </div>
+
+          <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="font-mono text-cyan-400 font-bold">ashen_outpost.map (exit_west)</span>
+              <span class="text-neutral-500">⟷</span>
+              <span class="font-mono text-amber-400 font-bold">brimstone_caldera.map (exit_east)</span>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-500/40">Requires: has_double_jump</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.getElementById('btn-save-game').addEventListener('click', () => {
+      window.parent.postMessage({
+        type: 'MASON_MODULE_EVENT',
+        module: 'gamestructure',
+        event: 'SAVE_FILE'
+      }, '*');
+      const btn = document.getElementById('btn-save-game');
+      btn.innerText = '✓ Saved!';
+      setTimeout(() => { btn.innerText = '💾 Save Structure'; }, 1500);
+    });
+  </script>
+</body>
+</html>

@@ -11,6 +11,7 @@ import {
 } from '../engine/refinedBiomeSchema';
 import { INITIAL_REFINED_BIOMES } from '../engine/refinedBiomes';
 import { BlobTilesetPreview } from './BlobTilesetPreview';
+import { ParallaxLayersEditor } from './ParallaxLayersEditor';
 import { 
   TreePine, 
   Layers, 
@@ -36,7 +37,10 @@ import {
   Upload,
   Image as ImageIcon,
   Trash2,
-  Palette
+  Palette,
+  X,
+  ZoomIn,
+  Maximize2
 } from 'lucide-react';
 
 interface RefinedBiomeEditorProps {
@@ -55,6 +59,191 @@ const TRAVERSAL_TAG_LIST: { tag: TraversalModifierTag; label: string }[] = [
   { tag: 'sinkable', label: 'Sinkable' }
 ];
 
+interface ImageUploadThumbnailFieldProps {
+  label: string;
+  sublabel?: string;
+  badge?: string;
+  imageUrl?: string;
+  fallbackColor?: string;
+  fallbackText?: string;
+  onUpload: (dataUrl: string) => void;
+  onClear: () => void;
+  onPreviewModal?: (title: string, url: string) => void;
+  accentColor?: 'cyan' | 'amber' | 'emerald' | 'blue' | 'purple';
+  accept?: string;
+}
+
+const ImageUploadThumbnailField: React.FC<ImageUploadThumbnailFieldProps> = ({
+  label,
+  sublabel,
+  badge,
+  imageUrl,
+  fallbackColor,
+  fallbackText = 'Procedural',
+  onUpload,
+  onClear,
+  onPreviewModal,
+  accentColor = 'cyan',
+  accept = 'image/*'
+}) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        onUpload(result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const accentBorder = {
+    cyan: 'border-cyan-500/50 group-hover:border-cyan-400',
+    amber: 'border-amber-500/50 group-hover:border-amber-400',
+    emerald: 'border-emerald-500/50 group-hover:border-emerald-400',
+    blue: 'border-blue-500/50 group-hover:border-blue-400',
+    purple: 'border-purple-500/50 group-hover:border-purple-400'
+  }[accentColor];
+
+  const accentText = {
+    cyan: 'text-cyan-400',
+    amber: 'text-amber-400',
+    emerald: 'text-emerald-400',
+    blue: 'text-blue-400',
+    purple: 'text-purple-400'
+  }[accentColor];
+
+  const accentBg = {
+    cyan: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+    amber: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+    emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+    blue: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+    purple: 'bg-purple-500/10 text-purple-300 border-purple-500/30'
+  }[accentColor];
+
+  return (
+    <div className="bg-neutral-950 p-3 rounded-lg border border-neutral-800/80 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-xs font-bold text-neutral-200 truncate">{label}</span>
+          {badge && (
+            <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono uppercase border ${accentBg} shrink-0`}>
+              {badge}
+            </span>
+          )}
+        </div>
+        {imageUrl && (
+          <div className="flex items-center gap-2 shrink-0">
+            {onPreviewModal && (
+              <button
+                type="button"
+                onClick={() => onPreviewModal(label, imageUrl)}
+                className="text-[10px] text-neutral-400 hover:text-white flex items-center gap-1 transition"
+                title="View Full Size Image"
+              >
+                <Eye size={11} /> Zoom
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 transition"
+              title="Remove Image"
+            >
+              <Trash2 size={10} /> Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {sublabel && (
+        <p className="text-[10px] text-neutral-400">{sublabel}</p>
+      )}
+
+      {/* Thumbnail + Action Controls */}
+      <div className="flex items-center gap-3 pt-0.5">
+        {/* Visual Thumbnail Box with Checkerboard Background */}
+        <div
+          onClick={() => {
+            if (imageUrl && onPreviewModal) {
+              onPreviewModal(label, imageUrl);
+            } else {
+              fileInputRef.current?.click();
+            }
+          }}
+          className={`relative group w-12 h-12 rounded-lg border overflow-hidden cursor-pointer shrink-0 transition-all shadow-inner flex items-center justify-center ${
+            imageUrl 
+              ? `${accentBorder} shadow-black/60 ring-1 ring-white/5` 
+              : 'border-dashed border-neutral-700 hover:border-neutral-500 bg-neutral-900/60'
+          }`}
+          style={{
+            backgroundImage: 'repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%)',
+            backgroundSize: '10px 10px',
+            backgroundColor: fallbackColor || '#18181b'
+          }}
+          title={imageUrl ? 'Click to inspect thumbnail in high-resolution zoom modal' : 'Click to select and upload image'}
+        >
+          {imageUrl ? (
+            <>
+              <img
+                src={imageUrl}
+                alt={label}
+                className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                style={{ imageRendering: 'pixelated' }}
+              />
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                <ZoomIn size={14} className="drop-shadow" />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-neutral-500 group-hover:text-neutral-300 transition-colors p-1 text-center">
+              <ImageIcon size={16} className="mb-0.5 opacity-70" />
+              <span className="text-[8px] font-mono leading-tight">{fallbackText}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Upload & Info Section */}
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-600 rounded-md text-[11px] font-medium flex items-center gap-1.5 text-neutral-200 transition active:scale-95 shadow-sm">
+              <Upload size={12} className={accentText} />
+              <span>{imageUrl ? 'Replace' : 'Upload'}</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={accept}
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+
+            {imageUrl ? (
+              <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 truncate">
+                <Check size={11} className="text-emerald-400 shrink-0" />
+                Custom Texture Active
+              </span>
+            ) : (
+              <span className="text-[10px] text-neutral-500 font-mono truncate">
+                Procedural Fallback
+              </span>
+            )}
+          </div>
+
+          <div className="text-[9px] text-neutral-500 truncate">
+            {imageUrl ? 'Active in Blob Autotile engine' : 'Default algorithmic noise shader'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   biomes,
   onUpdateBiomes,
@@ -62,8 +251,9 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   activePaintBiomeId
 }) => {
   const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes[0]?.id || 'mourne_ashen_steppes');
-  const [activeSubTab, setActiveSubTab] = useState<'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack'>('tile_types');
+  const [activeSubTab, setActiveSubTab] = useState<'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax'>('tile_types');
   const [selectedTileTypeIndex, setSelectedTileTypeIndex] = useState<number>(0);
+  const [previewModalImage, setPreviewModalImage] = useState<{ title: string; url: string } | null>(null);
 
   const selectedBiome = biomes.find(b => b.id === selectedBiomeId) || biomes[0];
   const selectedTileType = selectedBiome.tileTypes[selectedTileTypeIndex] || selectedBiome.tileTypes[0];
@@ -255,9 +445,6 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                 onChange={(e) => handleUpdateCurrentBiome(b => ({ ...b, name: e.target.value }))}
                 className="font-bold text-lg text-neutral-100 bg-transparent border-b border-dashed border-neutral-700 hover:border-emerald-500 focus:border-emerald-500 outline-none px-1 py-0.5"
               />
-              <span className="text-xs font-mono text-neutral-500 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded">
-                64px Tile Standard
-              </span>
             </div>
             <p className="text-xs text-neutral-400">
               {selectedBiome.description}
@@ -319,6 +506,14 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             }`}
           >
             <Music size={14} /> 5. Soundtrack & Audio Cues
+          </button>
+          <button
+            onClick={() => setActiveSubTab('parallax')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+              activeSubTab === 'parallax' ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+            }`}
+          >
+            <Layers size={14} className="text-cyan-300" /> 6. Parallax Backgrounds (-5 to +1)
           </button>
         </div>
 
@@ -422,124 +617,76 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                       </div>
 
                       {/* Base Material A Upload */}
-                      <div className="bg-neutral-950 p-3 rounded-lg border border-neutral-800/80 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-neutral-300">Base Material A (Primary Albedo)</span>
-                          {selectedTileType.baseMaterialA.albedoTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: undefined }
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"
-                            >
-                              <Trash2 size={10} /> Clear
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <label className="cursor-pointer px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-neutral-200 transition">
-                            <Upload size={13} className="text-cyan-400" />
-                            <span>Upload Image</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleFileUpload(e, (url) => {
-                                handleUpdateCurrentTileType(tt => ({
-                                  ...tt,
-                                  baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: url }
-                                }));
-                              })}
-                            />
-                          </label>
-
-                          <span className="text-[11px] text-neutral-500 truncate max-w-[120px]">
-                            {selectedTileType.baseMaterialA.albedoTextureUrl ? 'Custom Image Loaded' : 'Procedural Fallback'}
-                          </span>
-                        </div>
-                      </div>
+                      <ImageUploadThumbnailField
+                        label="Base Material A (Primary Albedo)"
+                        badge="Albedo A"
+                        imageUrl={selectedTileType.baseMaterialA.albedoTextureUrl}
+                        fallbackColor={selectedTileType.baseMaterialA.albedoColor || '#475569'}
+                        fallbackText="Albedo A"
+                        accentColor="cyan"
+                        onUpload={(url) => {
+                          handleUpdateCurrentTileType(tt => ({
+                            ...tt,
+                            baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: url }
+                          }));
+                        }}
+                        onClear={() => {
+                          handleUpdateCurrentTileType(tt => ({
+                            ...tt,
+                            baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: undefined }
+                          }));
+                        }}
+                        onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                      />
 
                       {/* Base Material B Upload */}
-                      <div className="bg-neutral-950 p-3 rounded-lg border border-neutral-800/80 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-neutral-300">Base Material B (Secondary Albedo)</span>
-                          {selectedTileType.baseMaterialBTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                baseMaterialBTextureUrl: undefined
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"
-                            >
-                              <Trash2 size={10} /> Clear
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <label className="cursor-pointer px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-neutral-200 transition">
-                            <Upload size={13} className="text-cyan-400" />
-                            <span>Upload Image</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleFileUpload(e, (url) => {
-                                handleUpdateCurrentTileType(tt => ({
-                                  ...tt,
-                                  baseMaterialBTextureUrl: url
-                                }));
-                              })}
-                            />
-                          </label>
-
-                          <span className="text-[11px] text-neutral-500 truncate max-w-[120px]">
-                            {selectedTileType.baseMaterialBTextureUrl ? 'Custom Image Loaded' : 'Procedural Fallback'}
-                          </span>
-                        </div>
-                      </div>
+                      <ImageUploadThumbnailField
+                        label="Base Material B (Secondary Albedo)"
+                        badge="Albedo B"
+                        imageUrl={selectedTileType.baseMaterialBTextureUrl}
+                        fallbackColor={selectedTileType.baseMaterialBAlbedoColor || '#64748b'}
+                        fallbackText="Albedo B"
+                        accentColor="blue"
+                        onUpload={(url) => {
+                          handleUpdateCurrentTileType(tt => ({
+                            ...tt,
+                            baseMaterialBTextureUrl: url
+                          }));
+                        }}
+                        onClear={() => {
+                          handleUpdateCurrentTileType(tt => ({
+                            ...tt,
+                            baseMaterialBTextureUrl: undefined
+                          }));
+                        }}
+                        onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                      />
 
                       {/* Heightmap Upload & Depth Scale */}
-                      <div className="bg-neutral-950 p-3 rounded-lg border border-neutral-800/80 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-neutral-300">Shared Heightmap (Relief Depth)</span>
-                          {selectedTileType.heightMapTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                heightMapTextureUrl: undefined
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"
-                            >
-                              <Trash2 size={10} /> Clear
-                            </button>
-                          )}
-                        </div>
+                      <div className="space-y-2">
+                        <ImageUploadThumbnailField
+                          label="Shared Heightmap (Relief Depth)"
+                          badge="Heightmap"
+                          imageUrl={selectedTileType.heightMapTextureUrl}
+                          fallbackColor="#1e293b"
+                          fallbackText="Grayscale"
+                          accentColor="amber"
+                          onUpload={(url) => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              heightMapTextureUrl: url
+                            }));
+                          }}
+                          onClear={() => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              heightMapTextureUrl: undefined
+                            }));
+                          }}
+                          onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                        />
 
-                        <div className="flex items-center gap-3">
-                          <label className="cursor-pointer px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-neutral-200 transition">
-                            <Upload size={13} className="text-amber-400" />
-                            <span>Upload Grayscale</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleFileUpload(e, (url) => {
-                                handleUpdateCurrentTileType(tt => ({
-                                  ...tt,
-                                  heightMapTextureUrl: url
-                                }));
-                              })}
-                            />
-                          </label>
-                          <span className="text-[11px] text-neutral-500">
-                            {selectedTileType.heightMapTextureUrl ? 'Custom Heightmap' : 'Procedural Depth'}
-                          </span>
-                        </div>
-
-                        <div className="pt-2 space-y-1">
+                        <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-1">
                           <div className="flex justify-between text-[11px]">
                             <span className="text-neutral-400">Shadow Relief Scale:</span>
                             <span className="font-mono text-amber-400 font-bold">{selectedTileType.baseMaterialA.heightMapScale}</span>
@@ -554,53 +701,39 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                               ...tt,
                               baseMaterialA: { ...tt.baseMaterialA, heightMapScale: parseFloat(e.target.value) }
                             }))}
-                            className="w-full accent-amber-500"
+                            className="w-full accent-amber-500 cursor-pointer"
                           />
                         </div>
                       </div>
 
                       {/* Roughness Map Upload & Slider */}
-                      <div className="bg-neutral-950 p-3 rounded-lg border border-neutral-800/80 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-neutral-300">Shared Roughness Map (Matte vs Gloss)</span>
-                          {selectedTileType.roughnessMapTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                roughnessMapTextureUrl: undefined
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"
-                            >
-                              <Trash2 size={10} /> Clear
-                            </button>
-                          )}
-                        </div>
+                      <div className="space-y-2">
+                        <ImageUploadThumbnailField
+                          label="Shared Roughness Map (Matte vs Gloss)"
+                          badge="Roughness"
+                          imageUrl={selectedTileType.roughnessMapTextureUrl}
+                          fallbackColor="#1e293b"
+                          fallbackText="Roughness"
+                          accentColor="purple"
+                          onUpload={(url) => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              roughnessMapTextureUrl: url
+                            }));
+                          }}
+                          onClear={() => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              roughnessMapTextureUrl: undefined
+                            }));
+                          }}
+                          onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                        />
 
-                        <div className="flex items-center gap-3">
-                          <label className="cursor-pointer px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-neutral-200 transition">
-                            <Upload size={13} className="text-cyan-400" />
-                            <span>Upload Roughness</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleFileUpload(e, (url) => {
-                                handleUpdateCurrentTileType(tt => ({
-                                  ...tt,
-                                  roughnessMapTextureUrl: url
-                                }));
-                              })}
-                            />
-                          </label>
-                          <span className="text-[11px] text-neutral-500">
-                            {selectedTileType.roughnessMapTextureUrl ? 'Custom Roughness' : 'Procedural Sheen'}
-                          </span>
-                        </div>
-
-                        <div className="pt-2 space-y-1">
+                        <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-1">
                           <div className="flex justify-between text-[11px]">
                             <span className="text-neutral-400">Roughness Factor:</span>
-                            <span className="font-mono text-cyan-400 font-bold">{selectedTileType.baseMaterialA.roughness}</span>
+                            <span className="font-mono text-purple-400 font-bold">{selectedTileType.baseMaterialA.roughness}</span>
                           </div>
                           <input
                             type="range"
@@ -612,7 +745,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                               ...tt,
                               baseMaterialA: { ...tt.baseMaterialA, roughness: parseFloat(e.target.value) }
                             }))}
-                            className="w-full accent-cyan-500"
+                            className="w-full accent-purple-500 cursor-pointer"
                           />
                         </div>
                       </div>
@@ -732,8 +865,8 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                       </div>
 
                       {/* Top Overlay */}
-                      <div className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -744,49 +877,41 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                               }))}
                               className="rounded accent-emerald-500 cursor-pointer"
                             />
-                            <span className="font-semibold text-neutral-200">Top Edge (Grass / Ridge Trim)</span>
+                            <span className="text-xs font-semibold text-neutral-200">Top Edge (Grass / Ridge Trim)</span>
                           </label>
-
-                          {selectedTileType.tileDetails.top.overlayTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, top: { ...tt.tileDetails.top, overlayTextureUrl: undefined } }
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300"
-                            >
-                              Clear
-                            </button>
-                          )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.top.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
+                            {selectedTileType.tileDetails.top.enabled ? 'Active' : 'Disabled'}
+                          </span>
                         </div>
 
                         {selectedTileType.tileDetails.top.enabled && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <label className="cursor-pointer px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded text-[11px] font-semibold flex items-center gap-1 text-neutral-200">
-                              <Upload size={11} className="text-emerald-400" />
-                              <span>Upload Trim PNG</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => handleFileUpload(e, (url) => {
-                                  handleUpdateCurrentTileType(tt => ({
-                                    ...tt,
-                                    tileDetails: { ...tt.tileDetails, top: { ...tt.tileDetails.top, overlayTextureUrl: url } }
-                                  }));
-                                })}
-                              />
-                            </label>
-                            <span className="text-[10px] text-neutral-500">
-                              {selectedTileType.tileDetails.top.overlayTextureUrl ? 'Custom Trim PNG' : 'Procedural Edge'}
-                            </span>
-                          </div>
+                          <ImageUploadThumbnailField
+                            label="Top Edge Overlay Trim"
+                            badge="Top Trim"
+                            imageUrl={selectedTileType.tileDetails.top.overlayTextureUrl}
+                            fallbackColor="#052e16"
+                            fallbackText="Top Edge"
+                            accentColor="emerald"
+                            onUpload={(url) => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, top: { ...tt.tileDetails.top, overlayTextureUrl: url } }
+                              }));
+                            }}
+                            onClear={() => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, top: { ...tt.tileDetails.top, overlayTextureUrl: undefined } }
+                              }));
+                            }}
+                            onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                          />
                         )}
                       </div>
 
                       {/* Bottom Overlay */}
-                      <div className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -797,49 +922,41 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                               }))}
                               className="rounded accent-emerald-500 cursor-pointer"
                             />
-                            <span className="font-semibold text-neutral-200">Bottom Shadow Trim</span>
+                            <span className="text-xs font-semibold text-neutral-200">Bottom Shadow Trim</span>
                           </label>
-
-                          {selectedTileType.tileDetails.bottom.overlayTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, bottom: { ...tt.tileDetails.bottom, overlayTextureUrl: undefined } }
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300"
-                            >
-                              Clear
-                            </button>
-                          )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.bottom.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
+                            {selectedTileType.tileDetails.bottom.enabled ? 'Active' : 'Disabled'}
+                          </span>
                         </div>
 
                         {selectedTileType.tileDetails.bottom.enabled && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <label className="cursor-pointer px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded text-[11px] font-semibold flex items-center gap-1 text-neutral-200">
-                              <Upload size={11} className="text-emerald-400" />
-                              <span>Upload Trim PNG</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => handleFileUpload(e, (url) => {
-                                  handleUpdateCurrentTileType(tt => ({
-                                    ...tt,
-                                    tileDetails: { ...tt.tileDetails, bottom: { ...tt.tileDetails.bottom, overlayTextureUrl: url } }
-                                  }));
-                                })}
-                              />
-                            </label>
-                            <span className="text-[10px] text-neutral-500">
-                              {selectedTileType.tileDetails.bottom.overlayTextureUrl ? 'Custom Trim PNG' : 'Procedural Shadow'}
-                            </span>
-                          </div>
+                          <ImageUploadThumbnailField
+                            label="Bottom Under-Ledge Trim"
+                            badge="Bottom"
+                            imageUrl={selectedTileType.tileDetails.bottom.overlayTextureUrl}
+                            fallbackColor="#0f172a"
+                            fallbackText="Bottom"
+                            accentColor="emerald"
+                            onUpload={(url) => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, bottom: { ...tt.tileDetails.bottom, overlayTextureUrl: url } }
+                              }));
+                            }}
+                            onClear={() => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, bottom: { ...tt.tileDetails.bottom, overlayTextureUrl: undefined } }
+                              }));
+                            }}
+                            onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                          />
                         )}
                       </div>
 
                       {/* Left Side Overlay */}
-                      <div className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -850,49 +967,41 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                               }))}
                               className="rounded accent-emerald-500 cursor-pointer"
                             />
-                            <span className="font-semibold text-neutral-200">Left Side Overlay</span>
+                            <span className="text-xs font-semibold text-neutral-200">Left Side Overlay</span>
                           </label>
-
-                          {selectedTileType.tileDetails.leftSide.overlayTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, leftSide: { ...tt.tileDetails.leftSide, overlayTextureUrl: undefined } }
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300"
-                            >
-                              Clear
-                            </button>
-                          )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.leftSide.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
+                            {selectedTileType.tileDetails.leftSide.enabled ? 'Active' : 'Disabled'}
+                          </span>
                         </div>
 
                         {selectedTileType.tileDetails.leftSide.enabled && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <label className="cursor-pointer px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded text-[11px] font-semibold flex items-center gap-1 text-neutral-200">
-                              <Upload size={11} className="text-emerald-400" />
-                              <span>Upload Trim PNG</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => handleFileUpload(e, (url) => {
-                                  handleUpdateCurrentTileType(tt => ({
-                                    ...tt,
-                                    tileDetails: { ...tt.tileDetails, leftSide: { ...tt.tileDetails.leftSide, overlayTextureUrl: url } }
-                                  }));
-                                })}
-                              />
-                            </label>
-                            <span className="text-[10px] text-neutral-500">
-                              {selectedTileType.tileDetails.leftSide.overlayTextureUrl ? 'Custom Trim PNG' : 'Procedural Rim'}
-                            </span>
-                          </div>
+                          <ImageUploadThumbnailField
+                            label="Left Side Wall Trim"
+                            badge="Left"
+                            imageUrl={selectedTileType.tileDetails.leftSide.overlayTextureUrl}
+                            fallbackColor="#1e1e38"
+                            fallbackText="Left"
+                            accentColor="emerald"
+                            onUpload={(url) => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, leftSide: { ...tt.tileDetails.leftSide, overlayTextureUrl: url } }
+                              }));
+                            }}
+                            onClear={() => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, leftSide: { ...tt.tileDetails.leftSide, overlayTextureUrl: undefined } }
+                              }));
+                            }}
+                            onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                          />
                         )}
                       </div>
 
                       {/* Right Side Overlay */}
-                      <div className="p-2.5 bg-neutral-950 rounded-lg border border-neutral-800 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -903,43 +1012,35 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                               }))}
                               className="rounded accent-emerald-500 cursor-pointer"
                             />
-                            <span className="font-semibold text-neutral-200">Right Side Overlay</span>
+                            <span className="text-xs font-semibold text-neutral-200">Right Side Overlay</span>
                           </label>
-
-                          {selectedTileType.tileDetails.rightSide.overlayTextureUrl && (
-                            <button
-                              onClick={() => handleUpdateCurrentTileType(tt => ({
-                                ...tt,
-                                tileDetails: { ...tt.tileDetails, rightSide: { ...tt.tileDetails.rightSide, overlayTextureUrl: undefined } }
-                              }))}
-                              className="text-[10px] text-red-400 hover:text-red-300"
-                            >
-                              Clear
-                            </button>
-                          )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${selectedTileType.tileDetails.rightSide.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-neutral-800 text-neutral-500'}`}>
+                            {selectedTileType.tileDetails.rightSide.enabled ? 'Active' : 'Disabled'}
+                          </span>
                         </div>
 
                         {selectedTileType.tileDetails.rightSide.enabled && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <label className="cursor-pointer px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded text-[11px] font-semibold flex items-center gap-1 text-neutral-200">
-                              <Upload size={11} className="text-emerald-400" />
-                              <span>Upload Trim PNG</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => handleFileUpload(e, (url) => {
-                                  handleUpdateCurrentTileType(tt => ({
-                                    ...tt,
-                                    tileDetails: { ...tt.tileDetails, rightSide: { ...tt.tileDetails.rightSide, overlayTextureUrl: url } }
-                                  }));
-                                })}
-                              />
-                            </label>
-                            <span className="text-[10px] text-neutral-500">
-                              {selectedTileType.tileDetails.rightSide.overlayTextureUrl ? 'Custom Trim PNG' : 'Procedural Rim'}
-                            </span>
-                          </div>
+                          <ImageUploadThumbnailField
+                            label="Right Side Wall Trim"
+                            badge="Right"
+                            imageUrl={selectedTileType.tileDetails.rightSide.overlayTextureUrl}
+                            fallbackColor="#1e1e38"
+                            fallbackText="Right"
+                            accentColor="emerald"
+                            onUpload={(url) => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, rightSide: { ...tt.tileDetails.rightSide, overlayTextureUrl: url } }
+                              }));
+                            }}
+                            onClear={() => {
+                              handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                tileDetails: { ...tt.tileDetails, rightSide: { ...tt.tileDetails.rightSide, overlayTextureUrl: undefined } }
+                              }));
+                            }}
+                            onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                          />
                         )}
                       </div>
 
@@ -1197,9 +1298,70 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             </div>
           )}
 
+          {/* TAB 6: PARALLAX BACKGROUNDS (-5 TO +1) */}
+          {activeSubTab === 'parallax' && (
+            <ParallaxLayersEditor
+              biome={selectedBiome}
+              onUpdateBiome={handleUpdateCurrentBiome}
+            />
+          )}
+
         </div>
 
       </main>
+
+      {/* Full-Resolution Image Inspection Lightbox Modal */}
+      {previewModalImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPreviewModalImage(null)}
+        >
+          <div 
+            className="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+              <div className="flex items-center gap-2">
+                <ImageIcon size={16} className="text-cyan-400" />
+                <h3 className="font-bold text-sm text-neutral-100">{previewModalImage.title} Inspection</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                className="text-neutral-400 hover:text-white p-1 rounded-lg hover:bg-neutral-800 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div 
+              className="w-full h-72 rounded-xl border border-neutral-800 flex items-center justify-center overflow-hidden shadow-inner p-4"
+              style={{
+                backgroundImage: 'repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%)',
+                backgroundSize: '16px 16px'
+              }}
+            >
+              <img
+                src={previewModalImage.url}
+                alt={previewModalImage.title}
+                className="max-h-full max-w-full object-contain drop-shadow-2xl rounded"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-neutral-400 pt-1">
+              <span className="font-mono text-[11px] text-neutral-400">Crisp Pixelated • Alpha Transparency Preview</span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                className="px-3.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg font-medium transition text-xs shadow"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

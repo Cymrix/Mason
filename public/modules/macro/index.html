@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mason — 1px:1tile Procedural Macro Studio (modules/macro)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+  <!-- Module Header Bar -->
+  <header class="h-12 border-b border-neutral-800 bg-neutral-900/90 px-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg bg-rose-950 border border-rose-500/40 flex items-center justify-center text-sm">
+        ⚡
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-neutral-100">1px:1tile Macro Studio</span>
+          <span class="text-[10px] font-mono bg-neutral-800 text-rose-400 px-1.5 py-0.5 rounded">modules/macro/</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex items-center gap-3">
+      <button id="btn-generate" class="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+        <span>🎲 Randomize Synthesis</span>
+      </button>
+      <button id="btn-apply" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+        <span>🚀 Apply to Active Level</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Macro Synthesis Grid & Controls -->
+  <div class="flex-1 flex overflow-hidden">
+    <main class="flex-1 bg-neutral-950 p-6 flex flex-col items-center justify-center gap-4">
+      <div class="p-3 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl">
+        <canvas id="macro-canvas" width="512" height="384" class="rounded-xl border border-neutral-800 bg-black block"></canvas>
+      </div>
+      <p class="text-xs text-neutral-400">1 Pixel = 1 World Tile (Macro cellular synthesis layout)</p>
+    </main>
+
+    <aside class="w-72 border-l border-neutral-800 bg-neutral-900/80 p-4 space-y-4 text-xs shrink-0">
+      <h3 class="font-bold text-neutral-200 uppercase tracking-wider">Macro Layout Presets</h3>
+      <div class="space-y-2">
+        <button id="preset-sidescroller" class="w-full p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-left font-bold text-rose-200">
+          Metroidvania Multi-Ledge
+        </button>
+        <button id="preset-cavern" class="w-full p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-left text-neutral-400 hover:text-white transition">
+          Subterranean Cavern
+        </button>
+        <button id="preset-openair" class="w-full p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-left text-neutral-400 hover:text-white transition">
+          Open Sky Void
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('macro-canvas');
+    const ctx = canvas.getContext('2d');
+    const w = 64;
+    const h = 48;
+    const scale = 8;
+
+    function renderMacro() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const isGround = y >= h - 8 || (y === 28 && (x < 20 || x > 40)) || (y === 16 && x >= 20 && x <= 44);
+          ctx.fillStyle = isGround ? '#3f3f46' : '#09090b';
+          ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+      }
+    }
+
+    document.getElementById('btn-generate').addEventListener('click', () => {
+      renderMacro();
+    });
+
+    document.getElementById('btn-apply').addEventListener('click', () => {
+      window.parent.postMessage({
+        type: 'MASON_MODULE_EVENT',
+        module: 'macro',
+        event: 'APPLY_MACRO_TO_MAP'
+      }, '*');
+      const btn = document.getElementById('btn-apply');
+      btn.innerText = '✓ Applied to Level!';
+      setTimeout(() => { btn.innerText = '🚀 Apply to Active Level'; }, 1500);
+    });
+
+    renderMacro();
+  </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { RefinedMapData, RefinedCellState } from '../types';
 import { RefinedBiome } from './refinedBiomeSchema';
 import { INITIAL_REFINED_BIOMES } from './refinedBiomes';
+import { MASON_VERSION_DISPLAY } from '../version';
 
 // ==========================================
 // 1. MAP FILE (.map)
@@ -764,7 +765,7 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
     author: 'Mason Architect',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    engineVersion: '2.4.0',
+    engineVersion: MASON_VERSION_DISPLAY,
     activeModule: 'maps',
     activeFiles: {
       mapFileName: 'ashen_outpost.map',

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
+import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { 
   Play, 
   Folder, 
@@ -76,8 +77,8 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               <span className="text-xs font-mono font-bold uppercase tracking-widest text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-1 rounded-lg">
                 Active Mason Project
               </span>
-              <span className="text-xs font-mono text-neutral-500">
-                Engine v{project.engineVersion || '2.4.0'}
+              <span className="text-xs font-mono text-neutral-400 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded">
+                Mason {MASON_FULL_VERSION}
               </span>
             </div>
 

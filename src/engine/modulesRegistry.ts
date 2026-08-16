@@ -1,4 +1,5 @@
 import React from 'react';
+import { MASON_VERSION_DISPLAY } from '../version';
 
 export interface MasonModuleDefinition {
   id: string;
@@ -36,7 +37,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Doorway exit markers & spawn points',
       'Multi-room level management (.map format)'
     ],
-    version: '1.2.0'
+    version: MASON_VERSION_DISPLAY
   },
   {
     id: 'biomes',
@@ -57,7 +58,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Atmospheric color gradients & weather particles',
       'Custom biome asset pack definitions (.biome format)'
     ],
-    version: '1.3.0'
+    version: MASON_VERSION_DISPLAY
   },
   {
     id: 'archetypes',
@@ -78,7 +79,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Damage affinity & resistance profiling',
       'Narrative lore & archetype register (.arch format)'
     ],
-    version: '1.1.0'
+    version: MASON_VERSION_DISPLAY
   },
   {
     id: 'ui',
@@ -99,7 +100,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Boss phase health bars with ornate filigree',
       'Damage number floating combat text (FCT) palettes (.ui format)'
     ],
-    version: '1.1.5'
+    version: MASON_VERSION_DISPLAY
   },
   {
     id: 'gamestructure',
@@ -120,7 +121,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Metroidvania progression flag registry',
       'System pause menu & map tracker configuration (.gamestructure format)'
     ],
-    version: '1.4.0'
+    version: MASON_VERSION_DISPLAY
   },
   {
     id: 'macro',
@@ -141,7 +142,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Direct 1-click level synthesis onto active .map files',
       'Procedural seed randomization'
     ],
-    version: '1.0.0'
+    version: MASON_VERSION_DISPLAY
   }
 ];
 

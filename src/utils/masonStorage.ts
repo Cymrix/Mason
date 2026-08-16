@@ -12,6 +12,7 @@ import {
   createDefaultGameStructure
 } from '../engine/masonProjectSchema';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
+import { MASON_VERSION_DISPLAY } from '../version';
 
 const MASON_PROJECT_STORAGE_KEY = 'mason_active_project_data';
 const MASON_PROJECT_LIST_INDEX = 'mason_projects_index';
@@ -68,6 +69,7 @@ export const loadActiveMasonProject = (): MasonProject => {
 export const saveActiveMasonProject = (project: MasonProject): void => {
   try {
     project.updatedAt = new Date().toISOString();
+    project.engineVersion = MASON_VERSION_DISPLAY;
     localStorage.setItem(MASON_PROJECT_STORAGE_KEY, JSON.stringify(project));
     
     // Also save in full project library
@@ -86,7 +88,7 @@ export const saveActiveMasonProject = (project: MasonProject): void => {
       description: project.description,
       author: project.author,
       updatedAt: project.updatedAt,
-      engineVersion: project.engineVersion || '2.4.0',
+      engineVersion: MASON_VERSION_DISPLAY,
       mapCount: project.fileSystem?.maps?.length || 0,
       biomeCount: project.fileSystem?.biomes?.length || 0
     });

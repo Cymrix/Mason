@@ -56,11 +56,17 @@ import {
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
+import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
+import { usePWA } from '../hooks/usePWA';
+import { DownloadCloud, WifiOff } from 'lucide-react';
 
 export const EditorLayout: React.FC = () => {
   // Master Mason Project State (null when no project is loaded)
   const [project, setProject] = useState<MasonProject | null>(() => getActiveMasonProject());
   
+  // PWA Support Hook
+  const { isInstallable, isOffline, installPWA } = usePWA();
+
   // Active Module State (null by default when a project is loaded, showing Project Info until clicked)
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
 
@@ -273,22 +279,34 @@ export const EditorLayout: React.FC = () => {
 
           <div className="h-4 w-px bg-neutral-800"></div>
 
-          {/* Project Title / Studio Brand */}
+          {/* Project Title / Studio Brand & Version */}
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm tracking-wide text-neutral-100">Mason</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-black text-sm tracking-tight text-neutral-100">Mason</span>
+              <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-950/70 border border-cyan-500/30 px-1.5 py-0.2 rounded">
+                {MASON_VERSION_DISPLAY}
+              </span>
+            </div>
+
             {project ? (
               <button
                 type="button"
                 onClick={() => setActiveModuleId(null)}
-                className="text-xs font-mono text-cyan-400 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800"
+                className="text-xs font-mono text-cyan-300 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800"
                 title="Click to view Project Info"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                <span className="truncate max-w-[200px]">{project.name}</span>
+                <span className="truncate max-w-[180px] sm:max-w-[240px]">{project.name}</span>
               </button>
             ) : (
               <span className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800">
                 No Project Loaded
+              </span>
+            )}
+
+            {isOffline && (
+              <span className="hidden sm:flex items-center gap-1 text-[10px] font-mono text-amber-400 bg-amber-950/50 border border-amber-500/30 px-1.5 py-0.5 rounded" title="Offline Mode Active">
+                <WifiOff size={11} /> Offline
               </span>
             )}
           </div>
@@ -296,6 +314,19 @@ export const EditorLayout: React.FC = () => {
 
         {/* Right Action Tools */}
         <div className="flex items-center gap-2">
+          {/* PWA Install Button */}
+          {isInstallable && (
+            <button
+              type="button"
+              onClick={installPWA}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-xl text-xs font-bold transition shadow-sm animate-pulse"
+              title="Install Mason Desktop/Mobile App (PWA)"
+            >
+              <DownloadCloud size={14} />
+              <span className="hidden lg:inline">Install App</span>
+            </button>
+          )}
+
           {project && (
             <>
               {/* Modules Browser Button */}

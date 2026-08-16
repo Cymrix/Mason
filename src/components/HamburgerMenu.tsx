@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
+import { MASON_FULL_VERSION } from '../version';
+import { usePWA } from '../hooks/usePWA';
+import { DownloadCloud, WifiOff } from 'lucide-react';
 
 interface HamburgerMenuProps {
   project: MasonProject | null;
@@ -49,6 +52,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { isInstallable, isOffline, installPWA } = usePWA();
 
   // Close when clicking outside
   useEffect(() => {
@@ -262,6 +266,36 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                   <span>Close Project (Unload)</span>
                 </button>
               </>
+            )}
+
+            {/* PWA App Install Action */}
+            {isInstallable && (
+              <>
+                <div className="h-px bg-neutral-800 my-1"></div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    installPWA();
+                  }}
+                  className="w-full px-3 py-1.5 rounded-xl text-left text-xs font-bold text-cyan-300 bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-500/30 flex items-center gap-2.5 transition"
+                >
+                  <DownloadCloud size={14} className="text-cyan-400" />
+                  <span>Install Mason PWA</span>
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Footer Version & Status */}
+          <div className="px-4 py-2 border-t border-neutral-800/80 bg-neutral-950/60 flex items-center justify-between text-[10px] font-mono text-neutral-500">
+            <span>Mason {MASON_FULL_VERSION}</span>
+            {isOffline ? (
+              <span className="flex items-center gap-1 text-amber-400 font-semibold">
+                <WifiOff size={11} /> Offline Ready
+              </span>
+            ) : (
+              <span className="text-neutral-400">PWA Enabled</span>
             )}
           </div>
 

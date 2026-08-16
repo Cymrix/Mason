@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.29
+ * Current Release: v0.30
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.28 -> v0.29 -> v0.30).
+ * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.29 -> v0.30 -> v0.31).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.29.0';
-export const MASON_VERSION_DISPLAY = 'v0.29';
-export const MASON_FULL_VERSION = 'v0.29';
+export const MASON_VERSION = '0.30.0';
+export const MASON_VERSION_DISPLAY = 'v0.30';
+export const MASON_FULL_VERSION = 'v0.30';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -31,6 +31,14 @@ export const getMasonVersionString = (revision?: number): string => {
  */
 export const MASON_RELEASE_HISTORY = [
   {
+    version: 'v0.30',
+    date: '2026-08-16',
+    changes: [
+      'Updated autotile edge overlay render order in Biome Studio: sides -> bottom -> top',
+      'Configured heightmap and roughness textures to use world-aligned seamless repeating matching albedo texture scale'
+    ]
+  },
+  {
     version: 'v0.29',
     date: '2026-08-16',
     changes: [
@@ -45,15 +53,6 @@ export const MASON_RELEASE_HISTORY = [
       'Added primary Biome creation (+ New Biome) and deletion capabilities in Biome Studio',
       'Aligned 64x64 tile overlays to render 1:1 directly over base tiles in autotile preview and level maps',
       'Enforced crisp nearest-neighbor pixel art scaling globally across all canvas renders and image elements'
-    ]
-  },
-  {
-    version: 'v0.27',
-    date: '2026-08-16',
-    changes: [
-      'Wired full native React interactive modules for Biomes, Game Structure, and Procedural Macro',
-      'Eliminated external script CDN network calls causing 404 GitHub Pages errors',
-      'Integrated live 1px:1tile procedural layout synthesis for level maps'
     ]
   }
 ];

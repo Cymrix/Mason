@@ -185,6 +185,50 @@ export interface AutotileNeighborMask {
 }
 
 /**
+ * Helper to draw a texture repeating seamlessly in world space matching its native pixel dimensions
+ */
+export function drawWorldAlignedTexture(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  tileX: number,
+  tileY: number,
+  screenX: number,
+  screenY: number,
+  tileSizePx: number
+) {
+  if (!img || !img.width || !img.height) return;
+
+  const worldX = tileX * tileSizePx;
+  const worldY = tileY * tileSizePx;
+
+  const sx = ((worldX % img.width) + img.width) % img.width;
+  const sy = ((worldY % img.height) + img.height) % img.height;
+
+  const sliceW = Math.min(tileSizePx, img.width - sx);
+  const sliceH = Math.min(tileSizePx, img.height - sy);
+
+  // Main slice
+  ctx.drawImage(img, sx, sy, sliceW, sliceH, screenX, screenY, sliceW, sliceH);
+
+  // Horizontal wrap
+  if (sliceW < tileSizePx) {
+    const remW = tileSizePx - sliceW;
+    ctx.drawImage(img, 0, sy, remW, sliceH, screenX + sliceW, screenY, remW, sliceH);
+  }
+
+  // Vertical wrap
+  if (sliceH < tileSizePx) {
+    const remH = tileSizePx - sliceH;
+    ctx.drawImage(img, sx, 0, sliceW, remH, screenX, screenY + sliceH, sliceW, remH);
+
+    if (sliceW < tileSizePx) {
+      const remW = tileSizePx - sliceW;
+      ctx.drawImage(img, 0, 0, remW, remH, screenX + sliceW, screenY + sliceH, remW, remH);
+    }
+  }
+}
+
+/**
  * Render a full tile cell with world-aligned repeating dual base materials,
  * dual-noise blend map, uploaded textures / procedural fallbacks, and composite autotiling edge overlays.
  */
@@ -216,12 +260,9 @@ export function renderRefinedTileCell(
 
   // 1. Render World-Aligned Repeating Base Material Blend (Base A vs Base B)
   if (imgA && imgB) {
-    // If both uploaded textures exist, draw Base A first
+    // Draw Base A first with world-aligned texture repeating
     ctx.save();
-    // Texture wrapping calculation for world-alignment
-    const sx = Math.abs((tileX * tileSizePx) % imgA.width);
-    const sy = Math.abs((tileY * tileSizePx) % imgA.height);
-    ctx.drawImage(imgA, sx, sy, tileSizePx, tileSizePx, screenX, screenY, tileSizePx, tileSizePx);
+    drawWorldAlignedTexture(ctx, imgA, tileX, tileY, screenX, screenY, tileSizePx);
 
     // Alpha mask blend Base B with dual noise
     for (let py = 0; py < tileSizePx; py += pixelStep) {
@@ -231,19 +272,17 @@ export function renderRefinedTileCell(
         const blendWeightB = evaluateDualNoiseBlend(worldPixelX, worldPixelY, tileType.blendMap);
         if (blendWeightB > 0.1) {
           ctx.globalAlpha = blendWeightB;
-          const sbx = Math.abs((worldPixelX) % imgB.width);
-          const sby = Math.abs((worldPixelY) % imgB.height);
+          const sbx = ((worldPixelX % imgB.width) + imgB.width) % imgB.width;
+          const sby = ((worldPixelY % imgB.height) + imgB.height) % imgB.height;
           ctx.drawImage(imgB, sbx, sby, pixelStep, pixelStep, screenX + px, screenY + py, pixelStep, pixelStep);
         }
       }
     }
     ctx.restore();
   } else if (imgA) {
-    // If only image A is uploaded
+    // If only image A is uploaded, draw with world-aligned texture repeating
     ctx.save();
-    const sx = Math.abs((tileX * tileSizePx) % imgA.width);
-    const sy = Math.abs((tileY * tileSizePx) % imgA.height);
-    ctx.drawImage(imgA, sx, sy, tileSizePx, tileSizePx, screenX, screenY, tileSizePx, tileSizePx);
+    drawWorldAlignedTexture(ctx, imgA, tileX, tileY, screenX, screenY, tileSizePx);
     ctx.restore();
   } else {
     // Procedural Dual-Noise Color Blend
@@ -268,12 +307,12 @@ export function renderRefinedTileCell(
     ctx.restore();
   }
 
-  // 2. Heightmap and Roughness Shading
+  // 2. Heightmap and Roughness Shading (World-Aligned Repeating matching Albedo Map)
   if (heightImg) {
-    // Render heightmap overlay
+    // Render heightmap overlay matching world-aligned albedo repeating
     ctx.save();
     ctx.globalAlpha = tileType.baseMaterialA.heightMapScale * 0.25;
-    ctx.drawImage(heightImg, 0, 0, heightImg.width, heightImg.height, screenX, screenY, tileSizePx, tileSizePx);
+    drawWorldAlignedTexture(ctx, heightImg, tileX, tileY, screenX, screenY, tileSizePx);
     ctx.restore();
   } else {
     // Procedural height specular relief
@@ -287,9 +326,10 @@ export function renderRefinedTileCell(
   }
 
   if (roughnessImg) {
+    // Render roughness map overlay matching world-aligned albedo repeating
     ctx.save();
     ctx.globalAlpha = 0.15;
-    ctx.drawImage(roughnessImg, 0, 0, roughnessImg.width, roughnessImg.height, screenX, screenY, tileSizePx, tileSizePx);
+    drawWorldAlignedTexture(ctx, roughnessImg, tileX, tileY, screenX, screenY, tileSizePx);
     ctx.restore();
   } else if (tileType.baseMaterialA.roughness < 0.4) {
     // Glassy / polished sheen
@@ -297,41 +337,11 @@ export function renderRefinedTileCell(
     ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx * 0.25);
   }
 
-  // 3. Composite Autotiling Overlays (Top, Left, Right, Bottom, and Inner Corners)
+  // 3. Composite Autotiling Overlays (Order: Sides -> Bottom -> Top)
+  // Ensures top overlay renders over sides, and bottom overlay renders over sides but under top.
   const details = tileType.tileDetails;
 
-  // TOP Edge Overlay: 64x64 full overlay or thickness trim
-  if (details.top.enabled && !neighborMask.hasTop) {
-    const topImg = getCachedImage(details.top.overlayTextureUrl, onImageLoaded);
-    const h = details.top.thicknessPx;
-    if (topImg) {
-      // Exactly over the top of base tiles (full 64x64 preview alignment)
-      ctx.drawImage(topImg, 0, 0, topImg.width, topImg.height, screenX, screenY, tileSizePx, tileSizePx);
-    } else {
-      ctx.fillStyle = details.top.color || 'rgba(255, 255, 255, 0.35)';
-      ctx.fillRect(screenX, screenY, tileSizePx, h);
-      if (details.top.noiseEdge) {
-        ctx.fillRect(screenX + 4, screenY + h, 8, 2);
-        ctx.fillRect(screenX + 18, screenY + h, 12, 3);
-        ctx.fillRect(screenX + 38, screenY + h, 10, 2);
-        ctx.fillRect(screenX + 54, screenY + h, 6, 3);
-      }
-    }
-  }
-
-  // BOTTOM Edge Overlay
-  if (details.bottom.enabled && !neighborMask.hasBottom) {
-    const botImg = getCachedImage(details.bottom.overlayTextureUrl, onImageLoaded);
-    const h = details.bottom.thicknessPx;
-    if (botImg) {
-      ctx.drawImage(botImg, 0, 0, botImg.width, botImg.height, screenX, screenY, tileSizePx, tileSizePx);
-    } else {
-      ctx.fillStyle = details.bottom.color || 'rgba(0, 0, 0, 0.35)';
-      ctx.fillRect(screenX, screenY + tileSizePx - h, tileSizePx, h);
-    }
-  }
-
-  // LEFT Edge Overlay
+  // 3a. LEFT Edge Overlay
   if (details.leftSide.enabled && !neighborMask.hasLeft) {
     const leftImg = getCachedImage(details.leftSide.overlayTextureUrl, onImageLoaded);
     const w = details.leftSide.thicknessPx;
@@ -343,7 +353,7 @@ export function renderRefinedTileCell(
     }
   }
 
-  // RIGHT Edge Overlay
+  // 3b. RIGHT Edge Overlay
   if (details.rightSide.enabled && !neighborMask.hasRight) {
     const rightImg = getCachedImage(details.rightSide.overlayTextureUrl, onImageLoaded);
     const w = details.rightSide.thicknessPx;
@@ -352,6 +362,36 @@ export function renderRefinedTileCell(
     } else {
       ctx.fillStyle = details.rightSide.color || 'rgba(0, 0, 0, 0.2)';
       ctx.fillRect(screenX + tileSizePx - w, screenY, w, tileSizePx);
+    }
+  }
+
+  // 3c. BOTTOM Edge Overlay (shows over sides, but under top)
+  if (details.bottom.enabled && !neighborMask.hasBottom) {
+    const botImg = getCachedImage(details.bottom.overlayTextureUrl, onImageLoaded);
+    const h = details.bottom.thicknessPx;
+    if (botImg) {
+      ctx.drawImage(botImg, 0, 0, botImg.width, botImg.height, screenX, screenY, tileSizePx, tileSizePx);
+    } else {
+      ctx.fillStyle = details.bottom.color || 'rgba(0, 0, 0, 0.35)';
+      ctx.fillRect(screenX, screenY + tileSizePx - h, tileSizePx, h);
+    }
+  }
+
+  // 3d. TOP Edge Overlay (shows over sides AND over bottom)
+  if (details.top.enabled && !neighborMask.hasTop) {
+    const topImg = getCachedImage(details.top.overlayTextureUrl, onImageLoaded);
+    const h = details.top.thicknessPx;
+    if (topImg) {
+      ctx.drawImage(topImg, 0, 0, topImg.width, topImg.height, screenX, screenY, tileSizePx, tileSizePx);
+    } else {
+      ctx.fillStyle = details.top.color || 'rgba(255, 255, 255, 0.35)';
+      ctx.fillRect(screenX, screenY, tileSizePx, h);
+      if (details.top.noiseEdge) {
+        ctx.fillRect(screenX + 4, screenY + h, 8, 2);
+        ctx.fillRect(screenX + 18, screenY + h, 12, 3);
+        ctx.fillRect(screenX + 38, screenY + h, 10, 2);
+        ctx.fillRect(screenX + 54, screenY + h, 6, 3);
+      }
     }
   }
 

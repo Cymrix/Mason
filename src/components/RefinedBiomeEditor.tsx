@@ -34,6 +34,7 @@ import {
   Disc,
   Play,
   RotateCcw,
+  Shuffle,
   Info,
   Upload,
   Image as ImageIcon,
@@ -895,89 +896,199 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                       </div>
 
                       {/* Noise A Controls */}
-                      <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-2">
-                        <div className="flex justify-between text-xs font-bold text-neutral-300">
-                          <span>Noise Layer 1 (Macro Scale)</span>
-                          <span className="text-blue-400 font-mono">{selectedTileType.blendMap.noiseA.scale}px</span>
+                      <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-neutral-200">Noise Layer 1 (Base A)</span>
+                          <span className="text-blue-400 font-mono text-xs font-bold">{selectedTileType.blendMap.noiseA.scale}px Texel Size</span>
                         </div>
-                        <input
-                          type="range"
-                          min="8"
-                          max="96"
-                          step="4"
-                          value={selectedTileType.blendMap.noiseA.scale}
-                          onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                            ...tt,
-                            blendMap: {
-                              ...tt.blendMap,
-                              noiseA: { ...tt.blendMap.noiseA, scale: parseInt(e.target.value) }
-                            }
-                          }))}
-                          className="w-full accent-blue-500"
-                        />
+
+                        {/* Texel Size / Scale Slider (4px to 512px) */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-neutral-400">
+                            <span>Texel Wavelength Scale</span>
+                            <span className="font-mono text-neutral-300">{selectedTileType.blendMap.noiseA.scale}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="4"
+                            max="512"
+                            step="4"
+                            value={selectedTileType.blendMap.noiseA.scale}
+                            onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              blendMap: {
+                                ...tt.blendMap,
+                                noiseA: { ...tt.blendMap.noiseA, scale: parseInt(e.target.value) || 4 }
+                              }
+                            }))}
+                            className="w-full accent-blue-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Seed Input & Randomizer */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-800/60">
+                          <span className="text-[10px] font-bold text-neutral-400">Noise Seed 1:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              max="99999"
+                              value={selectedTileType.blendMap.noiseA.seed ?? 1337}
+                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                blendMap: {
+                                  ...tt.blendMap,
+                                  noiseA: { ...tt.blendMap.noiseA, seed: parseInt(e.target.value) || 0 }
+                                }
+                              }))}
+                              className="w-20 bg-neutral-900 border border-neutral-700 rounded px-2 py-0.5 text-xs font-mono text-blue-300 outline-none text-right"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newSeed = Math.floor(Math.random() * 9999);
+                                handleUpdateCurrentTileType(tt => ({
+                                  ...tt,
+                                  blendMap: {
+                                    ...tt.blendMap,
+                                    noiseA: { ...tt.blendMap.noiseA, seed: newSeed }
+                                  }
+                                }));
+                              }}
+                              className="p-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 rounded text-neutral-300 hover:text-white transition"
+                              title="Randomize Noise 1 Seed"
+                            >
+                              <Shuffle size={12} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Noise B Controls */}
-                      <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-2">
-                        <div className="flex justify-between text-xs font-bold text-neutral-300">
-                          <span>Noise Layer 2 (Micro Detail)</span>
-                          <span className="text-indigo-400 font-mono">{selectedTileType.blendMap.noiseB.scale}px</span>
+                      <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-neutral-200">Noise Layer 2 (Base B)</span>
+                          <span className="text-indigo-400 font-mono text-xs font-bold">{selectedTileType.blendMap.noiseB.scale}px Texel Size</span>
                         </div>
-                        <input
-                          type="range"
-                          min="4"
-                          max="32"
-                          step="2"
-                          value={selectedTileType.blendMap.noiseB.scale}
-                          onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                            ...tt,
-                            blendMap: {
-                              ...tt.blendMap,
-                              noiseB: { ...tt.blendMap.noiseB, scale: parseInt(e.target.value) }
-                            }
-                          }))}
-                          className="w-full accent-indigo-500"
-                        />
+
+                        {/* Texel Size / Scale Slider (4px to 512px) */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-neutral-400">
+                            <span>Texel Wavelength Scale</span>
+                            <span className="font-mono text-neutral-300">{selectedTileType.blendMap.noiseB.scale}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="4"
+                            max="512"
+                            step="4"
+                            value={selectedTileType.blendMap.noiseB.scale}
+                            onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              blendMap: {
+                                ...tt.blendMap,
+                                noiseB: { ...tt.blendMap.noiseB, scale: parseInt(e.target.value) || 4 }
+                              }
+                            }))}
+                            className="w-full accent-indigo-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Seed Input & Randomizer */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-800/60">
+                          <span className="text-[10px] font-bold text-neutral-400">Noise Seed 2:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              max="99999"
+                              value={selectedTileType.blendMap.noiseB.seed ?? 4242}
+                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                blendMap: {
+                                  ...tt.blendMap,
+                                  noiseB: { ...tt.blendMap.noiseB, seed: parseInt(e.target.value) || 0 }
+                                }
+                              }))}
+                              className="w-20 bg-neutral-900 border border-neutral-700 rounded px-2 py-0.5 text-xs font-mono text-indigo-300 outline-none text-right"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newSeed = Math.floor(Math.random() * 9999);
+                                handleUpdateCurrentTileType(tt => ({
+                                  ...tt,
+                                  blendMap: {
+                                    ...tt.blendMap,
+                                    noiseB: { ...tt.blendMap.noiseB, seed: newSeed }
+                                  }
+                                }));
+                              }}
+                              className="p-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 rounded text-neutral-300 hover:text-white transition"
+                              title="Randomize Noise 2 Seed"
+                            >
+                              <Shuffle size={12} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Blend Threshold & Contrast */}
-                      <div className="grid grid-cols-2 gap-3 pt-1">
-                        <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-1">
-                          <div className="flex justify-between text-[10px] text-neutral-400 font-bold">
-                            <span>Threshold</span>
-                            <span className="text-white font-mono">{selectedTileType.blendMap.blendThreshold}</span>
+                      <div className="space-y-3 pt-1">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-1">
+                            <div className="flex justify-between text-[10px] text-neutral-400 font-bold">
+                              <span>Threshold</span>
+                              <span className="text-white font-mono">{selectedTileType.blendMap.blendThreshold}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.05"
+                              max="0.95"
+                              step="0.05"
+                              value={selectedTileType.blendMap.blendThreshold}
+                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                blendMap: { ...tt.blendMap, blendThreshold: parseFloat(e.target.value) }
+                              }))}
+                              className="w-full accent-blue-500 cursor-pointer"
+                            />
                           </div>
-                          <input
-                            type="range"
-                            min="0.1"
-                            max="0.9"
-                            step="0.05"
-                            value={selectedTileType.blendMap.blendThreshold}
-                            onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                              ...tt,
-                              blendMap: { ...tt.blendMap, blendThreshold: parseFloat(e.target.value) }
-                            }))}
-                            className="w-full accent-blue-500"
-                          />
+
+                          <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-1">
+                            <div className="flex justify-between text-[10px] text-neutral-400 font-bold">
+                              <span>Contrast</span>
+                              <span className="text-white font-mono">{selectedTileType.blendMap.blendContrast}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="10.0"
+                              step="0.1"
+                              value={selectedTileType.blendMap.blendContrast}
+                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                blendMap: { ...tt.blendMap, blendContrast: parseFloat(e.target.value) }
+                              }))}
+                              className="w-full accent-blue-500 cursor-pointer"
+                            />
+                          </div>
                         </div>
 
-                        <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800/80 space-y-1">
-                          <div className="flex justify-between text-[10px] text-neutral-400 font-bold">
-                            <span>Contrast</span>
-                            <span className="text-white font-mono">{selectedTileType.blendMap.blendContrast}</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.5"
-                            max="3.0"
-                            step="0.1"
-                            value={selectedTileType.blendMap.blendContrast}
-                            onChange={(e) => handleUpdateCurrentTileType(tt => ({
-                              ...tt,
-                              blendMap: { ...tt.blendMap, blendContrast: parseFloat(e.target.value) }
-                            }))}
-                            className="w-full accent-blue-500"
-                          />
+                        {/* Invert Toggle */}
+                        <div className="flex items-center justify-between p-2.5 bg-neutral-950 rounded-lg border border-neutral-800/80 text-xs">
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={!!selectedTileType.blendMap.invert}
+                              onChange={(e) => handleUpdateCurrentTileType(tt => ({
+                                ...tt,
+                                blendMap: { ...tt.blendMap, invert: e.target.checked }
+                              }))}
+                              className="rounded accent-blue-500 cursor-pointer"
+                            />
+                            <span className="text-neutral-300 font-medium">Invert Noise Mask (Base A ↔ B)</span>
+                          </label>
                         </div>
                       </div>
                     </div>

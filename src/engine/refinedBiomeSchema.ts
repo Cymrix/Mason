@@ -56,12 +56,13 @@ export interface ParallaxLayerConfig {
  * Noise Configuration for dual-overlapping noise blend map
  */
 export interface NoiseLayerConfig {
-  scale: number; // e.g. 8 to 128
+  scale: number; // Texel size / wavelength in world pixels (e.g. 4 to 512)
   octaves: number; // 1 to 4
   persistence: number; // 0.1 to 1.0
   lacunarity: number; // 1.5 to 3.0
   offset: { x: number; y: number };
   weight: number; // 0.0 to 1.0
+  seed?: number; // Integer seed for reproducible noise generation
 }
 
 export interface DualNoiseBlendMapConfig {

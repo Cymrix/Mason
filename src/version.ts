@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.31
+ * Current Release: v0.32
  * 
  * HARD RULE:
  * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.31.0';
-export const MASON_VERSION_DISPLAY = 'v0.31';
-export const MASON_FULL_VERSION = 'v0.31';
+export const MASON_VERSION = '0.32.0';
+export const MASON_VERSION_DISPLAY = 'v0.32';
+export const MASON_FULL_VERSION = 'v0.32';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,15 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.32',
+    date: '2026-08-16',
+    changes: [
+      'Expanded noise scale sliders to 4px - 512px, enabling noise features up to full albedo texture sizes',
+      'Added seed controls and randomize buttons for Noise Layer 1 and Noise Layer 2',
+      'Increased blend contrast range up to 10.0 with C2 quintic noise smoothstep, enabling sharp patches of Material B at 100% full opacity'
+    ]
+  },
   {
     version: 'v0.31',
     date: '2026-08-16',

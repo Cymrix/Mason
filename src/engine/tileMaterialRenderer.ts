@@ -39,20 +39,21 @@ export function getCachedImage(url: string | undefined, onLoaded?: () => void): 
 }
 
 /**
- * 2D Value Noise function with sinusoidal interpolation
+ * 2D Seeded Value Noise function with quintic smoothstep interpolation (6t^5 - 15t^4 + 10t^3)
  */
-function valueNoise2D(x: number, y: number): number {
+function seededValueNoise2D(x: number, y: number, seed: number = 0): number {
   const iX = Math.floor(x);
   const iY = Math.floor(y);
   const fX = x - iX;
   const fY = y - iY;
 
-  // Smoothstep interpolation curve
-  const u = fX * fX * (3.0 - 2.0 * fX);
-  const v = fY * fY * (3.0 - 2.0 * fY);
+  // Quintic smoothstep interpolation curve for C2 continuity across cell boundaries
+  const u = fX * fX * fX * (fX * (fX * 6 - 15) + 10);
+  const v = fY * fY * fY * (fY * (fY * 6 - 15) + 10);
 
   const hash = (nx: number, ny: number) => {
-    const sin = Math.sin(nx * 127.1 + ny * 311.7) * 43758.5453123;
+    const s = ((seed % 1000) + 1000) * 137.5;
+    const sin = Math.sin((nx + s) * 127.1 + (ny + s) * 311.7) * 43758.5453123;
     return sin - Math.floor(sin);
   };
 
@@ -68,7 +69,7 @@ function valueNoise2D(x: number, y: number): number {
 }
 
 /**
- * Fractal Brownian Motion (fBm) for octave-based noise
+ * Fractal Brownian Motion (fBm) for octave-based noise with seed support
  */
 export function sampleFractalNoise(
   worldX: number,
@@ -78,7 +79,8 @@ export function sampleFractalNoise(
   persistence: number,
   lacunarity: number,
   offsetX: number,
-  offsetY: number
+  offsetY: number,
+  seed: number = 0
 ): number {
   let total = 0;
   let frequency = 1.0 / Math.max(1, scale);
@@ -88,13 +90,13 @@ export function sampleFractalNoise(
   for (let i = 0; i < octaves; i++) {
     const nx = (worldX + offsetX) * frequency;
     const ny = (worldY + offsetY) * frequency;
-    total += valueNoise2D(nx, ny) * amplitude;
+    total += seededValueNoise2D(nx, ny, seed + i * 101) * amplitude;
     maxValue += amplitude;
     amplitude *= persistence;
     frequency *= lacunarity;
   }
 
-  return total / maxValue;
+  return total / Math.max(0.0001, maxValue);
 }
 
 /**
@@ -107,6 +109,9 @@ export function evaluateDualNoiseBlend(
   worldY: number,
   config: DualNoiseBlendMapConfig
 ): number {
+  const seedA = config.noiseA.seed !== undefined ? config.noiseA.seed : 1337;
+  const seedB = config.noiseB.seed !== undefined ? config.noiseB.seed : 4242;
+
   // Sample primary Noise A
   const nA = sampleFractalNoise(
     worldX,
@@ -116,10 +121,11 @@ export function evaluateDualNoiseBlend(
     config.noiseA.persistence,
     config.noiseA.lacunarity,
     config.noiseA.offset.x,
-    config.noiseA.offset.y
+    config.noiseA.offset.y,
+    seedA
   );
 
-  // Sample secondary Noise B (differing scale/frequency)
+  // Sample secondary Noise B
   const nB = sampleFractalNoise(
     worldX,
     worldY,
@@ -128,15 +134,20 @@ export function evaluateDualNoiseBlend(
     config.noiseB.persistence,
     config.noiseB.lacunarity,
     config.noiseB.offset.x,
-    config.noiseB.offset.y
+    config.noiseB.offset.y,
+    seedB
   );
 
   // Weighted combination
-  const combined = (nA * config.noiseA.weight + nB * config.noiseB.weight) /
-                   Math.max(0.001, config.noiseA.weight + config.noiseB.weight);
+  const wA = Math.max(0, config.noiseA.weight ?? 0.5);
+  const wB = Math.max(0, config.noiseB.weight ?? 0.5);
+  const combined = (nA * wA + nB * wB) / Math.max(0.001, wA + wB);
 
   // Shift by threshold & adjust contrast
-  let centered = (combined - config.blendThreshold) * config.blendContrast + 0.5;
+  const threshold = config.blendThreshold !== undefined ? config.blendThreshold : 0.5;
+  const contrast = config.blendContrast !== undefined ? config.blendContrast : 1.0;
+
+  let centered = (combined - threshold) * contrast + 0.5;
   centered = Math.max(0, Math.min(1, centered));
 
   return config.invert ? 1.0 - centered : centered;
@@ -311,7 +322,7 @@ export function renderRefinedTileCell(
   }
 
   // 1a. Alpha-blend Base Material B over Material A using Dual-Noise Map
-  const hasMaterialB = !!imgB || (!!tileType.baseMaterialBAlbedoColor && tileType.baseMaterialBAlbedoColor !== fallbackColorA);
+  const hasMaterialB = !!imgB || !!tileType.baseMaterialBTextureUrl || !!tileType.baseMaterialBAlbedoColor;
 
   if (hasMaterialB) {
     for (let py = 0; py < tileSizePx; py += pixelStep) {

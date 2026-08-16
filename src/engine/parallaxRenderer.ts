@@ -29,13 +29,15 @@ export function renderParallaxLayer(
   cameraPanX: number,
   cameraPanY: number,
   scale: number,
-  biome: RefinedBiome
+  biome: RefinedBiome,
+  transitionAlpha: number = 1.0
 ) {
-  if (layer.opacity <= 0.001) return;
+  const effectiveOpacity = layer.opacity * transitionAlpha;
+  if (effectiveOpacity <= 0.001) return;
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha = layer.opacity;
+  ctx.globalAlpha = effectiveOpacity;
 
   // Calculate parallax offset based on camera pan and layer speed factors
   const offsetX = cameraPanX * layer.speedFactorX;

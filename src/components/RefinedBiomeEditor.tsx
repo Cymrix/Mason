@@ -21,6 +21,7 @@ import {
   Volume2, 
   Compass, 
   Shield, 
+  ShieldAlert,
   Flame, 
   Plus, 
   Copy, 
@@ -802,50 +803,122 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                       </div>
 
                       {/* Base Material A Upload */}
-                      <ImageUploadThumbnailField
-                        label="Base Material A (Primary Albedo)"
-                        badge="Albedo A"
-                        imageUrl={selectedTileType.baseMaterialA.albedoTextureUrl}
-                        fallbackColor={selectedTileType.baseMaterialA.albedoColor || '#475569'}
-                        fallbackText="Albedo A"
-                        accentColor="cyan"
-                        onUpload={(url) => {
-                          handleUpdateCurrentTileType(tt => ({
-                            ...tt,
-                            baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: url }
-                          }));
-                        }}
-                        onClear={() => {
-                          handleUpdateCurrentTileType(tt => ({
-                            ...tt,
-                            baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: undefined }
-                          }));
-                        }}
-                        onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
-                      />
+                      <div className="space-y-1.5">
+                        <ImageUploadThumbnailField
+                          label="Base Material A (Primary Albedo)"
+                          badge="Albedo A"
+                          imageUrl={selectedTileType.baseMaterialA.albedoTextureUrl}
+                          fallbackColor={selectedTileType.baseMaterialA.albedoColor}
+                          fallbackText={selectedTileType.baseMaterialA.albedoColor ? 'Color' : 'No Image'}
+                          accentColor="cyan"
+                          onUpload={(url) => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: url }
+                            }));
+                          }}
+                          onClear={() => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              baseMaterialA: { ...tt.baseMaterialA, albedoTextureUrl: undefined }
+                            }));
+                          }}
+                          onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                        />
+                        <div className="flex items-center justify-between bg-neutral-950 px-3 py-1.5 rounded-lg border border-neutral-800 text-xs">
+                          <span className="text-neutral-400 font-medium">Albedo A Fallback/Solid Color:</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={selectedTileType.baseMaterialA.albedoColor || '#334155'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleUpdateCurrentTileType(tt => ({
+                                  ...tt,
+                                  baseMaterialA: { ...tt.baseMaterialA, albedoColor: val }
+                                }));
+                              }}
+                              className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                            />
+                            <span className="font-mono text-[11px] text-neutral-300">
+                              {selectedTileType.baseMaterialA.albedoColor || 'None (No Image)'}
+                            </span>
+                            {selectedTileType.baseMaterialA.albedoColor && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateCurrentTileType(tt => ({
+                                    ...tt,
+                                    baseMaterialA: { ...tt.baseMaterialA, albedoColor: undefined }
+                                  }));
+                                }}
+                                className="text-[10px] text-neutral-500 hover:text-red-400 font-mono underline ml-1"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
                       {/* Base Material B Upload */}
-                      <ImageUploadThumbnailField
-                        label="Base Material B (Secondary Albedo)"
-                        badge="Albedo B"
-                        imageUrl={selectedTileType.baseMaterialBTextureUrl}
-                        fallbackColor={selectedTileType.baseMaterialBAlbedoColor || '#64748b'}
-                        fallbackText="Albedo B"
-                        accentColor="blue"
-                        onUpload={(url) => {
-                          handleUpdateCurrentTileType(tt => ({
-                            ...tt,
-                            baseMaterialBTextureUrl: url
-                          }));
-                        }}
-                        onClear={() => {
-                          handleUpdateCurrentTileType(tt => ({
-                            ...tt,
-                            baseMaterialBTextureUrl: undefined
-                          }));
-                        }}
-                        onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
-                      />
+                      <div className="space-y-1.5">
+                        <ImageUploadThumbnailField
+                          label="Base Material B (Secondary Albedo)"
+                          badge="Albedo B"
+                          imageUrl={selectedTileType.baseMaterialBTextureUrl}
+                          fallbackColor={selectedTileType.baseMaterialBAlbedoColor}
+                          fallbackText={selectedTileType.baseMaterialBAlbedoColor ? 'Color' : 'No Image'}
+                          accentColor="blue"
+                          onUpload={(url) => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              baseMaterialBTextureUrl: url
+                            }));
+                          }}
+                          onClear={() => {
+                            handleUpdateCurrentTileType(tt => ({
+                              ...tt,
+                              baseMaterialBTextureUrl: undefined
+                            }));
+                          }}
+                          onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
+                        />
+                        <div className="flex items-center justify-between bg-neutral-950 px-3 py-1.5 rounded-lg border border-neutral-800 text-xs">
+                          <span className="text-neutral-400 font-medium">Albedo B Fallback/Solid Color:</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={selectedTileType.baseMaterialBAlbedoColor || '#64748b'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleUpdateCurrentTileType(tt => ({
+                                  ...tt,
+                                  baseMaterialBAlbedoColor: val
+                                }));
+                              }}
+                              className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                            />
+                            <span className="font-mono text-[11px] text-neutral-300">
+                              {selectedTileType.baseMaterialBAlbedoColor || 'None (No Image)'}
+                            </span>
+                            {selectedTileType.baseMaterialBAlbedoColor && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateCurrentTileType(tt => ({
+                                    ...tt,
+                                    baseMaterialBAlbedoColor: undefined
+                                  }));
+                                }}
+                                className="text-[10px] text-neutral-500 hover:text-red-400 font-mono underline ml-1"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
                       {/* Heightmap Upload & Depth Scale */}
                       <div className="space-y-2">
@@ -1165,6 +1238,32 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           }}
                           onPreviewModal={(title, url) => setPreviewModalImage({ title, url })}
                         />
+                      </div>
+
+                      {/* Generates Physics Collider */}
+                      <div className="p-3 bg-neutral-950 rounded-lg border border-neutral-800 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-neutral-200">
+                            <input
+                              type="checkbox"
+                              checked={selectedTileType.generatesCollider !== false}
+                              onChange={(e) => handleUpdateCurrentTileType(tt => ({ ...tt, generatesCollider: e.target.checked }))}
+                              className="rounded accent-emerald-500 cursor-pointer w-4 h-4"
+                            />
+                            <span className="flex items-center gap-1.5">
+                              <ShieldAlert size={14} className={selectedTileType.generatesCollider !== false ? 'text-emerald-400' : 'text-neutral-500'} />
+                              <span>Generates Physics Collider</span>
+                            </span>
+                          </label>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${
+                            selectedTileType.generatesCollider !== false ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60' : 'bg-amber-950/80 text-amber-400 border border-amber-800/60'
+                          }`}>
+                            {selectedTileType.generatesCollider !== false ? 'SOLID COLLIDER' : 'NO COLLIDER (PASS-THROUGH)'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-400 leading-relaxed">
+                          Uncheck to disable collision box. Useful for open air, background pass-through tiles, invisible triggers, or lighting-only/roughness tiles.
+                        </p>
                       </div>
 
                       {/* Destructibility & Traversal */}

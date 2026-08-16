@@ -249,7 +249,10 @@ export class ChunkCacheManager {
         // 8-Directional Neighbor check for full autotiling (edges, corners, and slope transitions)
         const isNeighborSolid = (ny: number, nx: number) => {
           const neighbor = getCell(mapData, nx, ny);
-          return !!(neighbor && neighbor.tile_type_id);
+          if (!neighbor || !neighbor.tile_type_id) return false;
+          const rec = tileTypeMap[neighbor.tile_type_id];
+          if (!rec) return false;
+          return rec.tileType.generatesCollider !== false;
         };
 
         const hasTop = isNeighborSolid(worldY - 1, worldX);

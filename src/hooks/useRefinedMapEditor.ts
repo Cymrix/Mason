@@ -239,8 +239,14 @@ export const useRefinedMapEditor = () => {
               interactive_detail_id: null,
               wildlife_id: null
             }));
-            globalChunkCache.invalidateMap(newMap.id);
+          } else {
+            // Reassign existing chunk to activeBiome.id
+            newMap.chunks[key] = newMap.chunks[key].map(c => ({
+              ...c,
+              biome_id: activeBiome.id
+            }));
           }
+          globalChunkCache.invalidateMap(newMap.id);
         }
         return newMap;
       }

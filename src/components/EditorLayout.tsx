@@ -58,7 +58,9 @@ import {
   Plus,
   Sun,
   Moon,
-  ChevronDown
+  ChevronDown,
+  RefreshCw,
+  Grid
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
@@ -265,65 +267,65 @@ export const EditorLayout: React.FC = () => {
       const updatedMaps = p.fileSystem.maps?.map(m => {
         if (m.fileName === currentMapFile.fileName) {
           const hasLegacyCells = Array.isArray(m.cells);
-          let newCells = hasLegacyCells ? m.cells!.map(row => row.map(cell => ({ ...cell }))) : undefined;
+          let newCells = m.cells;
+          const clonedCellRows = new Set<number>();
           
-          let existingChunks = m.chunks || (m as any).data?.chunks;
-          let newChunks: Record<string, any[]> = {};
-          if (existingChunks) {
-            for (const key of Object.keys(existingChunks)) {
-              newChunks[key] = [...existingChunks[key]];
+          let existingChunks = m.chunks || (m as any).data?.chunks || {};
+          let newChunks: Record<string, any[]> = { ...existingChunks };
+          const clonedChunkKeys = new Set<string>();
+
+          const ensureChunkCloned = (chunkKey: string): any[] => {
+            if (!clonedChunkKeys.has(chunkKey)) {
+              clonedChunkKeys.add(chunkKey);
+              if (existingChunks[chunkKey]) {
+                newChunks[chunkKey] = [...existingChunks[chunkKey]];
+              } else {
+                newChunks[chunkKey] = new Array(256).fill(null).map(() => ({
+                  biome_id: activeBiome.id,
+                  tile_type_id: '',
+                  current_health: 100,
+                  damage_threshold_index: 0,
+                  shape: 'full',
+                  fullness: 1.0,
+                  environmental_detail_id: null,
+                  interactive_detail_id: null,
+                  wildlife_id: null
+                }));
+              }
             }
-          }
+            return newChunks[chunkKey];
+          };
 
           if (activeTool === 'chunk_add' || activeTool === 'chunk_delete') {
-            const processedChunks = new Set<string>();
-
             for (const pt of pointsToApply) {
               const chunkX = Math.floor(pt.x / 16);
               const chunkY = Math.floor(pt.y / 16);
               const chunkKey = `${chunkX},${chunkY}`;
 
-              if (processedChunks.has(chunkKey)) continue;
-              processedChunks.add(chunkKey);
-
               if (activeTool === 'chunk_add') {
-                if (!newChunks[chunkKey]) {
-                  newChunks[chunkKey] = new Array(256).fill(null).map(() => ({
-                    biome_id: activeBiome.id,
-                    tile_type_id: '',
-                    current_health: 100,
-                    damage_threshold_index: 0,
-                    shape: 'full',
-                    fullness: 1.0,
-                    environmental_detail_id: null,
-                    interactive_detail_id: null,
-                    wildlife_id: null
-                  }));
+                const chunk = ensureChunkCloned(chunkKey);
+                // Set/reassign all 256 cells in this chunk to the active biome ID
+                for (let i = 0; i < chunk.length; i++) {
+                  chunk[i] = {
+                    ...(chunk[i] || {
+                      tile_type_id: '',
+                      current_health: 100,
+                      damage_threshold_index: 0,
+                      shape: 'full',
+                      fullness: 1.0,
+                      environmental_detail_id: null,
+                      interactive_detail_id: null,
+                      wildlife_id: null
+                    }),
+                    biome_id: activeBiome.id
+                  };
                 }
               } else if (activeTool === 'chunk_delete') {
                 if (newChunks[chunkKey]) {
-                  delete newChunks[chunkKey];
-                }
-                if (newCells) {
-                  for (let cy = chunkY * 16; cy < (chunkY + 1) * 16; cy++) {
-                    if (newCells[cy]) {
-                      for (let cx = chunkX * 16; cx < (chunkX + 1) * 16; cx++) {
-                        if (newCells[cy][cx]) {
-                          newCells[cy][cx] = {
-                            biome_id: activeBiome.id,
-                            tile_type_id: '',
-                            current_health: 100,
-                            damage_threshold_index: 0,
-                            shape: 'full',
-                            fullness: 1.0,
-                            environmental_detail_id: null,
-                            interactive_detail_id: null,
-                            wildlife_id: null
-                          };
-                        }
-                      }
-                    }
+                  if (!clonedChunkKeys.has(chunkKey)) {
+                    clonedChunkKeys.add(chunkKey);
                   }
+                  delete newChunks[chunkKey];
                 }
               }
             }
@@ -339,15 +341,6 @@ export const EditorLayout: React.FC = () => {
             };
           }
 
-          const dummyMap: RefinedMapData = {
-            id: m.id,
-            name: m.name,
-            width: m.width || 32,
-            height: m.height || 24,
-            cells: newCells,
-            chunks: newChunks
-          };
-
           for (const pt of pointsToApply) {
             const px = pt.x;
             const py = pt.y;
@@ -362,7 +355,15 @@ export const EditorLayout: React.FC = () => {
                   continue;
                 }
 
-                if (newCells && newCells[cy] && newCells[cy][cx]) {
+                if (hasLegacyCells && newCells && newCells[cy] && newCells[cy][cx]) {
+                  if (!clonedCellRows.has(cy)) {
+                    clonedCellRows.add(cy);
+                    if (newCells === m.cells) {
+                      newCells = m.cells.map((row, rIdx) => rIdx === cy ? [...row] : row);
+                    } else {
+                      newCells[cy] = [...newCells[cy]];
+                    }
+                  }
                   const target = newCells[cy][cx];
                   target.biome_id = activeBiome.id;
                   if (activeTool === 'eraser') {
@@ -390,9 +391,17 @@ export const EditorLayout: React.FC = () => {
                   globalChunkCache.invalidateCell(cx, cy, m.id);
                 }
 
-                // Always support chunked maps
-                let targetCell = getCell(dummyMap, cx, cy);
-                const currentCell: RefinedCellState = targetCell ? { ...targetCell } : {
+                // Chunked map painting
+                const chunkX = Math.floor(cx / 16);
+                const chunkY = Math.floor(cy / 16);
+                const lx = ((cx % 16) + 16) % 16;
+                const ly = ((cy % 16) + 16) % 16;
+                const chunkKey = `${chunkX},${chunkY}`;
+
+                const chunk = ensureChunkCloned(chunkKey);
+                const localIdx = ly * 16 + lx;
+
+                let currentCell: RefinedCellState = chunk[localIdx] ? { ...chunk[localIdx] } : {
                   biome_id: activeBiome.id,
                   tile_type_id: '',
                   current_health: 100,
@@ -421,7 +430,7 @@ export const EditorLayout: React.FC = () => {
                     currentCell.wildlife_id = selectedAssetId || null;
                   }
                 }
-                setCell(dummyMap, cx, cy, currentCell, true);
+                chunk[localIdx] = currentCell;
                 globalChunkCache.invalidateCell(cx, cy, m.id);
               }
             }
@@ -438,7 +447,7 @@ export const EditorLayout: React.FC = () => {
               width: m.width,
               height: m.height,
               chunks: newChunks,
-              cells: newCells
+              ...(m.cells ? { cells: newCells } : {})
             }
           };
         }
@@ -452,6 +461,49 @@ export const EditorLayout: React.FC = () => {
         }
       };
     });
+  };
+
+  const handleReassignAllChunksToActiveBiome = () => {
+    if (!project || !currentMapFile || !activeBiome) return;
+    handleUpdateProject(p => {
+      const updatedMaps = p.fileSystem.maps?.map(m => {
+        if (m.fileName === currentMapFile.fileName) {
+          const newChunks = { ...m.chunks };
+          Object.keys(newChunks).forEach(key => {
+            if (Array.isArray(newChunks[key])) {
+              newChunks[key] = newChunks[key].map(cell => ({
+                ...(cell || {
+                  tile_type_id: '',
+                  current_health: 100,
+                  damage_threshold_index: 0,
+                  shape: 'full',
+                  fullness: 1.0,
+                }),
+                biome_id: activeBiome.id
+              }));
+            }
+          });
+          globalChunkCache.invalidateMap(m.id);
+          return {
+            ...m,
+            chunks: newChunks,
+            data: {
+              ...(m.data || {}),
+              chunks: newChunks
+            }
+          };
+        }
+        return m;
+      });
+      return {
+        ...p,
+        fileSystem: {
+          ...p.fileSystem,
+          maps: updatedMaps
+        }
+      };
+    });
+    showToast(`Reassigned all map chunks to biome: ${activeBiome.name}`, 'success');
   };
 
   // Map Macro procedural synthesis handler
@@ -887,8 +939,12 @@ export const EditorLayout: React.FC = () => {
                       isDrawing={isDrawing}
                       setIsDrawing={setIsDrawing}
                       showGrid={showGrid}
+                      setShowGrid={setShowGrid}
                       showDamageMasks={showDamageMasks}
                       isLitMode={isLitMode}
+                      brushSize={brushSize}
+                      activeTool={activeTool}
+                      mode={mode}
                     />
 
                     {/* Canvas Status Badge */}
@@ -931,42 +987,73 @@ export const EditorLayout: React.FC = () => {
                       </div>
                       
                       {project?.fileSystem?.biomes && project.fileSystem.biomes.length > 0 ? (
-                        <div className="relative">
-                          <select
-                            value={currentBiomeFile?.fileName || project.fileSystem.biomes[0]?.fileName}
-                            onChange={(e) => {
-                              const targetFileName = e.target.value;
-                              const targetFile = project.fileSystem.biomes.find(b => b.fileName === targetFileName);
-                              if (targetFile) {
-                                handleUpdateProject(p => ({
-                                  ...p,
-                                  activeFiles: {
-                                    ...p.activeFiles,
-                                    biomeFileName: targetFileName
+                        <div className="space-y-1.5">
+                          <div className="relative">
+                            <select
+                              value={currentBiomeFile?.fileName || project.fileSystem.biomes[0]?.fileName}
+                              onChange={(e) => {
+                                const targetFileName = e.target.value;
+                                const targetFile = project.fileSystem.biomes.find(b => b.fileName === targetFileName);
+                                if (targetFile) {
+                                  handleUpdateProject(p => ({
+                                    ...p,
+                                    activeFiles: {
+                                      ...p.activeFiles,
+                                      biomeFileName: targetFileName
+                                    }
+                                  }));
+                                  const firstTile = targetFile.biomeData?.tileTypes?.[0];
+                                  if (firstTile && paintCategory === 'tile_type') {
+                                    setSelectedAssetId(firstTile.id);
+                                  } else {
+                                    setSelectedAssetId('');
                                   }
-                                }));
-                                const firstTile = targetFile.biomeData?.tileTypes?.[0];
-                                if (firstTile && paintCategory === 'tile_type') {
-                                  setSelectedAssetId(firstTile.id);
-                                } else {
-                                  setSelectedAssetId('');
                                 }
-                              }
-                            }}
-                            className="w-full appearance-none bg-neutral-900 border border-neutral-700 hover:border-cyan-500/60 text-neutral-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500 transition cursor-pointer pr-9"
-                          >
-                            {project.fileSystem.biomes.map((biomeFile) => (
-                              <option key={biomeFile.fileName} value={biomeFile.fileName} className="bg-neutral-900 text-neutral-200">
-                                {biomeFile.biomeData.name}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
-                            <div 
-                              className="w-3 h-3 rounded-full border border-white/20 shadow-sm shrink-0"
-                              style={{ backgroundColor: activeBiome?.regionColor || '#06b6d4' }}
-                            />
-                            <ChevronDown size={14} className="text-neutral-400" />
+                              }}
+                              className="w-full appearance-none bg-neutral-900 border border-neutral-700 hover:border-cyan-500/60 text-neutral-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500 transition cursor-pointer pr-9"
+                            >
+                              {project.fileSystem.biomes.map((biomeFile) => (
+                                <option key={biomeFile.fileName} value={biomeFile.fileName} className="bg-neutral-900 text-neutral-200">
+                                  {biomeFile.biomeData.name}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-1.5">
+                              <div 
+                                className="w-3 h-3 rounded-full border border-white/20 shadow-sm shrink-0"
+                                style={{ backgroundColor: activeBiome?.regionColor || '#06b6d4' }}
+                              />
+                              <ChevronDown size={14} className="text-neutral-400" />
+                            </div>
+                          </div>
+
+                          {/* Quick Chunk Biome Paint Actions */}
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTool('chunk_add');
+                                showToast(`Chunk Tool Active: Click or drag any chunk to set its biome to ${activeBiome?.name}`, 'info');
+                              }}
+                              className={`flex-1 text-[11px] font-semibold py-1 px-2 rounded-lg border transition flex items-center justify-center gap-1.5 ${
+                                activeTool === 'chunk_add'
+                                  ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm'
+                                  : 'bg-neutral-900/80 text-neutral-300 border-neutral-700/80 hover:bg-neutral-800 hover:text-white'
+                              }`}
+                              title="Stamp or Paint individual Chunks with this Biome"
+                            >
+                              <PlusSquare size={12} />
+                              <span>Stamp Chunk</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleReassignAllChunksToActiveBiome}
+                              className="text-[11px] font-semibold py-1 px-2.5 rounded-lg bg-neutral-900/80 text-cyan-400 border border-neutral-700/80 hover:bg-cyan-950/60 hover:text-cyan-300 transition flex items-center justify-center gap-1.5"
+                              title="Convert all existing map chunks to this active biome"
+                            >
+                              <RefreshCw size={12} />
+                              <span>Fill Map</span>
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -1081,13 +1168,33 @@ export const EditorLayout: React.FC = () => {
                               >
                                 <div className="flex items-center gap-2.5">
                                   <div 
-                                    className="w-6 h-6 rounded border border-neutral-700 shadow-sm"
-                                    style={{ backgroundColor: t.mapColor || t.baseMaterialA?.albedoColor || '#3f3f46' }}
-                                  />
+                                    className="w-6 h-6 rounded border border-neutral-700 shadow-sm overflow-hidden flex items-center justify-center shrink-0"
+                                    style={{
+                                      backgroundImage: 'repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%)',
+                                      backgroundSize: '8px 8px',
+                                      backgroundColor: t.mapColor || t.baseMaterialA?.albedoColor || 'transparent'
+                                    }}
+                                  >
+                                    {t.baseMaterialA?.albedoTextureUrl ? (
+                                      <img src={t.baseMaterialA.albedoTextureUrl} alt={t.name} className="w-full h-full object-cover" />
+                                    ) : null}
+                                  </div>
                                   <div>
-                                    <div className="text-xs font-bold">{t.name}</div>
+                                    <div className="text-xs font-bold flex items-center gap-1.5">
+                                      <span>{t.name}</span>
+                                      {t.generatesCollider === false && (
+                                        <span className="text-[9px] px-1 rounded bg-amber-950 text-amber-400 border border-amber-800/80 font-mono">
+                                          No Physics
+                                        </span>
+                                      )}
+                                      {(!t.baseMaterialA?.albedoTextureUrl && !t.baseMaterialA?.albedoColor) && (
+                                        <span className="text-[9px] px-1 rounded bg-purple-950 text-purple-300 border border-purple-800/80 font-mono">
+                                          Invisible
+                                        </span>
+                                      )}
+                                    </div>
                                     <div className="text-[10px] text-neutral-500 font-mono">
-                                      {t.category} • {t.health} HP
+                                      {t.category} • {t.isDestructible ? `${t.health} HP` : 'Indestructible'}
                                     </div>
                                   </div>
                                 </div>

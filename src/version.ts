@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.53.6
+ * Current Release: v0.53.9
  * 
  * HARD RULE:
  * - Every iteration / prompt change MUST bump the Mason release version (e.g., v0.30 -> v0.31 -> v0.32 -> v0.33 -> v0.34 -> v0.35 -> v0.36 -> v0.37 -> v0.38 -> v0.40 -> v0.41 -> v0.42 -> v0.43).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.53.6';
-export const MASON_VERSION_DISPLAY = 'v0.53.6';
-export const MASON_FULL_VERSION = 'v0.53.6';
+export const MASON_VERSION = '0.53.9';
+export const MASON_VERSION_DISPLAY = 'v0.53.8';
+export const MASON_FULL_VERSION = 'v0.53.9';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,31 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.53.9',
+    date: '2026-08-16',
+    changes: [
+      'Added Light Dashed Tile Outline Cursor preview for Tilemap Studio showing exact brush size (1x1 up to NxN) and chunk regions with translucent fill and floating dimension pill badges',
+      'Distinguished Biome Open Air (allocated chunk cells with atmosphere fog tint) from Unallocated Void (no tile/chunk painted, displaying pure void space with no background)'
+    ]
+  },
+  {
+    version: 'v0.53.8',
+    date: '2026-08-16',
+    changes: [
+      'Tilemap Studio Biome Backgrounds now dynamically load based on the centermost tile of the camera position (hiding backgrounds when pointing at empty void space without a biome)',
+      'Upgraded Tilemap Studio painting interpolation to Super-Cover Orthogonal Line algorithm with window-level continuous pointer drag tracking to eliminate diagonal gaps and missed mouse ticks'
+    ]
+  },
+  {
+    version: 'v0.53.7',
+    date: '2026-08-16',
+    changes: [
+      'Massive Tilemap Studio Painting Performance Overhaul: implemented viewport frustum culling to skip off-screen chunks',
+      'Consolidated 4 separate full-world cell loops into a single frustum-culled detail pass per frame',
+      'Implemented copy-on-write selective chunk cloning during mouse drag painting to eliminate garbage collection pauses'
+    ]
+  },
   {
     version: 'v0.53.6',
     date: '2026-08-16',

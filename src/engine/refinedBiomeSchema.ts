@@ -199,7 +199,8 @@ export interface BiomeTileType {
   damage_affinities: Partial<Record<DamageType, number>>;
   shares_damage_overlay: boolean;
 
-  // Traversal & Modifiers
+  // Traversal, Physics Colliders & Modifiers
+  generatesCollider?: boolean; // Defaults to true when undefined. Uncheck for open air, invisible trigger surfaces, background pass-through tiles, etc.
   traversal_tags: TraversalModifierTag[];
   speed_modifier: number; // 1.0 = normal
   hazard_damage?: DamageInstance;

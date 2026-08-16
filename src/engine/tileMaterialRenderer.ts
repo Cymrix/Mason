@@ -374,20 +374,21 @@ export function renderPureAlbedoCell(
   const roughnessImg = getCachedImage(tileType.roughnessMapTextureUrl, onImageLoaded);
   const surfaceOverlayImg = getCachedImage((tileType as any).overlayTextureUrl || (tileType as any).surfaceOverlayUrl, onImageLoaded);
 
-  const fallbackColorA = tileType.baseMaterialA.albedoColor || tileType.mapColor || '#334155';
-  const fallbackColorB = tileType.baseMaterialBAlbedoColor || '#64748b';
+  const albedoColorA = tileType.baseMaterialA?.albedoColor;
+  const albedoColorB = tileType.baseMaterialBAlbedoColor;
+  const hasAlbedoA = !!imgA || !!albedoColorA;
 
-  // 1. Render World-Aligned Base Material A across the entire tile
+  // 1. Render World-Aligned Base Material A across the entire tile (only if texture or explicit albedo color provided)
   ctx.save();
   if (imgA) {
     drawWorldAlignedTexture(ctx, imgA, tileX, tileY, screenX, screenY, tileSizePx);
-  } else {
-    ctx.fillStyle = fallbackColorA;
+  } else if (albedoColorA) {
+    ctx.fillStyle = albedoColorA;
     ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx);
   }
 
   // 1a. Alpha-blend Base Material B over Material A using Dual-Noise Map
-  const hasMaterialB = !!imgB || !!tileType.baseMaterialBTextureUrl || !!tileType.baseMaterialBAlbedoColor;
+  const hasMaterialB = !!imgB || !!albedoColorB;
 
   if (hasMaterialB) {
     for (let py = 0; py < tileSizePx; py += pixelStep) {
@@ -401,8 +402,8 @@ export function renderPureAlbedoCell(
           ctx.globalAlpha = blendWeightB;
           if (imgB) {
             drawWrappedImageBlock(ctx, imgB, worldPixelX, worldPixelY, pixelStep, screenX + px, screenY + py);
-          } else {
-            ctx.fillStyle = fallbackColorB;
+          } else if (albedoColorB) {
+            ctx.fillStyle = albedoColorB;
             ctx.fillRect(screenX + px, screenY + py, pixelStep, pixelStep);
           }
         }
@@ -424,7 +425,7 @@ export function renderPureAlbedoCell(
     ctx.globalAlpha = tileType.baseMaterialA.heightMapScale * 0.25;
     drawWorldAlignedTexture(ctx, heightImg, tileX, tileY, screenX, screenY, tileSizePx);
     ctx.restore();
-  } else {
+  } else if (hasAlbedoA) {
     const heightFactor = tileType.baseMaterialA.heightMapScale;
     if (heightFactor > 0.5) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
@@ -439,7 +440,7 @@ export function renderPureAlbedoCell(
     ctx.globalAlpha = 0.15;
     drawWorldAlignedTexture(ctx, roughnessImg, tileX, tileY, screenX, screenY, tileSizePx);
     ctx.restore();
-  } else if (tileType.baseMaterialA.roughness < 0.4) {
+  } else if (hasAlbedoA && tileType.baseMaterialA.roughness < 0.4) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx * 0.25);
   }
@@ -525,20 +526,21 @@ export function renderRefinedTileCell(
   const roughnessImg = getCachedImage(tileType.roughnessMapTextureUrl, onImageLoaded);
   const surfaceOverlayImg = getCachedImage((tileType as any).overlayTextureUrl || (tileType as any).surfaceOverlayUrl, onImageLoaded);
 
-  const fallbackColorA = tileType.baseMaterialA.albedoColor || tileType.mapColor || '#334155';
-  const fallbackColorB = tileType.baseMaterialBAlbedoColor || '#64748b';
+  const albedoColorA = tileType.baseMaterialA?.albedoColor;
+  const albedoColorB = tileType.baseMaterialBAlbedoColor;
+  const hasAlbedoA = !!imgA || !!albedoColorA;
 
-  // 1. Render World-Aligned Base Material A across the entire tile
+  // 1. Render World-Aligned Base Material A across the entire tile (only if texture or explicit albedo color provided)
   ctx.save();
   if (imgA) {
     drawWorldAlignedTexture(ctx, imgA, tileX, tileY, screenX, screenY, tileSizePx);
-  } else {
-    ctx.fillStyle = fallbackColorA;
+  } else if (albedoColorA) {
+    ctx.fillStyle = albedoColorA;
     ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx);
   }
 
   // 1a. Alpha-blend Base Material B over Material A using Dual-Noise Map
-  const hasMaterialB = !!imgB || !!tileType.baseMaterialBTextureUrl || !!tileType.baseMaterialBAlbedoColor;
+  const hasMaterialB = !!imgB || !!albedoColorB;
 
   if (hasMaterialB) {
     for (let py = 0; py < tileSizePx; py += pixelStep) {
@@ -552,8 +554,8 @@ export function renderRefinedTileCell(
           ctx.globalAlpha = blendWeightB;
           if (imgB) {
             drawWrappedImageBlock(ctx, imgB, worldPixelX, worldPixelY, pixelStep, screenX + px, screenY + py);
-          } else {
-            ctx.fillStyle = fallbackColorB;
+          } else if (albedoColorB) {
+            ctx.fillStyle = albedoColorB;
             ctx.fillRect(screenX + px, screenY + py, pixelStep, pixelStep);
           }
         }
@@ -575,7 +577,7 @@ export function renderRefinedTileCell(
     ctx.globalAlpha = tileType.baseMaterialA.heightMapScale * 0.25;
     drawWorldAlignedTexture(ctx, heightImg, tileX, tileY, screenX, screenY, tileSizePx);
     ctx.restore();
-  } else {
+  } else if (hasAlbedoA) {
     const heightFactor = tileType.baseMaterialA.heightMapScale;
     if (heightFactor > 0.5) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
@@ -590,7 +592,7 @@ export function renderRefinedTileCell(
     ctx.globalAlpha = 0.15;
     drawWorldAlignedTexture(ctx, roughnessImg, tileX, tileY, screenX, screenY, tileSizePx);
     ctx.restore();
-  } else if (tileType.baseMaterialA.roughness < 0.4) {
+  } else if (hasAlbedoA && tileType.baseMaterialA.roughness < 0.4) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.fillRect(screenX, screenY, tileSizePx, tileSizePx * 0.25);
   }

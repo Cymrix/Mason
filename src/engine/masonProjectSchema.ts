@@ -336,6 +336,76 @@ export interface CharacterSocket {
   visualMarkerColor?: string;
 }
 
+export interface CharacterSpritesheet {
+  id: string;
+  name: string;
+  dataUrl?: string; // base64 or data URL for uploaded image
+  tileWidth: number; // e.g., 64
+  tileHeight: number; // e.g., 64
+  cols: number; // grid columns e.g. 8
+  rows: number; // grid rows e.g. 4
+  totalFrames: number; // total cells e.g. 32
+}
+
+export interface CharacterNamedPoint {
+  id: string;
+  name: string;
+  color?: string;
+  defaultOffsetX: number;
+  defaultOffsetY: number;
+}
+
+export interface PolygonHitboxVertex {
+  x: number;
+  y: number;
+}
+
+export interface CharacterNamedPolygon {
+  id: string;
+  name: string;
+  type: 'hurtbox' | 'hitbox' | 'shield' | 'trigger';
+  color?: string;
+  defaultVertices: PolygonHitboxVertex[];
+}
+
+export interface PointAnchorFrameData {
+  pointId: string;
+  enabled: boolean;
+  x: number;
+  y: number;
+}
+
+export interface PolygonHitboxFrameData {
+  polygonId: string;
+  enabled: boolean;
+  vertices: PolygonHitboxVertex[];
+}
+
+export interface FrameKeyframeData {
+  frameIndex: number; // grid index on the spritesheet (e.g. 0..31)
+  points: PointAnchorFrameData[];
+  polygons: PolygonHitboxFrameData[];
+}
+
+export interface CharacterAnimationConfig {
+  stateId: string; // 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hurt' | 'death'
+  label: string;
+  spritesheetId: string;
+  startFrameIndex: number;
+  endFrameIndex: number;
+  frameRateFps: number;
+  loop: boolean;
+  soundCue?: string;
+  keyframes?: FrameKeyframeData[];
+}
+
+export interface CharacterCapsuleConfig {
+  radius: number; // e.g., 16
+  height: number; // e.g., 48
+  offsetX: number;
+  offsetY: number;
+}
+
 export interface AnimationStateConfig {
   stateId: 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hurt' | 'death' | string;
   label: string;
@@ -355,8 +425,16 @@ export interface CharacterData {
   spriteHeight: number;
   tintColor: string;
   baseScale: number;
+  
+  // New Character Creator System Fields
+  capsule?: CharacterCapsuleConfig;
+  spritesheets?: CharacterSpritesheet[];
+  points?: CharacterNamedPoint[];
+  polygons?: CharacterNamedPolygon[];
+  animations: CharacterAnimationConfig[];
+
+  // Legacy field support for sockets and linking
   sockets: CharacterSocket[];
-  animations: AnimationStateConfig[];
   assignedBehaviorFileName?: string;
   assignedArchetypeFileName?: string;
   dialogueGreeting?: string;
@@ -1452,6 +1530,56 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
     baseScale: 1.0,
     assignedBehaviorFileName: 'ashen_hunter.behavior',
     assignedArchetypeFileName: 'korrath.arch',
+    capsule: {
+      radius: 16,
+      height: 44,
+      offsetX: 0,
+      offsetY: 2
+    },
+    spritesheets: [
+      {
+        id: 'sheet_korrath_main',
+        name: 'Korrath Hero Primary Sheet (64x64)',
+        tileWidth: 64,
+        tileHeight: 64,
+        cols: 8,
+        rows: 4,
+        totalFrames: 32
+      }
+    ],
+    points: [
+      { id: 'pt_eyes', name: 'Eyes (Sight Locus)', color: '#38bdf8', defaultOffsetX: 10, defaultOffsetY: -18 },
+      { id: 'pt_ears', name: 'Ears (Acoustic Hearing)', color: '#a855f7', defaultOffsetX: 0, defaultOffsetY: -20 },
+      { id: 'pt_torso', name: 'Torso Center (Hurtbox)', color: '#22c55e', defaultOffsetX: 0, defaultOffsetY: 0 },
+      { id: 'pt_feet', name: 'Feet (Footstep Sound)', color: '#f59e0b', defaultOffsetX: 0, defaultOffsetY: 26 },
+      { id: 'pt_weapon', name: 'Right Hand (Weapon Origin)', color: '#ef4444', defaultOffsetX: 18, defaultOffsetY: 2 }
+    ],
+    polygons: [
+      {
+        id: 'poly_body_hurtbox',
+        name: 'Main Body Hurtbox',
+        type: 'hurtbox',
+        color: '#22c55e',
+        defaultVertices: [
+          { x: -14, y: -24 },
+          { x: 14, y: -24 },
+          { x: 14, y: 24 },
+          { x: -14, y: 24 }
+        ]
+      },
+      {
+        id: 'poly_sword_hitbox',
+        name: 'Primary Weapon Melee Hitbox',
+        type: 'hitbox',
+        color: '#ef4444',
+        defaultVertices: [
+          { x: 10, y: -16 },
+          { x: 38, y: -16 },
+          { x: 38, y: 16 },
+          { x: 10, y: 16 }
+        ]
+      }
+    ],
     sockets: [
       { tagId: 'head_eyes', label: 'Eyes (Sight Locus)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
       { tagId: 'head_ears', label: 'Ears (Hearing Locus)', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
@@ -1460,13 +1588,12 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
       { tagId: 'hand_weapon', label: 'Right Hand (Weapon Origin)', offsetX: 18, offsetY: 2, visualMarkerColor: '#ef4444' }
     ],
     animations: [
-      { stateId: 'idle', label: 'Idle Stance', frameCount: 4, frameRateFps: 8, loop: true, spriteRow: 0 },
-      { stateId: 'walk', label: 'Walk Cycle', frameCount: 8, frameRateFps: 12, loop: true, spriteRow: 1, soundCue: 'sfx_footstep_soft' },
-      { stateId: 'run', label: 'Sprint Dash', frameCount: 6, frameRateFps: 16, loop: true, spriteRow: 2, soundCue: 'sfx_footstep_heavy' },
-      { stateId: 'jump', label: 'Airborne Rise', frameCount: 3, frameRateFps: 10, loop: false, spriteRow: 3, soundCue: 'sfx_jump_whoosh' },
-      { stateId: 'attack', label: 'Blade Slash', frameCount: 5, frameRateFps: 18, loop: false, spriteRow: 4, soundCue: 'sfx_sword_slash' },
-      { stateId: 'hurt', label: 'Stagger Impact', frameCount: 2, frameRateFps: 8, loop: false, spriteRow: 5, soundCue: 'sfx_grunt_hurt' },
-      { stateId: 'death', label: 'Collapse', frameCount: 6, frameRateFps: 10, loop: false, spriteRow: 6 }
+      { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_korrath_main', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true },
+      { stateId: 'walk', label: 'Walk Cycle', spritesheetId: 'sheet_korrath_main', startFrameIndex: 8, endFrameIndex: 15, frameRateFps: 12, loop: true, soundCue: 'sfx_footstep_soft' },
+      { stateId: 'run', label: 'Sprint Dash', spritesheetId: 'sheet_korrath_main', startFrameIndex: 16, endFrameIndex: 21, frameRateFps: 16, loop: true, soundCue: 'sfx_footstep_heavy' },
+      { stateId: 'jump', label: 'Airborne Rise', spritesheetId: 'sheet_korrath_main', startFrameIndex: 22, endFrameIndex: 24, frameRateFps: 10, loop: false, soundCue: 'sfx_jump_whoosh' },
+      { stateId: 'attack', label: 'Blade Slash', spritesheetId: 'sheet_korrath_main', startFrameIndex: 25, endFrameIndex: 29, frameRateFps: 18, loop: false, soundCue: 'sfx_sword_slash' },
+      { stateId: 'hurt', label: 'Stagger Impact', spritesheetId: 'sheet_korrath_main', startFrameIndex: 30, endFrameIndex: 31, frameRateFps: 8, loop: false, soundCue: 'sfx_grunt_hurt' }
     ]
   },
   {
@@ -1480,6 +1607,44 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
     baseScale: 1.1,
     assignedBehaviorFileName: 'ashen_hunter.behavior',
     assignedArchetypeFileName: 'korrath.arch',
+    capsule: {
+      radius: 18,
+      height: 48,
+      offsetX: 0,
+      offsetY: 0
+    },
+    spritesheets: [
+      {
+        id: 'sheet_ashen_main',
+        name: 'Ashen Hunter Sheet (64x64)',
+        tileWidth: 64,
+        tileHeight: 64,
+        cols: 8,
+        rows: 4,
+        totalFrames: 32
+      }
+    ],
+    points: [
+      { id: 'pt_eyes', name: 'Glowing Red Eyes', color: '#ef4444', defaultOffsetX: 12, defaultOffsetY: -16 },
+      { id: 'pt_ears', name: 'Acoustic Horns', color: '#a855f7', defaultOffsetX: -2, defaultOffsetY: -22 },
+      { id: 'pt_torso', name: 'Chest Armor Center', color: '#22c55e', defaultOffsetX: 0, defaultOffsetY: 0 },
+      { id: 'pt_feet', name: 'Heavy Hooves', color: '#f59e0b', defaultOffsetX: 0, defaultOffsetY: 24 },
+      { id: 'pt_weapon', name: 'Greatsword Tip', color: '#dc2626', defaultOffsetX: 20, defaultOffsetY: -4 }
+    ],
+    polygons: [
+      {
+        id: 'poly_ashen_body',
+        name: 'Ashen Body Armor Hurtbox',
+        type: 'hurtbox',
+        color: '#22c55e',
+        defaultVertices: [
+          { x: -16, y: -26 },
+          { x: 16, y: -26 },
+          { x: 16, y: 26 },
+          { x: -16, y: 26 }
+        ]
+      }
+    ],
     sockets: [
       { tagId: 'head_eyes', label: 'Glowing Red Eyes', offsetX: 12, offsetY: -16, visualMarkerColor: '#ef4444' },
       { tagId: 'head_ears', label: 'Acoustic Horns', offsetX: -2, offsetY: -22, visualMarkerColor: '#a855f7' },
@@ -1488,12 +1653,10 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
       { tagId: 'hand_weapon', label: 'Greatsword Tip', offsetX: 20, offsetY: -4, visualMarkerColor: '#dc2626' }
     ],
     animations: [
-      { stateId: 'idle', label: 'Alert Guard Idle', frameCount: 4, frameRateFps: 6, loop: true, spriteRow: 0 },
-      { stateId: 'walk', label: 'Ledge Patrol Walk', frameCount: 6, frameRateFps: 8, loop: true, spriteRow: 1 },
-      { stateId: 'run', label: 'Charge Attack Sprint', frameCount: 6, frameRateFps: 14, loop: true, spriteRow: 2 },
-      { stateId: 'attack', label: 'Heavy Cleave', frameCount: 6, frameRateFps: 15, loop: false, spriteRow: 3 },
-      { stateId: 'hurt', label: 'Armor Impact', frameCount: 2, frameRateFps: 8, loop: false, spriteRow: 4 },
-      { stateId: 'death', label: 'Ashen Dissolve', frameCount: 7, frameRateFps: 12, loop: false, spriteRow: 5 }
+      { stateId: 'idle', label: 'Alert Guard Idle', spritesheetId: 'sheet_ashen_main', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 6, loop: true },
+      { stateId: 'walk', label: 'Ledge Patrol Walk', spritesheetId: 'sheet_ashen_main', startFrameIndex: 8, endFrameIndex: 13, frameRateFps: 8, loop: true },
+      { stateId: 'run', label: 'Charge Attack Sprint', spritesheetId: 'sheet_ashen_main', startFrameIndex: 16, endFrameIndex: 21, frameRateFps: 14, loop: true },
+      { stateId: 'attack', label: 'Heavy Cleave', spritesheetId: 'sheet_ashen_main', startFrameIndex: 24, endFrameIndex: 29, frameRateFps: 15, loop: false }
     ]
   }
 ];

@@ -62,10 +62,11 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   const mapCount = project.fileSystem?.maps?.length || 0;
   const biomeCount = project.fileSystem?.biomes?.length || 0;
   const archetypeCount = project.fileSystem?.archetypes?.length || 0;
+  const behaviorCount = project.fileSystem?.behaviors?.length || 0;
   const uiCount = project.fileSystem?.ui?.length || 0;
   const gameCount = project.fileSystem?.game?.length || 0;
 
-  const totalFiles = mapCount + biomeCount + archetypeCount + uiCount + gameCount;
+  const totalFiles = mapCount + biomeCount + archetypeCount + behaviorCount + uiCount + gameCount;
   const { isInstalled } = usePWA();
 
   return (
@@ -248,6 +249,22 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             <div className="text-2xl font-black text-white group-hover:text-blue-400 transition font-mono">{archetypeCount}</div>
             <div className="text-[11px] font-bold text-neutral-300">Archetypes</div>
             <div className="text-[9px] text-neutral-500 font-mono">/archetypes/</div>
+          </div>
+        </div>
+
+        {/* Behaviors & AI */}
+        <div 
+          onClick={() => onLaunchModule('behaviors')}
+          className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-indigo-500/60 transition cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xl">🧠</span>
+            <span className="text-[10px] font-mono bg-indigo-950/60 text-indigo-400 px-1.5 py-0.5 rounded font-bold">.behavior</span>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-white group-hover:text-indigo-400 transition font-mono">{behaviorCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300">Behaviors & AI</div>
+            <div className="text-[9px] text-neutral-500 font-mono">/behaviors/</div>
           </div>
         </div>
 

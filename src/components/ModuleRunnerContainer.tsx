@@ -20,6 +20,8 @@ import { UIThemeModule } from './UIThemeModule';
 import { RefinedBiomeEditor } from './RefinedBiomeEditor';
 import { GameStructureModule } from './GameStructureModule';
 import { BiomeMacroMapModal } from './BiomeMacroMapModal';
+import { BehaviorEditor } from './BehaviorEditor';
+import { CharacterEditor } from './CharacterEditor';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle } from '../engine/metroidvaniaGenerator';
 
@@ -90,6 +92,8 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
       case 'archetypes': return project.activeFiles.archetypeFileName;
       case 'ui': return project.activeFiles.uiFileName;
       case 'gamestructure': return project.activeFiles.gameStructureFileName;
+      case 'behaviors': return project.activeFiles.behaviorFileName || project.fileSystem.behaviors?.[0]?.fileName || '';
+      case 'characters': return project.activeFiles.characterFileName || project.fileSystem.characters?.[0]?.fileName || '';
       default: return '';
     }
   };
@@ -246,6 +250,20 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
           <div className="w-full h-full flex flex-col overflow-hidden">
             {moduleId === 'archetypes' && (
               <ArchetypeEditor
+                project={project}
+                onUpdateProject={onUpdateProject}
+                onOpenFiles={onOpenExplorer}
+              />
+            )}
+            {moduleId === 'behaviors' && (
+              <BehaviorEditor
+                project={project}
+                onUpdateProject={onUpdateProject}
+                onOpenFiles={onOpenExplorer}
+              />
+            )}
+            {moduleId === 'characters' && (
+              <CharacterEditor
                 project={project}
                 onUpdateProject={onUpdateProject}
                 onOpenFiles={onOpenExplorer}

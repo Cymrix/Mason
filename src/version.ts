@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.61
+ * Current Release: v0.62
  * 
  * HARD RULE:
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.61 -> v0.62 -> v0.63 -> v0.64).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.61';
-export const MASON_VERSION_DISPLAY = 'v0.61';
-export const MASON_FULL_VERSION = 'v0.61';
+export const MASON_VERSION = '0.62';
+export const MASON_VERSION_DISPLAY = 'v0.62';
+export const MASON_FULL_VERSION = 'v0.62';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.62',
+    date: '2026-08-16',
+    changes: [
+      'Introduced dedicated Behaviors & AI module (.behavior format) for authoring camera target foci, kinematic movement controllers, and finite-state machine enemy AI',
+      'Integrated real-time motion vector & vision cone simulator into Behavior Studio',
+      'Added 1-click behavior assignment matrix to link drivers to hero archetypes, enemy mobs, boss archons, and sentry turrets',
+      'Added attached behavior selector card to Archetype Editor and updated Project Explorer and Dashboard with .behavior subfolder management'
+    ]
+  },
   {
     version: 'v0.61',
     date: '2026-08-16',

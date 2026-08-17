@@ -103,6 +103,46 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     version: MASON_VERSION_DISPLAY
   },
   {
+    id: 'characters',
+    name: 'Character Creator',
+    tagline: 'Visual sprites, sensory socket tags (eyes, ears, hurtbox), animation sheets & behavior links',
+    category: 'Actors & Combat',
+    subfolder: 'modules/characters',
+    entryHtml: '/modules/characters/index.html',
+    associatedFolder: 'characters',
+    associatedExtension: '.character',
+    icon: '🎭',
+    accentColor: 'rose',
+    description: 'A dedicated mini-app to author player heroes, NPCs, and enemy sprites, calibrate sensory tag sockets (head_eyes for sight, head_ears for hearing, feet_ground for footsteps), configure animation frame states, and attach behavior scripts.',
+    features: [
+      'Visual Sprite Customizer: Scale, tinting, sprite sheets & avatar icons',
+      'Sensory Socket Tag Editor: Calibrate offset positions for head_eyes, head_ears, torso_center, feet_ground, hand_weapon',
+      'Animation Frame State Sheet: Idle, walk, run, jump, attack, hurt, death frame rates & SFX cues',
+      'Unified Driver Linkage to Behaviors (.behavior) and Archetypes (.arch)'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
+    id: 'behaviors',
+    name: 'Behaviors & AI',
+    tagline: 'Rule-based IFTTT engine, sight/sound attributes, camera loci & movement controllers',
+    category: 'Actors & Combat',
+    subfolder: 'modules/behaviors',
+    entryHtml: '/modules/behaviors/index.html',
+    associatedFolder: 'behaviors',
+    associatedExtension: '.behavior',
+    icon: '🧠',
+    accentColor: 'indigo',
+    description: 'A dedicated mini-app to author "If This Then That" (IFTTT) conditional behavior rules using sensory attributes (Sight rays from head_eyes, Sound hearing from head_ears, Proximity, Health, Timers) and trigger actions.',
+    features: [
+      'Rule-Based IFTTT Engine: Author IF (Sight, Sound, Proximity, Health, Collision) -> THEN (Move, Attack, Signal, Anim) rules',
+      'Sensory Tag Integration: Bind sight raycasts to head_eyes and acoustic listening to head_ears',
+      'Camera Foci & Kinematic Movement: Deadzones, player tracking, ledge patrol, sine waves & turrets',
+      '1-Click Driver Assignment to Characters (.character), Archetypes (.arch) & Map Entities'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
     id: 'gamestructure',
     name: 'World Graph',
     tagline: 'World map graph linker, main menu builder, loading wipes & progression flags',

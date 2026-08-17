@@ -18,7 +18,10 @@ import {
   Plus, 
   Trash2, 
   Check, 
-  Sliders
+  Sliders,
+  Brain,
+  Camera,
+  Eye
 } from 'lucide-react';
 
 interface ArchetypeEditorProps {
@@ -277,6 +280,43 @@ export const ArchetypeEditor: React.FC<ArchetypeEditorProps> = ({
                 onChange={(e) => updateArchetype(a => ({ ...a, baseStats: { ...a.baseStats, jumpForce: parseFloat(e.target.value) || 0 } }))}
                 className="w-full bg-transparent font-mono font-bold text-lg text-white outline-none"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Behavior & AI Driver Attachment */}
+        <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2">
+              <Brain size={14} className="text-indigo-400" />
+              Attached Behavior, Camera Focus & Enemy AI Driver
+            </h3>
+            <span className="text-[10px] text-indigo-400 font-mono">
+              {arch.assignedBehaviorFileName || 'Unassigned / Player Direct'}
+            </span>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-center gap-4 bg-neutral-950 p-4 border border-neutral-800 rounded-xl">
+            <div className="w-10 h-10 rounded-xl bg-indigo-950/60 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+              <Brain size={20} />
+            </div>
+
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-[10px] font-bold text-neutral-400 uppercase block">
+                Assigned Behavior Controller (.behavior)
+              </label>
+              <select
+                value={arch.assignedBehaviorFileName || ''}
+                onChange={(e) => updateArchetype(a => ({ ...a, assignedBehaviorFileName: e.target.value }))}
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white font-semibold outline-none focus:border-indigo-500"
+              >
+                <option value="">None (Player Direct Control / Default Hero)</option>
+                {(project.fileSystem.behaviors || []).map(b => (
+                  <option key={b.id} value={b.fileName}>
+                    {b.name} ({b.fileName})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

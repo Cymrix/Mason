@@ -96,13 +96,13 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
           {/* Header */}
           <div className="px-4 py-2 border-b border-neutral-800/80 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center text-[10px] text-cyan-300 font-black">
+              <div className="w-5 h-5 rounded bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-[10px] text-indigo-300 font-black">
                 M
               </div>
               <span className="text-xs font-bold text-neutral-200">Mason Navigation</span>
             </div>
             {project && (
-              <span className="text-[10px] font-mono text-cyan-400 font-semibold truncate max-w-[120px]">
+              <span className="text-[10px] font-mono text-indigo-400 font-semibold truncate max-w-[120px]">
                 {project.name}
               </span>
             )}
@@ -122,7 +122,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
               <div className="flex items-center gap-2.5">
                 <span className="text-base">🧩</span>
                 <div>
-                  <span className="font-bold text-neutral-100 group-hover:text-cyan-300 transition">Modules Directory</span>
+                  <span className="font-bold text-neutral-100 group-hover:text-indigo-300 transition">Modules Directory</span>
                   <p className="text-[10px] text-neutral-400">Browse & launch mini-apps</p>
                 </div>
               </div>
@@ -139,7 +139,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 }}
                 className={`w-full px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center justify-between group transition ${
                   activeModuleId === null 
-                    ? 'bg-cyan-950/50 text-cyan-300 border border-cyan-500/30' 
+                    ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-500/40' 
                     : 'text-neutral-200 hover:bg-neutral-800'
                 }`}
               >
@@ -151,7 +151,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                   </div>
                 </div>
                 {activeModuleId === null && (
-                  <span className="text-[9px] font-mono bg-cyan-900/60 text-cyan-300 px-1.5 py-0.5 rounded">Active</span>
+                  <span className="text-[9px] font-mono bg-indigo-900/60 text-indigo-300 px-1.5 py-0.5 rounded">Active</span>
                 )}
               </button>
             )}
@@ -258,13 +258,13 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                     setIsOpen(false);
                     onOpenPWAInstallModal();
                   }}
-                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 flex items-center justify-between transition group"
+                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-500/30 flex items-center justify-between transition group"
                 >
                   <div className="flex items-center gap-2.5">
-                    <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
+                    <DownloadCloud size={15} className="text-indigo-400 group-hover:scale-110 transition" />
                     <span>Install Mason PWA...</span>
                   </div>
-                  <span className="text-[9px] font-mono text-cyan-400/70 uppercase">{MASON_VERSION_DISPLAY}</span>
+                  <span className="text-[9px] font-mono text-indigo-400/70 uppercase">{MASON_VERSION_DISPLAY}</span>
                 </button>
               </>
             )}

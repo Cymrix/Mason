@@ -10,7 +10,7 @@ export interface MasonModuleDefinition {
   entryHtml: string; // e.g. "/modules/maps/index.html"
   associatedFolder: string; // e.g. "maps"
   associatedExtension: string; // e.g. ".map"
-  icon: string; // emoji or identifier
+  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard';
   accentColor: string; // cyan, emerald, purple, amber, blue, etc.
   description: string;
   features: string[];
@@ -27,7 +27,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     entryHtml: '/modules/maps/index.html',
     associatedFolder: 'maps',
     associatedExtension: '.map',
-    icon: '🗺️',
+    iconName: 'Map',
     accentColor: 'cyan',
     description: 'A dedicated mini-app to author 2D Metroidvania room geometry, terrain strata layers with comprehensive autotiling, destructible block matrices, blank traversable airspaces, and integrated Map Macro synthesis.',
     features: [
@@ -48,7 +48,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     entryHtml: '/modules/biomes/index.html',
     associatedFolder: 'biomes',
     associatedExtension: '.biome',
-    icon: '🌲',
+    iconName: 'TreePine',
     accentColor: 'emerald',
     description: 'A dedicated mini-app to calibrate multi-depth parallax horizons (-5 skybox to +1 foreground occlusion), simplex noise strata materials, volumetric atmospheric mist, and biome flora palettes.',
     features: [
@@ -61,6 +61,26 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     version: MASON_VERSION_DISPLAY
   },
   {
+    id: 'characters',
+    name: 'Character Creator & AI',
+    tagline: 'Visual spritesheets, hurtboxes, sensory sockets, attributes & bespoke IFTTT rule engine',
+    category: 'Actors & Combat',
+    subfolder: 'modules/characters',
+    entryHtml: '/modules/characters/index.html',
+    associatedFolder: 'characters',
+    associatedExtension: '.character',
+    iconName: 'Users',
+    accentColor: 'rose',
+    description: 'Author player heroes, NPCs, and enemy sprites with custom spritesheets, frame sequences, sensory tag sockets (head_eyes for sight, head_ears for hearing), hurtboxes/hitboxes, custom variables, and bespoke IFTTT behavior rule logic.',
+    features: [
+      'Visual Animation Studio: Multi-spritesheet support, frame sequencing, hitbox/hurtbox polygons & sockets',
+      'Base Attributes & Variables: Manage stats, proficiencies, and custom variables with auto-generated IDs',
+      'Bespoke IFTTT Rule Engine: Author sensory sight, sound hearing, proximity, player input, and camera tracking rules',
+      'Rule Inheritance & Cloning: 1-click duplicate character or copy behavior rules from another character'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
     id: 'ui',
     name: 'UI & HUD',
     tagline: 'Gothic orbs, cyber gauges, minimap radars, dialogue boxes & boss bars',
@@ -69,7 +89,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     entryHtml: '/modules/ui/index.html',
     associatedFolder: 'ui',
     associatedExtension: '.ui',
-    icon: '💎',
+    iconName: 'Sliders',
     accentColor: 'amber',
     description: 'A dedicated mini-app to customize in-game heads-up displays, Gothic obsidian health orbs, cybernetic HUD gauges, minimap scanner radars, NPC dialogue frames, and damage numbers.',
     features: [
@@ -82,26 +102,6 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     version: MASON_VERSION_DISPLAY
   },
   {
-    id: 'characters',
-    name: 'Character Creator & AI',
-    tagline: 'Visual spritesheets, hurtboxes, sensory sockets, attributes & bespoke IFTTT rule engine',
-    category: 'Actors & Combat',
-    subfolder: 'modules/characters',
-    entryHtml: '/modules/characters/index.html',
-    associatedFolder: 'characters',
-    associatedExtension: '.character',
-    icon: '🎭',
-    accentColor: 'rose',
-    description: 'Author player heroes, NPCs, and enemy sprites with custom spritesheets, frame sequences, sensory tag sockets (head_eyes for sight, head_ears for hearing), hurtboxes/hitboxes, custom variables, and bespoke IFTTT behavior rule logic.',
-    features: [
-      'Visual Animation Studio: Multi-spritesheet support, frame sequencing, hitbox/hurtbox polygons & sockets',
-      'Base Attributes & Variables: Manage stats, proficiencies, and custom variables with auto-generated IDs',
-      'Bespoke IFTTT Rule Engine: Author sensory sight, sound hearing, proximity, player input, and camera tracking rules',
-      'Rule Inheritance & Cloning: 1-click duplicate character or copy behavior rules from another character'
-    ],
-    version: MASON_VERSION_DISPLAY
-  },
-  {
     id: 'gamestructure',
     name: 'World Graph',
     tagline: 'World map graph linker, main menu builder, loading wipes & progression flags',
@@ -110,7 +110,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     entryHtml: '/modules/gamestructure/index.html',
     associatedFolder: 'game',
     associatedExtension: '.gamestructure',
-    icon: '🌐',
+    iconName: 'Network',
     accentColor: 'purple',
     description: 'A dedicated mini-app to connect all levels into a cohesive Metroidvania world graph, author main menu title screens with live parallax backdrops, loading screen lore tips, and progression keys.',
     features: [

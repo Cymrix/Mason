@@ -117,6 +117,8 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
         )}
         {moduleId === 'biomes' && (
           <RefinedBiomeEditor
+            project={project}
+            onUpdateProject={(updater) => onUpdateProject(updater(project))}
             biomes={biomesList}
             onUpdateBiomes={handleUpdateBiomes}
             onBackToDashboard={onBackToProjectInfo}

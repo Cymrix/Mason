@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { 
   RefinedBiome, 
   BiomeTileType, 
@@ -17,6 +17,13 @@ import { BiomePropsEditor } from './BiomePropsEditor';
 import { BiomeStatesEditor } from './BiomeStatesEditor';
 import { BiomeVariablesEditor } from './BiomeVariablesEditor';
 import { BiomeBehaviorsEditor } from './BiomeBehaviorsEditor';
+import { FileSubfolderHeader } from './FileSubfolderHeader';
+import { MasonProject, BiomeFile } from '../engine/masonProjectSchema';
+import { 
+  exportBiomeFile, 
+  saveActiveMasonProject, 
+  createNewBiomeInProject 
+} from '../utils/masonStorage';
 import { 
   TreePine, 
   Layers, 
@@ -48,15 +55,16 @@ import {
   X,
   ZoomIn,
   Maximize2,
-  ArrowLeft,
   Database,
   Brain,
   Activity
 } from 'lucide-react';
 
 interface RefinedBiomeEditorProps {
-  biomes: RefinedBiome[];
-  onUpdateBiomes: (biomes: RefinedBiome[]) => void;
+  project?: MasonProject;
+  onUpdateProject?: (updater: (prev: MasonProject) => MasonProject) => void;
+  biomes?: RefinedBiome[];
+  onUpdateBiomes?: (biomes: RefinedBiome[]) => void;
   onSelectForPainting?: (biomeId: string, tileTypeId?: string) => void;
   activePaintBiomeId?: string;
   onBackToDashboard?: () => void;
@@ -258,27 +266,84 @@ const ImageUploadThumbnailField: React.FC<ImageUploadThumbnailFieldProps> = ({
 };
 
 export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
-  biomes,
-  onUpdateBiomes,
+  project,
+  onUpdateProject,
+  biomes: propBiomes,
+  onUpdateBiomes: propOnUpdateBiomes,
   onSelectForPainting,
   activePaintBiomeId,
   onBackToDashboard,
   availableMaps = []
 }) => {
-  const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes?.[0]?.id || 'mourne_ashen_steppes');
+  // Biome files derived from project or fallback to biomes prop
+  const biomeFiles: BiomeFile[] = useMemo(() => {
+    if (project?.fileSystem?.biomes && project.fileSystem.biomes.length > 0) {
+      return project.fileSystem.biomes;
+    }
+    const sourceBiomes = propBiomes && propBiomes.length > 0 ? propBiomes : INITIAL_REFINED_BIOMES;
+    return sourceBiomes.map(b => ({
+      id: b.id,
+      name: b.name,
+      fileName: `${b.id.toLowerCase().replace(/[^a-z0-9]/g, '_')}.biome`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      biomeData: b
+    }));
+  }, [project?.fileSystem?.biomes, propBiomes]);
+
+  // Local fallback active file name if project.activeFiles is not supplied
+  const [localActiveFileName, setLocalActiveFileName] = useState<string>(
+    project?.activeFiles?.biomeFileName || biomeFiles[0]?.fileName || 'mourne_ashen_steppes.biome'
+  );
+
+  const activeFileName = project?.activeFiles?.biomeFileName || localActiveFileName;
+
+  const currentBiomeFile: BiomeFile = useMemo(() => {
+    return biomeFiles.find(f => f.fileName === activeFileName) || biomeFiles[0] || {
+      id: 'mourne_ashen_steppes',
+      name: 'Ashen Steppes',
+      fileName: 'mourne_ashen_steppes.biome',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      biomeData: INITIAL_REFINED_BIOMES[0]
+    };
+  }, [biomeFiles, activeFileName]);
+
+  const selectedBiome = currentBiomeFile.biomeData;
+
   const [activeSubTab, setActiveSubTab] = useState<
     'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors'
   >('tile_types');
   const [selectedTileTypeIndex, setSelectedTileTypeIndex] = useState<number>(0);
   const [previewModalImage, setPreviewModalImage] = useState<{ title: string; url: string } | null>(null);
-  const [deleteConfirmBiomeId, setDeleteConfirmBiomeId] = useState<string | null>(null);
 
-  const selectedBiome = biomes.find(b => b.id === selectedBiomeId) || biomes[0];
   const selectedTileType = selectedBiome?.tileTypes?.[selectedTileTypeIndex] || selectedBiome?.tileTypes?.[0];
 
   const handleUpdateCurrentBiome = (updater: (prev: RefinedBiome) => RefinedBiome) => {
-    const updatedList = biomes.map(b => b.id === selectedBiome.id ? updater(b) : b);
-    onUpdateBiomes(updatedList);
+    const updatedBiome = updater(selectedBiome);
+    
+    if (project && onUpdateProject) {
+      onUpdateProject(p => ({
+        ...p,
+        fileSystem: {
+          ...p.fileSystem,
+          biomes: p.fileSystem.biomes.map(bf => {
+            if (bf.fileName === currentBiomeFile.fileName) {
+              return {
+                ...bf,
+                name: updatedBiome.name,
+                updatedAt: new Date().toISOString(),
+                biomeData: updatedBiome
+              };
+            }
+            return bf;
+          })
+        }
+      }));
+    } else if (propOnUpdateBiomes && propBiomes) {
+      const updatedList = propBiomes.map(b => b.id === selectedBiome.id ? updatedBiome : b);
+      propOnUpdateBiomes(updatedList);
+    }
   };
 
   const handleUpdateCurrentTileType = (updater: (prev: BiomeTileType) => BiomeTileType) => {
@@ -342,12 +407,12 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         invert: false
       },
       tileDetails: {
-        top: {  thicknessPx: 6, noiseEdge: true },
-        bottom: {  thicknessPx: 4, noiseEdge: false },
-        leftSide: {  thicknessPx: 3, noiseEdge: false },
-        rightSide: {  thicknessPx: 3, noiseEdge: false },
-        innerCorner: {  },
-        slope: {  thicknessPx: 4, noiseEdge: false }
+        top: { thicknessPx: 6, noiseEdge: true },
+        bottom: { thicknessPx: 4, noiseEdge: false },
+        leftSide: { thicknessPx: 3, noiseEdge: false },
+        rightSide: { thicknessPx: 3, noiseEdge: false },
+        innerCorner: {},
+        slope: { thicknessPx: 4, noiseEdge: false }
       },
       isDestructible: true,
       materialType: 'hard',
@@ -368,391 +433,374 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
     setSelectedTileTypeIndex(selectedBiome.tileTypes.length);
   };
 
-  // Handler: Add Brand New Biome
-  const handleAddNewBiome = () => {
-    const newId = `biome_${Date.now()}`;
-    const primaryTileId = `tile_${newId}_primary`;
-    const newBiome: RefinedBiome = {
-      id: newId,
-      name: 'New Custom Biome',
-      description: 'Custom regional strata with dual-noise blended materials and parallax backdrop.',
-      regionColor: '#10b981',
-      ambientBackgroundColor: '#0f172a',
-      atmosphereFogColor: '#1e293b',
-      atmosphereFogDensity: 0.2,
-      primaryTileTypeId: primaryTileId,
-      tileTypes: [
-        {
-          id: primaryTileId,
-          name: 'Primary Terrain Strata',
-          category: 'natural',
-          mapColor: '#10b981',
-          baseMaterialA: {
-            albedoColor: '#059669',
-            heightMapScale: 0.6,
-            roughness: 0.7,
-            normalStrength: 1.0
-          },
-          baseMaterialBAlbedoColor: '#34d399',
-          blendMap: {
-            noiseA: { scale: 32, octaves: 2, persistence: 0.5, lacunarity: 2.0, offset: { x: 0, y: 0 }, weight: 0.6 },
-            noiseB: { scale: 16, octaves: 2, persistence: 0.5, lacunarity: 2.0, offset: { x: 10, y: 10 }, weight: 0.4 },
-            blendThreshold: 0.5,
-            blendContrast: 1.2,
-            invert: false
-          },
-          tileDetails: {
-            top: {  color: '#6ee7b7', thicknessPx: 6, noiseEdge: true },
-            bottom: {  color: '#047857', thicknessPx: 4, noiseEdge: false },
-            leftSide: {  thicknessPx: 3, noiseEdge: false },
-            rightSide: {  thicknessPx: 3, noiseEdge: false },
-            innerCorner: {  },
-        slope: {  thicknessPx: 4, noiseEdge: false }
-          },
-          isDestructible: true,
-      materialType: 'hard',
-      bevelProbability: 0,
-          health: 100,
-          defense_type: 'kinetic',
-          armor_deduction: 5,
-          damage_affinities: { kinetic: 1.0, thermal: 1.0 },
-          shares_damage_overlay: true,
-          traversal_tags: [],
-          speed_modifier: 1.0
-        }
-      ],
-      environmentalDetails: [],
-      interactiveDetails: [],
-      wildlife: [],
-      soundtrack: {
-        ambientExplorationTrack: 'synth_droning_echoes.mp3',
-        combatTrack: 'heavy_percussion_tension.mp3',
-        reverbDecaySeconds: 1.2,
-        windIntensity: 0.3
-      },
-      noiseRules: {
-        macroScale: 48,
-        elevationRange: [0.0, 1.0],
-        moistureRange: [0.0, 1.0]
-      },
-      parallaxLayers: DEFAULT_PARALLAX_LAYERS.mourne_ashen_steppes ? JSON.parse(JSON.stringify(DEFAULT_PARALLAX_LAYERS.mourne_ashen_steppes)) : []
-    };
-
-    onUpdateBiomes([...biomes, newBiome]);
-    setSelectedBiomeId(newId);
+  // Subfolder Header Callbacks
+  const handleSelectBiomeFile = (fileName: string) => {
     setSelectedTileTypeIndex(0);
+    setLocalActiveFileName(fileName);
+    if (project && onUpdateProject) {
+      onUpdateProject(p => ({
+        ...p,
+        activeFiles: {
+          ...p.activeFiles,
+          biomeFileName: fileName
+        }
+      }));
+    }
   };
 
-  // Handler: Delete Biome
-  const handleDeleteBiome = (biomeIdToDelete: string) => {
-    if (biomes.length <= 1) {
+  const handleNewBiomeFile = (name: string) => {
+    if (project && onUpdateProject) {
+      const { project: updatedProj, newFile } = createNewBiomeInProject(project, name);
+      onUpdateProject(() => updatedProj);
+      setSelectedTileTypeIndex(0);
+      setLocalActiveFileName(newFile.fileName);
+    } else {
+      const newId = `biome_${Date.now()}`;
+      const primaryTileId = `tile_${newId}_primary`;
+      const newBiome: RefinedBiome = {
+        id: newId,
+        name,
+        description: `Custom authored biome: ${name}`,
+        regionColor: '#10b981',
+        ambientBackgroundColor: '#0f172a',
+        atmosphereFogColor: '#1e293b',
+        atmosphereFogDensity: 0.2,
+        primaryTileTypeId: primaryTileId,
+        tileTypes: [
+          {
+            id: primaryTileId,
+            name: 'Primary Terrain Strata',
+            category: 'natural',
+            mapColor: '#10b981',
+            baseMaterialA: {
+              albedoColor: '#059669',
+              heightMapScale: 0.6,
+              roughness: 0.7,
+              normalStrength: 1.0
+            },
+            baseMaterialBAlbedoColor: '#34d399',
+            blendMap: {
+              noiseA: { scale: 32, octaves: 2, persistence: 0.5, lacunarity: 2.0, offset: { x: 0, y: 0 }, weight: 0.6 },
+              noiseB: { scale: 16, octaves: 2, persistence: 0.5, lacunarity: 2.0, offset: { x: 10, y: 10 }, weight: 0.4 },
+              blendThreshold: 0.5,
+              blendContrast: 1.2,
+              invert: false
+            },
+            tileDetails: {
+              top: { color: '#6ee7b7', thicknessPx: 6, noiseEdge: true },
+              bottom: { color: '#047857', thicknessPx: 4, noiseEdge: false },
+              leftSide: { thicknessPx: 3, noiseEdge: false },
+              rightSide: { thicknessPx: 3, noiseEdge: false },
+              innerCorner: {},
+              slope: { thicknessPx: 4, noiseEdge: false }
+            },
+            isDestructible: true,
+            materialType: 'hard',
+            bevelProbability: 0,
+            health: 100,
+            defense_type: 'kinetic',
+            armor_deduction: 5,
+            damage_affinities: { kinetic: 1.0, thermal: 1.0 },
+            shares_damage_overlay: true,
+            traversal_tags: [],
+            speed_modifier: 1.0
+          }
+        ],
+        environmentalDetails: [],
+        interactiveDetails: [],
+        wildlife: [],
+        soundtrack: {
+          ambientExplorationTrack: 'synth_droning_echoes.mp3',
+          combatTrack: 'heavy_percussion_tension.mp3',
+          reverbDecaySeconds: 1.2,
+          windIntensity: 0.3
+        },
+        noiseRules: {
+          macroScale: 48,
+          elevationRange: [0.0, 1.0],
+          moistureRange: [0.0, 1.0]
+        },
+        parallaxLayers: DEFAULT_PARALLAX_LAYERS.mourne_ashen_steppes ? JSON.parse(JSON.stringify(DEFAULT_PARALLAX_LAYERS.mourne_ashen_steppes)) : []
+      };
+
+      if (propOnUpdateBiomes && propBiomes) {
+        propOnUpdateBiomes([...propBiomes, newBiome]);
+      }
+      setSelectedTileTypeIndex(0);
+    }
+  };
+
+  const handleDuplicateBiomeFile = (fileName: string) => {
+    const targetFile = biomeFiles.find(f => f.fileName === fileName) || currentBiomeFile;
+    const dupeName = `${targetFile.name} (Copy)`;
+    const safeName = `${targetFile.fileName.replace('.biome', '')}_copy.biome`;
+    const dupeBiome: RefinedBiome = {
+      ...JSON.parse(JSON.stringify(targetFile.biomeData)),
+      id: `biome_${Date.now()}`,
+      name: dupeName
+    };
+
+    if (project && onUpdateProject) {
+      const newFile: BiomeFile = {
+        id: dupeBiome.id,
+        name: dupeName,
+        fileName: safeName,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        biomeData: dupeBiome
+      };
+      onUpdateProject(p => ({
+        ...p,
+        activeFiles: {
+          ...p.activeFiles,
+          biomeFileName: safeName
+        },
+        fileSystem: {
+          ...p.fileSystem,
+          biomes: [...p.fileSystem.biomes, newFile]
+        }
+      }));
+      setLocalActiveFileName(safeName);
+      setSelectedTileTypeIndex(0);
+    } else if (propOnUpdateBiomes && propBiomes) {
+      propOnUpdateBiomes([...propBiomes, dupeBiome]);
+      setSelectedTileTypeIndex(0);
+    }
+  };
+
+  const handleSaveBiomeFile = () => {
+    if (project) {
+      saveActiveMasonProject(project);
+    }
+  };
+
+  const handleExportBiomeFile = (fileName: string) => {
+    const targetFile = biomeFiles.find(f => f.fileName === fileName) || currentBiomeFile;
+    exportBiomeFile(targetFile);
+  };
+
+  const handleDeleteBiomeFile = (fileName: string) => {
+    if (biomeFiles.length <= 1) {
       alert('Cannot delete the last remaining biome. Projects must contain at least one regional biome.');
       return;
     }
-
-    const targetBiome = biomes.find(b => b.id === biomeIdToDelete);
-    if (!targetBiome) return;
-
-    if (window.confirm(`Are you sure you want to delete the biome "${targetBiome.name}"? This action cannot be undone.`)) {
-      const remaining = biomes.filter(b => b.id !== biomeIdToDelete);
-      onUpdateBiomes(remaining);
-
-      if (selectedBiomeId === biomeIdToDelete) {
-        setSelectedBiomeId(remaining[0].id);
-        setSelectedTileTypeIndex(0);
-      }
+    const targetFile = biomeFiles.find(f => f.fileName === fileName) || currentBiomeFile;
+    if (!window.confirm(`Are you sure you want to delete "${targetFile.name}" (${targetFile.fileName})? This action cannot be undone.`)) {
+      return;
     }
+
+    const remainingFiles = biomeFiles.filter(f => f.fileName !== targetFile.fileName);
+    const nextActive = remainingFiles[0]?.fileName || '';
+
+    if (project && onUpdateProject) {
+      onUpdateProject(p => ({
+        ...p,
+        activeFiles: {
+          ...p.activeFiles,
+          biomeFileName: nextActive
+        },
+        fileSystem: {
+          ...p.fileSystem,
+          biomes: p.fileSystem.biomes.filter(f => f.fileName !== targetFile.fileName)
+        }
+      }));
+    } else if (propOnUpdateBiomes && propBiomes) {
+      propOnUpdateBiomes(propBiomes.filter(b => b.id !== targetFile.id));
+    }
+    setLocalActiveFileName(nextActive);
+    setSelectedTileTypeIndex(0);
+  };
+
+  const handleRenameBiomeFile = (oldFileName: string, newName: string) => {
+    const safeName = `${newName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.biome`;
+    if (project && onUpdateProject) {
+      onUpdateProject(p => ({
+        ...p,
+        activeFiles: {
+          ...p.activeFiles,
+          biomeFileName: p.activeFiles.biomeFileName === oldFileName ? safeName : p.activeFiles.biomeFileName
+        },
+        fileSystem: {
+          ...p.fileSystem,
+          biomes: p.fileSystem.biomes.map(f => {
+            if (f.fileName === oldFileName) {
+              return {
+                ...f,
+                name: newName,
+                fileName: safeName,
+                updatedAt: new Date().toISOString(),
+                biomeData: {
+                  ...f.biomeData,
+                  name: newName
+                }
+              };
+            }
+            return f;
+          })
+        }
+      }));
+    } else {
+      handleUpdateCurrentBiome(b => ({ ...b, name: newName }));
+    }
+    setLocalActiveFileName(safeName);
   };
 
   return (
-    <div className="flex h-full w-full bg-neutral-950 text-neutral-100 overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full w-full bg-neutral-950 text-neutral-100 overflow-hidden select-none">
       
-      {/* Left Biomes Rail */}
-      <aside className="w-72 border-r border-neutral-800 bg-neutral-900/90 flex flex-col shrink-0">
-        <div className="p-3 border-b border-neutral-800 flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            {onBackToDashboard && (
-              <button
-                type="button"
-                onClick={onBackToDashboard}
-                className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800 transition"
-                title="Return to Project Dashboard"
-              >
-                <ArrowLeft size={13} className="text-cyan-400" />
-              </button>
-            )}
-            <div>
-              <h2 className="font-bold text-xs text-neutral-100 flex items-center gap-1.5 truncate">
-                <TreePine size={14} className="text-emerald-400 shrink-0" />
-                Regional Biomes
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleAddNewBiome}
-              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-semibold flex items-center gap-1 transition shadow"
-              title="Add New Biome"
-            >
-              <Plus size={12} />
-              <span>New</span>
-            </button>
-            <button
-              onClick={() => {
-                const newId = `biome_${Date.now()}`;
-                const cloned = JSON.parse(JSON.stringify(selectedBiome)) as RefinedBiome;
-                cloned.id = newId;
-                cloned.name = `${selectedBiome.name} (Copy)`;
-                onUpdateBiomes([...biomes, cloned]);
-                setSelectedBiomeId(newId);
-              }}
-              className="p-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-xs transition"
-              title="Duplicate Selected Biome"
-            >
-              <Copy size={12} />
-            </button>
-          </div>
-        </div>
-
-        {/* Biome List */}
-        <div className="p-3 overflow-y-auto flex-1 space-y-2">
-          {biomes.map(biome => {
-            const isSelected = selectedBiomeId === biome.id;
-            const isPainting = activePaintBiomeId === biome.id;
-
-            return (
-              <div
-                key={biome.id}
-                onClick={() => {
-                  setSelectedBiomeId(biome.id);
-                  setSelectedTileTypeIndex(0);
-                }}
-                className={`p-3 rounded-xl border text-left cursor-pointer transition-all duration-150 flex flex-col gap-1.5 relative group ${
-                  isSelected
-                    ? 'border-emerald-500 bg-emerald-950/30 ring-1 ring-emerald-500/50'
-                    : 'border-neutral-800/80 bg-neutral-950/60 hover:border-neutral-700 hover:bg-neutral-800/40'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div 
-                      className="w-4 h-4 rounded-md border border-white/20 shadow-sm shrink-0"
-                      style={{ backgroundColor: biome.regionColor }}
-                    />
-                    <span className="font-semibold text-xs text-neutral-200 truncate">
-                      {biome.name}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {isPainting && (
-                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono font-semibold">
-                        ACTIVE
-                      </span>
-                    )}
-                    {biomes.length > 1 && (
-                      deleteConfirmBiomeId === biome.id ? (
-                        <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/50 rounded p-0.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteBiome(biome.id);
-                            }}
-                            className="px-1.5 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded text-[9px] font-bold"
-                          >
-                            Del
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteConfirmBiomeId(null);
-                            }}
-                            className="px-1 py-0.5 bg-neutral-800 text-neutral-300 rounded text-[9px]"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteConfirmBiomeId(biome.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-400 hover:bg-red-950/40 rounded transition"
-                          title="Delete Biome"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-[10px] text-neutral-500 pt-1 border-t border-neutral-800/60">
-                  <span className="font-mono text-neutral-400">{biome.tileTypes.length} TileTypes</span>
-                  <span className="font-mono text-cyan-400">{biome.wildlife.length} Wildlife</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="p-3 border-t border-neutral-800 bg-neutral-950/70">
-          <button
-            onClick={() => onSelectForPainting?.(selectedBiome.id, selectedTileType?.id)}
-            className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow"
-          >
-            <Check size={14} />
-            Paint World with {selectedBiome.name}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Biome Workspace */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-neutral-950">
-        
-        {/* Top Workspace Header */}
-        <div className="h-9 px-3 border-b border-neutral-800/80 bg-neutral-900/60 backdrop-blur flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 max-w-xl min-w-0">
-            <TreePine size={13} className="text-emerald-400 shrink-0" />
+      {/* 1. Standardized Subfolder File Header Bar */}
+      <FileSubfolderHeader
+        subfolderName="biomes"
+        extension=".biome"
+        accentColor="emerald"
+        onBackToDashboard={onBackToDashboard}
+        files={biomeFiles.map(b => ({
+          id: b.id,
+          name: b.name,
+          fileName: b.fileName,
+          updatedAt: b.updatedAt,
+          badge: b.biomeData.regionColor
+        }))}
+        activeFileName={currentBiomeFile.fileName}
+        onSelectFile={handleSelectBiomeFile}
+        onNewFile={handleNewBiomeFile}
+        onDuplicateFile={handleDuplicateBiomeFile}
+        onSaveFile={handleSaveBiomeFile}
+        onExportFile={handleExportBiomeFile}
+        onDeleteFile={handleDeleteBiomeFile}
+        onRenameFile={handleRenameBiomeFile}
+        centerContent={
+          <div className="flex items-center gap-2 max-w-full truncate">
+            <TreePine size={14} className="text-emerald-400 shrink-0" />
             <input
               type="text"
               value={selectedBiome.name}
               onChange={(e) => handleUpdateCurrentBiome(b => ({ ...b, name: e.target.value }))}
-              className="font-bold text-xs sm:text-sm text-neutral-100 bg-transparent border-b border-dashed border-neutral-700 hover:border-emerald-500 focus:border-emerald-500 outline-none px-1 py-0.5 max-w-[180px] sm:max-w-[260px] truncate"
+              className="bg-transparent text-xs sm:text-sm font-bold text-white border-b border-dashed border-neutral-700 hover:border-emerald-500 focus:border-emerald-500 focus:outline-none transition py-0.5 max-w-[140px] sm:max-w-[220px] text-center truncate"
               title="Click to edit biome name"
             />
-            <span className="text-[10px] text-neutral-500 font-mono hidden md:inline truncate">
-              {selectedBiome.description}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs text-neutral-300">
-              <Compass size={12} className="text-emerald-400" />
-              <span className="text-[10px]">Tint:</span>
+            <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-[10px] text-neutral-300 shrink-0">
+              <span>Tint:</span>
               <input
                 type="color"
                 value={selectedBiome.regionColor}
                 onChange={(e) => handleUpdateCurrentBiome(b => ({ ...b, regionColor: e.target.value }))}
                 className="w-3.5 h-3.5 rounded cursor-pointer bg-transparent border border-neutral-700 ml-0.5"
+                title="Biome map tint color"
               />
             </div>
-
-            {biomes.length > 1 && (
-              deleteConfirmBiomeId === selectedBiome.id ? (
-                <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/60 rounded p-0.5 animate-in fade-in duration-150">
-                  <span className="text-[10px] text-red-300 font-semibold px-1">Delete Biome?</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteBiome(selectedBiome.id)}
-                    className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition shadow"
-                  >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteConfirmBiomeId(null)}
-                    className="px-1.5 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-[10px] transition"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirmBiomeId(selectedBiome.id)}
-                  className="px-2 py-0.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-800 hover:border-red-500/50 text-neutral-400 hover:text-red-400 rounded text-xs font-semibold flex items-center gap-1.5 transition"
-                  title="Delete this Biome"
-                >
-                  <Trash2 size={11} />
-                  <span>Delete</span>
-                </button>
-              )
-            )}
           </div>
-        </div>
+        }
+      />
 
-        {/* Sub-Navigation Tabs */}
-        <div className="px-4 py-1.5 border-b border-neutral-800 flex items-center gap-1.5 shrink-0 bg-neutral-900/30 overflow-x-auto">
-          <button
-            onClick={() => setActiveSubTab('tile_types')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'tile_types' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Layers size={14} /> 1. Tiles ({selectedBiome?.tileTypes?.length || 0})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('environmental')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'environmental' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <TreePine size={14} /> 2. Details ({selectedBiome?.environmentalDetails?.length || 0})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('interactive')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'interactive' ? 'bg-amber-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Box size={14} /> 3. Props & Zones ({selectedBiome?.interactiveDetails?.length || 0})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('wildlife')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'wildlife' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Zap size={14} /> 4. Wildlife ({selectedBiome?.wildlife?.length || 0})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('soundtrack')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'soundtrack' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Music size={14} /> 5. Soundtrack
-          </button>
-          <button
-            onClick={() => setActiveSubTab('parallax')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'parallax' ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Layers size={14} className="text-cyan-300" /> 6. Parallax
-          </button>
-          <button
-            onClick={() => setActiveSubTab('biome_states')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'biome_states' ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Activity size={14} className="text-cyan-300" /> 7. Biome States ({selectedBiome?.stateMachine?.states?.length || 1})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('biome_variables')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'biome_variables' ? 'bg-rose-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Database size={14} className="text-rose-300" /> 8. Biome Variables ({selectedBiome?.variables?.length || 0})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('biome_behaviors')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'biome_behaviors' ? 'bg-amber-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-            }`}
-          >
-            <Brain size={14} className="text-amber-300" /> 9. Biome Behaviors ({selectedBiome?.behaviorRules?.length || 0})
-          </button>
-        </div>
+      {/* 2. Sub-Navigation Tabs */}
+      <div className="px-3 py-1.5 border-b border-neutral-800 flex items-center gap-1 shrink-0 bg-neutral-900/40 overflow-x-auto">
+        <button
+          onClick={() => setActiveSubTab('tile_types')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'tile_types' ? 'bg-emerald-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Layers size={13} />
+          <span>Tiles</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'tile_types' ? 'bg-emerald-700/80 text-emerald-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.tileTypes?.length || 0}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('environmental')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'environmental' ? 'bg-emerald-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <TreePine size={13} />
+          <span>Details</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'environmental' ? 'bg-emerald-700/80 text-emerald-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.environmentalDetails?.length || 0}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('interactive')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'interactive' ? 'bg-amber-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Box size={13} />
+          <span>Props</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'interactive' ? 'bg-amber-700/80 text-amber-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.interactiveDetails?.length || 0}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('wildlife')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'wildlife' ? 'bg-emerald-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Zap size={13} />
+          <span>Wildlife</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'wildlife' ? 'bg-emerald-700/80 text-emerald-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.wildlife?.length || 0}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('soundtrack')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'soundtrack' ? 'bg-emerald-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Music size={13} />
+          <span>Soundtrack</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('parallax')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'parallax' ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Layers size={13} className={activeSubTab === 'parallax' ? 'text-white' : 'text-cyan-400'} />
+          <span>Parallax</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('biome_states')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'biome_states' ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Activity size={13} className={activeSubTab === 'biome_states' ? 'text-white' : 'text-cyan-400'} />
+          <span>States</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'biome_states' ? 'bg-cyan-700/80 text-cyan-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.stateMachine?.states?.length || 1}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('biome_variables')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'biome_variables' ? 'bg-rose-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Database size={13} className={activeSubTab === 'biome_variables' ? 'text-white' : 'text-rose-400'} />
+          <span>Variables</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'biome_variables' ? 'bg-rose-700/80 text-rose-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.variables?.length || 0}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('biome_behaviors')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'biome_behaviors' ? 'bg-amber-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <Brain size={13} className={activeSubTab === 'biome_behaviors' ? 'text-white' : 'text-amber-400'} />
+          <span>Behaviors</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'biome_behaviors' ? 'bg-amber-700/80 text-amber-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.behaviorRules?.length || 0}
+          </span>
+        </button>
+      </div>
 
-        {/* Tab Body Content */}
+      {/* 3. Full-Width Workspace Content */}
+      <main className="flex-1 overflow-hidden bg-neutral-950 flex flex-col">
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
           {/* TAB 1: TILE TYPES & ASSET UPLOADS & BLOB PREVIEW */}
@@ -1819,43 +1867,6 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           >
                             <Trash2 size={13} />
                           </button>
-                        </div>
-                      </div>
-
-                      {/* Dimensions (Width x Height in Tiles) */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-neutral-950 p-2 rounded-xl border border-neutral-800/80 space-y-1">
-                          <span className="text-[10px] text-neutral-400 font-bold uppercase">Width (Tiles)</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="16"
-                            value={detail.widthTiles}
-                            onChange={(e) => {
-                              const val = Math.max(1, parseInt(e.target.value) || 1);
-                              const updated = [...selectedBiome.environmentalDetails];
-                              updated[idx] = { ...detail, widthTiles: val };
-                              handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
-                            }}
-                            className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
-                          />
-                        </div>
-
-                        <div className="bg-neutral-950 p-2 rounded-xl border border-neutral-800/80 space-y-1">
-                          <span className="text-[10px] text-neutral-400 font-bold uppercase">Height (Tiles)</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="16"
-                            value={detail.heightTiles}
-                            onChange={(e) => {
-                              const val = Math.max(1, parseInt(e.target.value) || 1);
-                              const updated = [...selectedBiome.environmentalDetails];
-                              updated[idx] = { ...detail, heightTiles: val };
-                              handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
-                            }}
-                            className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
-                          />
                         </div>
                       </div>
 

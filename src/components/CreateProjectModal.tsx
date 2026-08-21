@@ -32,7 +32,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+            <div className="w-8 h-8 rounded-xl bg-indigo-950 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
               <Plus size={18} />
             </div>
             <div>
@@ -59,7 +59,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Ashen Echoes of the Void"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-600 focus:border-cyan-500 outline-none"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-600 focus:border-indigo-500 outline-none"
               required
               autoFocus
             />
@@ -72,7 +72,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               value={author}
               onChange={e => setAuthor(e.target.value)}
               placeholder="e.g. Mason Architect"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-600 focus:border-cyan-500 outline-none"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-600 focus:border-indigo-500 outline-none"
             />
           </div>
 
@@ -83,7 +83,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               onChange={e => setDescription(e.target.value)}
               placeholder="Brief summary of the world, lore, or game mechanics..."
               rows={3}
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-600 focus:border-cyan-500 outline-none resize-none"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-600 focus:border-indigo-500 outline-none resize-none"
             />
           </div>
 
@@ -97,7 +97,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30"
+              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30"
             >
               Create Project
             </button>

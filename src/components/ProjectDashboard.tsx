@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
-import { usePWA } from '../hooks/usePWA';
 import { 
   Folder, 
   FileCode, 
@@ -13,7 +12,11 @@ import {
   Compass, 
   Download, 
   Settings,
-  DownloadCloud
+  Map,
+  TreePine,
+  Users,
+  Sliders,
+  Network
 } from 'lucide-react';
 
 interface ProjectDashboardProps {
@@ -23,7 +26,6 @@ interface ProjectDashboardProps {
   onOpenExplorer: () => void;
   onOpenModulesModal?: () => void;
   onExportBundle: () => void;
-  onOpenPWAInstallModal?: () => void;
 }
 
 export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
@@ -32,8 +34,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onLaunchModule,
   onOpenExplorer,
   onOpenModulesModal,
-  onExportBundle,
-  onOpenPWAInstallModal
+  onExportBundle
 }) => {
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [name, setName] = useState(project.name);
@@ -57,7 +58,6 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   const gameCount = project.fileSystem?.game?.length || 0;
 
   const totalFiles = mapCount + biomeCount + characterCount + uiCount + gameCount;
-  const { isInstalled } = usePWA();
 
   return (
     <div className="flex-1 bg-neutral-950 overflow-y-auto p-6 md:p-8 space-y-6 select-none max-w-6xl mx-auto w-full">
@@ -65,15 +65,15 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
       {/* Project Banner & Overview */}
       <div className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900/90 to-neutral-950 p-6 md:p-8 shadow-2xl">
         {/* Glow backdrop */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold uppercase tracking-widest text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-1 rounded-lg">
+              <span className="text-xs font-mono font-bold uppercase tracking-widest text-indigo-400 bg-indigo-950/60 border border-indigo-500/30 px-2.5 py-1 rounded-lg">
                 Active Mason Project
               </span>
-              <span className="text-xs font-mono text-cyan-400/80 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded">
+              <span className="text-xs font-mono text-indigo-300/80 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded">
                 {MASON_VERSION_DISPLAY}
               </span>
             </div>
@@ -97,7 +97,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               </span>
               <span className="flex items-center gap-1.5">
                 <Folder size={13} className="text-neutral-500" />
-                <span className="text-cyan-400 font-bold">{totalFiles} Project Files</span>
+                <span className="text-indigo-400 font-bold">{totalFiles} Project Files</span>
               </span>
             </div>
           </div>
@@ -107,7 +107,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             <button
               type="button"
               onClick={onOpenModulesModal}
-              className="px-5 py-2.5 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-xl shadow-cyan-600/30 flex items-center justify-center gap-2 transition active:scale-95"
+              className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 transition active:scale-95"
             >
               <span>🧩 Open Modules Directory</span>
             </button>
@@ -119,17 +119,6 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             >
               <span>📂 Virtual Files Hub</span>
             </button>
-
-            {onOpenPWAInstallModal && !isInstalled && (
-              <button
-                type="button"
-                onClick={onOpenPWAInstallModal}
-                className="px-5 py-2 rounded-2xl bg-cyan-950/60 border border-cyan-500/40 hover:bg-cyan-900/80 text-cyan-300 text-xs font-bold flex items-center justify-center gap-2 transition"
-              >
-                <DownloadCloud size={14} className="text-cyan-400" />
-                <span>Install Mason PWA</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -151,7 +140,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 outline-none"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
               />
             </div>
             <div className="space-y-1">
@@ -160,7 +149,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 type="text"
                 value={author}
                 onChange={e => setAuthor(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 outline-none"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
               />
             </div>
             <div className="space-y-1">
@@ -169,7 +158,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 type="text"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-cyan-500 outline-none"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
               />
             </div>
             <div className="md:col-span-3 flex justify-end gap-2 pt-1">
@@ -183,7 +172,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               <button
                 type="button"
                 onClick={handleSaveMetadata}
-                className="px-4 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
+                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
               >
                 Save Details
               </button>
@@ -200,7 +189,9 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-cyan-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xl">🗺️</span>
+            <div className="w-8 h-8 rounded-xl bg-cyan-950/60 border border-cyan-500/30 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform">
+              <Map size={16} />
+            </div>
             <span className="text-[10px] font-mono bg-cyan-950/60 text-cyan-400 px-1.5 py-0.5 rounded font-bold">.map</span>
           </div>
           <div className="mt-2.5">
@@ -215,7 +206,9 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-emerald-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xl">🌲</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+              <TreePine size={16} />
+            </div>
             <span className="text-[10px] font-mono bg-emerald-950/60 text-emerald-400 px-1.5 py-0.5 rounded font-bold">.biome</span>
           </div>
           <div className="mt-2.5">
@@ -230,7 +223,9 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-rose-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xl">🎭</span>
+            <div className="w-8 h-8 rounded-xl bg-rose-950/60 border border-rose-500/30 flex items-center justify-center text-rose-400 group-hover:scale-105 transition-transform">
+              <Users size={16} />
+            </div>
             <span className="text-[10px] font-mono bg-rose-950/60 text-rose-400 px-1.5 py-0.5 rounded font-bold">.character</span>
           </div>
           <div className="mt-2.5">
@@ -245,7 +240,9 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-amber-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xl">💎</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-950/60 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+              <Sliders size={16} />
+            </div>
             <span className="text-[10px] font-mono bg-amber-950/60 text-amber-400 px-1.5 py-0.5 rounded font-bold">.ui</span>
           </div>
           <div className="mt-2.5">
@@ -260,7 +257,9 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-purple-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xl">🌐</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-950/60 border border-purple-500/30 flex items-center justify-center text-purple-400 group-hover:scale-105 transition-transform">
+              <Network size={16} />
+            </div>
             <span className="text-[10px] font-mono bg-purple-950/60 text-purple-400 px-1.5 py-0.5 rounded font-bold">.gamestructure</span>
           </div>
           <div className="mt-2.5">

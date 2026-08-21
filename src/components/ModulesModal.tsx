@@ -6,7 +6,13 @@ import {
   Folder, 
   Check, 
   Info,
-  ChevronRight
+  ChevronRight,
+  Boxes,
+  Map,
+  TreePine,
+  Users,
+  Sliders,
+  Network
 } from 'lucide-react';
 
 interface ModulesModalProps {
@@ -43,8 +49,8 @@ export const ModulesModal: React.FC<ModulesModalProps> = ({
         {/* Header */}
         <div className="h-16 border-b border-neutral-800 px-6 flex items-center justify-between bg-neutral-950/90 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-xl">
-              🧩
+            <div className="w-10 h-10 rounded-xl bg-indigo-950 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+              <Boxes size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -72,6 +78,24 @@ export const ModulesModal: React.FC<ModulesModalProps> = ({
         <div className="flex-1 p-6 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {MASON_MODULES.map(mod => {
             const isActive = activeModuleId === mod.id;
+
+            const renderModalModuleIcon = () => {
+              switch (mod.iconName) {
+                case 'Map':
+                  return <Map size={22} />;
+                case 'TreePine':
+                  return <TreePine size={22} />;
+                case 'Users':
+                  return <Users size={22} />;
+                case 'Sliders':
+                  return <Sliders size={22} />;
+                case 'Network':
+                  return <Network size={22} />;
+                default:
+                  return <Map size={22} />;
+              }
+            };
+
             return (
               <div
                 key={mod.id}
@@ -89,8 +113,8 @@ export const ModulesModal: React.FC<ModulesModalProps> = ({
                   {/* Top Header */}
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`w-11 h-11 rounded-xl border flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition shrink-0 ${getAccentBg(mod.accentColor)}`}>
-                        {mod.icon}
+                      <div className={`w-11 h-11 rounded-xl border flex items-center justify-center shadow-md group-hover:scale-105 transition shrink-0 ${getAccentBg(mod.accentColor)}`}>
+                        {renderModalModuleIcon()}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">

@@ -5,13 +5,13 @@
       <stop offset="50%" stop-color="#09090b" />
       <stop offset="100%" stop-color="#020617" />
     </linearGradient>
-    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#22d3ee" />
-      <stop offset="100%" stop-color="#0891b2" />
+    <linearGradient id="indigoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#4f46e5" />
     </linearGradient>
-    <linearGradient id="gridGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.3" />
-      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.05" />
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc" />
+      <stop offset="100%" stop-color="#6366f1" />
     </linearGradient>
     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur stdDeviation="16" result="blur" />
@@ -20,10 +20,10 @@
   </defs>
 
   <!-- Background rounded squircle -->
-  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="8"/>
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" stroke="#1e1b4b" stroke-width="8"/>
 
   <!-- Blueprint Grid Pattern Sub-Layer -->
-  <g stroke="#06b6d4" stroke-opacity="0.12" stroke-width="2">
+  <g stroke="#6366f1" stroke-opacity="0.14" stroke-width="2">
     <line x1="64" y1="0" x2="64" y2="512" />
     <line x1="128" y1="0" x2="128" y2="512" />
     <line x1="192" y1="0" x2="192" y2="512" />
@@ -44,24 +44,24 @@
   <!-- Mason Isometric Citadel / Architecture "M" Symbol -->
   <g filter="url(#glow)">
     <!-- Left Pillar -->
-    <path d="M 120 380 L 120 160 L 184 120 L 184 340 Z" fill="#0891b2" />
-    <path d="M 184 120 L 224 144 L 224 364 L 184 340 Z" fill="#0e7490" />
+    <path d="M 120 380 L 120 160 L 184 120 L 184 340 Z" fill="#4f46e5" />
+    <path d="M 184 120 L 224 144 L 224 364 L 184 340 Z" fill="#3730a3" />
     
     <!-- Central Apex Peak & Chevrons -->
-    <path d="M 184 120 L 256 168 L 328 120 L 256 72 Z" fill="#38bdf8" />
-    <path d="M 224 200 L 256 220 L 288 200 L 256 180 Z" fill="#67e8f9" />
+    <path d="M 184 120 L 256 168 L 328 120 L 256 72 Z" fill="#818cf8" />
+    <path d="M 224 200 L 256 220 L 288 200 L 256 180 Z" fill="#c7d2fe" />
     
     <!-- Right Pillar -->
-    <path d="M 328 120 L 392 160 L 392 380 L 328 340 Z" fill="#06b6d4" />
-    <path d="M 288 144 L 328 120 L 328 340 L 288 364 Z" fill="#0284c7" />
+    <path d="M 328 120 L 392 160 L 392 380 L 328 340 Z" fill="#6366f1" />
+    <path d="M 288 144 L 328 120 L 328 340 L 288 364 Z" fill="#4338ca" />
 
     <!-- Center Keystone Keystone Pillar -->
-    <path d="M 232 230 L 256 244 L 280 230 L 280 390 L 256 404 L 232 390 Z" fill="url(#cyanGrad)" />
+    <path d="M 232 230 L 256 244 L 280 230 L 280 390 L 256 404 L 232 390 Z" fill="url(#indigoGrad)" />
   </g>
 
   <!-- Corner Blueprint Accents -->
-  <path d="M 80 100 L 80 80 L 100 80" fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round" />
-  <path d="M 432 100 L 432 80 L 412 80" fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round" />
-  <path d="M 80 412 L 80 432 L 100 432" fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round" />
-  <path d="M 432 412 L 432 432 L 412 432" fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round" />
+  <path d="M 80 100 L 80 80 L 100 80" fill="none" stroke="#818cf8" stroke-width="4" stroke-linecap="round" />
+  <path d="M 432 100 L 432 80 L 412 80" fill="none" stroke="#818cf8" stroke-width="4" stroke-linecap="round" />
+  <path d="M 80 412 L 80 432 L 100 432" fill="none" stroke="#818cf8" stroke-width="4" stroke-linecap="round" />
+  <path d="M 432 412 L 432 432 L 412 432" fill="none" stroke="#818cf8" stroke-width="4" stroke-linecap="round" />
 </svg>

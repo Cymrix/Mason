@@ -97,7 +97,7 @@ export const BiomePropsEditor: React.FC<BiomePropsEditorProps> = ({
         <div>
           <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
             <Box size={16} className="text-amber-400" />
-            Biome Props & Interactive Placements ({propsList.length})
+            Props & Placements ({propsList.length})
           </h3>
           <p className="text-xs text-neutral-400 mt-0.5">
             Configure props as <strong>Zones</strong> (trigger/fast-travel volumes) or <strong>Items</strong> (with/without sprites). Set interaction triggers (overlap, touch/collision, interact) and wired actions.
@@ -184,9 +184,6 @@ export const BiomePropsEditor: React.FC<BiomePropsEditorProps> = ({
                           isZone ? 'bg-cyan-950 text-cyan-400 border border-cyan-800/60' : 'bg-amber-950 text-amber-400 border border-amber-800/60'
                         }`}>
                           {isZone ? 'Zone Area' : item.hasSprite ? 'Item (Sprite)' : 'Item (No Sprite)'}
-                        </span>
-                        <span className="text-[9px] text-neutral-500 font-mono">
-                          {item.widthTiles || 1}×{item.heightTiles || 1}T
                         </span>
                       </div>
                     </div>
@@ -299,31 +296,7 @@ export const BiomePropsEditor: React.FC<BiomePropsEditorProps> = ({
                   </div>
                 )}
 
-                {/* Dimensions (Width x Height Tiles) */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-neutral-950/60 p-2 rounded-xl border border-neutral-800/80">
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] text-neutral-400 font-bold uppercase">Width (Tiles)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="32"
-                      value={item.widthTiles ?? 1}
-                      onChange={(e) => handleUpdateProp(idx, p => ({ ...p, widthTiles: Math.max(1, parseInt(e.target.value) || 1) }))}
-                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
-                    />
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] text-neutral-400 font-bold uppercase">Height (Tiles)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="32"
-                      value={item.heightTiles ?? 1}
-                      onChange={(e) => handleUpdateProp(idx, p => ({ ...p, heightTiles: Math.max(1, parseInt(e.target.value) || 1) }))}
-                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
-                    />
-                  </div>
-                </div>
+
 
                 {/* 1. HOW TO INTERACT (Trigger Method) */}
                 <div className="space-y-1.5 bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">

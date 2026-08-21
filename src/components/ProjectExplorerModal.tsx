@@ -220,7 +220,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
         {/* Header */}
         <div className="h-16 border-b border-neutral-800 px-6 flex items-center justify-between bg-neutral-950/80 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+            <div className="w-10 h-10 rounded-xl bg-indigo-950/80 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
               <HardDrive size={20} />
             </div>
             <div>
@@ -238,7 +238,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
           <div className="flex items-center gap-2">
             <label className="cursor-pointer px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
-              <Upload size={14} className="text-cyan-400" />
+              <Upload size={14} className="text-indigo-400" />
               <span>Import File</span>
               <input type="file" accept=".json,.map,.biome,.arch,.ui,.gamestructure" onChange={handleImportFile} className="hidden" />
             </label>
@@ -246,7 +246,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
             <button
               type="button"
               onClick={() => exportFullProjectBundle(project)}
-              className="px-3.5 py-1.5 bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+              className="px-3.5 py-1.5 bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
             >
               <Download size={14} />
               <span>Export Full Project Bundle</span>

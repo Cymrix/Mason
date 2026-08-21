@@ -120,7 +120,7 @@ export const BiomeVariablesEditor: React.FC<BiomeVariablesEditorProps> = ({
         <div>
           <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
             <Database size={16} className="text-rose-400" />
-            Biome Variables & Ecological Parameters ({variablesList.length})
+            Variables & Parameters ({variablesList.length})
           </h3>
           <p className="text-xs text-neutral-400 mt-0.5">
             Manage local environmental factors and <strong>Interbiome Global Variables</strong> that persist and sync across multiple levels, biomes, and interactive props.

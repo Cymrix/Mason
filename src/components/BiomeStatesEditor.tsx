@@ -181,7 +181,7 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
         <div>
           <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
             <Activity size={16} className="text-cyan-400" />
-            Biome States & Transitions ({statesList.length} States • {transitionsList.length} Transitions)
+            States & Transitions ({statesList.length} States • {transitionsList.length} Transitions)
           </h3>
           <p className="text-xs text-neutral-400 mt-0.5">
             Create discrete states to trigger biome behavior rules, entity spawns, and world events.

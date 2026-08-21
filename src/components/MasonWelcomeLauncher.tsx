@@ -11,7 +11,12 @@ import {
   FileText,
   CheckCircle2,
   Box,
-  Cpu
+  Cpu,
+  Map,
+  TreePine,
+  Users,
+  Sliders,
+  Network
 } from 'lucide-react';
 import { ProjectIndexItem } from '../utils/masonStorage';
 import { MASON_MODULES } from '../engine/modulesRegistry';
@@ -41,14 +46,14 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
   return (
     <div className="flex-1 bg-neutral-950 overflow-y-auto flex flex-col items-center justify-center p-6 md:p-12 select-none relative">
       {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-500/15 rounded-full blur-[120px] pointer-events-none"></div>
 
       <div className="max-w-4xl w-full space-y-10 relative z-10">
         
         {/* Hero Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 text-xs font-mono">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/60 border border-indigo-500/30 text-indigo-400 text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
             <span>Mason World Authoring Studio {MASON_FULL_VERSION}</span>
           </div>
 
@@ -66,11 +71,11 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
               <button
                 type="button"
                 onClick={onOpenPWAInstallModal}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition shadow-lg shadow-cyan-950/50 group"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-300 text-xs font-bold transition shadow-lg shadow-indigo-950/50 group"
               >
-                <DownloadCloud size={15} className="text-cyan-400 group-hover:scale-110 transition" />
+                <DownloadCloud size={15} className="text-indigo-400 group-hover:scale-110 transition" />
                 <span>Install Mason as Desktop / Mobile App (PWA)</span>
-                <span className="text-[10px] bg-cyan-900/60 px-1.5 py-0.2 rounded font-mono text-cyan-200">{MASON_VERSION_DISPLAY}</span>
+                <span className="text-[10px] bg-indigo-900/60 px-1.5 py-0.2 rounded font-mono text-indigo-200">{MASON_VERSION_DISPLAY}</span>
               </button>
             </div>
           )}
@@ -82,15 +87,15 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
           <button
             type="button"
             onClick={onCreateNewProject}
-            className="group relative overflow-hidden p-6 md:p-8 rounded-3xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 via-neutral-900 to-neutral-950 text-left transition hover:border-cyan-400 hover:shadow-2xl hover:shadow-cyan-500/20 active:scale-[0.99]"
+            className="group relative overflow-hidden p-6 md:p-8 rounded-3xl border border-indigo-500/40 bg-gradient-to-br from-indigo-950/40 via-neutral-900 to-neutral-950 text-left transition hover:border-indigo-400 hover:shadow-2xl hover:shadow-indigo-500/20 active:scale-[0.99]"
           >
             <div className="space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300 group-hover:scale-110 group-hover:bg-cyan-500 group-hover:text-black transition duration-300 shadow-lg">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 group-hover:scale-110 group-hover:bg-indigo-500 group-hover:text-white transition duration-300 shadow-lg">
                 <Plus size={28} />
               </div>
 
               <div className="space-y-1">
-                <h2 className="text-lg md:text-xl font-black text-white group-hover:text-cyan-300 transition">
+                <h2 className="text-lg md:text-xl font-black text-white group-hover:text-indigo-300 transition">
                   Create New Project
                 </h2>
                 <p className="text-xs text-neutral-400 leading-relaxed">
@@ -98,7 +103,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 font-bold pt-2">
+              <div className="flex items-center gap-2 text-xs font-mono text-indigo-400 font-bold pt-2">
                 <span>Configure & Start</span>
                 <span>→</span>
               </div>
@@ -196,15 +201,28 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-            {MASON_MODULES.map(m => (
-              <div key={m.id} className="p-3 bg-neutral-900/50 rounded-xl border border-neutral-850 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span>{m.icon}</span>
-                  <span className="font-bold text-neutral-200">{m.name}</span>
+            {MASON_MODULES.map(m => {
+              const renderWelcomeIcon = () => {
+                switch (m.iconName) {
+                  case 'Map': return <Map size={14} className="text-cyan-400" />;
+                  case 'TreePine': return <TreePine size={14} className="text-emerald-400" />;
+                  case 'Users': return <Users size={14} className="text-rose-400" />;
+                  case 'Sliders': return <Sliders size={14} className="text-amber-400" />;
+                  case 'Network': return <Network size={14} className="text-purple-400" />;
+                  default: return <Map size={14} className="text-cyan-400" />;
+                }
+              };
+
+              return (
+                <div key={m.id} className="p-3 bg-neutral-900/50 rounded-xl border border-neutral-850 space-y-1">
+                  <div className="flex items-center gap-2">
+                    {renderWelcomeIcon()}
+                    <span className="font-bold text-neutral-200">{m.name}</span>
+                  </div>
+                  <div className="text-[10px] font-mono text-neutral-500">{m.subfolder}/</div>
                 </div>
-                <div className="text-[10px] font-mono text-neutral-500">{m.subfolder}/</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

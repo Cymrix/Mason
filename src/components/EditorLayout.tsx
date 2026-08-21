@@ -63,7 +63,11 @@ import {
   MapPin,
   Play,
   Square,
-  User
+  User,
+  LayoutDashboard,
+  Map,
+  Sliders,
+  Network
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
@@ -125,35 +129,11 @@ export const EditorLayout: React.FC = () => {
 
   // Modals state
   const [isModulesModalOpen, setIsModulesModalOpen] = useState(false);
-  const [isModulesMenuOpen, setIsModulesMenuOpen] = useState(false);
-  const modulesMenuRef = useRef<HTMLDivElement>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [isExplorerModalOpen, setIsExplorerModalOpen] = useState(false);
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
   const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
-
-  // Close modules menu on outside click or escape
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (modulesMenuRef.current && !modulesMenuRef.current.contains(e.target as Node)) {
-        setIsModulesMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsModulesMenuOpen(false);
-      }
-    };
-    if (isModulesMenuOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isModulesMenuOpen]);
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -787,7 +767,7 @@ export const EditorLayout: React.FC = () => {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="font-black text-sm tracking-tight text-neutral-100">Mason</span>
-              <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-950/70 border border-cyan-500/30 px-1.5 py-0.2 rounded">
+              <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-950/70 border border-indigo-500/30 px-1.5 py-0.2 rounded">
                 {MASON_VERSION_DISPLAY}
               </span>
             </div>
@@ -796,10 +776,10 @@ export const EditorLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveModuleId(null)}
-                className="text-xs font-mono text-cyan-300 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800"
+                className="text-xs font-mono text-indigo-300 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800"
                 title="Click to view Project Dashboard"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
                 <span className="truncate max-w-[180px] sm:max-w-[240px] font-semibold">{project.name}</span>
               </button>
             ) : (
@@ -816,112 +796,121 @@ export const EditorLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Action Tools */}
+        {/* Right Navigation & Action Tools */}
         <div className="flex items-center gap-2">
-          {/* PWA Install Action */}
-          <button
-            type="button"
-            onClick={async () => {
-              if (hasNativePrompt) {
-                const installed = await triggerNativeInstall();
-                if (!installed) setIsPWAInstallModalOpen(true);
-              } else {
-                setIsPWAInstallModalOpen(true);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-bold transition shadow-sm group"
-            title="Install Mason Studio as Standalone App (PWA)"
-          >
-            <DownloadCloud size={14} className="text-cyan-400 group-hover:scale-110 transition" />
-            <span className="hidden sm:inline">{isInstalled ? 'Mason App' : 'Install App'}</span>
-          </button>
-
           {project && (
             <>
-              {/* Modules Dropdown Button & Icon Grid Popover */}
-              <div className="relative" ref={modulesMenuRef}>
+              {/* Module & Dashboard Direct Icon Bar */}
+              <div className="flex items-center gap-1 bg-neutral-950/80 p-1 rounded-xl border border-neutral-800">
+                {/* Dashboard Icon */}
                 <button
                   type="button"
-                  onClick={() => setIsModulesMenuOpen(!isModulesMenuOpen)}
-                  className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl text-base transition shadow-sm border ${
-                    isModulesMenuOpen
-                      ? 'bg-neutral-800 border-cyan-500/60 text-white shadow-md ring-1 ring-cyan-500/30'
-                      : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200'
+                  onClick={() => setActiveModuleId(null)}
+                  title="Project Dashboard"
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 relative border ${
+                    activeModuleId === null
+                      ? 'bg-indigo-950/80 border-indigo-500/50 text-indigo-300 ring-2 ring-indigo-500/30 shadow-md shadow-indigo-950/60'
+                      : 'border-transparent text-indigo-400/80 hover:text-indigo-300 hover:bg-neutral-800'
                   }`}
-                  title="Quick Modules Navigator"
                 >
-                  <span>🧩</span>
+                  <LayoutDashboard size={16} />
+                  {activeModuleId === null && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-indigo-400 rounded-full ring-2 ring-neutral-900 animate-pulse" />
+                  )}
                 </button>
 
-                {/* Instant Modules Grid Dropdown (Pure Icons) */}
-                {isModulesMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-auto bg-neutral-900/95 border border-neutral-700 rounded-2xl shadow-2xl backdrop-blur-xl z-50 p-3 animate-in fade-in zoom-in-95 duration-100">
-                    <div className="flex items-center justify-between gap-4 pb-2.5 mb-2.5 border-b border-neutral-800">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 font-mono">
-                        Modules
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsModulesMenuOpen(false);
-                          setActiveModuleId(null);
-                        }}
-                        className={`text-[11px] font-mono px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 ${
-                          activeModuleId === null 
-                            ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold' 
-                            : 'text-neutral-300 hover:text-white bg-neutral-950 hover:bg-neutral-800 border border-neutral-800'
-                        }`}
-                      >
-                        <span>📊</span>
-                        <span>Dashboard</span>
-                      </button>
-                    </div>
+                <div className="h-4 w-px bg-neutral-800 mx-0.5" />
 
-                    {/* Pure Icon Grid for Quick Navigation */}
-                    <div className="grid grid-cols-4 gap-2">
-                      {MASON_MODULES.map(mod => {
-                        const isActive = activeModuleId === mod.id;
-                        return (
-                          <button
-                            key={mod.id}
-                            type="button"
-                            onClick={() => {
-                              handleLaunchModule(mod.id);
-                              setIsModulesMenuOpen(false);
-                            }}
-                            title={`${mod.name} (${mod.associatedExtension})`}
-                            className={`w-11 h-11 rounded-xl border flex items-center justify-center text-2xl transition active:scale-95 group relative ${
-                              isActive
-                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-300 ring-2 ring-cyan-500/40 shadow-lg shadow-cyan-950/50'
-                                : 'bg-neutral-950/80 border-neutral-800/80 hover:border-neutral-600 hover:bg-neutral-800/90 text-neutral-200'
-                            }`}
-                          >
-                            <span className="group-hover:scale-110 transition-transform">
-                              {mod.icon}
-                            </span>
-                            {isActive && (
-                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-cyan-400 rounded-full ring-2 ring-neutral-900 animate-pulse" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                {/* Modules Direct Line Art Icons */}
+                {MASON_MODULES.map(mod => {
+                  const isActive = activeModuleId === mod.id;
+
+                  const getModuleColorStyles = () => {
+                    switch (mod.accentColor) {
+                      case 'cyan':
+                        return {
+                          icon: <Map size={16} />,
+                          active: 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300 ring-2 ring-cyan-500/30 shadow-md shadow-cyan-950/60',
+                          dot: 'bg-cyan-400',
+                          inactive: 'text-cyan-400/80 hover:text-cyan-300 hover:bg-neutral-800'
+                        };
+                      case 'emerald':
+                        return {
+                          icon: <TreePine size={16} />,
+                          active: 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 ring-2 ring-emerald-500/30 shadow-md shadow-emerald-950/60',
+                          dot: 'bg-emerald-400',
+                          inactive: 'text-emerald-400/80 hover:text-emerald-300 hover:bg-neutral-800'
+                        };
+                      case 'rose':
+                        return {
+                          icon: <Users size={16} />,
+                          active: 'bg-rose-950/80 border-rose-500/50 text-rose-300 ring-2 ring-rose-500/30 shadow-md shadow-rose-950/60',
+                          dot: 'bg-rose-400',
+                          inactive: 'text-rose-400/80 hover:text-rose-300 hover:bg-neutral-800'
+                        };
+                      case 'amber':
+                        return {
+                          icon: <Sliders size={16} />,
+                          active: 'bg-amber-950/80 border-amber-500/50 text-amber-300 ring-2 ring-amber-500/30 shadow-md shadow-amber-950/60',
+                          dot: 'bg-amber-400',
+                          inactive: 'text-amber-400/80 hover:text-amber-300 hover:bg-neutral-800'
+                        };
+                      case 'purple':
+                        return {
+                          icon: <Network size={16} />,
+                          active: 'bg-purple-950/80 border-purple-500/50 text-purple-300 ring-2 ring-purple-500/30 shadow-md shadow-purple-950/60',
+                          dot: 'bg-purple-400',
+                          inactive: 'text-purple-400/80 hover:text-purple-300 hover:bg-neutral-800'
+                        };
+                      default:
+                        return {
+                          icon: <Map size={16} />,
+                          active: 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300 ring-2 ring-cyan-500/30 shadow-md shadow-cyan-950/60',
+                          dot: 'bg-cyan-400',
+                          inactive: 'text-cyan-400/80 hover:text-cyan-300 hover:bg-neutral-800'
+                        };
+                    }
+                  };
+
+                  const styles = getModuleColorStyles();
+
+                  return (
+                    <button
+                      key={mod.id}
+                      type="button"
+                      onClick={() => handleLaunchModule(mod.id)}
+                      title={`${mod.name} (${mod.associatedExtension})`}
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 group relative border ${
+                        isActive
+                          ? styles.active
+                          : `border-transparent ${styles.inactive}`
+                      }`}
+                    >
+                      <span className="group-hover:scale-110 transition-transform">
+                        {styles.icon}
+                      </span>
+                      {isActive && (
+                        <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 ${styles.dot} rounded-full ring-2 ring-neutral-900 animate-pulse`} />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Virtual Files Explorer Button */}
+              <div className="h-4 w-px bg-neutral-800" />
+
+              {/* Virtual Files Explorer Button (Icon Only) */}
               <button
                 type="button"
                 onClick={() => setIsExplorerModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl text-xs font-bold transition shadow-sm"
+                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl transition shadow-sm"
                 title="Virtual Files Explorer"
+                aria-label="Files"
               >
-                <FolderOpen size={14} className="text-amber-400" />
-                <span className="hidden md:inline">Files</span>
+                <FolderOpen size={16} className="text-amber-400" />
               </button>
 
-              {/* Save Project Button */}
+              {/* Save Project Button (Icon Only) */}
               <button
                 type="button"
                 onClick={() => {
@@ -929,10 +918,11 @@ export const EditorLayout: React.FC = () => {
                   refreshSavedProjects();
                   showToast(`Saved ${project.name}`, 'success');
                 }}
-                className="flex items-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-cyan-600/30"
+                className="w-8 h-8 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition shadow-md shadow-indigo-600/30"
+                title="Save Project"
+                aria-label="Save"
               >
-                <Save size={13} />
-                <span>Save</span>
+                <Save size={16} />
               </button>
             </>
           )}
@@ -942,7 +932,7 @@ export const EditorLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-md shadow-indigo-600/30"
               >
                 <Plus size={14} />
                 <span>Create Project</span>
@@ -983,7 +973,6 @@ export const EditorLayout: React.FC = () => {
             onOpenExplorer={() => setIsExplorerModalOpen(true)}
             onOpenModulesModal={() => setIsModulesModalOpen(true)}
             onExportBundle={handleExportBundle}
-            onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
           />
         )}
 
@@ -1065,6 +1054,62 @@ export const EditorLayout: React.FC = () => {
                     });
                     showToast(`Deleted map: ${fName}`, 'info');
                   }}
+                  onRenameFile={(oldFileName, newName) => {
+                    handleUpdateProject(p => {
+                      const safeName = `${newName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.map`;
+                      return {
+                        ...p,
+                        activeFiles: {
+                          ...p.activeFiles,
+                          mapFileName: p.activeFiles.mapFileName === oldFileName ? safeName : p.activeFiles.mapFileName
+                        },
+                        fileSystem: {
+                          ...p.fileSystem,
+                          maps: p.fileSystem.maps.map(m => {
+                            if (m.fileName === oldFileName) {
+                              return {
+                                ...m,
+                                name: newName,
+                                fileName: safeName,
+                                updatedAt: new Date().toISOString()
+                              };
+                            }
+                            return m;
+                          })
+                        }
+                      };
+                    });
+                  }}
+                  centerContent={
+                    <div className="flex items-center gap-2 max-w-full truncate">
+                      <Map size={14} className="text-cyan-400 shrink-0" />
+                      <input
+                        type="text"
+                        value={currentMapFile.name}
+                        onChange={(e) => {
+                          const newName = e.target.value;
+                          handleUpdateProject(p => ({
+                            ...p,
+                            fileSystem: {
+                              ...p.fileSystem,
+                              maps: p.fileSystem.maps.map(m => {
+                                if (m.fileName === currentMapFile.fileName) {
+                                  return {
+                                    ...m,
+                                    name: newName,
+                                    updatedAt: new Date().toISOString()
+                                  };
+                                }
+                                return m;
+                              })
+                            }
+                          }));
+                        }}
+                        className="bg-transparent text-xs sm:text-sm font-bold text-white border-b border-dashed border-neutral-700 hover:border-cyan-500 focus:border-cyan-500 focus:outline-none transition py-0.5 max-w-[140px] sm:max-w-[220px] text-center truncate"
+                        title="Click to edit map name"
+                      />
+                    </div>
+                  }
                   accentColor="cyan"
                 />
 
@@ -1893,14 +1938,14 @@ export const EditorLayout: React.FC = () => {
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
           <div className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
             toast.type === 'success'
-              ? 'bg-cyan-950/90 border-cyan-500/60 text-cyan-200'
+              ? 'bg-indigo-950/95 border-indigo-500/60 text-indigo-100 shadow-indigo-950/60'
               : toast.type === 'error'
-              ? 'bg-red-950/90 border-red-500/60 text-red-200'
-              : 'bg-neutral-900/90 border-neutral-700 text-neutral-200'
+              ? 'bg-red-950/95 border-red-500/60 text-red-200'
+              : 'bg-neutral-900/95 border-indigo-500/30 text-neutral-200'
           }`}>
-            {toast.type === 'success' && <CheckCircle2 size={15} className="text-cyan-400 shrink-0" />}
+            {toast.type === 'success' && <CheckCircle2 size={15} className="text-indigo-400 shrink-0" />}
             {toast.type === 'error' && <AlertTriangle size={15} className="text-red-400 shrink-0" />}
-            {toast.type === 'info' && <HardDrive size={15} className="text-cyan-400 shrink-0" />}
+            {toast.type === 'info' && <HardDrive size={15} className="text-indigo-400 shrink-0" />}
             <span>{toast.text}</span>
           </div>
         </div>

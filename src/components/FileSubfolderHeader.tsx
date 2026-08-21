@@ -9,8 +9,7 @@ import {
   Trash2, 
   ChevronDown, 
   Check, 
-  Edit2,
-  ArrowLeft
+  Edit2
 } from 'lucide-react';
 
 interface FileItem {
@@ -91,23 +90,8 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
 
   return (
     <div className="h-9 bg-neutral-950/95 border-b border-neutral-800/80 px-3 flex items-center justify-between shrink-0 select-none z-20 gap-2">
-      {/* Left: Optional Dashboard Back link + Path & Dropdown Selector */}
+      {/* Left: Path & Dropdown Selector */}
       <div className="flex items-center gap-2 shrink-0">
-        {onBackToDashboard && (
-          <>
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-900 hover:bg-neutral-800 border border-neutral-750 text-neutral-300 hover:text-white text-xs font-semibold transition"
-              title="Return to Project Dashboard"
-            >
-              <ArrowLeft size={12} className="text-cyan-400" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </button>
-            <div className="h-3.5 w-px bg-neutral-800"></div>
-          </>
-        )}
-
         <div className="flex items-center gap-1 text-[11px] text-neutral-400 font-mono">
           <Folder size={12} className={accentColor === 'emerald' ? 'text-emerald-400' : accentColor === 'rose' ? 'text-rose-400' : accentColor === 'purple' ? 'text-purple-400' : 'text-cyan-400'} />
           <span>/{subfolderName}/</span>

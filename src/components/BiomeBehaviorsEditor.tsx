@@ -149,7 +149,7 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
         <div>
           <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
             <Brain size={16} className="text-amber-400" />
-            Biome Behaviors & Interbiome Event Logic ({rulesList.length} Rules)
+            Behaviors & Event Logic ({rulesList.length} Rules)
           </h3>
           <p className="text-xs text-neutral-400 mt-0.5">
             Create IFTTT event flows wired to <strong>On Variable Value</strong>, <strong>On Map Load</strong>, <strong>On Biome State</strong>, and <strong>Prop Interactions</strong>. Rules can be <em>interbiome</em> to propagate changes across maps.

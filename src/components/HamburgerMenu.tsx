@@ -176,27 +176,6 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
               </button>
             )}
-
-            {/* Map Macro (subset of Maps) */}
-            {project && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  onSelectModule('macro');
-                }}
-                className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-neutral-200 hover:bg-neutral-800 flex items-center justify-between group transition"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">⚡</span>
-                  <div>
-                    <span className="font-bold text-neutral-100 group-hover:text-rose-300 transition">Map Macro</span>
-                    <p className="text-[10px] text-neutral-400">1px:1tile procedural cellular generation</p>
-                  </div>
-                </div>
-                <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
-              </button>
-            )}
           </div>
 
           <div className="h-px bg-neutral-800 my-1.5"></div>

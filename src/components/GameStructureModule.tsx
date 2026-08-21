@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   GameStructureFile, 
   MasonProject, 
   WorldGraphLink, 
   ProgressionFlag,
-  MapExit
+  MapExit,
+  createDefaultGameStructure
 } from '../engine/masonProjectSchema';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { 
@@ -33,28 +34,82 @@ import {
   Layout,
   RefreshCw,
   Eye,
-  Info
+  Info,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Move,
+  ExternalLink,
+  Edit3,
+  X,
+  Radio,
+  DoorOpen,
+  Box
 } from 'lucide-react';
+
+function getQuadBezierArrowHeads(
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  tValues: number[]
+) {
+  return tValues.map((t) => {
+    const omt = 1 - t;
+    const x = omt * omt * p0.x + 2 * omt * t * p1.x + t * t * p2.x;
+    const y = omt * omt * p0.y + 2 * omt * t * p1.y + t * t * p2.y;
+    const dx = 2 * (1 - t) * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
+    const dy = 2 * (1 - t) * (p1.y - p0.y) + 2 * t * (p2.y - p1.y);
+    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    return { x, y, angleDeg };
+  });
+}
 
 interface GameStructureModuleProps {
   project: MasonProject;
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
   onNavigateToModule: (moduleId: string, fileToSelect?: string) => void;
+  onBackToDashboard?: () => void;
 }
 
 export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
   project,
   onUpdateProject,
-  onNavigateToModule
+  onNavigateToModule,
+  onBackToDashboard
 }) => {
-  const activeFileName = project.activeFiles.gameStructureFileName || project.fileSystem.game?.[0]?.fileName;
-  const currentStructureFile = project.fileSystem.game.find(g => g.fileName === activeFileName) || project.fileSystem.game[0];
+  const gameFiles = project.fileSystem?.game || [];
+  const activeFileName = project.activeFiles?.gameStructureFileName || gameFiles[0]?.fileName;
+  const defaultGameStructureFile: GameStructureFile = {
+    id: 'game_main_campaign',
+    name: 'Main Campaign Framework',
+    fileName: 'main_campaign.gamestructure',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    structureData: createDefaultGameStructure()
+  };
+  const currentStructureFile: GameStructureFile = gameFiles.find(g => g.fileName === activeFileName) || gameFiles[0] || defaultGameStructureFile;
 
   const [activeTab, setActiveTab] = useState<'world_graph' | 'entry_bindings' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags'>('world_graph');
-  const [selectedLinkIndex, setSelectedLinkIndex] = useState<number | null>(null);
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+  const [selectedMapFileName, setSelectedMapFileName] = useState<string | null>(null);
   const [previewingMainMenu, setPreviewingMainMenu] = useState(false);
   const [previewingLoadingScreen, setPreviewingLoadingScreen] = useState(false);
   const [testFlagState, setTestFlagState] = useState<Record<string, boolean>>({});
+
+  // Graph Pan, Zoom & Dragging States
+  const [graphZoom, setGraphZoom] = useState<number>(1.0);
+  const [graphPanX, setGraphPanX] = useState<number>(40);
+  const [graphPanY, setGraphPanY] = useState<number>(40);
+  const [isGraphPanning, setIsGraphPanning] = useState(false);
+  const graphPanStartRef = useRef<{ mouseX: number; mouseY: number; panX: number; panY: number } | null>(null);
+  const graphCanvasRef = useRef<HTMLDivElement | null>(null);
+
+  const [draggingMapFileName, setDraggingMapFileName] = useState<string | null>(null);
+  const dragNodeStartRef = useRef<{ mouseX: number; mouseY: number; nodeX: number; nodeY: number } | null>(null);
+
+  // Link connection tool state
+  const [connectingSourceMap, setConnectingSourceMap] = useState<string | null>(null);
+  const [graphViewMode, setGraphViewMode] = useState<'visual_graph' | 'table_matrix'>('visual_graph');
 
   // Helper updater for current game structure data
   const updateStructure = (updater: (prev: typeof currentStructureFile.structureData) => typeof currentStructureFile.structureData) => {
@@ -81,25 +136,169 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
 
   const data = currentStructureFile.structureData;
 
-  // Add a new World Graph Link between maps
-  const handleAddGraphLink = () => {
-    const defaultSourceMap = project.fileSystem.maps?.[0]?.fileName || 'ashen_outpost.map';
-    const defaultTargetMap = project.fileSystem.maps[1]?.fileName || project.fileSystem.maps?.[0]?.fileName || 'crystal_chasm.map';
+  // Compute unified directional world links from map exits, interactive props/zones, and visual links
+  const computedWorldLinks = useMemo(() => {
+    interface ComputedWorldLink {
+      id: string;
+      sourceMapFileName: string;
+      targetMapFileName: string;
+      sourceType: 'map_exit' | 'interactive_prop' | 'graph_link';
+      detailName: string;
+      isMapDefined: boolean;
+    }
+
+    const links: ComputedWorldLink[] = [];
+    const seen = new Set<string>();
+
+    // 1. Gather all links defined in map files (exits and interactive props/zones)
+    (project.fileSystem?.maps || []).forEach(mapFile => {
+      // Exits on map
+      (mapFile.exits || []).forEach(exit => {
+        if (exit.targetMapFileName) {
+          const key = `${mapFile.fileName}->${exit.targetMapFileName}->${exit.id}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            links.push({
+              id: exit.id || `exit_${mapFile.fileName}_${exit.targetMapFileName}`,
+              sourceMapFileName: mapFile.fileName,
+              targetMapFileName: exit.targetMapFileName,
+              sourceType: 'map_exit',
+              detailName: exit.name || 'Doorway / Gate Exit',
+              isMapDefined: true
+            });
+          }
+        }
+      });
+
+      // Biomes interactive details
+      (project.fileSystem?.biomes || []).forEach(biomeFile => {
+        (biomeFile.biomeData?.interactiveDetails || []).forEach(item => {
+          if (item.transportBehavior === 'immediate_transport' && item.immediateDestinationId) {
+            const key = `${mapFile.fileName}->${item.immediateDestinationId}->${item.id}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              links.push({
+                id: `${item.id}_${mapFile.fileName}`,
+                sourceMapFileName: mapFile.fileName,
+                targetMapFileName: item.immediateDestinationId,
+                sourceType: 'interactive_prop',
+                detailName: item.name || 'Transition Zone',
+                isMapDefined: true
+              });
+            }
+          } else if (item.transportBehavior === 'popup_menu' && item.allowedDestinations) {
+            item.allowedDestinations.forEach(dest => {
+              const key = `${mapFile.fileName}->${dest}->${item.id}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                links.push({
+                  id: `${item.id}_${dest}`,
+                  sourceMapFileName: mapFile.fileName,
+                  targetMapFileName: dest,
+                  sourceType: 'interactive_prop',
+                  detailName: item.name || 'Fast Travel Portal',
+                  isMapDefined: true
+                });
+              }
+            });
+          }
+        });
+      });
+    });
+
+    // 2. Include custom visual topology links from data.worldGraphLinks
+    (data.worldGraphLinks || []).forEach(link => {
+      const key = `${link.sourceMapFileName}->${link.targetMapFileName}->${link.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        links.push({
+          id: link.id,
+          sourceMapFileName: link.sourceMapFileName,
+          targetMapFileName: link.targetMapFileName,
+          sourceType: 'graph_link',
+          detailName: link.notes || 'Visual Map Link',
+          isMapDefined: false
+        });
+      }
+    });
+
+    return links;
+  }, [project.fileSystem.maps, project.fileSystem.biomes, data.worldGraphLinks]);
+
+  // Resolve Map Node positions
+  const mapsList = project.fileSystem.maps || [];
+  const getNodePos = (mapFileName: string, index: number) => {
+    const saved = data.graphNodes?.find(n => n.mapFileName === mapFileName);
+    if (saved) return { x: saved.x, y: saved.y };
+    // Default smart grid arrangement
+    const col = index % 3;
+    const row = Math.floor(index / 3);
+    return {
+      x: 100 + col * 380,
+      y: 100 + row * 260
+    };
+  };
+
+  const updateNodePosition = (mapFileName: string, newX: number, newY: number) => {
+    updateStructure(s => {
+      const currentNodes = s.graphNodes || [];
+      const existing = currentNodes.find(n => n.mapFileName === mapFileName);
+      let updatedNodes;
+      if (existing) {
+        updatedNodes = currentNodes.map(n => n.mapFileName === mapFileName ? { ...n, x: newX, y: newY } : n);
+      } else {
+        updatedNodes = [...currentNodes, { mapFileName, x: newX, y: newY }];
+      }
+      return { ...s, graphNodes: updatedNodes };
+    });
+  };
+
+  // Add a direct visual directional link between maps (no modal needed)
+  const handleAddGraphLink = (srcMap?: string, tgtMap?: string) => {
+    const defaultSourceMap = srcMap || mapsList[0]?.fileName || 'ashen_outpost.map';
+    const defaultTargetMap = tgtMap || mapsList[1]?.fileName || mapsList[0]?.fileName || 'crystal_chasm.map';
     
+    // Avoid self-connection
+    if (defaultSourceMap === defaultTargetMap) return;
+
     const newLink: WorldGraphLink = {
       id: `link_${Date.now()}`,
       sourceMapFileName: defaultSourceMap,
-      sourceExitId: 'exit_east',
+      sourceExitId: 'door_exit',
       targetMapFileName: defaultTargetMap,
-      targetExitId: 'exit_west',
-      isBiDirectional: true,
-      notes: 'New corridor connection between rooms'
+      targetExitId: 'spawn_arrival',
+      isBiDirectional: false,
+      transitionType: 'door',
+      notes: `${defaultSourceMap} ➔ ${defaultTargetMap}`
     };
 
     updateStructure(s => ({
       ...s,
       worldGraphLinks: [...s.worldGraphLinks, newLink]
     }));
+    setSelectedLinkId(newLink.id);
+  };
+
+  // Remove a link
+  const handleRemoveLink = (linkId: string) => {
+    updateStructure(s => ({
+      ...s,
+      worldGraphLinks: s.worldGraphLinks.filter(l => l.id !== linkId)
+    }));
+    // Also remove from map exits if applicable
+    onUpdateProject(p => ({
+      ...p,
+      fileSystem: {
+        ...p.fileSystem,
+        maps: p.fileSystem.maps.map(m => ({
+          ...m,
+          exits: (m.exits || []).filter(e => e.id !== linkId)
+        }))
+      }
+    }));
+    if (selectedLinkId === linkId) {
+      setSelectedLinkId(null);
+    }
   };
 
   // Add a new progression flag
@@ -125,6 +324,19 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
       <FileSubfolderHeader
         subfolderName="game"
         extension=".gamestructure"
+        onBackToDashboard={onBackToDashboard}
+        centerContent={
+          <div className="flex items-center gap-1.5 max-w-full truncate">
+            <span className="text-sm">🏰</span>
+            <input
+              type="text"
+              value={data.gameTitle || data.name}
+              onChange={(e) => updateStructure(s => ({ ...s, gameTitle: e.target.value, name: e.target.value }))}
+              className="bg-transparent text-xs font-bold text-white border-b border-dashed border-neutral-700 hover:border-cyan-500 focus:border-cyan-500 focus:outline-none transition py-0.5 max-w-[160px] sm:max-w-[220px] text-center"
+              title="Click to edit game structure title"
+            />
+          </div>
+        }
         files={project.fileSystem.game.map(g => ({
           id: g.id,
           name: g.name,
@@ -329,213 +541,613 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           
           {/* TAB 1: WORLD MAP GRAPH & EXITS LINKER */}
           {activeTab === 'world_graph' && (
-            <div className="space-y-6 max-w-5xl">
-              <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+            <div className="space-y-4 h-full flex flex-col">
+              {/* Header Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 pb-3">
                 <div>
                   <h2 className="text-base font-bold text-neutral-100 flex items-center gap-2">
                     <Compass size={18} className="text-purple-400" />
-                    World Map Graph & Metroidvania Room Linker
+                    World Map Graph & Room Transition Linker
                   </h2>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Connect individual <code className="text-cyan-300 font-mono">.map</code> level files through exit doorways, elevators, and locked progression gates.
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    Drag and connect level cards to architect world topology, doorway transitions, teleporters, and progression locks.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleAddGraphLink}
-                  className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
-                >
-                  <Plus size={14} /> Add Map Link
-                </button>
-              </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-xl p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setGraphViewMode('visual_graph')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        graphViewMode === 'visual_graph'
+                          ? 'bg-purple-600 text-white shadow-sm'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      <Layout size={13} />
+                      <span>Visual Graph</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGraphViewMode('table_matrix')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        graphViewMode === 'table_matrix'
+                          ? 'bg-purple-600 text-white shadow-sm'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      <FileText size={13} />
+                      <span>Links List</span>
+                    </button>
+                  </div>
 
-              {/* Visual Node Matrix of Available Maps */}
-              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 space-y-3">
-                <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
-                  Available Levels in Project File System ({project.fileSystem.maps.length})
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {project.fileSystem.maps.map(mapFile => {
-                    const outgoingCount = data.worldGraphLinks.filter(l => l.sourceMapFileName === mapFile.fileName).length;
-                    const incomingCount = data.worldGraphLinks.filter(l => l.targetMapFileName === mapFile.fileName).length;
-                    const isEntry = data.entryMapFileName === mapFile.fileName;
-
-                    return (
-                      <div 
-                        key={mapFile.fileName}
-                        className={`p-3.5 rounded-xl border transition ${
-                          isEntry 
-                            ? 'bg-purple-950/30 border-purple-500/50 shadow-md' 
-                            : 'bg-neutral-950 border-neutral-800'
-                        }`}
+                  {/* Canvas Zoom Controls (for visual graph mode) */}
+                  {graphViewMode === 'visual_graph' && (
+                    <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-xl p-1 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setGraphZoom(z => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
+                        className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800"
+                        title="Zoom Out"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono text-xs font-bold text-neutral-200 truncate">
-                            {mapFile.fileName}
-                          </span>
-                          {isEntry && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                              ENTRY POINT
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-neutral-400 mt-1 truncate">{mapFile.name}</p>
-                        <div className="mt-3 flex items-center justify-between text-[10px] text-neutral-500 font-mono border-t border-neutral-800/80 pt-2">
-                          <span>{mapFile.width}×{mapFile.height} Tiles</span>
-                          <span className="text-cyan-400">{outgoingCount + incomingCount} Connections</span>
-                          <button
-                            type="button"
-                            onClick={() => onNavigateToModule('maps', mapFile.fileName)}
-                            className="text-cyan-400 hover:underline"
-                          >
-                            Open Map →
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        <ZoomOut size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setGraphZoom(1.0); setGraphPanX(40); setGraphPanY(40); }}
+                        className="px-1.5 py-0.5 text-neutral-300 hover:text-white text-[11px] font-mono font-bold rounded hover:bg-neutral-800"
+                        title="Reset Zoom & Pan"
+                      >
+                        {Math.round(graphZoom * 100)}%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGraphZoom(z => Math.min(2.2, Number((z + 0.15).toFixed(2))))}
+                        className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800"
+                        title="Zoom In"
+                      >
+                        <ZoomIn size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setGraphZoom(1.0); setGraphPanX(40); setGraphPanY(40); }}
+                        className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800"
+                        title="Reset Center"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Quick Add Link Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddGraphLink()}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
+                  >
+                    <Plus size={14} />
+                    <span>Add Link</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Active Connections List & Link Editor */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
-                  Active Door & Transition Links ({data.worldGraphLinks.length})
-                </h3>
+              {/* Connecting prompt banner */}
+              {connectingSourceMap && (
+                <div className="p-2.5 bg-purple-950/80 border border-purple-500 rounded-xl flex items-center justify-between gap-3 text-xs animate-pulse">
+                  <div className="flex items-center gap-2 text-purple-200">
+                    <Radio size={14} className="text-purple-400 animate-spin" />
+                    <span>
+                      Connecting from <strong className="text-white font-mono">{connectingSourceMap}</strong>. Click any target level card to create a directional connection link.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConnectingSourceMap(null)}
+                    className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-[11px] font-bold"
+                  >
+                    Cancel Connection
+                  </button>
+                </div>
+              )}
 
-                <div className="space-y-2.5">
-                  {data.worldGraphLinks.map((link, idx) => {
-                    const sourceMap = project.fileSystem.maps.find(m => m.fileName === link.sourceMapFileName);
-                    const targetMap = project.fileSystem.maps.find(m => m.fileName === link.targetMapFileName);
-                    const requiredFlag = data.progressionFlags.find(f => f.id === link.requiredFlagId);
+              {/* VISUAL GRAPH CANVAS VIEW */}
+              {graphViewMode === 'visual_graph' ? (
+                <div className="flex-1 w-full min-h-[560px] bg-neutral-950 rounded-2xl border border-neutral-800/90 relative overflow-hidden flex flex-col">
+                  <div
+                    ref={graphCanvasRef}
+                    onContextMenu={(e) => e.preventDefault()}
+                    onWheel={(e) => {
+                      e.preventDefault();
+                      const zoomDelta = e.deltaY < 0 ? 0.1 : -0.1;
+                      setGraphZoom(z => Math.max(0.4, Math.min(2.2, Number((z + zoomDelta).toFixed(2)))));
+                    }}
+                    onMouseDown={(e) => {
+                      if (e.button === 2 || e.button === 1 || e.target === graphCanvasRef.current) {
+                        setIsGraphPanning(true);
+                        graphPanStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, panX: graphPanX, panY: graphPanY };
+                      }
+                    }}
+                    onMouseMove={(e) => {
+                      if (isGraphPanning && graphPanStartRef.current) {
+                        const dx = e.clientX - graphPanStartRef.current.mouseX;
+                        const dy = e.clientY - graphPanStartRef.current.mouseY;
+                        setGraphPanX(graphPanStartRef.current.panX + dx);
+                        setGraphPanY(graphPanStartRef.current.panY + dy);
+                        return;
+                      }
 
-                    return (
-                      <div 
-                        key={link.id}
-                        className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3"
-                      >
-                        <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3">
-                          <div className="flex items-center gap-3">
-                            <span className="w-6 h-6 rounded-lg bg-purple-950 border border-purple-500/40 flex items-center justify-center text-xs font-mono font-bold text-purple-300">
-                              {idx + 1}
+                      if (!draggingMapFileName || !dragNodeStartRef.current) return;
+                      const dx = (e.clientX - dragNodeStartRef.current.mouseX) / graphZoom;
+                      const dy = (e.clientY - dragNodeStartRef.current.mouseY) / graphZoom;
+                      const newX = Math.round(dragNodeStartRef.current.nodeX + dx);
+                      const newY = Math.round(dragNodeStartRef.current.nodeY + dy);
+                      updateNodePosition(draggingMapFileName, Math.max(20, Math.min(3000, newX)), Math.max(20, Math.min(3000, newY)));
+                    }}
+                    onMouseUp={() => {
+                      setIsGraphPanning(false);
+                      graphPanStartRef.current = null;
+                      if (draggingMapFileName) setDraggingMapFileName(null);
+                    }}
+                    className={`flex-1 w-full h-full relative overflow-hidden select-none ${isGraphPanning ? 'cursor-grabbing' : 'cursor-crosshair'}`}
+                    style={{
+                      backgroundImage: 'radial-gradient(circle, #3b284c 1.2px, transparent 1.2px)',
+                      backgroundSize: `${26 * graphZoom}px ${26 * graphZoom}px`,
+                      backgroundPosition: `${graphPanX}px ${graphPanY}px`
+                    }}
+                  >
+                    {/* SVG Directional Connection Wires Layer */}
+                    <svg 
+                      className="w-full h-full absolute inset-0 pointer-events-none z-0" 
+                      style={{ 
+                        transform: `translate(${graphPanX}px, ${graphPanY}px) scale(${graphZoom})`, 
+                        transformOrigin: '0 0' 
+                      }}
+                    >
+                      {computedWorldLinks.map((link, linkIdx) => {
+                        const srcIdx = mapsList.findIndex(m => m.fileName === link.sourceMapFileName);
+                        const tgtIdx = mapsList.findIndex(m => m.fileName === link.targetMapFileName);
+                        if (srcIdx < 0 || tgtIdx < 0) return null;
+
+                        const srcPos = getNodePos(link.sourceMapFileName, srcIdx);
+                        const tgtPos = getNodePos(link.targetMapFileName, tgtIdx);
+
+                        const CARD_WIDTH = 260;
+                        const CARD_HEIGHT = 140;
+                        const p0 = { x: srcPos.x + CARD_WIDTH / 2, y: srcPos.y + CARD_HEIGHT / 2 };
+                        const p2 = { x: tgtPos.x + CARD_WIDTH / 2, y: tgtPos.y + CARD_HEIGHT / 2 };
+
+                        const isSelected = selectedLinkId === link.id;
+
+                        // Calculate multi-link offset curve
+                        const dx = p2.x - p0.x;
+                        const dy = p2.y - p0.y;
+                        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const normX = -dy / len;
+                        const normY = dx / len;
+
+                        const siblingLinks = computedWorldLinks.filter(l => 
+                          (l.sourceMapFileName === link.sourceMapFileName && l.targetMapFileName === link.targetMapFileName) ||
+                          (l.sourceMapFileName === link.targetMapFileName && l.targetMapFileName === link.sourceMapFileName)
+                        );
+                        const siblingIdx = siblingLinks.findIndex(l => l.id === link.id);
+                        const spreadOffset = (siblingIdx - (siblingLinks.length - 1) / 2) * 36;
+                        const curveFactor = siblingLinks.length > 1 ? spreadOffset : 24;
+
+                        const ctrlX = ((p0.x + p2.x) / 2) + normX * curveFactor;
+                        const ctrlY = ((p0.y + p2.y) / 2) + normY * curveFactor;
+                        const p1 = { x: ctrlX, y: ctrlY };
+
+                        const pathD = `M ${p0.x} ${p0.y} Q ${p1.x} ${p1.y} ${p2.x} ${p2.y}`;
+                        const arrowHeads = getQuadBezierArrowHeads(p0, p1, p2, [0.35, 0.65]);
+
+                        return (
+                          <g 
+                            key={link.id + '_' + linkIdx} 
+                            className="pointer-events-auto cursor-pointer" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLinkId(link.id);
+                              setSelectedMapFileName(null);
+                            }}
+                          >
+                            {/* Hitbox path */}
+                            <path
+                              d={pathD}
+                              stroke="transparent"
+                              strokeWidth={22}
+                              fill="none"
+                            />
+                            {/* Visual directional wire */}
+                            <path
+                              d={pathD}
+                              stroke={isSelected ? '#c084fc' : link.sourceType === 'interactive_prop' ? '#10b981' : link.sourceType === 'map_exit' ? '#06b6d4' : '#a855f7'}
+                              strokeWidth={isSelected ? 3.5 : 2.5}
+                              fill="none"
+                              strokeDasharray={link.sourceType === 'interactive_prop' ? '6 3' : undefined}
+                              className="transition-all hover:stroke-purple-300"
+                            />
+                            {/* Directional arrow heads */}
+                            {arrowHeads.map((arrow, aIdx) => (
+                              <g
+                                key={aIdx}
+                                transform={`translate(${arrow.x}, ${arrow.y}) rotate(${arrow.angleDeg})`}
+                                className="pointer-events-none"
+                              >
+                                <path
+                                  d="M -7 -5 L 6 0 L -7 5 L -3.5 0 Z"
+                                  fill={isSelected ? '#e9d5ff' : link.sourceType === 'interactive_prop' ? '#34d399' : link.sourceType === 'map_exit' ? '#22d3ee' : '#c084fc'}
+                                  stroke={isSelected ? '#581c87' : '#0f172a'}
+                                  strokeWidth={0.8}
+                                />
+                              </g>
+                            ))}
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    {/* Transition Midpoint Interactive Badges */}
+                    <div 
+                      className="absolute inset-0 pointer-events-none z-10" 
+                      style={{ 
+                        transform: `translate(${graphPanX}px, ${graphPanY}px) scale(${graphZoom})`, 
+                        transformOrigin: '0 0' 
+                      }}
+                    >
+                      {computedWorldLinks.map((link, linkIdx) => {
+                        const srcIdx = mapsList.findIndex(m => m.fileName === link.sourceMapFileName);
+                        const tgtIdx = mapsList.findIndex(m => m.fileName === link.targetMapFileName);
+                        if (srcIdx < 0 || tgtIdx < 0) return null;
+
+                        const srcPos = getNodePos(link.sourceMapFileName, srcIdx);
+                        const tgtPos = getNodePos(link.targetMapFileName, tgtIdx);
+
+                        const CARD_WIDTH = 260;
+                        const CARD_HEIGHT = 140;
+                        const p0 = { x: srcPos.x + CARD_WIDTH / 2, y: srcPos.y + CARD_HEIGHT / 2 };
+                        const p2 = { x: tgtPos.x + CARD_WIDTH / 2, y: tgtPos.y + CARD_HEIGHT / 2 };
+
+                        const dx = p2.x - p0.x;
+                        const dy = p2.y - p0.y;
+                        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const normX = -dy / len;
+                        const normY = dx / len;
+
+                        const siblingLinks = computedWorldLinks.filter(l => 
+                          (l.sourceMapFileName === link.sourceMapFileName && l.targetMapFileName === link.targetMapFileName) ||
+                          (l.sourceMapFileName === link.targetMapFileName && l.targetMapFileName === link.sourceMapFileName)
+                        );
+                        const siblingIdx = siblingLinks.findIndex(l => l.id === link.id);
+                        const spreadOffset = (siblingIdx - (siblingLinks.length - 1) / 2) * 36;
+                        const curveFactor = siblingLinks.length > 1 ? spreadOffset : 24;
+
+                        const midX = ((p0.x + p2.x) / 2) + normX * (curveFactor * 0.6);
+                        const midY = ((p0.y + p2.y) / 2) + normY * (curveFactor * 0.6);
+
+                        const isSelected = selectedLinkId === link.id;
+
+                        const typeIcon = 
+                          link.sourceType === 'interactive_prop' ? '🟩' :
+                          link.sourceType === 'map_exit' ? '🚪' : '🔗';
+
+                        return (
+                          <div
+                            key={link.id + '_' + linkIdx}
+                            style={{ left: `${midX}px`, top: `${midY}px`, transform: 'translate(-50%, -50%)' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLinkId(link.id);
+                              setSelectedMapFileName(null);
+                            }}
+                            className={`pointer-events-auto cursor-pointer p-1.5 px-2.5 rounded-full border shadow-lg transition flex items-center gap-1.5 text-[11px] font-bold ${
+                              isSelected
+                                ? 'bg-purple-900 border-purple-400 text-white ring-2 ring-purple-500/50 scale-105'
+                                : link.sourceType === 'interactive_prop'
+                                ? 'bg-neutral-900/95 border-emerald-500/50 text-emerald-300 hover:border-emerald-400'
+                                : link.sourceType === 'map_exit'
+                                ? 'bg-neutral-900/95 border-cyan-500/50 text-cyan-200 hover:border-cyan-400'
+                                : 'bg-neutral-900/95 border-purple-500/50 text-purple-200 hover:border-purple-400'
+                            }`}
+                            title="Click to view connection details"
+                          >
+                            <span>{typeIcon}</span>
+                            <span className="font-mono text-[10px]">
+                              {link.sourceMapFileName.replace('.map', '')} ➔ {link.targetMapFileName.replace('.map', '')}
                             </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Level Cards (Draggable Nodes) Layer */}
+                    <div 
+                      className="absolute inset-0 pointer-events-none z-20" 
+                      style={{ 
+                        transform: `translate(${graphPanX}px, ${graphPanY}px) scale(${graphZoom})`, 
+                        transformOrigin: '0 0' 
+                      }}
+                    >
+                      {mapsList.map((mapFile, idx) => {
+                        const pos = getNodePos(mapFile.fileName, idx);
+                        const isEntry = data.entryMapFileName === mapFile.fileName;
+                        const isSelected = selectedMapFileName === mapFile.fileName;
+                        const outgoingLinks = computedWorldLinks.filter(l => l.sourceMapFileName === mapFile.fileName);
+                        const incomingLinks = computedWorldLinks.filter(l => l.targetMapFileName === mapFile.fileName);
+                        const isConnectingThis = connectingSourceMap === mapFile.fileName;
+
+                        return (
+                          <div
+                            key={mapFile.fileName}
+                            style={{
+                              left: `${pos.x}px`,
+                              top: `${pos.y}px`,
+                              width: '260px'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (connectingSourceMap) {
+                                if (connectingSourceMap !== mapFile.fileName) {
+                                  handleAddGraphLink(connectingSourceMap, mapFile.fileName);
+                                }
+                                setConnectingSourceMap(null);
+                                return;
+                              }
+                              setSelectedMapFileName(mapFile.fileName);
+                              setSelectedLinkId(null);
+                            }}
+                            className={`pointer-events-auto absolute rounded-2xl border transition shadow-xl bg-neutral-900/95 backdrop-blur-md overflow-hidden ${
+                              isConnectingThis
+                                ? 'border-purple-400 ring-2 ring-purple-500 shadow-purple-500/30'
+                                : isSelected
+                                ? 'border-cyan-400 ring-2 ring-cyan-500/40 shadow-cyan-500/20'
+                                : isEntry
+                                ? 'border-purple-500/70 shadow-purple-950/40'
+                                : 'border-neutral-800 hover:border-neutral-700'
+                            }`}
+                          >
+                            {/* Card Header (Draggable Handle) */}
+                            <div 
+                              onMouseDown={(e) => {
+                                if (e.button === 0) {
+                                  setDraggingMapFileName(mapFile.fileName);
+                                  dragNodeStartRef.current = {
+                                    mouseX: e.clientX,
+                                    mouseY: e.clientY,
+                                    nodeX: pos.x,
+                                    nodeY: pos.y
+                                  };
+                                }
+                              }}
+                              className={`p-2.5 px-3 border-b flex items-center justify-between cursor-grab active:cursor-grabbing ${
+                                isEntry 
+                                  ? 'bg-purple-950/70 border-purple-500/40' 
+                                  : 'bg-neutral-950/80 border-neutral-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-sm">🗺️</span>
+                                <span className="font-mono text-xs font-bold text-white truncate" title={mapFile.fileName}>
+                                  {mapFile.fileName}
+                                </span>
+                              </div>
+                              {isEntry && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 shrink-0 font-mono">
+                                  START
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="p-3 space-y-2.5">
+                              <div>
+                                <div className="text-xs font-bold text-neutral-200 truncate">{mapFile.name}</div>
+                                <div className="text-[10px] text-neutral-500 font-mono">
+                                  {mapFile.width}×{mapFile.height} Tiles • {Object.keys(mapFile.chunks || {}).length || 1} Chunks
+                                </div>
+                              </div>
+
+                              {/* Outgoing Destinations Preview */}
+                              <div className="space-y-1 bg-neutral-950/80 p-2 rounded-xl border border-neutral-800/80 text-[10px] font-mono">
+                                <div className="flex items-center justify-between text-neutral-400">
+                                  <span className="text-cyan-400">🔗 Out: {outgoingLinks.length}</span>
+                                  <span className="text-neutral-500">In: {incomingLinks.length}</span>
+                                </div>
+                                {outgoingLinks.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {outgoingLinks.slice(0, 3).map((l, i) => (
+                                      <span key={i} className="px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300 text-[9px] truncate max-w-[105px]">
+                                        ➔ {l.targetMapFileName.replace('.map', '')}
+                                      </span>
+                                    ))}
+                                    {outgoingLinks.length > 3 && (
+                                      <span className="px-1 py-0.5 text-neutral-500 text-[9px]">
+                                        +{outgoingLinks.length - 3} more
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-neutral-600 text-[9px] italic">No outgoing exits configured</div>
+                                )}
+                              </div>
+
+                              {/* Card Actions */}
+                              <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-neutral-800/70 text-[11px]">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConnectingSourceMap(mapFile.fileName);
+                                  }}
+                                  className="px-2 py-1 bg-purple-950 hover:bg-purple-900 border border-purple-500/40 text-purple-200 rounded-lg font-bold transition flex items-center gap-1 text-[10px]"
+                                  title="Connect to another map"
+                                >
+                                  <Plus size={11} />
+                                  <span>Link To...</span>
+                                </button>
+
+                                <div className="flex items-center gap-1">
+                                  {!isEntry && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateStructure(s => ({ ...s, entryMapFileName: mapFile.fileName }));
+                                      }}
+                                      className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg font-semibold transition text-[10px]"
+                                      title="Set as initial starting level"
+                                    >
+                                      Set Start
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onNavigateToModule('maps', mapFile.fileName);
+                                    }}
+                                    className="px-2 py-1 bg-neutral-800 hover:bg-cyan-950 hover:text-cyan-300 text-neutral-300 rounded-lg font-semibold transition text-[10px] flex items-center gap-1"
+                                    title="Open level in Map Editor"
+                                  >
+                                    <span>Edit Map</span>
+                                    <ExternalLink size={10} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Selected Link Floating Inspector Bar */}
+                    {(() => {
+                      const selectedLink = computedWorldLinks.find(l => l.id === selectedLinkId);
+                      if (!selectedLink) return null;
+
+                      return (
+                        <div className="absolute bottom-4 left-4 right-4 z-30 bg-neutral-900/95 border border-purple-500/60 backdrop-blur-md rounded-2xl p-3 px-4 shadow-2xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-purple-950 border border-purple-500/40 flex items-center justify-center text-base">
+                              {selectedLink.sourceType === 'interactive_prop' ? '🟩' : selectedLink.sourceType === 'map_exit' ? '🚪' : '🔗'}
+                            </div>
                             <div>
-                              <span className="text-xs font-bold text-neutral-200">{link.notes || `Connection ${idx + 1}`}</span>
-                              <div className="flex items-center gap-2 mt-0.5 text-[10px] font-mono text-neutral-400">
-                                <span>{link.sourceMapFileName} [{link.sourceExitId}]</span>
-                                {link.isBiDirectional ? <ArrowLeftRight size={12} className="text-purple-400" /> : <ArrowRight size={12} className="text-cyan-400" />}
-                                <span>{link.targetMapFileName} [{link.targetExitId}]</span>
+                              <div className="flex items-center gap-2 text-xs font-bold text-white font-mono">
+                                <span className="text-purple-300">{selectedLink.sourceMapFileName}</span>
+                                <ArrowRight size={13} className="text-cyan-400" />
+                                <span className="text-cyan-300">{selectedLink.targetMapFileName}</span>
+                              </div>
+                              <div className="text-[11px] text-neutral-400 mt-0.5 flex items-center gap-2">
+                                <span>{selectedLink.detailName}</span>
+                                <span className="text-neutral-600">•</span>
+                                <span className="text-neutral-500 text-[10px]">
+                                  {selectedLink.isMapDefined ? 'Configured on Level Map' : 'World Graph Route'}
+                                </span>
                               </div>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {link.requiredFlagId && (
-                              <span className="text-[10px] px-2 py-0.5 bg-amber-950/60 border border-amber-500/40 text-amber-300 rounded font-semibold flex items-center gap-1">
-                                <Lock size={10} /> Requires: {requiredFlag?.name || link.requiredFlagId}
-                              </span>
-                            )}
                             <button
                               type="button"
-                              onClick={() => {
-                                updateStructure(s => ({
-                                  ...s,
-                                  worldGraphLinks: s.worldGraphLinks.filter((_, i) => i !== idx)
-                                }));
-                              }}
-                              className="p-1.5 text-neutral-500 hover:text-red-400 rounded-lg hover:bg-neutral-800 transition"
+                              onClick={() => onNavigateToModule('maps', selectedLink.sourceMapFileName)}
+                              className="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+                            >
+                              <span>Open Origin Map in Editor</span>
+                              <ExternalLink size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLink(selectedLink.id)}
+                              className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-500/40 text-red-300 rounded-xl text-xs font-bold transition flex items-center gap-1"
                               title="Delete Link"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={12} />
+                              <span>Delete Link</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLinkId(null)}
+                              className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800"
+                            >
+                              <X size={14} />
                             </button>
                           </div>
                         </div>
-
-                        {/* Link Property Modifiers */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-neutral-400 uppercase">Origin Map (.map)</label>
-                            <select
-                              value={link.sourceMapFileName}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                updateStructure(s => ({
-                                  ...s,
-                                  worldGraphLinks: s.worldGraphLinks.map((l, i) => i === idx ? { ...l, sourceMapFileName: val } : l)
-                                }));
-                              }}
-                              className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
-                            >
-                              {project.fileSystem.maps.map(m => (
-                                <option key={m.fileName} value={m.fileName}>{m.fileName}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-neutral-400 uppercase">Target Map (.map)</label>
-                            <select
-                              value={link.targetMapFileName}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                updateStructure(s => ({
-                                  ...s,
-                                  worldGraphLinks: s.worldGraphLinks.map((l, i) => i === idx ? { ...l, targetMapFileName: val } : l)
-                                }));
-                              }}
-                              className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
-                            >
-                              {project.fileSystem.maps.map(m => (
-                                <option key={m.fileName} value={m.fileName}>{m.fileName}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-neutral-400 uppercase">Lock with Flag</label>
-                            <select
-                              value={link.requiredFlagId || ''}
-                              onChange={(e) => {
-                                const val = e.target.value || undefined;
-                                updateStructure(s => ({
-                                  ...s,
-                                  worldGraphLinks: s.worldGraphLinks.map((l, i) => i === idx ? { ...l, requiredFlagId: val } : l)
-                                }));
-                              }}
-                              className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                            >
-                              <option value="">No Lock (Free Passage)</option>
-                              {data.progressionFlags.map(flag => (
-                                <option key={flag.id} value={flag.id}>{flag.name}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1 flex flex-col justify-end">
-                            <label className="flex items-center gap-2 p-2 bg-neutral-950 border border-neutral-800 rounded-lg cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={link.isBiDirectional}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  updateStructure(s => ({
-                                    ...s,
-                                    worldGraphLinks: s.worldGraphLinks.map((l, i) => i === idx ? { ...l, isBiDirectional: checked } : l)
-                                  }));
-                                }}
-                                className="rounded accent-purple-500 cursor-pointer"
-                              />
-                              <span className="text-[11px] text-neutral-300 font-semibold">Bi-Directional Exit</span>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })()}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* TABLE / MATRIX VIEW */
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
+                        Active World Map Connections ({computedWorldLinks.length})
+                      </h3>
+                      <p className="text-xs text-neutral-500">
+                        Links determined directly by level maps, doorway exits, interactive zones, and graph routes
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {computedWorldLinks.length === 0 ? (
+                        <div className="p-8 text-center bg-neutral-900/50 rounded-2xl border border-neutral-800 text-neutral-500 text-xs">
+                          No map connections configured yet. Use the Visual Graph or place doorway/zone destination links on your maps.
+                        </div>
+                      ) : (
+                        computedWorldLinks.map((link, idx) => (
+                          <div 
+                            key={link.id + '_' + idx}
+                            className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-3.5 px-4 flex items-center justify-between gap-4"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="w-6 h-6 rounded-lg bg-neutral-950 border border-neutral-800 flex items-center justify-center text-xs font-mono font-bold text-neutral-400">
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-white font-mono">
+                                  <span className="text-purple-300">{link.sourceMapFileName}</span>
+                                  <ArrowRight size={12} className="text-cyan-400" />
+                                  <span className="text-cyan-300">{link.targetMapFileName}</span>
+                                </div>
+                                <div className="text-[11px] text-neutral-400 mt-0.5 flex items-center gap-2">
+                                  <span>{link.detailName}</span>
+                                  <span className="text-neutral-600">•</span>
+                                  <span className="text-neutral-500 text-[10px]">
+                                    {link.isMapDefined ? 'Configured on Level Map' : 'World Graph Route'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onNavigateToModule('maps', link.sourceMapFileName)}
+                                className="px-2.5 py-1.5 bg-neutral-800 hover:bg-cyan-950 hover:text-cyan-300 text-neutral-300 rounded-xl text-xs font-semibold transition flex items-center gap-1"
+                              >
+                                <span>Edit Origin Map</span>
+                                <ExternalLink size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLink(link.id)}
+                                className="p-1.5 text-neutral-500 hover:text-red-400 rounded-lg hover:bg-neutral-800 transition"
+                                title="Delete Link"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -548,7 +1160,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                   Initial Game Entry & Active Module Attachments
                 </h2>
                 <p className="text-xs text-neutral-400 mt-1">
-                  Designate the starting level, initial archetype class, and HUD theme attached to this game session.
+                  Designate the starting level, initial character, and HUD theme attached to this game session.
                 </p>
               </div>
 
@@ -580,27 +1192,27 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Starting Hero Archetype */}
+                {/* 2. Starting Hero Character */}
                 <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-950/80 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                    <div className="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-500/40 flex items-center justify-center text-rose-400">
                       <Users size={20} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-neutral-200">Default Archetype</h4>
-                      <p className="text-xs text-neutral-400">Initial player class & move set</p>
+                      <h4 className="text-sm font-bold text-neutral-200">Default Character</h4>
+                      <p className="text-xs text-neutral-400">Initial player appearance & stats</p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-neutral-300">Select .arch File</label>
+                    <label className="text-xs font-bold text-neutral-300">Select .character File</label>
                     <select
-                      value={data.defaultArchetypeFileName}
-                      onChange={(e) => updateStructure(s => ({ ...s, defaultArchetypeFileName: e.target.value }))}
+                      value={data.defaultCharacterFileName}
+                      onChange={(e) => updateStructure(s => ({ ...s, defaultCharacterFileName: e.target.value }))}
                       className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
                     >
-                      {project.fileSystem.archetypes.map(a => (
-                        <option key={a.fileName} value={a.fileName}>{a.fileName} ({a.name})</option>
+                      {(project.fileSystem.characters || []).map(c => (
+                        <option key={c.fileName} value={c.fileName}>{c.fileName} ({c.name})</option>
                       ))}
                     </select>
                   </div>
@@ -910,7 +1522,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                       </span>
                       <input
                         type="checkbox"
-                        checked={isEnabled}
+                        checked={Boolean(isEnabled)}
                         onChange={(e) => {
                           const checked = e.target.checked;
                           updateStructure(s => ({

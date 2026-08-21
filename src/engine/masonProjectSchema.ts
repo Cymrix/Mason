@@ -60,56 +60,6 @@ export interface BiomeFile {
 }
 
 // ==========================================
-// 3. ARCHETYPE FILE (.arch)
-// ==========================================
-export interface TraversalAbility {
-  id: string;
-  name: string;
-  tag: string;
-  staminaCost: number;
-  description: string;
-  icon: string;
-}
-
-export interface ArchetypeData {
-  id: string;
-  name: string;
-  title: string;
-  backstory: string;
-  avatarIcon: string;
-  themeColor: string;
-  baseStats: {
-    health: number;
-    energy: number;
-    stamina: number;
-    poise: number;
-    moveSpeed: number;
-    jumpForce: number;
-  };
-  traversalTags: string[]; // ['double_jump', 'wall_cling', 'air_dash']
-  foci: {
-    action: string[]; // Primary attacks
-    ability: string[]; // Spells / skills
-    armor: string;
-    defensive: string;
-  };
-  weaponProficiencies: string[];
-  damageAffinity: 'slashing' | 'blunt' | 'piercing' | 'fire' | 'frost' | 'lightning' | 'void' | 'kinetic';
-  passivePerks: { id: string; name: string; desc: string }[];
-  assignedBehaviorFileName?: string;
-  behaviorDataOverride?: BehaviorData;
-}
-
-export interface ArchetypeFile {
-  id: string;
-  name: string;
-  fileName: string; // e.g. "korrath_steelhand.arch"
-  createdAt: string;
-  updatedAt: string;
-  archetypeData: ArchetypeData;
-}
-
-// ==========================================
 // 3.5 BEHAVIORS, SENSORY TAGS & IFTTT RULES ENGINE (.behavior)
 // ==========================================
 export type SensoryTagID = 'head_eyes' | 'head_ears' | 'torso_center' | 'feet_ground' | 'hand_weapon' | 'back_weakspot' | string;
@@ -121,7 +71,18 @@ export interface SensoryTagConfig {
   offsetY: number; // px relative to center
 }
 
-export type TriggerType = 'sight' | 'sound' | 'proximity' | 'health' | 'timer' | 'state' | 'collision' | 'input_press' | 'player_condition';
+export interface BehaviorSkill {
+  id: string;
+  name: string;
+  description: string;
+  actionType: 'primary_attack' | 'special_ability' | 'defensive_guard' | 'passive_aura' | 'traversal';
+  cooldownMs: number;
+  energyCost: number;
+  staminaCost: number;
+  triggerInputId?: string; // Links to MappedInput ID
+}
+
+export type TriggerType = 'sight' | 'sound' | 'proximity' | 'health' | 'timer' | 'state' | 'collision' | 'input_press' | 'player_condition' | 'keyboard_key' | 'listener' | 'mapped_input' | 'possession' | 'variable_condition' | 'dialogue_trigger';
 
 export interface SightTrigger {
   type: 'sight';
@@ -160,12 +121,16 @@ export interface TimerTrigger {
 
 export interface StateTrigger {
   type: 'state';
-  requiredState: string; // e.g. 'patrol', 'alerted', 'chase'
+  stateMode?: 'is_state' | 'on_enter' | 'on_exit' | 'on_transition';
+  requiredState: string; // e.g. 'patrol', 'alerted', 'chase', 'combat', 'idle'
+  fromState?: string; // For transition triggers e.g. 'patrol' -> 'alerted'
+  toState?: string;
+  transitionId?: string;
 }
 
 export interface CollisionTrigger {
   type: 'collision';
-  contactType: 'cliff_edge' | 'wall_impact' | 'ground_contact';
+  contactType: 'cliff_edge' | 'wall_impact' | 'ground_contact' | 'enemy_contact' | 'hitbox_touch';
 }
 
 export interface InputPressTrigger {
@@ -173,14 +138,64 @@ export interface InputPressTrigger {
   button: 'jump' | 'dash' | 'attack_primary' | 'attack_heavy' | 'interact' | 'skill_1' | 'skill_2' | 'block';
 }
 
+export interface KeyboardKeyTrigger {
+  type: 'keyboard_key';
+  key: string;
+}
+
+export interface ListenerTrigger {
+  type: 'listener';
+  channelTag: string; // Channel or event tag e.g. 'boss_phase_2', 'alarm_triggered'
+  filterSource?: string;
+}
+
+export interface MappedInputTrigger {
+  type: 'mapped_input';
+  inputId: string; // e.g. 'jump', 'dash', 'interact', 'move_left', 'move_right', 'attack'
+  inputName?: string;
+  triggerModeOverride?: 'press' | 'tap' | 'hold' | 'combo';
+}
+
 export interface PlayerConditionTrigger {
   type: 'player_condition';
   condition: 'is_grounded' | 'is_airborne' | 'is_wall_sliding' | 'low_stamina' | 'low_health' | 'staggered';
 }
 
-export type BehaviorTrigger = SightTrigger | SoundTrigger | ProximityTrigger | HealthTrigger | TimerTrigger | StateTrigger | CollisionTrigger | InputPressTrigger | PlayerConditionTrigger;
+export interface PossessionTrigger {
+  type: 'possession';
+  event: 'on_possess' | 'on_unpossess' | 'on_spawn';
+}
 
-export type ActionType = 'move' | 'attack' | 'state_change' | 'emit_signal' | 'animation' | 'camera' | 'hero_impulse';
+export interface VariableConditionTrigger {
+  type: 'variable_condition';
+  variableId: string;
+  comparator: 'less_than' | 'less_or_equal' | 'equals' | 'greater_or_equal' | 'greater_than' | 'not_equals';
+  value: any;
+}
+
+export interface DialogueTrigger {
+  type: 'dialogue_trigger';
+  triggerMode: 'on_interact' | 'on_approach' | 'on_leave';
+}
+
+export type BehaviorTrigger = 
+  | SightTrigger 
+  | SoundTrigger 
+  | ProximityTrigger 
+  | HealthTrigger 
+  | TimerTrigger 
+  | StateTrigger 
+  | CollisionTrigger 
+  | InputPressTrigger 
+  | PlayerConditionTrigger 
+  | KeyboardKeyTrigger 
+  | ListenerTrigger 
+  | MappedInputTrigger
+  | PossessionTrigger
+  | VariableConditionTrigger
+  | DialogueTrigger;
+
+export type ActionType = 'move' | 'attack' | 'state_change' | 'emit_signal' | 'animation' | 'camera' | 'hero_impulse' | 'variable_modify' | 'audio' | 'dialogue';
 
 export interface BehaviorAction {
   id: string;
@@ -193,9 +208,21 @@ export interface BehaviorAction {
   signalType?: 'emit_sound' | 'alert_icon' | 'call_allies';
   signalRadiusPx?: number;
   animState?: 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hurt' | 'death' | string;
-  cameraMode?: 'focus_target' | 'zoom_in' | 'shake';
+  cameraMode?: 'focus_target' | 'zoom_in' | 'shake' | 'track_self';
+  cameraZoom?: number;
+  cameraSmoothing?: number;
+  cameraLookAheadX?: number;
+  cameraLookAheadY?: number;
+  cameraShakeIntensity?: number;
   impulseType?: 'jump' | 'dash' | 'wall_jump' | 'ground_slam';
   force?: number;
+  variableId?: string;
+  variableOp?: 'set' | 'add' | 'subtract' | 'toggle';
+  variableValue?: any;
+  soundCue?: string;
+  volume?: number;
+  dialogueText?: string;
+  speakerName?: string;
 }
 
 export interface BehaviorRule {
@@ -203,6 +230,8 @@ export interface BehaviorRule {
   name: string;
   enabled: boolean;
   trigger: BehaviorTrigger;
+  triggers?: BehaviorTrigger[];
+  triggerLogic?: 'AND' | 'OR';
   actions: BehaviorAction[];
 }
 
@@ -296,6 +325,16 @@ export interface NPCInteractionConfig {
   returnToPostDelayMs: number;
 }
 
+export interface BehaviorVariable {
+  id: string;
+  name: string;
+  category: 'attribute' | 'proficiency' | 'setting' | string;
+  type: 'number' | 'string' | 'boolean' | 'enum';
+  options?: string[]; // Used if type is enum
+  isStatic: boolean;
+  defaultValue: any;
+}
+
 export interface BehaviorData {
   id: string;
   name: string;
@@ -305,6 +344,8 @@ export interface BehaviorData {
   sensoryTags: SensoryTagConfig[];
   rules: BehaviorRule[];
   states: string[];
+  skills?: BehaviorSkill[]; // Added for combat/abilities configuration
+  exposedVariables?: BehaviorVariable[]; // Variables dictated to the linked Character
   foci: CameraFocusConfig;
   movement: MovementControllerConfig;
   ai: EnemyAIConfig;
@@ -340,6 +381,7 @@ export interface CharacterSpritesheet {
   id: string;
   name: string;
   dataUrl?: string; // base64 or data URL for uploaded image
+  imageUrl?: string; // optional image URL / asset link
   tileWidth: number; // e.g., 64
   tileHeight: number; // e.g., 64
   cols: number; // grid columns e.g. 8
@@ -385,6 +427,7 @@ export interface FrameKeyframeData {
   frameIndex: number; // grid index on the spritesheet (e.g. 0..31)
   points: PointAnchorFrameData[];
   polygons: PolygonHitboxFrameData[];
+  capsule?: CharacterCapsuleConfig;
 }
 
 export interface CharacterAnimationConfig {
@@ -416,28 +459,77 @@ export interface AnimationStateConfig {
   soundCue?: string;
 }
 
+export interface CharacterStateNode {
+  id: string; // e.g. 'st_idle', 'st_patrol'
+  name: string; // e.g. 'Idle', 'Patrol', 'Chase', 'Combat', 'Stunned', 'Flee'
+  color?: string; // hex color e.g. '#38bdf8'
+  x: number; // graph node x position
+  y: number; // graph node y position
+  isInitial?: boolean; // starting default state
+  description?: string;
+}
+
+export interface CharacterStateTransition {
+  id: string;
+  fromStateId: string;
+  toStateId: string;
+  isBidirectional?: boolean; // One-way (false) or both-ways (true)
+  triggerLabel?: string; // e.g. 'See Player', 'Lost Target', 'Low HP'
+}
+
+export interface CharacterStateMachine {
+  initialStateId?: string;
+  states: CharacterStateNode[];
+  transitions: CharacterStateTransition[];
+}
+
 export interface CharacterData {
   id: string;
   name: string;
+  title?: string;
+  backstory?: string;
   characterType: 'player_hero' | 'enemy_mob' | 'boss_archon' | 'friendly_npc';
   avatarIcon: string;
   spriteWidth: number;
   spriteHeight: number;
   tintColor: string;
   baseScale: number;
-  
-  // New Character Creator System Fields
+
+  // Variables & Attributes
+  variables?: BehaviorVariable[];
+  behaviorVariables?: Record<string, any>; // Stored values / overrides for variables
+
+  // Bespoke IFTTT Rule Engine & AI Logic
+  rules?: BehaviorRule[];
+  states?: string[];
+  stateMachine?: CharacterStateMachine;
+  movement?: MovementControllerConfig;
+  ai?: EnemyAIConfig;
+
+  // Visual Character Creator Fields
   capsule?: CharacterCapsuleConfig;
   spritesheets?: CharacterSpritesheet[];
   points?: CharacterNamedPoint[];
   polygons?: CharacterNamedPolygon[];
   animations: CharacterAnimationConfig[];
 
-  // Legacy field support for sockets and linking
+  // Sensory Sockets & Dialogue
   sockets: CharacterSocket[];
-  assignedBehaviorFileName?: string;
-  assignedArchetypeFileName?: string;
   dialogueGreeting?: string;
+
+  // Legacy fields for backward compatibility
+  baseStats?: {
+    health: number;
+    energy: number;
+    stamina: number;
+    poise: number;
+    speed: number;
+  };
+  weaponProficiencies?: string[];
+  damageAffinity?: 'slashing' | 'blunt' | 'piercing' | 'fire' | 'frost' | 'lightning' | 'void' | 'kinetic';
+  passivePerks?: { id: string; name: string; desc: string }[];
+  linkedBehaviorId?: string;
+  assignedBehaviorFileName?: string;
 }
 
 export interface CharacterFile {
@@ -452,6 +544,161 @@ export interface CharacterFile {
 // ==========================================
 // 4. UI THEME FILE (.ui)
 // ==========================================
+export type UICornerRoundness = 'sharp' | 'subtle' | 'standard' | 'smooth' | 'pill' | 'custom';
+export type UIThemePreset = 'gothic_metroidvania' | 'cyberpunk_neon' | 'pixel_16bit' | 'minimal_dark' | 'fantasy_arcane';
+
+export interface UIThemeColors {
+  primaryAccent: string;
+  secondaryAccent: string;
+  surfaceBg: string;
+  cardBg: string;
+  cardBorder: string;
+  textPrimary: string;
+  textMuted: string;
+  healthColor: string;
+  manaColor: string;
+  staminaColor: string;
+  dangerColor: string;
+  goldColor: string;
+}
+
+export interface UIThemeStyling {
+  preset: UIThemePreset;
+  roundness: UICornerRoundness;
+  customRadiusPx: number; // 0-32px
+  borderWidthPx: number; // 0-4px
+  borderGlow: boolean;
+  panelBackdropBlur: number; // 0-24px
+  panelOpacityPercent: number; // 50-100%
+  fontFamily: 'default' | 'pixel' | 'serif_gothic' | 'mono_scifi' | 'sans_modern';
+  fontScale: number; // 0.8 - 1.4
+  colors: UIThemeColors;
+  animations: {
+    buttonHoverScale: number; // 1.0 - 1.15
+    buttonClickDepthPx: number; // 0 - 6px
+    panelTransition: 'slide_horizontal' | 'slide_vertical' | 'fade_scale' | 'flip_3d' | 'instant';
+    transitionDurationMs: number; // 150 - 600ms
+    glowPulseEnabled: boolean;
+    shimmerEffect: boolean;
+  };
+}
+
+export interface UISplashScreenConfig {
+  gameTitle: string;
+  gameSubtitle: string;
+  studioName: string;
+  pressPromptText: string; // e.g. "PRESS ANY BUTTON TO ENTER"
+  showStudioLogo: boolean;
+  logoIcon: string; // e.g. '⚔️', '👁️', '⚡', or custom image url
+  versionText: string; // e.g. "v1.0.0 Alpha Build"
+  promptBlinkSpeedMs: number; // 800ms
+  backgroundTint: string;
+  backgroundParticleEffect: 'embers' | 'digital_rain' | 'dust_motes' | 'snow' | 'none';
+}
+
+export interface UIMenuButtonConfig {
+  id: string;
+  label: string;
+  action: 'start_game' | 'load_game' | 'inventory' | 'options' | 'credits' | 'quit' | 'custom';
+  icon?: string;
+  badge?: string;
+  isPrimary?: boolean;
+}
+
+export interface UIMainMenuConfig {
+  alignment: 'left' | 'center' | 'right' | 'card_window';
+  buttons: UIMenuButtonConfig[];
+  showVersionStamp: boolean;
+  bannerHeadline: string;
+  showDifficultySelector: boolean;
+  selectedButtonIndex: number;
+}
+
+export interface UIPauseMenuConfig {
+  title: string;
+  buttons: UIMenuButtonConfig[];
+  showStatsSummary: boolean;
+  backdropBlurAmount: number;
+  pauseGameEngine: boolean;
+}
+
+export interface UIInventoryScreenConfig {
+  gridCols: number; // 4, 5, 6
+  gridRows: number; // 3, 4, 5
+  showPaperdoll: boolean;
+  equipmentSlots: {
+    slotId: string;
+    label: string;
+    icon: string;
+    category: 'weapon' | 'armor' | 'relic' | 'trinket' | 'boots';
+  }[];
+  categoryTabs: { id: string; label: string; icon: string }[];
+  showStatSummary: boolean;
+  showGoldCounter: boolean;
+  currencyName: string;
+}
+
+export type UIButtonActionType = 'navigate_menu' | 'close_menu' | 'start_game' | 'resume_game' | 'quit_game' | 'custom_event';
+
+export interface UICustomWidget {
+  id: string;
+  name: string;
+  type: 'button' | 'text' | 'input_field' | 'image' | 'progress_bar' | 'slider' | 'toggle' | 'card' | 'badge';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  
+  // Text & Content
+  text?: string;
+  placeholder?: string;
+  inputType?: 'text' | 'number' | 'password';
+  icon?: string;
+  badge?: string;
+  isPrimary?: boolean;
+  
+  // Visual Styles
+  color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  fontSize?: number;
+  textAlign?: 'left' | 'center' | 'right';
+  
+  // Numerical & State Values
+  value?: number;
+  minValue?: number;
+  maxValue?: number;
+  step?: number;
+  unit?: string;
+  checked?: boolean;
+  imageUrl?: string;
+  animationTrigger?: 'on_click_slide' | 'on_hover_grow' | 'pulse' | 'none';
+  
+  // Button Actions & Navigation
+  action?: UIButtonActionType;
+  targetMenuId?: string; // ID of the target menu to open
+  pauseAction?: 'none' | 'pause' | 'unpause' | 'toggle_pause'; // Pause/unpause behavior on click
+  customEventName?: string;
+}
+
+export interface UIMenuScreen {
+  id: string;
+  name: string; // e.g. "Start Menu", "Pause Menu", "Options", "Inventory"
+  description?: string;
+  isInitialScreen?: boolean;
+  isPauseMenu?: boolean;
+  isOverlay?: boolean;
+  backdropBlur?: number; // 0-24px
+  backgroundColor?: string;
+  widgets: UICustomWidget[];
+}
+
+export interface UICustomCanvasConfig {
+  name: string;
+  widgets: UICustomWidget[];
+}
+
 export interface UIHealthOrbConfig {
   style: 'classic_orb' | 'horizontal_bar' | 'segmented_pips' | 'cyber_gauge';
   fillColor: string;
@@ -511,10 +758,58 @@ export interface UICombatTextConfig {
   };
 }
 
+export interface InputMapping {
+  id: string;
+  name: string; // e.g. 'jump', 'dash', 'attack_primary', 'interact', 'block', 'pause_menu'
+  label: string; // e.g. 'Jump / Ascent', 'Pause System Menu'
+  category?: string; // e.g. 'movement', 'combat', 'interaction', 'navigation', or custom string
+  triggerMode: 'press' | 'tap' | 'hold' | 'toggle' | 'release' | 'double_tap' | 'combo';
+  holdDurationMs?: number;
+  keys: string[]; // e.g. ['Space', 'KeyW']
+  gamepadButtons?: string[]; // e.g. ['ButtonSouth', 'LeftBumper']
+  comboKeys?: string[];
+  actionType?: 'gameplay_action' | 'open_ui';
+  targetUiMenuId?: string; // ID of the UI menu screen to open (or 'pause_menu', 'initial_menu')
+}
+
+export const UNIFIED_INPUT_TEMPLATE: InputMapping[] = [
+  // Movement
+  { id: 'inp_jump', name: 'jump', label: 'Jump / Leap', category: 'movement', triggerMode: 'press', actionType: 'gameplay_action', keys: ['Space', 'KeyW', 'ArrowUp'], gamepadButtons: ['ButtonSouth / A'] },
+  { id: 'inp_move_left', name: 'move_left', label: 'Move Left', category: 'movement', triggerMode: 'hold', actionType: 'gameplay_action', keys: ['KeyA', 'ArrowLeft'], gamepadButtons: ['D-Pad Left', 'L-Stick Left'] },
+  { id: 'inp_move_right', name: 'move_right', label: 'Move Right', category: 'movement', triggerMode: 'hold', actionType: 'gameplay_action', keys: ['KeyD', 'ArrowRight'], gamepadButtons: ['D-Pad Right', 'L-Stick Right'] },
+  { id: 'inp_crouch', name: 'crouch', label: 'Crouch / Drop Down', category: 'movement', triggerMode: 'hold', actionType: 'gameplay_action', keys: ['KeyS', 'ArrowDown'], gamepadButtons: ['D-Pad Down', 'L-Stick Down'] },
+  { id: 'inp_dash', name: 'dash', label: 'Air / Ground Dash', category: 'movement', triggerMode: 'tap', actionType: 'gameplay_action', keys: ['ShiftLeft', 'KeyC'], gamepadButtons: ['ButtonEast / B'] },
+  { id: 'inp_wall_slide', name: 'wall_slide', label: 'Wall Slide / Cling', category: 'movement', triggerMode: 'hold', actionType: 'gameplay_action', keys: ['KeyA', 'KeyD'], gamepadButtons: ['L-Stick'] },
+  
+  // Combat
+  { id: 'inp_attack', name: 'attack', label: 'Primary Attack / Strike', category: 'combat', triggerMode: 'press', actionType: 'gameplay_action', keys: ['KeyJ', 'KeyZ'], gamepadButtons: ['ButtonWest / X'] },
+  { id: 'inp_special', name: 'special_attack', label: 'Secondary / Special Skill', category: 'combat', triggerMode: 'press', actionType: 'gameplay_action', keys: ['KeyK', 'KeyX'], gamepadButtons: ['ButtonNorth / Y'] },
+  { id: 'inp_block', name: 'block', label: 'Shield Guard / Parry', category: 'combat', triggerMode: 'hold', holdDurationMs: 0, actionType: 'gameplay_action', keys: ['KeyL', 'KeyV'], gamepadButtons: ['LeftBumper / LB'] },
+  { id: 'inp_cast_spell', name: 'cast_spell', label: 'Cast Magic / Ranged', category: 'combat', triggerMode: 'press', actionType: 'gameplay_action', keys: ['KeyU', 'KeyQ'], gamepadButtons: ['RightTrigger / RT'] },
+  
+  // Interaction
+  { id: 'inp_interact', name: 'interact', label: 'Interact / Talk / Inspect', category: 'interaction', triggerMode: 'hold', holdDurationMs: 300, actionType: 'gameplay_action', keys: ['KeyE', 'KeyF'], gamepadButtons: ['RightBumper / RB'] },
+  { id: 'inp_use_item', name: 'use_item', label: 'Use Consumable / Potion', category: 'interaction', triggerMode: 'press', actionType: 'gameplay_action', keys: ['KeyR', 'Digit1'], gamepadButtons: ['D-Pad Up'] },
+  
+  // Navigation & System (Includes UI triggers)
+  { id: 'inp_inventory', name: 'inventory', label: 'Inventory / Equipment', category: 'navigation', triggerMode: 'press', actionType: 'open_ui', targetUiMenuId: 'menu_inventory', keys: ['KeyI', 'Tab'], gamepadButtons: ['Select / Back'] },
+  { id: 'inp_map', name: 'map_tracker', label: 'World Map Tracker', category: 'navigation', triggerMode: 'press', actionType: 'open_ui', targetUiMenuId: 'menu_world_map', keys: ['KeyM'], gamepadButtons: ['Select'] },
+  { id: 'inp_pause', name: 'pause_menu', label: 'Pause / System Menu', category: 'navigation', triggerMode: 'press', actionType: 'open_ui', targetUiMenuId: 'pause_menu', keys: ['Escape'], gamepadButtons: ['Start'] }
+];
+
 export interface UIConfigData {
   id: string;
   name: string;
   themeName: string;
+  initialMenuId?: string;
+  pauseMenuId?: string;
+  menus: UIMenuScreen[];
+  styling?: UIThemeStyling;
+  splashScreen?: UISplashScreenConfig;
+  mainMenu?: UIMainMenuConfig;
+  pauseMenu?: UIPauseMenuConfig;
+  inventoryScreen?: UIInventoryScreenConfig;
+  customCanvas?: UICustomCanvasConfig;
   healthOrb: UIHealthOrbConfig;
   manaGauge: {
     enabled: boolean;
@@ -531,6 +826,7 @@ export interface UIConfigData {
   bossBar: UIBossBarConfig;
   combatText: UICombatTextConfig;
   buttonPromptStyle: 'keyboard' | 'playstation' | 'xbox' | 'nintendo';
+  inputMappings?: InputMapping[];
 }
 
 export interface UIThemeFile {
@@ -560,6 +856,7 @@ export interface WorldGraphLink {
   targetMapFileName: string;
   targetExitId: string;
   isBiDirectional: boolean;
+  transitionType?: 'door' | 'portal' | 'seamless' | 'teleporter' | 'elevator' | 'zone';
   requiredFlagId?: string; // Flag needed to open this passage
   notes?: string;
 }
@@ -589,7 +886,7 @@ export interface PauseMenuConfig {
   enabledTabs: {
     inventory: boolean;
     worldMap: boolean;
-    archetypes: boolean;
+    
     quests: boolean;
     audioSettings: boolean;
   };
@@ -608,7 +905,7 @@ export interface GameStructureData {
   // Attachments to other modules
   entryMapFileName: string; // Initial starting .map file
   entrySpawnId: string;
-  defaultArchetypeFileName: string; // Starting player class
+  defaultCharacterFileName: string; // Starting player class
   attachedUiFileName: string; // Active HUD/UI configuration
   
   // Game framework configs
@@ -617,6 +914,7 @@ export interface GameStructureData {
   pauseMenu: PauseMenuConfig;
   progressionFlags: ProgressionFlag[];
   worldGraphLinks: WorldGraphLink[];
+  graphNodes?: { mapFileName: string; x: number; y: number }[];
 }
 
 export interface GameStructureFile {
@@ -631,12 +929,11 @@ export interface GameStructureFile {
 // ==========================================
 // 6. MASON MASTER PROJECT CONTAINER
 // ==========================================
-export type MasonModuleId = 'maps' | 'biomes' | 'archetypes' | 'characters' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer';
+export type MasonModuleId = 'maps' | 'biomes' | 'characters' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer';
 
 export interface MasonFileSystem {
   maps: MapFile[];
   biomes: BiomeFile[];
-  archetypes: ArchetypeFile[];
   characters: CharacterFile[];
   ui: UIThemeFile[];
   game: GameStructureFile[];
@@ -658,7 +955,6 @@ export interface MasonProject {
   activeFiles: {
     mapFileName: string;
     biomeFileName: string;
-    archetypeFileName: string;
     characterFileName?: string;
     uiFileName: string;
     gameStructureFileName: string;
@@ -680,11 +976,731 @@ export const DEFAULT_PROGRESSION_FLAGS: ProgressionFlag[] = [
   { id: 'met_the_cartographer', name: 'Cartographer Rescued', description: 'Reveals hidden biome rooms on the in-game world map', category: 'story' }
 ];
 
+export const ensureUIConfigDefaults = (config?: Partial<UIConfigData>): UIConfigData => {
+  const basePreset = config?.styling?.preset || 'gothic_metroidvania';
+  
+  const defaultColors: UIThemeColors = {
+    primaryAccent: basePreset === 'cyberpunk_neon' ? '#06b6d4' : basePreset === 'pixel_16bit' ? '#38bdf8' : basePreset === 'minimal_dark' ? '#10b981' : basePreset === 'fantasy_arcane' ? '#c084fc' : '#d97706',
+    secondaryAccent: basePreset === 'cyberpunk_neon' ? '#f43f5e' : basePreset === 'pixel_16bit' ? '#fbbf24' : basePreset === 'minimal_dark' ? '#06b6d4' : basePreset === 'fantasy_arcane' ? '#fbbf24' : '#ef4444',
+    surfaceBg: '#09090b',
+    cardBg: '#18181b',
+    cardBorder: '#27272a',
+    textPrimary: '#ffffff',
+    textMuted: '#a1a1aa',
+    healthColor: '#ef4444',
+    manaColor: '#3b82f6',
+    staminaColor: '#10b981',
+    dangerColor: '#f43f5e',
+    goldColor: '#f59e0b',
+    ...(config?.styling?.colors || {})
+  };
+
+  const defaultStyling: UIThemeStyling = {
+    preset: basePreset,
+    roundness: config?.styling?.roundness || 'standard',
+    customRadiusPx: config?.styling?.customRadiusPx ?? 8,
+    borderWidthPx: config?.styling?.borderWidthPx ?? 1,
+    borderGlow: config?.styling?.borderGlow ?? false,
+    panelBackdropBlur: config?.styling?.panelBackdropBlur ?? 12,
+    panelOpacityPercent: config?.styling?.panelOpacityPercent ?? 90,
+    fontFamily: config?.styling?.fontFamily || 'default',
+    fontScale: config?.styling?.fontScale ?? 1.0,
+    colors: defaultColors,
+    animations: {
+      buttonHoverScale: config?.styling?.animations?.buttonHoverScale ?? 1.04,
+      buttonClickDepthPx: config?.styling?.animations?.buttonClickDepthPx ?? 2,
+      panelTransition: config?.styling?.animations?.panelTransition || 'slide_horizontal',
+      transitionDurationMs: config?.styling?.animations?.transitionDurationMs ?? 250,
+      glowPulseEnabled: config?.styling?.animations?.glowPulseEnabled ?? true,
+      shimmerEffect: config?.styling?.animations?.shimmerEffect ?? false,
+      ...(config?.styling?.animations || {})
+    }
+  };
+
+  const defaultSplashScreen: UISplashScreenConfig = {
+    gameTitle: config?.splashScreen?.gameTitle || 'ECHOES OF THE ASHEN VOID',
+    gameSubtitle: config?.splashScreen?.gameSubtitle || 'A 2D Metroidvania Odyssey',
+    studioName: config?.splashScreen?.studioName || 'MASON ENGINE STUDIOS',
+    pressPromptText: config?.splashScreen?.pressPromptText || 'PRESS ANY BUTTON TO ENTER',
+    showStudioLogo: config?.splashScreen?.showStudioLogo ?? true,
+    logoIcon: config?.splashScreen?.logoIcon || '⚔️',
+    versionText: config?.splashScreen?.versionText || 'v1.0.0 Alpha Build',
+    promptBlinkSpeedMs: config?.splashScreen?.promptBlinkSpeedMs ?? 900,
+    backgroundTint: config?.splashScreen?.backgroundTint || '#09090b',
+    backgroundParticleEffect: config?.splashScreen?.backgroundParticleEffect || 'embers',
+    ...(config?.splashScreen || {})
+  };
+
+  const defaultMainMenu: UIMainMenuConfig = {
+    alignment: config?.mainMenu?.alignment || 'left',
+    buttons: config?.mainMenu?.buttons || [
+      { id: 'btn_start', label: 'ENTER THE VOID', action: 'start_game', icon: '⚔️', isPrimary: true },
+      { id: 'btn_load', label: 'CONTINUE ODYSSEY', action: 'load_game', icon: '💾', badge: 'Save 1' },
+      { id: 'btn_inventory', label: 'INVENTORY & GEAR', action: 'inventory', icon: '🎒' },
+      { id: 'btn_settings', label: 'SETTINGS & CONTROLS', action: 'options', icon: '⚙️' },
+      { id: 'btn_credits', label: 'CREDITS & ARCHIVE', action: 'credits', icon: '📜' }
+    ],
+    showVersionStamp: config?.mainMenu?.showVersionStamp ?? true,
+    bannerHeadline: config?.mainMenu?.bannerHeadline || 'THE CROWN OF ASHES AWAITS',
+    showDifficultySelector: config?.mainMenu?.showDifficultySelector ?? true,
+    selectedButtonIndex: config?.mainMenu?.selectedButtonIndex ?? 0,
+    ...(config?.mainMenu || {})
+  };
+
+  const defaultPauseMenu: UIPauseMenuConfig = {
+    title: config?.pauseMenu?.title || 'GAME PAUSED',
+    buttons: config?.pauseMenu?.buttons || [
+      { id: 'btn_resume', label: 'RESUME GAME', action: 'start_game', icon: '▶️', isPrimary: true },
+      { id: 'btn_pause_inv', label: 'EQUIPMENT & POUCH', action: 'inventory', icon: '🎒' },
+      { id: 'btn_pause_map', label: 'WORLD MAP TRACKER', action: 'custom', icon: '🗺️' },
+      { id: 'btn_pause_opts', label: 'AUDIO & GRAPHICS', action: 'options', icon: '⚙️' },
+      { id: 'btn_pause_quit', label: 'RETURN TO TITLE', action: 'quit', icon: '🚪' }
+    ],
+    showStatsSummary: config?.pauseMenu?.showStatsSummary ?? true,
+    backdropBlurAmount: config?.pauseMenu?.backdropBlurAmount ?? 10,
+    pauseGameEngine: config?.pauseMenu?.pauseGameEngine ?? true,
+    ...(config?.pauseMenu || {})
+  };
+
+  const defaultInventory: UIInventoryScreenConfig = {
+    gridCols: config?.inventoryScreen?.gridCols ?? 5,
+    gridRows: config?.inventoryScreen?.gridRows ?? 4,
+    showPaperdoll: config?.inventoryScreen?.showPaperdoll ?? true,
+    equipmentSlots: config?.inventoryScreen?.equipmentSlots || [
+      { slotId: 'slot_head', label: 'Headgear', icon: '🪖', category: 'armor' },
+      { slotId: 'slot_chest', label: 'Chestplate', icon: '🛡️', category: 'armor' },
+      { slotId: 'slot_weapon_main', label: 'Main Blade', icon: '🗡️', category: 'weapon' },
+      { slotId: 'slot_weapon_off', label: 'Off-Hand / Shield', icon: '🛡️', category: 'weapon' },
+      { slotId: 'slot_relic', label: 'Aether Relic', icon: '💎', category: 'relic' },
+      { slotId: 'slot_boots', label: 'Stride Boots', icon: '👢', category: 'boots' }
+    ],
+    categoryTabs: config?.inventoryScreen?.categoryTabs || [
+      { id: 'tab_all', label: 'All Items', icon: '📦' },
+      { id: 'tab_weapons', label: 'Weapons', icon: '⚔️' },
+      { id: 'tab_armor', label: 'Armor', icon: '🛡️' },
+      { id: 'tab_consumables', label: 'Potions', icon: '🧪' },
+      { id: 'tab_key', label: 'Key Items', icon: '🗝️' }
+    ],
+    showStatSummary: config?.inventoryScreen?.showStatSummary ?? true,
+    showGoldCounter: config?.inventoryScreen?.showGoldCounter ?? true,
+    currencyName: config?.inventoryScreen?.currencyName || 'Aether Shards',
+    ...(config?.inventoryScreen || {})
+  };
+
+  const defaultCustomCanvas: UICustomCanvasConfig = {
+    name: config?.customCanvas?.name || 'Custom UI Canvas',
+    widgets: config?.customCanvas?.widgets || [
+      { id: 'w_title', name: 'Header Title', type: 'text', x: 24, y: 24, width: 260, height: 40, text: 'Custom Overlay UI', color: '#ffffff' },
+      { id: 'w_btn_action', name: 'Primary Action Button', type: 'button', x: 24, y: 80, width: 180, height: 42, text: 'Trigger Action', icon: '⚡', backgroundColor: defaultColors.primaryAccent, borderRadius: 8, animationTrigger: 'on_hover_grow' },
+      { id: 'w_progress', name: 'Special Gauge Bar', type: 'progress_bar', x: 24, y: 140, width: 220, height: 16, value: 72, minValue: 0, maxValue: 100, color: defaultColors.secondaryAccent },
+      { id: 'w_card', name: 'Info Stat Card', type: 'card', x: 280, y: 24, width: 200, height: 132, text: 'Active Buffs:\n• +20% Attack Speed\n• Cinder Armor Active', backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: 8 }
+    ]
+  };
+
+  const defaultMenus: UIMenuScreen[] = [
+    {
+      id: 'menu_main_start',
+      name: 'Start / Title Menu',
+      description: 'Primary landing screen with new game launch, load, and settings options',
+      isInitialScreen: false,
+      widgets: [
+        {
+          id: 'w_title_main',
+          name: 'Game Title Heading',
+          type: 'text',
+          x: 48,
+          y: 40,
+          width: 520,
+          height: 60,
+          text: 'ECHOES OF THE ASHEN VOID',
+          fontSize: 32,
+          color: defaultColors.primaryAccent,
+          textAlign: 'left'
+        },
+        {
+          id: 'w_title_sub',
+          name: 'Subtitle',
+          type: 'text',
+          x: 50,
+          y: 104,
+          width: 480,
+          height: 28,
+          text: 'A 2D Metroidvania Odyssey // v1.0.0 Alpha',
+          fontSize: 14,
+          color: '#a1a1aa',
+          textAlign: 'left'
+        },
+        {
+          id: 'w_hero_input',
+          name: 'Hero Name Input',
+          type: 'input_field',
+          x: 48,
+          y: 156,
+          width: 320,
+          height: 48,
+          text: 'Korrath',
+          placeholder: 'Enter Hero Name...',
+          backgroundColor: '#18181b',
+          borderColor: '#3f3f46',
+          color: '#ffffff',
+          borderRadius: 8
+        },
+        {
+          id: 'w_btn_start_game',
+          name: 'Start Game Button',
+          type: 'button',
+          x: 48,
+          y: 220,
+          width: 320,
+          height: 50,
+          text: 'ENTER THE VOID (NEW GAME)',
+          icon: '⚔️',
+          isPrimary: true,
+          action: 'start_game',
+          pauseAction: 'unpause',
+          backgroundColor: defaultColors.primaryAccent,
+          color: '#ffffff',
+          borderRadius: 8,
+          animationTrigger: 'on_hover_grow'
+        },
+        {
+          id: 'w_btn_load_menu',
+          name: 'Options & Audio Button',
+          type: 'button',
+          x: 48,
+          y: 282,
+          width: 320,
+          height: 46,
+          text: 'AUDIO & SETTINGS',
+          icon: '⚙️',
+          action: 'navigate_menu',
+          targetMenuId: 'menu_settings',
+          pauseAction: 'none',
+          backgroundColor: '#18181b',
+          borderColor: '#3f3f46',
+          color: '#ffffff',
+          borderRadius: 8,
+          animationTrigger: 'on_hover_grow'
+        },
+        {
+          id: 'w_btn_hero_inventory',
+          name: 'Character & Equipment Button',
+          type: 'button',
+          x: 48,
+          y: 338,
+          width: 320,
+          height: 46,
+          text: 'EQUIPMENT & POUCH',
+          icon: '🎒',
+          badge: 'New Item',
+          action: 'navigate_menu',
+          targetMenuId: 'menu_inventory',
+          pauseAction: 'none',
+          backgroundColor: '#18181b',
+          borderColor: '#3f3f46',
+          color: '#ffffff',
+          borderRadius: 8,
+          animationTrigger: 'on_hover_grow'
+        },
+        {
+          id: 'w_side_info_card',
+          name: 'Status Card',
+          type: 'card',
+          x: 420,
+          y: 156,
+          width: 340,
+          height: 228,
+          text: '🔥 ASHEN PROTOCOL ACTIVE\n\n• Progression: Ignis Caldera Cleared\n• Aether Relics: 4 / 12 Found\n• Difficulty: Hero (Normal)\n• Engine Suspended: In Menu',
+          backgroundColor: '#18181be6',
+          borderColor: '#27272a',
+          borderRadius: 12
+        }
+      ]
+    },
+    {
+      id: 'menu_pause',
+      name: 'Pause Menu (In-Game)',
+      description: 'Suspended overlay menu with resume, inventory, and title actions',
+      isOverlay: true,
+      backdropBlur: 14,
+      widgets: [
+        {
+          id: 'w_pause_card',
+          name: 'Pause Dialog Window',
+          type: 'card',
+          x: 180,
+          y: 50,
+          width: 440,
+          height: 380,
+          backgroundColor: '#18181bf2',
+          borderColor: defaultColors.primaryAccent,
+          borderRadius: 16
+        },
+        {
+          id: 'w_pause_title',
+          name: 'Pause Title',
+          type: 'text',
+          x: 200,
+          y: 75,
+          width: 400,
+          height: 36,
+          text: 'GAME PAUSED',
+          fontSize: 24,
+          color: defaultColors.primaryAccent,
+          textAlign: 'center'
+        },
+        {
+          id: 'w_pause_sub',
+          name: 'Pause Status Subtitle',
+          type: 'text',
+          x: 200,
+          y: 115,
+          width: 400,
+          height: 24,
+          text: 'Suspended State // Playtime: 04h 28m',
+          fontSize: 12,
+          color: '#a1a1aa',
+          textAlign: 'center'
+        },
+        {
+          id: 'w_btn_resume',
+          name: 'Resume Button',
+          type: 'button',
+          x: 220,
+          y: 155,
+          width: 360,
+          height: 48,
+          text: 'RESUME GAMEPLAY',
+          icon: '▶️',
+          isPrimary: true,
+          action: 'resume_game',
+          pauseAction: 'unpause',
+          backgroundColor: defaultColors.primaryAccent,
+          color: '#ffffff',
+          borderRadius: 8,
+          animationTrigger: 'on_hover_grow'
+        },
+        {
+          id: 'w_btn_pause_inv',
+          name: 'Inventory Nav Button',
+          type: 'button',
+          x: 220,
+          y: 215,
+          width: 360,
+          height: 44,
+          text: 'EQUIPMENT & POUCH',
+          icon: '🎒',
+          action: 'navigate_menu',
+          targetMenuId: 'menu_inventory',
+          pauseAction: 'pause',
+          backgroundColor: '#27272a',
+          borderColor: '#3f3f46',
+          color: '#ffffff',
+          borderRadius: 8
+        },
+        {
+          id: 'w_btn_pause_settings',
+          name: 'Settings Nav Button',
+          type: 'button',
+          x: 220,
+          y: 269,
+          width: 360,
+          height: 44,
+          text: 'AUDIO & GRAPHICS',
+          icon: '⚙️',
+          action: 'navigate_menu',
+          targetMenuId: 'menu_settings',
+          pauseAction: 'pause',
+          backgroundColor: '#27272a',
+          borderColor: '#3f3f46',
+          color: '#ffffff',
+          borderRadius: 8
+        },
+        {
+          id: 'w_btn_pause_quit',
+          name: 'Return to Title Button',
+          type: 'button',
+          x: 220,
+          y: 323,
+          width: 360,
+          height: 44,
+          text: 'RETURN TO MAIN MENU',
+          icon: '🚪',
+          action: 'navigate_menu',
+          targetMenuId: 'menu_main_start',
+          pauseAction: 'unpause',
+          backgroundColor: '#27272a',
+          borderColor: '#7f1d1d',
+          color: '#f87171',
+          borderRadius: 8
+        }
+      ]
+    },
+    {
+      id: 'menu_settings',
+      name: 'Audio & Controls Settings',
+      description: 'Configurable sliders, toggles, and inputs for game parameters',
+      widgets: [
+        {
+          id: 'w_sett_title',
+          name: 'Settings Title',
+          type: 'text',
+          x: 48,
+          y: 36,
+          width: 500,
+          height: 40,
+          text: 'AUDIO & DISPLAY SETTINGS',
+          fontSize: 26,
+          color: defaultColors.primaryAccent,
+          textAlign: 'left'
+        },
+        {
+          id: 'w_sett_player_tag',
+          name: 'Gamertag Input Field',
+          type: 'input_field',
+          x: 48,
+          y: 92,
+          width: 340,
+          height: 46,
+          text: 'ShadowStrider',
+          placeholder: 'Enter Display Name...',
+          backgroundColor: '#18181b',
+          borderColor: '#3f3f46',
+          borderRadius: 8
+        },
+        {
+          id: 'w_vol_master',
+          name: 'Master Volume Slider',
+          type: 'slider',
+          x: 48,
+          y: 156,
+          width: 340,
+          height: 48,
+          text: 'Master Volume',
+          value: 80,
+          minValue: 0,
+          maxValue: 100,
+          unit: '%',
+          color: defaultColors.primaryAccent
+        },
+        {
+          id: 'w_vol_sfx',
+          name: 'SFX & Combat Volume',
+          type: 'slider',
+          x: 48,
+          y: 216,
+          width: 340,
+          height: 48,
+          text: 'SFX & Combat Audio',
+          value: 95,
+          minValue: 0,
+          maxValue: 100,
+          unit: '%',
+          color: defaultColors.secondaryAccent
+        },
+        {
+          id: 'w_toggle_shake',
+          name: 'Screen Shake Toggle',
+          type: 'toggle',
+          x: 48,
+          y: 280,
+          width: 340,
+          height: 40,
+          text: 'Screen Shake on Impact',
+          checked: true
+        },
+        {
+          id: 'w_toggle_damage_pop',
+          name: 'Combat Floating Text Toggle',
+          type: 'toggle',
+          x: 48,
+          y: 326,
+          width: 340,
+          height: 40,
+          text: 'Floating Damage Numbers',
+          checked: true
+        },
+        {
+          id: 'w_btn_sett_back',
+          name: 'Back to Title Button',
+          type: 'button',
+          x: 48,
+          y: 382,
+          width: 220,
+          height: 44,
+          text: 'BACK TO MENU',
+          icon: '⬅️',
+          action: 'navigate_menu',
+          targetMenuId: 'menu_main_start',
+          backgroundColor: defaultColors.primaryAccent,
+          color: '#ffffff',
+          borderRadius: 8
+        }
+      ]
+    },
+    {
+      id: 'menu_inventory',
+      name: 'Character & Equipment',
+      description: 'Item cards, stat gauges, and paperdoll summary',
+      widgets: [
+        {
+          id: 'w_inv_title',
+          name: 'Inventory Header',
+          type: 'text',
+          x: 48,
+          y: 36,
+          width: 480,
+          height: 40,
+          text: 'EQUIPMENT & POUCH',
+          fontSize: 26,
+          color: defaultColors.primaryAccent,
+          textAlign: 'left'
+        },
+        {
+          id: 'w_inv_hp_bar',
+          name: 'Vitality Health Bar',
+          type: 'progress_bar',
+          x: 48,
+          y: 92,
+          width: 320,
+          height: 24,
+          text: 'VITALITY HP: 85/100',
+          value: 85,
+          minValue: 0,
+          maxValue: 100,
+          color: defaultColors.healthColor
+        },
+        {
+          id: 'w_inv_mana_bar',
+          name: 'Mana Gauge Bar',
+          type: 'progress_bar',
+          x: 48,
+          y: 126,
+          width: 320,
+          height: 24,
+          text: 'AETHER MANA: 60/100',
+          value: 60,
+          minValue: 0,
+          maxValue: 100,
+          color: defaultColors.manaColor
+        },
+        {
+          id: 'w_inv_weapon_card',
+          name: 'Equipped Weapon Card',
+          type: 'card',
+          x: 48,
+          y: 170,
+          width: 340,
+          height: 110,
+          text: '🗡️ Ashen Greatblade (Epic)\n\n+45 Attack • +12 Void Damage\nMagma Core Enchantment Active',
+          backgroundColor: '#18181be6',
+          borderColor: '#a855f7',
+          borderRadius: 10
+        },
+        {
+          id: 'w_inv_armor_card',
+          name: 'Equipped Armor Card',
+          type: 'card',
+          x: 48,
+          y: 290,
+          width: 340,
+          height: 90,
+          text: '🛡️ Aether Crest Plate (Legendary)\n\n+60 Defense • -25% Aerial Hazard DMG',
+          backgroundColor: '#18181be6',
+          borderColor: '#f59e0b',
+          borderRadius: 10
+        },
+        {
+          id: 'w_btn_inv_back',
+          name: 'Close Inventory Button',
+          type: 'button',
+          x: 48,
+          y: 396,
+          width: 220,
+          height: 42,
+          text: 'CLOSE INVENTORY',
+          icon: '⬅️',
+          action: 'navigate_menu',
+          targetMenuId: 'menu_main_start',
+          backgroundColor: defaultColors.primaryAccent,
+          color: '#ffffff',
+          borderRadius: 8
+        }
+      ]
+    }
+  ];
+
+  // Determine menu list
+  const baseMenus = config?.menus && config.menus.length > 0 ? config.menus : defaultMenus;
+
+  // Resolve initial menu ID (strictly mutual exclusive, at most one menu or undefined)
+  let resolvedInitialMenuId: string | undefined = undefined;
+  if (config?.initialMenuId && baseMenus.some(m => m.id === config.initialMenuId)) {
+    resolvedInitialMenuId = config.initialMenuId;
+  } else {
+    // If not specified in initialMenuId, check if any menu was marked isInitialScreen
+    const marked = baseMenus.find(m => m.isInitialScreen === true);
+    if (marked) {
+      resolvedInitialMenuId = marked.id;
+    }
+  }
+
+  // Resolve pause menu ID (strictly mutual exclusive, at most one menu or undefined)
+  let resolvedPauseMenuId: string | undefined = undefined;
+  if (config?.pauseMenuId && baseMenus.some(m => m.id === config.pauseMenuId)) {
+    resolvedPauseMenuId = config.pauseMenuId;
+  } else {
+    const markedPause = baseMenus.find(m => m.isPauseMenu === true);
+    if (markedPause) {
+      resolvedPauseMenuId = markedPause.id;
+    }
+  }
+
+  // Normalize menus to enforce single-landing-screen and single-pause-menu invariants
+  const normalizedMenus: UIMenuScreen[] = baseMenus.map(m => ({
+    ...m,
+    isInitialScreen: resolvedInitialMenuId ? m.id === resolvedInitialMenuId : false,
+    isPauseMenu: resolvedPauseMenuId ? m.id === resolvedPauseMenuId : false
+  }));
+
+  return {
+    id: config?.id || 'classic_gothic_hud',
+    name: config?.name || 'Gothic Obsidian & Ruby',
+    themeName: config?.themeName || config?.name || 'Gothic Obsidian & Ruby',
+    initialMenuId: resolvedInitialMenuId,
+    pauseMenuId: resolvedPauseMenuId,
+    menus: normalizedMenus,
+    styling: defaultStyling,
+    splashScreen: defaultSplashScreen,
+    mainMenu: defaultMainMenu,
+    pauseMenu: defaultPauseMenu,
+    inventoryScreen: defaultInventory,
+    customCanvas: defaultCustomCanvas,
+    healthOrb: config?.healthOrb || {
+      style: 'classic_orb',
+      fillColor: '#dc2626',
+      dangerColor: '#7f1d1d',
+      borderColor: '#382f2d',
+      showNumericValue: true,
+      scale: 1.0,
+      position: 'top_left'
+    },
+    manaGauge: config?.manaGauge || {
+      enabled: true,
+      fillColor: '#2563eb',
+      style: 'orb'
+    },
+    staminaGauge: config?.staminaGauge || {
+      enabled: true,
+      fillColor: '#16a34a',
+      showBelowPlayer: true
+    },
+    minimap: config?.minimap || {
+      enabled: true,
+      shape: 'circle',
+      sizePx: 140,
+      position: 'top_right',
+      showPlayerBeacon: true,
+      showExitMarkers: true,
+      radarScanEffect: true,
+      borderColor: '#475569'
+    },
+    dialogueBox: config?.dialogueBox || {
+      theme: 'gothic_parchment',
+      fontFamily: 'serif',
+      fontSizePx: 14,
+      textSpeedCharsPerSec: 35,
+      showSpeakerPortrait: true,
+      portraitPosition: 'left',
+      boxPosition: 'bottom',
+      backgroundColor: '#18181bfa',
+      textColor: '#f4f4f5',
+      accentBorderColor: '#d97706'
+    },
+    bossBar: config?.bossBar || {
+      enabled: true,
+      position: 'top_center',
+      style: 'ornate_golden',
+      showBossTitle: true,
+      barColor: '#e11d48',
+      phaseMarkers: true
+    },
+    combatText: config?.combatText || {
+      enabled: true,
+      font: 'sans-serif',
+      criticalPopScale: 1.6,
+      damageColors: {
+        slashing: '#ef4444',
+        blunt: '#f97316',
+        piercing: '#eab308',
+        fire: '#ff4d00',
+        frost: '#38bdf8',
+        lightning: '#a855f7',
+        void: '#c084fc',
+        kinetic: '#e2e8f0'
+      }
+    },
+    buttonPromptStyle: config?.buttonPromptStyle || 'keyboard',
+    inputMappings: config?.inputMappings || [
+      { id: 'inp_jump', name: 'jump', label: 'Jump / Leap', triggerMode: 'press', keys: ['Space', 'KeyW'], gamepadButtons: ['ButtonSouth / A'] },
+      { id: 'inp_dash', name: 'dash', label: 'Air / Ground Dash', triggerMode: 'tap', keys: ['ShiftLeft'], gamepadButtons: ['ButtonEast / B'] },
+      { id: 'inp_attack', name: 'attack', label: 'Primary Attack', triggerMode: 'press', keys: ['KeyJ'], gamepadButtons: ['ButtonWest / X'] },
+      { id: 'inp_interact', name: 'interact', label: 'Interact / Talk', triggerMode: 'hold', holdDurationMs: 300, keys: ['KeyE'], gamepadButtons: ['ButtonNorth / Y'] },
+      { id: 'inp_block', name: 'block', label: 'Shield Guard', triggerMode: 'hold', holdDurationMs: 0, keys: ['KeyK'], gamepadButtons: ['LeftBumper / LB'] }
+    ]
+  };
+};
+
 export const DEFAULT_UI_THEMES: UIConfigData[] = [
-  {
+  ensureUIConfigDefaults({
     id: 'classic_gothic_hud',
     name: 'Gothic Obsidian & Ruby',
     themeName: 'Gothic Obsidian & Ruby',
+    styling: {
+      preset: 'gothic_metroidvania',
+      roundness: 'subtle',
+      customRadiusPx: 4,
+      borderWidthPx: 1,
+      borderGlow: false,
+      panelBackdropBlur: 16,
+      panelOpacityPercent: 92,
+      fontFamily: 'serif_gothic',
+      fontScale: 1.0,
+      colors: {
+        primaryAccent: '#d97706',
+        secondaryAccent: '#ef4444',
+        surfaceBg: '#09090b',
+        cardBg: '#18181b',
+        cardBorder: '#3f3f46',
+        textPrimary: '#ffffff',
+        textMuted: '#a1a1aa',
+        healthColor: '#dc2626',
+        manaColor: '#2563eb',
+        staminaColor: '#16a34a',
+        dangerColor: '#ef4444',
+        goldColor: '#f59e0b'
+      },
+      animations: {
+        buttonHoverScale: 1.03,
+        buttonClickDepthPx: 2,
+        panelTransition: 'slide_horizontal',
+        transitionDurationMs: 280,
+        glowPulseEnabled: true,
+        shimmerEffect: false
+      }
+    },
+    splashScreen: {
+      gameTitle: 'ECHOES OF THE ASHEN VOID',
+      gameSubtitle: 'A 2D Metroidvania Odyssey',
+      studioName: 'MASON ENGINE STUDIOS',
+      pressPromptText: 'PRESS ANY BUTTON TO ENTER',
+      showStudioLogo: true,
+      logoIcon: '⚔️',
+      versionText: 'v1.0.0 Alpha Build',
+      promptBlinkSpeedMs: 900,
+      backgroundTint: '#09090b',
+      backgroundParticleEffect: 'embers'
+    },
     healthOrb: {
       style: 'classic_orb',
       fillColor: '#dc2626',
@@ -713,48 +1729,57 @@ export const DEFAULT_UI_THEMES: UIConfigData[] = [
       showExitMarkers: true,
       radarScanEffect: true,
       borderColor: '#475569'
-    },
-    dialogueBox: {
-      theme: 'gothic_parchment',
-      fontFamily: 'serif',
-      fontSizePx: 14,
-      textSpeedCharsPerSec: 35,
-      showSpeakerPortrait: true,
-      portraitPosition: 'left',
-      boxPosition: 'bottom',
-      backgroundColor: '#18181bfa',
-      textColor: '#f4f4f5',
-      accentBorderColor: '#d97706'
-    },
-    bossBar: {
-      enabled: true,
-      position: 'top_center',
-      style: 'ornate_golden',
-      showBossTitle: true,
-      barColor: '#e11d48',
-      phaseMarkers: true
-    },
-    combatText: {
-      enabled: true,
-      font: 'sans-serif',
-      criticalPopScale: 1.6,
-      damageColors: {
-        slashing: '#ef4444',
-        blunt: '#f97316',
-        piercing: '#eab308',
-        fire: '#ff4d00',
-        frost: '#38bdf8',
-        lightning: '#a855f7',
-        void: '#c084fc',
-        kinetic: '#e2e8f0'
+    }
+  }),
+  ensureUIConfigDefaults({
+    id: 'minimalist_scifi_hud',
+    name: 'Cybernetic Neon & Hologram',
+    themeName: 'Cybernetic Neon & Hologram',
+    styling: {
+      preset: 'cyberpunk_neon',
+      roundness: 'sharp',
+      customRadiusPx: 0,
+      borderWidthPx: 2,
+      borderGlow: true,
+      panelBackdropBlur: 18,
+      panelOpacityPercent: 88,
+      fontFamily: 'mono_scifi',
+      fontScale: 1.0,
+      colors: {
+        primaryAccent: '#06b6d4',
+        secondaryAccent: '#f43f5e',
+        surfaceBg: '#030712',
+        cardBg: '#0b1329',
+        cardBorder: '#0e7490',
+        textPrimary: '#67e8f9',
+        textMuted: '#94a3b8',
+        healthColor: '#06b6d4',
+        manaColor: '#8b5cf6',
+        staminaColor: '#10b981',
+        dangerColor: '#f43f5e',
+        goldColor: '#eab308'
+      },
+      animations: {
+        buttonHoverScale: 1.06,
+        buttonClickDepthPx: 3,
+        panelTransition: 'slide_vertical',
+        transitionDurationMs: 200,
+        glowPulseEnabled: true,
+        shimmerEffect: true
       }
     },
-    buttonPromptStyle: 'keyboard'
-  },
-  {
-    id: 'minimalist_scifi_hud',
-    name: 'Cybernetic Neon & Glass',
-    themeName: 'Cybernetic Neon & Glass',
+    splashScreen: {
+      gameTitle: 'CYBERPUNK ASCENSION',
+      gameSubtitle: 'Neon Protocol // v2.04',
+      studioName: 'SYNAPSE LABS',
+      pressPromptText: '[ SYSTEM READY // PRESS ANY KEY ]',
+      showStudioLogo: true,
+      logoIcon: '⚡',
+      versionText: 'CYBER-KERNEL v2.04-RC',
+      promptBlinkSpeedMs: 700,
+      backgroundTint: '#030712',
+      backgroundParticleEffect: 'digital_rain'
+    },
     healthOrb: {
       style: 'cyber_gauge',
       fillColor: '#06b6d4',
@@ -783,135 +1808,247 @@ export const DEFAULT_UI_THEMES: UIConfigData[] = [
       showExitMarkers: true,
       radarScanEffect: true,
       borderColor: '#06b6d4'
-    },
-    dialogueBox: {
-      theme: 'cyber_hologram',
-      fontFamily: 'monospace',
-      fontSizePx: 13,
-      textSpeedCharsPerSec: 50,
-      showSpeakerPortrait: true,
-      portraitPosition: 'left',
-      boxPosition: 'bottom',
-      backgroundColor: '#030712f0',
-      textColor: '#67e8f9',
-      accentBorderColor: '#06b6d4'
-    },
-    bossBar: {
-      enabled: true,
-      position: 'top_center',
-      style: 'fiery_glow',
-      showBossTitle: true,
-      barColor: '#06b6d4',
-      phaseMarkers: true
-    },
-    combatText: {
-      enabled: true,
-      font: 'monospace',
-      criticalPopScale: 1.8,
-      damageColors: {
-        slashing: '#06b6d4',
-        blunt: '#3b82f6',
-        piercing: '#6366f1',
-        fire: '#f97316',
-        frost: '#38bdf8',
-        lightning: '#a855f7',
-        void: '#ec4899',
-        kinetic: '#f3f4f6'
+    }
+  }),
+  ensureUIConfigDefaults({
+    id: 'retro_pixel_hud',
+    name: '16-Bit Nostalgia & Arcade',
+    themeName: '16-Bit Nostalgia & Arcade',
+    styling: {
+      preset: 'pixel_16bit',
+      roundness: 'sharp',
+      customRadiusPx: 0,
+      borderWidthPx: 3,
+      borderGlow: false,
+      panelBackdropBlur: 0,
+      panelOpacityPercent: 100,
+      fontFamily: 'pixel',
+      fontScale: 1.1,
+      colors: {
+        primaryAccent: '#38bdf8',
+        secondaryAccent: '#fbbf24',
+        surfaceBg: '#0f172a',
+        cardBg: '#1e293b',
+        cardBorder: '#475569',
+        textPrimary: '#f8fafc',
+        textMuted: '#94a3b8',
+        healthColor: '#ef4444',
+        manaColor: '#3b82f6',
+        staminaColor: '#22c55e',
+        dangerColor: '#dc2626',
+        goldColor: '#fbbf24'
+      },
+      animations: {
+        buttonHoverScale: 1.02,
+        buttonClickDepthPx: 4,
+        panelTransition: 'instant',
+        transitionDurationMs: 120,
+        glowPulseEnabled: false,
+        shimmerEffect: false
       }
     },
-    buttonPromptStyle: 'keyboard'
-  }
+    splashScreen: {
+      gameTitle: 'SUPER HERO ODYSSEY',
+      gameSubtitle: 'Insert Coin to Begin',
+      studioName: 'RETRO ARCADE 1994',
+      pressPromptText: 'PRESS START / ENTER',
+      showStudioLogo: true,
+      logoIcon: '👾',
+      versionText: 'REV 1.2 JAPAN',
+      promptBlinkSpeedMs: 600,
+      backgroundTint: '#0f172a',
+      backgroundParticleEffect: 'dust_motes'
+    },
+    healthOrb: {
+      style: 'segmented_pips',
+      fillColor: '#ef4444',
+      dangerColor: '#7f1d1d',
+      borderColor: '#000000',
+      showNumericValue: true,
+      scale: 1.1,
+      position: 'top_left'
+    },
+    manaGauge: {
+      enabled: true,
+      fillColor: '#3b82f6',
+      style: 'bar'
+    },
+    staminaGauge: {
+      enabled: true,
+      fillColor: '#22c55e',
+      showBelowPlayer: true
+    },
+    minimap: {
+      enabled: true,
+      shape: 'square',
+      sizePx: 130,
+      position: 'top_right',
+      showPlayerBeacon: true,
+      showExitMarkers: true,
+      radarScanEffect: false,
+      borderColor: '#000000'
+    }
+  }),
+  ensureUIConfigDefaults({
+    id: 'minimal_dark_hud',
+    name: 'Sleek Midnight Glass',
+    themeName: 'Sleek Midnight Glass',
+    styling: {
+      preset: 'minimal_dark',
+      roundness: 'smooth',
+      customRadiusPx: 12,
+      borderWidthPx: 1,
+      borderGlow: false,
+      panelBackdropBlur: 20,
+      panelOpacityPercent: 80,
+      fontFamily: 'sans_modern',
+      fontScale: 1.0,
+      colors: {
+        primaryAccent: '#10b981',
+        secondaryAccent: '#06b6d4',
+        surfaceBg: '#09090b',
+        cardBg: '#121215',
+        cardBorder: '#27272a',
+        textPrimary: '#ffffff',
+        textMuted: '#71717a',
+        healthColor: '#f43f5e',
+        manaColor: '#06b6d4',
+        staminaColor: '#10b981',
+        dangerColor: '#e11d48',
+        goldColor: '#eab308'
+      },
+      animations: {
+        buttonHoverScale: 1.04,
+        buttonClickDepthPx: 2,
+        panelTransition: 'fade_scale',
+        transitionDurationMs: 300,
+        glowPulseEnabled: true,
+        shimmerEffect: true
+      }
+    },
+    splashScreen: {
+      gameTitle: 'HORIZON DRIFT',
+      gameSubtitle: 'A Minimalist Journey',
+      studioName: 'MONOCHROME WORKS',
+      pressPromptText: 'Click anywhere to begin',
+      showStudioLogo: true,
+      logoIcon: '✨',
+      versionText: 'v0.9.8 Smooth',
+      promptBlinkSpeedMs: 1200,
+      backgroundTint: '#09090b',
+      backgroundParticleEffect: 'snow'
+    },
+    healthOrb: {
+      style: 'horizontal_bar',
+      fillColor: '#f43f5e',
+      dangerColor: '#881337',
+      borderColor: '#27272a',
+      showNumericValue: true,
+      scale: 1.0,
+      position: 'top_left'
+    },
+    manaGauge: {
+      enabled: true,
+      fillColor: '#06b6d4',
+      style: 'bar'
+    },
+    staminaGauge: {
+      enabled: true,
+      fillColor: '#10b981',
+      showBelowPlayer: false
+    },
+    minimap: {
+      enabled: true,
+      shape: 'circle',
+      sizePx: 130,
+      position: 'top_right',
+      showPlayerBeacon: true,
+      showExitMarkers: true,
+      radarScanEffect: true,
+      borderColor: '#27272a'
+    }
+  }),
+  ensureUIConfigDefaults({
+    id: 'arcane_fantasy_hud',
+    name: 'Royal Arcane & Gold Filigree',
+    themeName: 'Royal Arcane & Gold Filigree',
+    styling: {
+      preset: 'fantasy_arcane',
+      roundness: 'standard',
+      customRadiusPx: 8,
+      borderWidthPx: 2,
+      borderGlow: true,
+      panelBackdropBlur: 14,
+      panelOpacityPercent: 92,
+      fontFamily: 'serif_gothic',
+      fontScale: 1.05,
+      colors: {
+        primaryAccent: '#c084fc',
+        secondaryAccent: '#fbbf24',
+        surfaceBg: '#110b1a',
+        cardBg: '#1e142c',
+        cardBorder: '#581c87',
+        textPrimary: '#f5d0fe',
+        textMuted: '#c084fc',
+        healthColor: '#ec4899',
+        manaColor: '#a855f7',
+        staminaColor: '#34d399',
+        dangerColor: '#f43f5e',
+        goldColor: '#fbbf24'
+      },
+      animations: {
+        buttonHoverScale: 1.05,
+        buttonClickDepthPx: 2,
+        panelTransition: 'slide_horizontal',
+        transitionDurationMs: 260,
+        glowPulseEnabled: true,
+        shimmerEffect: true
+      }
+    },
+    splashScreen: {
+      gameTitle: 'REALMS OF ELDON',
+      gameSubtitle: 'The High Mage Chronicles',
+      studioName: 'MYSTIC SPHERE',
+      pressPromptText: 'INVOKE RUNIC GATEWAY (PRESS ANY KEY)',
+      showStudioLogo: true,
+      logoIcon: '🔮',
+      versionText: 'GRIMOIRE ED. 3.0',
+      promptBlinkSpeedMs: 850,
+      backgroundTint: '#110b1a',
+      backgroundParticleEffect: 'embers'
+    },
+    healthOrb: {
+      style: 'classic_orb',
+      fillColor: '#ec4899',
+      dangerColor: '#831843',
+      borderColor: '#fbbf24',
+      showNumericValue: true,
+      scale: 1.0,
+      position: 'top_left'
+    },
+    manaGauge: {
+      enabled: true,
+      fillColor: '#a855f7',
+      style: 'runes'
+    },
+    staminaGauge: {
+      enabled: true,
+      fillColor: '#34d399',
+      showBelowPlayer: true
+    },
+    minimap: {
+      enabled: true,
+      shape: 'circle',
+      sizePx: 140,
+      position: 'top_right',
+      showPlayerBeacon: true,
+      showExitMarkers: true,
+      radarScanEffect: true,
+      borderColor: '#fbbf24'
+    }
+  })
 ];
 
-export const DEFAULT_ARCHETYPES: ArchetypeData[] = [
-  {
-    id: 'arch_korrath',
-    name: 'Korrath Steelhand',
-    title: 'Titan Vanguard & Bastion',
-    backstory: 'A veteran of the fractured basalt citadels, Korrath wields heavy greatswords and kinetic shockwaves to sunder obsidian battlements and cleave subterranean beasts.',
-    avatarIcon: '🛡️',
-    themeColor: '#3b82f6',
-    baseStats: {
-      health: 140,
-      energy: 40,
-      stamina: 90,
-      poise: 80,
-      moveSpeed: 4.8,
-      jumpForce: 9.5
-    },
-    traversalTags: ['double_jump', 'wall_cling'],
-    foci: {
-      action: ['foci_slash', 'foci_thrust', 'foci_earth_shatter'],
-      ability: ['foci_shockwave', 'foci_stone_barrier', '', ''],
-      armor: 'foci_heavy_plate',
-      defensive: 'foci_iron_guard'
-    },
-    weaponProficiencies: ['Greatsword', 'Warhammer', 'Tower Shield'],
-    damageAffinity: 'blunt',
-    passivePerks: [
-      { id: 'perk_juggernaut', name: 'Juggernaut Momentum', desc: 'Sprinting grants hyper-armor through lightweight enemy projectiles.' },
-      { id: 'perk_stone_skin', name: 'Obsidian Resilience', desc: 'Blunt and kinetic damage taken is reduced by 25%.' }
-    ]
-  },
-  {
-    id: 'arch_valen',
-    name: 'Valen Shadowalker',
-    title: 'Aether Strider & Void Assassin',
-    backstory: 'Trained in the twilight canopy branches, Valen traverses vertical shafts with effortless agility, shifting through shadow rifts to assassinate high-threat sentinels.',
-    avatarIcon: '🗡️',
-    themeColor: '#8b5cf6',
-    baseStats: {
-      health: 85,
-      energy: 100,
-      stamina: 120,
-      poise: 30,
-      moveSpeed: 6.5,
-      jumpForce: 11.2
-    },
-    traversalTags: ['double_jump', 'air_dash', 'wall_cling'],
-    foci: {
-      action: ['foci_rapid_daggers', 'foci_shadow_strike', ''],
-      ability: ['foci_blink_teleport', 'foci_void_knives', 'foci_smoke_veil', ''],
-      armor: 'foci_shadow_cloak',
-      defensive: 'foci_phase_dodge'
-    },
-    weaponProficiencies: ['Dual Daggers', 'Recurve Bow', 'Shadow Blade'],
-    damageAffinity: 'slashing',
-    passivePerks: [
-      { id: 'perk_phantom_step', name: 'Phantom Step', desc: 'Dodging through enemies inflicts Bleed and restores 15 stamina.' },
-      { id: 'perk_keen_eyes', name: 'Veil Sight', desc: 'Reveals hidden passages and breakable illusory walls on the minimap.' }
-    ]
-  },
-  {
-    id: 'arch_ignis',
-    name: 'Ignis Caldera-Born',
-    title: 'Pyromancer & Flame Weaver',
-    backstory: 'Infused with the boiling core of the volcanic caldera, Ignis channels scorched sulfur and molten magma to burn enemy ranks from afar.',
-    avatarIcon: '🔥',
-    themeColor: '#f97316',
-    baseStats: {
-      health: 95,
-      energy: 140,
-      stamina: 80,
-      poise: 40,
-      moveSpeed: 5.2,
-      jumpForce: 10.0
-    },
-    traversalTags: ['double_jump', 'air_dash'],
-    foci: {
-      action: ['foci_fireball', 'foci_flame_whip', ''],
-      ability: ['foci_magma_eruption', 'foci_heat_shield', 'foci_cinder_blast', ''],
-      armor: 'foci_flame_robes',
-      defensive: 'foci_flame_burst'
-    },
-    weaponProficiencies: ['Catalyst Staff', 'Flaming Scythe'],
-    damageAffinity: 'fire',
-    passivePerks: [
-      { id: 'perk_heat_absorption', name: 'Magma Conduit', desc: 'Standing near lava or fire surfaces recharges energy 100% faster.' },
-      { id: 'perk_combustion', name: 'Ignition Flare', desc: 'Enemies slain with fire explode, dealing splash damage to nearby foes.' }
-    ]
-  }
-];
 
 export const createDefaultMapFile = (
   id: string,
@@ -956,7 +2093,7 @@ export const createDefaultGameStructure = (): GameStructureData => {
     author: 'Mason Game Director',
     entryMapFileName: 'ashen_outpost.map',
     entrySpawnId: 'spawn_default',
-    defaultArchetypeFileName: 'korrath_steelhand.arch',
+    defaultCharacterFileName: 'korrath.character',
     attachedUiFileName: 'classic_gothic_hud.ui',
     mainMenu: {
       gameTitle: 'ECHOES OF THE ASHEN VOID',
@@ -989,7 +2126,6 @@ export const createDefaultGameStructure = (): GameStructureData => {
       enabledTabs: {
         inventory: true,
         worldMap: true,
-        archetypes: true,
         quests: true,
         audioSettings: true
       },
@@ -1136,7 +2272,17 @@ export const DEFAULT_BEHAVIORS: BehaviorData[] = [
       comboChainCount: 3,
       enragePhaseTriggerPercent: 0,
       fsmStates: ['idle', 'walk', 'run', 'jump', 'dash', 'attack']
-    }
+    },
+    exposedVariables: [
+      { id: 'var_hero_max_hp', name: 'Max Health', category: 'attribute', type: 'number', isStatic: false, defaultValue: 100 },
+      { id: 'var_hero_max_energy', name: 'Max Energy', category: 'attribute', type: 'number', isStatic: false, defaultValue: 80 },
+      { id: 'var_hero_max_stamina', name: 'Max Stamina', category: 'attribute', type: 'number', isStatic: false, defaultValue: 100 },
+      { id: 'var_hero_speed', name: 'Base Movement Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 6.5 },
+      { id: 'var_hero_poise', name: 'Base Poise', category: 'attribute', type: 'number', isStatic: false, defaultValue: 50 },
+      { id: 'var_hero_weapons', name: 'Weapon Proficiencies', category: 'proficiency', type: 'string', isStatic: false, defaultValue: 'Sword, Bow, Dagger' },
+      { id: 'var_hero_affinity', name: 'Damage Affinity', category: 'proficiency', type: 'string', isStatic: true, defaultValue: 'kinetic' },
+      { id: 'var_hero_iframe_dash', name: 'iFrame Dash Enabled', category: 'setting', type: 'boolean', isStatic: true, defaultValue: true }
+    ]
   },
   {
     id: 'beh_ashen_hunter',
@@ -1254,7 +2400,14 @@ export const DEFAULT_BEHAVIORS: BehaviorData[] = [
       comboChainCount: 2,
       enragePhaseTriggerPercent: 0,
       fsmStates: ['idle', 'patrol', 'alerted', 'chase', 'windup', 'attack', 'cooldown', 'staggered']
-    }
+    },
+    exposedVariables: [
+      { id: 'var_mob_hp', name: 'Max Health', category: 'attribute', type: 'number', isStatic: false, defaultValue: 150 },
+      { id: 'var_mob_speed', name: 'Patrol Movement Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 4.8 },
+      { id: 'var_mob_poise', name: 'Base Poise', category: 'attribute', type: 'number', isStatic: false, defaultValue: 80 },
+      { id: 'var_mob_affinity', name: 'Damage Affinity', category: 'proficiency', type: 'string', isStatic: true, defaultValue: 'slashing' },
+      { id: 'var_mob_aggro_radius', name: 'Vision Radius', category: 'setting', type: 'number', isStatic: false, defaultValue: 220 }
+    ]
   },
   {
     id: 'beh_ignis_boss',
@@ -1358,7 +2511,14 @@ export const DEFAULT_BEHAVIORS: BehaviorData[] = [
       comboChainCount: 4,
       enragePhaseTriggerPercent: 60,
       fsmStates: ['phase_1', 'phase_2', 'phase_3', 'windup', 'attack', 'cooldown']
-    }
+    },
+    exposedVariables: [
+      { id: 'var_boss_hp', name: 'Max Health', category: 'attribute', type: 'number', isStatic: false, defaultValue: 1200 },
+      { id: 'var_boss_speed', name: 'Stride Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 3.5 },
+      { id: 'var_boss_poise', name: 'Base Poise Armor', category: 'attribute', type: 'number', isStatic: false, defaultValue: 250 },
+      { id: 'var_boss_affinity', name: 'Damage Affinity', category: 'proficiency', type: 'string', isStatic: true, defaultValue: 'fire' },
+      { id: 'var_boss_enrage_speed', name: 'Phase 3 Enrage Speed Multiplier', category: 'setting', type: 'number', isStatic: true, defaultValue: 1.7 }
+    ]
   },
   {
     id: 'beh_crystal_sentry',
@@ -1436,7 +2596,12 @@ export const DEFAULT_BEHAVIORS: BehaviorData[] = [
       comboChainCount: 3,
       enragePhaseTriggerPercent: 0,
       fsmStates: ['scanning', 'locking', 'firing', 'recharging']
-    }
+    },
+    exposedVariables: [
+      { id: 'var_sentry_hp', name: 'Max Health', category: 'attribute', type: 'number', isStatic: false, defaultValue: 80 },
+      { id: 'var_sentry_range', name: 'Acquisition Radius (px)', category: 'setting', type: 'number', isStatic: false, defaultValue: 320 },
+      { id: 'var_sentry_burst', name: 'Burst Count', category: 'setting', type: 'number', isStatic: true, defaultValue: 3 }
+    ]
   },
   {
     id: 'beh_elder_kael',
@@ -1514,7 +2679,12 @@ export const DEFAULT_BEHAVIORS: BehaviorData[] = [
       comboChainCount: 0,
       enragePhaseTriggerPercent: 0,
       fsmStates: ['idle', 'speaking', 'wandering']
-    }
+    },
+    exposedVariables: [
+      { id: 'var_npc_hp', name: 'Max Health', category: 'attribute', type: 'number', isStatic: true, defaultValue: 100 },
+      { id: 'var_npc_speed', name: 'Wander Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 1.5 },
+      { id: 'var_npc_greeting', name: 'Dialogue Prompt Text', category: 'setting', type: 'string', isStatic: false, defaultValue: 'Greetings traveler, the ashen storm approaches.' }
+    ]
   }
 ];
 
@@ -1528,8 +2698,100 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
     spriteHeight: 64,
     tintColor: '#06b6d4',
     baseScale: 1.0,
-    assignedBehaviorFileName: 'ashen_hunter.behavior',
-    assignedArchetypeFileName: 'korrath.arch',
+    states: ['idle', 'running', 'airborne', 'attacking', 'hurt'],
+    movement: {
+      id: 'mov_korrath',
+      name: 'Hero Kinematics',
+      movementType: 'ground_patrol',
+      moveSpeed: 5.5,
+      acceleration: 0.25,
+      jumpForce: 12.5,
+      gravityScale: 1.0,
+      turnOnEdge: false,
+      turnOnObstacle: false,
+      sineFrequency: 1.0,
+      sineAmplitude: 1.0,
+      airControl: 0.85,
+      trackNodeSpeed: 5
+    },
+    variables: [
+      { id: 'var_korrath_hp', name: 'Max Health', category: 'attribute', type: 'number', isStatic: true, defaultValue: 100 },
+      { id: 'var_korrath_stamina', name: 'Max Stamina', category: 'attribute', type: 'number', isStatic: true, defaultValue: 100 },
+      { id: 'var_korrath_speed', name: 'Sprint Speed Multiplier', category: 'attribute', type: 'number', isStatic: false, defaultValue: 5.5 },
+      { id: 'var_korrath_jump', name: 'Jump Impulse Force', category: 'attribute', type: 'number', isStatic: false, defaultValue: 12.5 },
+      { id: 'var_korrath_weapon', name: 'Primary Weapon Class', category: 'proficiency', type: 'string', isStatic: true, defaultValue: 'Steel Greatblade' }
+    ],
+    behaviorVariables: {
+      var_korrath_hp: 100,
+      var_korrath_stamina: 100,
+      var_korrath_speed: 5.5,
+      var_korrath_jump: 12.5,
+      var_korrath_weapon: 'Steel Greatblade'
+    },
+    rules: [
+      {
+        id: 'rule_hero_possession',
+        name: 'Camera Tracking on Spawn / Possess',
+        enabled: true,
+        trigger: { type: 'possession', event: 'on_possess' },
+        actions: [
+          { id: 'act_cam_track', actionType: 'camera', cameraMode: 'track_self', cameraZoom: 1.0, cameraSmoothing: 0.15, cameraLookAheadX: 24, cameraLookAheadY: 0 }
+        ]
+      },
+      {
+        id: 'rule_hero_move_left',
+        name: 'Move Left Input',
+        enabled: true,
+        trigger: { type: 'mapped_input', inputId: 'move_left', inputName: 'Move Left' },
+        actions: [
+          { id: 'act_mov_l', actionType: 'move', moveMode: 'towards_target', speed: 5.5 },
+          { id: 'act_anim_run', actionType: 'animation', animState: 'run' }
+        ]
+      },
+      {
+        id: 'rule_hero_move_right',
+        name: 'Move Right Input',
+        enabled: true,
+        trigger: { type: 'mapped_input', inputId: 'move_right', inputName: 'Move Right' },
+        actions: [
+          { id: 'act_mov_r', actionType: 'move', moveMode: 'towards_target', speed: 5.5 },
+          { id: 'act_anim_run2', actionType: 'animation', animState: 'run' }
+        ]
+      },
+      {
+        id: 'rule_hero_jump',
+        name: 'Jump Input Pressed',
+        enabled: true,
+        trigger: { type: 'mapped_input', inputId: 'jump', inputName: 'Jump Button' },
+        actions: [
+          { id: 'act_imp_jump', actionType: 'hero_impulse', impulseType: 'jump', force: 12.5 },
+          { id: 'act_anim_jump', actionType: 'animation', animState: 'jump' },
+          { id: 'act_sfx_jump', actionType: 'audio', soundCue: 'sfx_jump_whoosh' }
+        ]
+      },
+      {
+        id: 'rule_hero_attack',
+        name: 'Primary Attack Blade Slash',
+        enabled: true,
+        trigger: { type: 'mapped_input', inputId: 'attack', inputName: 'Attack Button' },
+        actions: [
+          { id: 'act_atk_slash', actionType: 'attack', attackType: 'melee_slash', telegraphWindupMs: 80 },
+          { id: 'act_anim_atk', actionType: 'animation', animState: 'attack' },
+          { id: 'act_cam_shake', actionType: 'camera', cameraMode: 'shake', cameraShakeIntensity: 2.0 }
+        ]
+      },
+      {
+        id: 'rule_hero_dash',
+        name: 'Dash Evade',
+        enabled: true,
+        trigger: { type: 'mapped_input', inputId: 'dash', inputName: 'Dash Button' },
+        actions: [
+          { id: 'act_imp_dash', actionType: 'hero_impulse', impulseType: 'dash', force: 18.0 },
+          { id: 'act_part_dash', actionType: 'emit_signal', signalType: 'call_allies', signalRadiusPx: 40 }
+        ]
+      }
+    ],
+    baseStats: { health: 100, energy: 100, stamina: 100, poise: 50, speed: 5 },
     capsule: {
       radius: 16,
       height: 44,
@@ -1598,15 +2860,106 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
   },
   {
     id: 'char_ashen_hunter',
-    name: 'Ashen Outpost Hunter (NPC Creep)',
+    name: 'Ashen Outpost Hunter (Enemy Mob)',
     characterType: 'enemy_mob',
     avatarIcon: '👹',
     spriteWidth: 64,
     spriteHeight: 64,
     tintColor: '#ef4444',
     baseScale: 1.1,
-    assignedBehaviorFileName: 'ashen_hunter.behavior',
-    assignedArchetypeFileName: 'korrath.arch',
+    states: ['patrol', 'alerted', 'combat', 'dead'],
+    movement: {
+      id: 'mov_ashen',
+      name: 'Mob Patrol',
+      movementType: 'ground_patrol',
+      moveSpeed: 3.2,
+      acceleration: 0.15,
+      jumpForce: 8.0,
+      gravityScale: 1.0,
+      turnOnEdge: true,
+      turnOnObstacle: true,
+      sineFrequency: 1.0,
+      sineAmplitude: 1.0,
+      airControl: 0.4,
+      trackNodeSpeed: 3
+    },
+    variables: [
+      { id: 'var_ashen_hp', name: 'Max Health', category: 'attribute', type: 'number', isStatic: true, defaultValue: 150 },
+      { id: 'var_ashen_patrol_spd', name: 'Patrol Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 2.2 },
+      { id: 'var_ashen_chase_spd', name: 'Aggro Chase Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 4.5 },
+      { id: 'var_ashen_sight_rng', name: 'Vision Acquisition Range', category: 'attribute', type: 'number', isStatic: false, defaultValue: 220 }
+    ],
+    behaviorVariables: {
+      var_ashen_hp: 150,
+      var_ashen_patrol_spd: 2.2,
+      var_ashen_chase_spd: 4.5,
+      var_ashen_sight_rng: 220
+    },
+    rules: [
+      {
+        id: 'rule_ashen_sight',
+        name: 'Sight Raycast Detection (Eyes Socket)',
+        enabled: true,
+        trigger: {
+          type: 'sight',
+          sensoryTag: 'head_eyes',
+          visionRadiusPx: 220,
+          visionAngleDeg: 120,
+          requireLineOfSight: true,
+          targetFilter: 'player'
+        },
+        actions: [
+          { id: 'act_alert_icon', actionType: 'emit_signal', signalType: 'alert_icon', signalRadiusPx: 100 },
+          { id: 'act_state_combat', actionType: 'state_change', targetState: 'combat' },
+          { id: 'act_chase_hero', actionType: 'move', moveMode: 'towards_target', speed: 4.5 },
+          { id: 'act_anim_sprint', actionType: 'animation', animState: 'run' }
+        ]
+      },
+      {
+        id: 'rule_ashen_sound',
+        name: 'Acoustic Footstep Hearing (Ears Socket)',
+        enabled: true,
+        trigger: {
+          type: 'sound',
+          sensoryTag: 'head_ears',
+          hearingRadiusPx: 180,
+          minNoiseLevel: 30
+        },
+        actions: [
+          { id: 'act_state_alert', actionType: 'state_change', targetState: 'alerted' },
+          { id: 'act_anim_idle', actionType: 'animation', animState: 'idle' }
+        ]
+      },
+      {
+        id: 'rule_ashen_melee',
+        name: 'Melee Heavy Cleave in Close Range',
+        enabled: true,
+        trigger: {
+          type: 'proximity',
+          sensoryTag: 'torso_center',
+          distancePx: 42,
+          comparator: 'less_than'
+        },
+        actions: [
+          { id: 'act_cleave', actionType: 'attack', attackType: 'melee_slash', telegraphWindupMs: 350 },
+          { id: 'act_anim_atk', actionType: 'animation', animState: 'attack' }
+        ]
+      },
+      {
+        id: 'rule_ashen_patrol',
+        name: 'Default Ledge Patrol',
+        enabled: true,
+        trigger: {
+          type: 'state',
+          requiredState: 'patrol'
+        },
+        actions: [
+          { id: 'act_patrol_mov', actionType: 'move', moveMode: 'ground_patrol', speed: 2.2 },
+          { id: 'act_anim_walk', actionType: 'animation', animState: 'walk' }
+        ]
+      }
+    ],
+    baseStats: { health: 150, energy: 50, stamina: 80, poise: 80, speed: 4 },
     capsule: {
       radius: 18,
       height: 48,
@@ -1677,19 +3030,6 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
   const map2 = createDefaultMapFile('map_crystal_chasm', 'Luminescent Crystal Chasm', 'crystal_chasm.map', 36, 28, 'whispering_canopy');
   const map3 = createDefaultMapFile('map_brimstone_caldera', 'Brimstone Crucible & Vents', 'brimstone_caldera.map', 30, 24, 'brimstone_caldera');
 
-  // Archetype files
-  const archetypes: ArchetypeFile[] = DEFAULT_ARCHETYPES.map(a => ({
-    id: a.id,
-    name: a.name,
-    fileName: `${a.id.replace('arch_', '')}.arch`,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    archetypeData: {
-      ...a,
-      assignedBehaviorFileName: 'ashen_hunter.behavior'
-    }
-  }));
-
   // Behavior files
   const behaviors: BehaviorFile[] = DEFAULT_BEHAVIORS.map(b => ({
     id: b.id,
@@ -1735,7 +3075,7 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
   return {
     id: `proj_${Date.now()}`,
     name,
-    description: '2D Metroidvania world with modular maps, biomes, archetypes, characters, behaviors, UI themes, and game structure framework.',
+    description: '2D Metroidvania world with modular maps, biomes, characters, behaviors, UI themes, and game structure framework.',
     author: 'Mason Architect',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -1744,7 +3084,6 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
     activeFiles: {
       mapFileName: 'ashen_outpost.map',
       biomeFileName: 'mourne_ashen_steppes.biome',
-      archetypeFileName: 'korrath.arch',
       characterFileName: 'korrath.character',
       uiFileName: 'classic_gothic_hud.ui',
       gameStructureFileName: 'main_campaign.gamestructure',
@@ -1753,7 +3092,6 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
     fileSystem: {
       maps: [map1, map2, map3],
       biomes,
-      archetypes,
       characters,
       ui: uiThemes,
       game: gameStructures,

@@ -84,10 +84,8 @@ export const useMapEditor = () => {
 
       if (activeTool === 'bucket') {
         const targetTile = prev.layers?.[activeLayer]?.[centerY]?.[centerX];
-      if (targetTile === undefined) return prev;
-        const replacement = activeTool === 'eraser' 
-          ? (activeLayer === 'procedural' ? 'stone' : null) 
-          : selectedTile;
+        if (targetTile === undefined) return prev;
+        const replacement = selectedTile;
 
         if (targetTile === replacement) return prev;
 

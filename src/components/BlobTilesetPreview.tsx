@@ -722,7 +722,7 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
                 ) : null}
               </div>
               <div className="flex flex-col text-[11px] truncate">
-                <span className="font-mono text-slate-200">{tileType.baseMaterialA.name || 'Primary Strata'}</span>
+                <span className="font-mono text-slate-200">Primary Strata</span>
                 <span className="text-slate-400 font-mono text-[10px]">{tileType.baseMaterialA.albedoColor}</span>
               </div>
             </div>
@@ -733,19 +733,19 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
             <div className="flex items-center gap-2">
               <div
                 className="w-10 h-10 rounded border border-slate-750 flex items-center justify-center overflow-hidden shrink-0"
-                style={{ backgroundColor: tileType.baseMaterialB.albedoColor || '#1e293b' }}
+                style={{ backgroundColor: tileType.baseMaterialBAlbedoColor || '#1e293b' }}
               >
-                {tileType.baseMaterialB.albedoTextureUrl ? (
+                {tileType.baseMaterialBTextureUrl ? (
                   <img
-                    src={tileType.baseMaterialB.albedoTextureUrl}
+                    src={tileType.baseMaterialBTextureUrl}
                     alt="B"
                     className="w-full h-full object-cover"
                   />
                 ) : null}
               </div>
               <div className="flex flex-col text-[11px] truncate">
-                <span className="font-mono text-slate-200">{tileType.baseMaterialB.name || 'Secondary Strata'}</span>
-                <span className="text-slate-400 font-mono text-[10px]">{tileType.baseMaterialB.albedoColor}</span>
+                <span className="font-mono text-slate-200">Secondary Strata</span>
+                <span className="text-slate-400 font-mono text-[10px]">{tileType.baseMaterialBAlbedoColor}</span>
               </div>
             </div>
           </div>
@@ -754,11 +754,11 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
             <span className="text-xs font-semibold text-slate-300">Top Edge Fringe</span>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400">Enabled:</span>
-              <span className={tileType.tileDetails.top.enabled ? 'text-emerald-400' : 'text-slate-500'}>
-                {tileType.tileDetails.top.enabled ? 'Yes' : 'No'}
+              <span className={Boolean(tileType.tileDetails.top.overlayTextureUrl || tileType.tileDetails.top.color) ? 'text-emerald-400' : 'text-slate-500'}>
+                {Boolean(tileType.tileDetails.top.overlayTextureUrl || tileType.tileDetails.top.color) ? 'Yes' : 'No'}
               </span>
             </div>
-            {tileType.tileDetails.top.enabled && (
+            {Boolean(tileType.tileDetails.top.overlayTextureUrl || tileType.tileDetails.top.color) && (
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-slate-400">Thickness:</span>
                 <span className="font-mono text-cyan-300">{tileType.tileDetails.top.thicknessPx}px</span>
@@ -782,11 +782,11 @@ export const BlobTilesetPreview: React.FC<BlobTilesetPreviewProps> = ({
             </div>
             <div className="flex items-center justify-between text-slate-400">
               <span>Noise Scale A:</span>
-              <span className="font-mono text-cyan-300">{tileType.blendMap.noiseScaleA}</span>
+              <span className="font-mono text-cyan-300">{tileType.blendMap.noiseA.scale}</span>
             </div>
             <div className="flex items-center justify-between text-slate-400">
               <span>Contrast:</span>
-              <span className="font-mono text-cyan-300">{tileType.blendMap.contrast}</span>
+              <span className="font-mono text-cyan-300">{tileType.blendMap.blendContrast}</span>
             </div>
           </div>
         </div>

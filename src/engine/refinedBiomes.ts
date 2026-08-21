@@ -220,35 +220,251 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
       {
         id: 'ashen_binding_stone',
         name: 'Ashen Steppes Binding Stone',
+        propKind: 'item',
+        hasSprite: true,
         type: 'binding_stone',
         icon: '💎',
         color: '#38bdf8',
-        interactionPrompt: 'Attune Archetype & Save Checkpoint'
+        interactionMethod: 'interact',
+        interactionPrompt: 'Attune Character & Save Checkpoint',
+        actionType: 'modify_resource',
+        resourceType: 'health',
+        resourceOp: 'set',
+        resourceAmount: 100,
+        feedbackMessage: 'Checkpoint Saved & Vigor Restored'
+      },
+      {
+        id: 'steppes_portal_zone',
+        name: 'Crystal Chasm Gateway',
+        propKind: 'zone',
+        type: 'zone',
+        icon: '🟩',
+        color: '#06b6d4',
+        interactionMethod: 'overlap',
+        interactionPrompt: 'Step into Portal to Travel',
+        widthTiles: 3,
+        heightTiles: 4,
+        zoneType: 'transition_zone',
+        actionType: 'immediate_transport',
+        immediateDestinationId: 'crystal_chasm.map'
       },
       {
         id: 'iron_reinforced_gate',
         name: 'Reinforced Vault Gate',
+        propKind: 'item',
+        hasSprite: true,
         type: 'door_gate',
         icon: '🚪',
         color: '#f59e0b',
-        interactionPrompt: 'Unlock Steppes Gate'
+        interactionMethod: 'interact',
+        interactionPrompt: 'Unlock Steppes Gate',
+        actionType: 'destination_menu',
+        popupMenuTitle: 'Traverse Outpost Gateways',
+        allowedDestinations: ['crystal_chasm.map', 'ashen_outpost.map']
       },
       {
         id: 'cinder_stalker_enemy',
         name: 'Cinder Stalker Vanguard',
+        propKind: 'item',
+        hasSprite: true,
         type: 'enemy',
         icon: '👾',
         color: '#ef4444',
         health: 150,
-        interactionPrompt: 'Engage in Combat'
+        interactionMethod: 'touch_collision',
+        interactionPrompt: 'Engage in Combat',
+        actionType: 'spawn_entity',
+        spawnCategory: 'wildlife',
+        spawnEntityId: 'ember_burrower',
+        spawnCount: 2
       },
       {
         id: 'steppes_relic_chest',
         name: 'Calcified Supply Chest',
+        propKind: 'item',
+        hasSprite: true,
         type: 'chest',
         icon: '📦',
         color: '#fbbf24',
-        interactionPrompt: 'Open Supply Chest'
+        interactionMethod: 'interact',
+        interactionPrompt: 'Open Supply Chest',
+        actionType: 'modify_resource',
+        resourceType: 'gold',
+        resourceOp: 'add',
+        resourceAmount: 75,
+        feedbackMessage: '+75 Ancient Gold Acquired'
+      },
+      {
+        id: 'ash_storm_shrine',
+        name: 'Cataclysmic Ash Monolith',
+        propKind: 'item',
+        hasSprite: true,
+        type: 'switch',
+        icon: '🌋',
+        color: '#ea580c',
+        interactionMethod: 'interact',
+        interactionPrompt: 'Activate Volcanic Resonator',
+        actionType: 'trigger_behavior',
+        targetBehaviorId: 'brule_ash_eruption'
+      }
+    ],
+    variables: [
+      {
+        id: 'bvar_volcanic_heat',
+        name: 'Volcanic Heat Index',
+        category: 'hazard',
+        type: 'number',
+        scope: 'local_biome',
+        defaultValue: 25,
+        minValue: 0,
+        maxValue: 100,
+        description: 'Ambient temperature level. Triggers heat exhaustion over 80.'
+      },
+      {
+        id: 'bvar_ash_storm_active',
+        name: 'Ash Storm Active',
+        category: 'weather',
+        type: 'boolean',
+        scope: 'global_interbiome',
+        defaultValue: false,
+        description: 'Interbiome flag indicating volcanic ash storms covering surrounding maps.'
+      },
+      {
+        id: 'bvar_vault_gate_unlocked',
+        name: 'Vault Gate Unlocked',
+        category: 'progression',
+        type: 'boolean',
+        scope: 'global_interbiome',
+        defaultValue: false,
+        description: 'Interbiome progression unlock for deep ancient vault passages.'
+      }
+    ],
+    stateMachine: {
+      defaultStateId: 'state_steppes_calm',
+      states: [
+        {
+          id: 'state_steppes_calm',
+          name: 'Calm Ashfall',
+          description: 'Gentle cinder flurries and moderate visibility across the basalt ridges.',
+          color: '#64748b',
+          ambientColor: '#181420',
+          fogDensity: 0.25,
+          hazardLevel: 'none',
+          weatherType: 'clear',
+          wildlifeSpawnMultiplier: 1.0,
+          isDefault: true,
+          x: 150,
+          y: 120
+        },
+        {
+          id: 'state_steppes_eruption',
+          name: 'Volcanic Eruption',
+          description: 'Violent pyroclastic clouds, heavy screen shake, and frenzied wildlife spawns.',
+          color: '#ef4444',
+          ambientColor: '#450a0a',
+          fogDensity: 0.75,
+          hazardLevel: 'severe',
+          weatherType: 'ash_storm',
+          wildlifeSpawnMultiplier: 2.5,
+          isDefault: false,
+          x: 480,
+          y: 120
+        }
+      ],
+      transitions: [
+        {
+          id: 'btr_calm_to_eruption',
+          fromStateId: 'state_steppes_calm',
+          toStateId: 'state_steppes_eruption',
+          triggerLabel: 'Heat > 80 or Ash Storm',
+          conditionVariableId: 'bvar_volcanic_heat',
+          conditionComparator: '>=',
+          conditionValue: 80
+        },
+        {
+          id: 'btr_eruption_to_calm',
+          fromStateId: 'state_steppes_eruption',
+          toStateId: 'state_steppes_calm',
+          triggerLabel: 'Storm Dissipates (Heat <= 30)',
+          conditionVariableId: 'bvar_volcanic_heat',
+          conditionComparator: '<=',
+          conditionValue: 30
+        }
+      ]
+    },
+    behaviorRules: [
+      {
+        id: 'brule_ash_eruption',
+        name: 'Trigger Cataclysmic Eruption',
+        enabled: true,
+        scope: 'global_interbiome',
+        description: 'Initiated when monolith is attuned or heat surges across the maps.',
+        trigger: {
+          type: 'on_variable_value',
+          variableId: 'bvar_volcanic_heat',
+          comparator: '>=',
+          targetValue: 80
+        },
+        actions: [
+          {
+            id: 'bact_1',
+            actionType: 'change_biome_state',
+            targetStateId: 'state_steppes_eruption'
+          },
+          {
+            id: 'bact_2',
+            actionType: 'environmental_effect',
+            effectType: 'screen_shake',
+            intensity: 0.8,
+            durationMs: 3000
+          },
+          {
+            id: 'bact_3',
+            actionType: 'set_variable',
+            variableId: 'bvar_ash_storm_active',
+            variableOp: 'set',
+            variableValue: true
+          }
+        ]
+      },
+      {
+        id: 'brule_map_load_welcome',
+        name: 'On Ashen Outpost Map Entry',
+        enabled: true,
+        scope: 'local_biome',
+        description: 'Applies atmospheric audio sting and initializes localized variables on map load.',
+        trigger: {
+          type: 'on_map_load',
+          mapFileName: 'ashen_outpost.map'
+        },
+        actions: [
+          {
+            id: 'bact_load_1',
+            actionType: 'audio_cue',
+            soundTrackName: 'ost_steppes_winds_of_mourne.ogg',
+            volume: 0.8
+          }
+        ]
+      },
+      {
+        id: 'brule_state_spawns',
+        name: 'Frenzied Wildlife Surge',
+        enabled: true,
+        scope: 'local_biome',
+        description: 'Spawns ember sand crabs when volcanic eruption state is entered.',
+        trigger: {
+          type: 'on_biome_state',
+          biomeStateId: 'state_steppes_eruption'
+        },
+        actions: [
+          {
+            id: 'bact_surge_1',
+            actionType: 'spawn_entity',
+            spawnCategory: 'wildlife',
+            spawnEntityId: 'ember_burrower',
+            spawnCount: 3
+          }
+        ]
       }
     ],
     wildlife: [
@@ -455,7 +671,7 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         type: 'binding_stone',
         icon: '💎',
         color: '#22d3ee',
-        interactionPrompt: 'Attune Archetype & Save Checkpoint'
+        interactionPrompt: 'Attune Character & Save Checkpoint'
       },
       {
         id: 'spore_alchemist_cache',
@@ -607,7 +823,7 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         type: 'binding_stone',
         icon: '💎',
         color: '#7dd3fc',
-        interactionPrompt: 'Attune Archetype & Save Checkpoint'
+        interactionPrompt: 'Attune Character & Save Checkpoint'
       }
     ],
     wildlife: [

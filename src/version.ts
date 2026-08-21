@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.62
+ * Current Release: v0.84
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.61 -> v0.62 -> v0.63 -> v0.64).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.62';
-export const MASON_VERSION_DISPLAY = 'v0.62';
-export const MASON_FULL_VERSION = 'v0.62';
+export const MASON_VERSION = '0.84';
+export const MASON_VERSION_DISPLAY = 'v0.84';
+export const MASON_FULL_VERSION = 'v0.84';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,210 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.84',
+    date: '2026-08-20',
+    changes: [
+      'Visual World Map Graph Canvas: Implemented an interactive visual node graph for the World Map module with draggable level cards, multi-wire bezier curved paths, zoom/pan controls, and interactive connection badges.',
+      'Unlimited Map Transitions & Link Modal: Enabled multiple links per level pair with custom transition types (Doorways, Portals, Elevators, Zones, Teleporters, Seamless Boundaries) and progression flag locks.',
+      'Flora & Environmental Details Builder: Added full add/remove and configuration controls for flora, foliage, boulders, and crystals with custom dimensions, scatter density, and destructibility.',
+      'Interactive Props & Resizable Zones: Added resizable zone prop types (up to 32×32 tiles), interaction trigger events (overlap, touch, key press), and fast-travel world graph transport behaviors.',
+      'In-Game Pause Menu Checkbox & Input Mappings Overhaul: Added mutually exclusive In-Game Pause Menu selection, text-editable binding names & categories, interaction behaviors, and direct UI opening bindings.'
+    ]
+  },
+  {
+    version: 'v0.83',
+    date: '2026-08-20',
+    changes: [
+      'Start / Initial Landing Screen Checkbox & Mutual Exclusivity: Fixed issue where the initial landing screen checkbox persisted or checked multiple menus simultaneously.',
+      'Unchecked by Default: Configured new and default menus to have the Start Screen box unchecked by default until explicitly selected.',
+      'Strict Radio Invariant: Enforced strict mutual exclusivity across all menu screens so only one screen can be designated as the landing screen at a time.',
+      'Persistence Fix: Fixed state updater so unchecking a landing screen cleanly clears initialMenuId and isInitialScreen without resurrecting on tab or screen switches.'
+    ]
+  },
+  {
+    version: 'v0.82',
+    date: '2026-08-20',
+    changes: [
+      'UI Screen Designer Overhaul: Transformed the UI module into a customizable multi-screen designer supporting unlimited screens/menus (Start Menu, Pause Menu, Options, Inventory, Dialogue, Game Over).',
+      'Drag-and-Drop & Resizing: Added freeform visual positioning and live resizing handles for UI widgets with configurable grid snapping (Off, 4px, 8px, 16px, 32px) and multi-resolution viewports (16:9, 4:3, Mobile).',
+      'Button Linking & Pause Engine States: Implemented interactive button navigation targets (navigate_menu, close_menu, start_game, resume_game) with configurable engine pause/unpause execution.',
+      'Interactive Test Mode: Enabled real-time interactive simulation of menus, navigation stacks, input fields, and sliders with live engine pause indicators.'
+    ]
+  },
+  {
+    version: 'v0.81',
+    date: '2026-08-18',
+    changes: [
+      'Capsule Collider Keyframing: Enabled full per-frame capsule collider keyframing (Radius, Height, Offset X/Y) in Animation Studio with timeline indicators and interactive canvas handles.',
+      'Spritesheet Uploads & Visualizer: Added image upload support (Data URLs), auto-calculating grid columns/rows from image dimensions, preset sprite sheets, and an interactive full-sheet tile grid viewer with frame inspect.',
+      'Custom Variable Categories: Transformed Variable Category selection into a flexible free-text input with category suggestions, allowing bespoke category names.',
+      'FSM Node Dragging Fix: Re-architected state graph node dragging using global window pointer listeners and delta calculations to eliminate stuck/hung drag states.',
+      'Behavior Rule Authoring: Hardened updateCharacter state saving to guarantee new behavior rules and triggers persist immediately when added.'
+    ]
+  },
+  {
+    version: 'v0.80',
+    date: '2026-08-18',
+    changes: [
+      'Single Consolidated Header: Integrated entity display names, avatars, and type badges directly into the center of the subfolder file header across all modules.',
+      'Removed Redundant Metadata Bar: Eliminated the secondary metadata bar and redundant variable/state/rule counter text (already clearly represented on the sticky tabs).',
+      'Action Integration: Moved the "Copy Rules/Vars" button and custom module tools directly into the top file header right-side action slot.',
+      'Reclaimed Vertical Canvas Space: Modules now feature only one compact 36px (h-9) top navigation/file bar followed immediately by the sticky workspace tabs.'
+    ]
+  },
+  {
+    version: 'v0.79',
+    date: '2026-08-18',
+    changes: [
+      'UI Streamlining: Restored full-featured top navbar font sizes and re-added the quick Modules icon dropdown (🧩) in the main top header.',
+      'Removed Redundant Navigation: Removed intermediate dashboard module tabs bar (dashboard cards handle navigation) and consolidated duplicate buttons.',
+      'Maximizing Vertical Space: Removed redundant sub-header bar, standalone app switch, and duplicate switch module button in ModuleRunnerContainer.',
+      'Sticky Module Tabs: Made primary workspace tabs in Character Creator (Animation Studio, Spritesheets, Variables, States, Behaviors) and Biome Editor sticky so they never scroll away.',
+      'Header Consolidation: Combined Project Info/Dashboard navigation and file operations into a single sleek h-9 bar, aligning Copy Rules/Vars alongside the character metadata.'
+    ]
+  },
+  {
+    version: 'v0.78',
+    date: '2026-08-18',
+    changes: [
+      'App Layout: Added persistent, always-visible Module Tabs Bar (Dashboard, Maps, Biomes, Characters, UI HUD, World Graph) for instant 1-click navigation.',
+      'Vertical Space Optimization: Condensed headers, file subfolder breadcrumb bars (h-9), and workspace tabs across all modules with compact pill styles and tooltips.',
+      'Character FSM Engine: Fixed Add State and Add Transition modals, enabling instant visual creation and configuration of state nodes and transition triggers.'
+    ]
+  },
+  {
+    version: 'v0.77',
+    date: '2026-08-18',
+    changes: [
+      'Animation Studio: Made animation playback paused by default on initial view.',
+      'Frame-by-Frame Stepping: Added dedicated Previous Frame (<), Next Frame (>), First Frame (|<<), and Last Frame (>>|) controls.',
+      'Interactive Frame Scrubber: Added a visual frame timeline strip displaying clip cells with keyframe indicators.',
+      'Keyframe Positioning Engine: Added ability to snapshot and clear per-frame socket/point and hitbox polygon positions (with copy from previous frame support).',
+      'Animation Clip Config: Added sidebar clip editor for Start Frame, End Frame, Spritesheet slot, FPS, and Loop parameters.'
+    ]
+  },
+  {
+    version: 'v0.76',
+    date: '2026-08-18',
+    changes: [
+      'Character Module: Added group & individual visibility toggles for Sprite, Capsule, Sockets, and Hitboxes in the 2D Viewport and Sidebar.',
+      'FSM States: Implemented smooth mouse wheel zoom and right-click / middle-click panning on the Finite State Machine graph canvas.',
+      'Behaviors: Added a secondary state dropdown when "State Active / Event" trigger condition is chosen (supporting While In State, On State Enter, On State Exit, and On Transition Fired).',
+      'Behaviors: Minimized behavior rule cards by default with summary badges and added global "Expand All" / "Collapse All" controls.'
+    ]
+  },
+  {
+    version: 'v0.75',
+    date: '2026-08-18',
+    changes: [
+      'Dashboard: Centered the module grid layout for better focus on desktop.',
+      'Behaviors: Added a "Variables" tab to allow Behavior scripts to dictate custom RPG stats, attributes, and proficiencies to linked Characters (with static/open enforcement).',
+      'Characters: Refactored the RPG Stats tab to dynamically render variables exposed by the linked Behavior script.',
+      'Behaviors: Added an animation selector dropdown to the "Play Animation State" action node, which aggregates available animations from assigned characters.'
+    ]
+  },
+  {
+    version: 'v0.74',
+    date: '2026-08-18',
+    changes: [
+      'Engine: Completely decoupled and removed Archetypes from the architecture, merging stats and functionality directly into the Character Editor.',
+      'Dashboard & Modals: Removed the Archetypes module card from the dashboard and pruned Archetypes from the subfolder system.'
+    ]
+  },
+  {
+    version: 'v0.73',
+    date: '2026-08-17',
+    changes: [
+      'Top Bar: Converted Modules button into an icon-only button and transformed the quick dropdown into a minimalist icon-only grid for pro/expert workflow.',
+      'Dashboard: Removed the redundant lower modules list so the top subfolder info cards serve as the direct launchpad and status center.',
+      'Architecture: Streamlined module registry to 7 standalone modules, integrating macro tools directly into the Maps module.'
+    ]
+  },
+  {
+    version: 'v0.72',
+    date: '2026-08-17',
+    changes: [
+      'Dashboard: Simplified module cards by removing descriptions and making every card fully clickable for instant launching without separate buttons.',
+      'Top Bar: Converted the Modules button into a clean icon-grid dropdown popover for rapid 1-click module navigation.',
+      'Modules Directory: Removed tabs and categories to show all modules directly in a clean, uncluttered grid.'
+    ]
+  },
+  {
+    version: 'v0.71',
+    date: '2026-08-17',
+    changes: [
+      'Character Module: Resolved viewport stretching regression by dynamically syncing internal canvas buffer dimensions with container width/height instead of fixed aspect ratio scaling.',
+      'Character Module: Fixed point & polygon snap-back on drag release by guaranteeing character file insertion in project filesystem and updating both active keyframe and base character anchors upon mouse release.'
+    ]
+  },
+  {
+    version: 'v0.70',
+    date: '2026-08-17',
+    changes: [
+      'Character Module: Fixed silent failure where new keyframes were not saved if the base animation object had not yet been formally initialized in the character\'s data array.'
+    ]
+  },
+  {
+    version: 'v0.69',
+    date: '2026-08-17',
+    changes: [
+      'Character Module: Bulletproofed global project state updates with deep cloning to prevent React from dropping mouseup commits.',
+      'Character Module: Consolidated overlapping canvas and global mouseup event handlers to prevent race conditions during drag release.'
+    ]
+  },
+  {
+    version: 'v0.68',
+    date: '2026-08-17',
+    changes: [
+      'Character Module: Re-architected canvas point/polygon dragging to use local component state (dragOverride) instead of dispatching global project updates on every mouse move, completely eliminating the 60fps rendering bottleneck/hang.',
+      'Character Module: Restricted canvas panning exclusively to Right-Click (button 2) as requested.'
+    ]
+  },
+  {
+    version: 'v0.67',
+    date: '2026-08-17',
+    changes: [
+      'Behavior Module: Bulletproofed IFTTT Rule state updates to ensure React re-renders correctly when adding/editing triggers and actions.'
+    ]
+  },
+  {
+    version: 'v0.66',
+    date: '2026-08-17',
+    changes: [
+      'Confirmed version bumping rule and synced version to v0.66'
+    ]
+  },
+  {
+    version: 'v0.65',
+    date: '2026-08-17',
+    changes: [
+      'Character Module: Fixed item dragging in viewport by resolving a stale closure on the live keyframe updater',
+      'All Modules: Standardized panning controls to allow Right Click across all editor canvases'
+    ]
+  },
+  {
+    version: 'v0.64',
+    date: '2026-08-17',
+    changes: [
+      'Character Module: Fixed canvas viewport mouse coordinate scaling factor to account for CSS resolution vs buffer size',
+      'Character Module: Expanded point and polygon vertex hit detection targets (16px and 14px canvas radii)',
+      'Character Module: Added point-in-polygon body click selection so clicking anywhere inside a hitbox selects it',
+      'Character Module: Auto-pause animation playback during dragging to prevent keyframes from ticking',
+      'Character Module: Fixed viewport wheel zoom event listener with non-passive preventDefault to prevent outer page scrolling',
+      'Character Module: Enforced crisp handle sizing on screen regardless of zoom level'
+    ]
+  },
+  {
+    version: 'v0.63',
+    date: '2026-08-17',
+    changes: [
+      'UI Module: Implemented interactive Press Key / Press Button modal recorder for live keyboard shortcut and gamepad combo capture',
+      'UI Module: Added Reset/Clear input button and individual tag removal badges for keybindings',
+      'Behavior Module: Fixed rule state persistence so AND/OR logic switches, trigger condition editing, and action controls update seamlessly',
+      'Behavior Module: Enabled multi-trigger conditions and full form controls across all 12 trigger types and 6 action types'
+    ]
+  },
   {
     version: 'v0.62',
     date: '2026-08-16',

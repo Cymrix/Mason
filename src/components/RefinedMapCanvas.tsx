@@ -64,16 +64,40 @@ function getBrushTiles(px: number, py: number, brushSize: number = 1, activeTool
   return tiles;
 }
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { RefinedMapData, RefinedCellState, ToolType, ModeType } from '../types';
 import { TILE_SIZE, RefinedBiome, BiomeTileType } from '../engine/refinedBiomeSchema';
+import { CharacterData, BehaviorData } from '../engine/masonProjectSchema';
 import { renderRefinedTileCell } from '../engine/tileMaterialRenderer';
 import { drawThresholdCrackMask } from '../engine/heightBlendShader';
 import { renderParallaxLayer } from '../engine/parallaxRenderer';
 import { globalChunkCache } from '../engine/chunkCacheManager';
 import { getCell, calculateMapBounds, CHUNK_SIZE } from '../engine/mapChunkHelper';
 import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
-import { ZoomIn, ZoomOut, RotateCcw, Move, Layers, Eye, EyeOff, Maximize2, Compass, Grid } from 'lucide-react';
+import { 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw, 
+  Move, 
+  Layers, 
+  Eye, 
+  EyeOff, 
+  Maximize2, 
+  Compass, 
+  Grid, 
+  Play, 
+  Square, 
+  Sparkles, 
+  Shield, 
+  Heart, 
+  Zap, 
+  Crosshair, 
+  MapPin, 
+  Activity,
+  Flame,
+  Cpu,
+  Bookmark
+} from 'lucide-react';
 
 interface RefinedMapCanvasProps {
   mapData: RefinedMapData;
@@ -89,6 +113,12 @@ interface RefinedMapCanvasProps {
   brushSize?: number;
   activeTool?: ToolType;
   mode?: ModeType;
+  setMode?: (mode: ModeType) => void;
+  testCharacter?: CharacterData;
+  linkedBehavior?: BehaviorData;
+  spawnPoint?: { x: number; y: number; facing?: 'left' | 'right' };
+  onSetSpawnPoint?: (x: number, y: number) => void;
+  onExitPlayMode?: () => void;
 }
 
 export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
@@ -104,13 +134,146 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   isLitMode = false,
   brushSize = 1,
   activeTool = 'brush',
-  mode = 'paint'
+  mode = 'paint',
+  setMode,
+  testCharacter,
+  linkedBehavior,
+  spawnPoint = { x: 4, y: 12, facing: 'right' },
+  onSetSpawnPoint,
+  onExitPlayMode
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showParallaxBg, setShowParallaxBg] = useState<boolean>(true);
   const [showForegroundLayer, setShowForegroundLayer] = useState<boolean>(true);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number } | null>(null);
   const [, setRenderTrigger] = useState(0);
+
+  // Exact character configuration derivation strictly from testCharacter and linkedBehavior
+  const charConfig = React.useMemo(() => {
+    // 1. Dimensions & Capsule from Character File
+    const radius = testCharacter?.capsule?.radius ?? (testCharacter?.spriteWidth ? Math.min(14, testCharacter.spriteWidth / 4) : 8);
+    const height = testCharacter?.capsule?.height ?? (testCharacter?.spriteHeight ? Math.min(48, testCharacter.spriteHeight * 0.75) : 26);
+    
+    // 2. Health, Mana, Stamina from Character BaseStats
+    const maxHp = testCharacter?.baseStats?.health ?? 100;
+    const maxMp = testCharacter?.baseStats?.energy ?? 100;
+    const maxSp = testCharacter?.baseStats?.stamina ?? 100;
+
+    // 3. Movement & Kinematics — Strictly driven by Behavior Module configuration
+    const behMov = linkedBehavior?.movement;
+    const heroInp = linkedBehavior?.heroInput;
+
+    // Movement speed: strictly from Character Base Stats. If no stats, defaults to 5.
+    const baseSpeed = testCharacter.baseStats?.speed ?? 5;
+    const accel = baseSpeed * 0.8; // Derived from speed
+    const gravScale = behMov?.gravityScale !== undefined ? behMov.gravityScale : 1.0;
+    const airCtrl = heroInp?.airControlPercent !== undefined 
+      ? heroInp.airControlPercent / 100 
+      : (behMov?.airControl !== undefined ? behMov.airControl : 0.85);
+
+    // 4. Jump & Air Jumps — Strictly from behavior. If jumpForce is not configured (>0), jump is disabled.
+    const jumpForce = behMov?.jumpForce !== undefined ? behMov.jumpForce : 0;
+    const canJump = jumpForce > 0;
+    const maxAirJumps = heroInp?.maxAirJumps ?? 0;
+    const totalJumps = canJump ? (1 + maxAirJumps) : 0;
+
+    // 5. Dash — Strictly from behavior hero input or charge_dash movement type
+    const hasDash = !!(heroInp?.dashCooldownMs !== undefined || behMov?.movementType === 'charge_dash');
+    const allowAirDash = !!(heroInp?.allowAirDash);
+    const dashCooldownFrames = heroInp?.dashCooldownMs ? Math.round(heroInp.dashCooldownMs / 16.66) : 36;
+    const dashSpeed = (heroInp?.dashSpeedMultiplier ?? 2.2) * (baseSpeed > 0 ? baseSpeed * 1.5 : 8);
+    const dashDurationFrames = heroInp?.dashIFrameMs ? Math.max(4, Math.round(heroInp.dashIFrameMs / 25)) : 8;
+
+    // 6. Wall Cling & Wall Jump — Strictly from behavior hero input / wall_clinger movement type
+    const hasWallCling = !!((heroInp?.wallClingFriction !== undefined && heroInp.wallClingFriction > 0) || behMov?.movementType === 'wall_clinger');
+    const wallFriction = heroInp?.wallClingFriction ?? 0.6;
+    const wallJumpForceX = heroInp?.wallJumpForceX ?? (baseSpeed * 1.8);
+    const wallJumpForceY = heroInp?.wallJumpForceY ?? (jumpForce > 0 ? jumpForce * 0.95 : 0);
+
+    // 7. Combat Attacks — Driven by character hitboxes/animations and behavior attack rules/actions/skills
+    const hasAttack = !!(
+      testCharacter?.polygons?.some(poly => poly.type === 'hitbox') ||
+      testCharacter?.animations?.some(anim => anim.stateId === 'attack') ||
+      linkedBehavior?.rules?.some(r => r.actions.some(a => a.actionType === 'attack')) ||
+      linkedBehavior?.skills?.some(s => s.actionType === 'primary_attack')
+    );
+
+    // 8. Special Skills — Driven by behavior projectile rules or behavior skills
+    const hasSpecial = !!(
+      linkedBehavior?.rules?.some(r => r.actions.some(a => a.attackType === 'fire_projectile' || a.actionType === 'hero_impulse')) ||
+      linkedBehavior?.skills?.some(s => s.actionType === 'special_ability')
+    );
+
+    return {
+      radius,
+      height,
+      maxHp,
+      maxMp,
+      maxSp,
+      baseSpeed,
+      accel,
+      gravScale,
+      airCtrl,
+      jumpForce,
+      canJump,
+      maxAirJumps,
+      totalJumps,
+      hasDash,
+      allowAirDash,
+      dashCooldownFrames,
+      dashSpeed,
+      dashDurationFrames,
+      hasWallCling,
+      wallFriction,
+      wallJumpForceX,
+      wallJumpForceY,
+      hasAttack,
+      hasSpecial
+    };
+  }, [testCharacter, linkedBehavior]);
+
+  // Play Mode Player & Physics Engine State
+  const playerRef = useRef({
+    x: (spawnPoint?.x ?? 4) * TILE_SIZE + TILE_SIZE / 2,
+    y: (spawnPoint?.y ?? 12) * TILE_SIZE + TILE_SIZE - 2,
+    vx: 0,
+    vy: 0,
+    facing: (spawnPoint?.facing || 'right') as 'left' | 'right',
+    isGrounded: false,
+    isWallSliding: false,
+    jumpsLeft: 1,
+    isDashing: false,
+    dashTimer: 0,
+    dashCooldown: 0,
+    isAttacking: false,
+    attackTimer: 0,
+    specialTimer: 0,
+    health: 100,
+    maxHealth: 100,
+    stamina: 100,
+    maxStamina: 100,
+    mana: 100,
+    maxMana: 100,
+    animTime: 0,
+    isWalking: false,
+    landingSquash: 0,
+    jumpStretch: 0,
+    ghostTrails: [] as Array<{ x: number; y: number; facing: 'left' | 'right'; alpha: number; color: string }>,
+    particles: [] as Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number }>,
+    slashes: [] as Array<{ x: number; y: number; facing: 'left' | 'right'; frame: number; maxFrames: number; color: string }>
+  });
+
+  const [hudState, setHudState] = useState({
+    health: 100,
+    maxHealth: 100,
+    stamina: 100,
+    mana: 100,
+    isGrounded: true,
+    isWallSliding: false,
+    facing: 'right'
+  });
+
+  const keysDownRef = useRef<Record<string, boolean>>({});
 
   
 
@@ -126,7 +289,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     centerContent,
     fitContent,
     zoomIn,
-    zoomOut
+    zoomOut,
+    setPan
   } = useCanvasPanZoom({
     minScale: 0.15,
     maxScale: 4.0,
@@ -181,9 +345,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const { biomeMap, tileTypeMap, envDetailMap, interactiveDetailMap, wildlifeMap } = React.useMemo(() => {
     const bMap: Record<string, RefinedBiome> = {};
     const tileTypes: Record<string, { tileType: BiomeTileType; biome: RefinedBiome }> = {};
-    const envDetails: Record<string, RefinedCellState> = {};
-    const interactiveDetails: Record<string, RefinedCellState> = {};
-    const wildlifeItems: Record<string, RefinedCellState> = {};
+    const envDetails: Record<string, any> = {};
+    const interactiveDetails: Record<string, any> = {};
+    const wildlifeItems: Record<string, any> = {};
 
     biomes.forEach(biome => {
       bMap[biome.id] = biome;
@@ -262,36 +426,447 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setShowGrid]);
 
-  // Smooth 60fps animation ticker loop during crossfade transition
+  // Respawn character function
+  const respawnPlayer = useCallback(() => {
+    const sx = (spawnPoint?.x ?? 4) * TILE_SIZE + TILE_SIZE / 2;
+    const sy = (spawnPoint?.y ?? 12) * TILE_SIZE + TILE_SIZE - 2;
+    const p = playerRef.current;
+    p.x = sx;
+    p.y = sy;
+    p.vx = 0;
+    p.vy = 0;
+    p.facing = spawnPoint?.facing || 'right';
+    p.isGrounded = false;
+    p.isWallSliding = false;
+    p.jumpsLeft = charConfig.totalJumps;
+    p.health = charConfig.maxHp;
+    p.maxHealth = charConfig.maxHp;
+    p.stamina = charConfig.maxSp;
+    p.maxStamina = charConfig.maxSp;
+    p.mana = charConfig.maxMp;
+    p.maxMana = charConfig.maxMp;
+    p.ghostTrails = [];
+    p.slashes = [];
+    // Spawn respawn sparkle ring
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const spd = 2 + Math.random() * 3;
+      p.particles.push({
+        x: sx,
+        y: sy - 16,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        life: 25,
+        maxLife: 25,
+        color: testCharacter?.tintColor || '#06b6d4',
+        size: 3 + Math.random() * 2
+      });
+    }
+  }, [spawnPoint, testCharacter, charConfig]);
+
+  // Attack execution (strictly if attack capability is configured)
+  const triggerAttack = useCallback(() => {
+    if (!charConfig.hasAttack) return;
+    const p = playerRef.current;
+    if (p.attackTimer > 0) return;
+    p.isAttacking = true;
+    p.attackTimer = 12;
+    
+    p.slashes.push({
+      x: p.x,
+      y: p.y - 14,
+      facing: p.facing,
+      frame: 0,
+      maxFrames: 10,
+      color: testCharacter?.tintColor || '#38bdf8'
+    });
+
+    const hitCenterX = p.facing === 'right' ? p.x + 18 : p.x - 18;
+    const hitCenterY = p.y - 14;
+
+    for (let i = 0; i < 6; i++) {
+      p.particles.push({
+        x: hitCenterX + (Math.random() - 0.5) * 14,
+        y: hitCenterY + (Math.random() - 0.5) * 14,
+        vx: (p.facing === 'right' ? 3.5 : -3.5) + (Math.random() - 0.5) * 3,
+        vy: (Math.random() - 0.5) * 4,
+        life: 16,
+        maxLife: 16,
+        color: testCharacter?.tintColor || '#67e8f9',
+        size: 2.5 + Math.random() * 2
+      });
+    }
+  }, [testCharacter, charConfig]);
+
+  // Special skill execution (strictly if abilities / projectiles configured)
+  const triggerSpecial = useCallback(() => {
+    if (!charConfig.hasSpecial) return;
+    const p = playerRef.current;
+    if (p.specialTimer > 0 || p.mana < 25) return;
+    p.specialTimer = 20;
+    p.mana = Math.max(0, p.mana - 25);
+
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      const spd = 3.5 + Math.random() * 3.5;
+      p.particles.push({
+        x: p.x,
+        y: p.y - 16,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        life: 25,
+        maxLife: 25,
+        color: '#a855f7',
+        size: 3.5
+      });
+    }
+  }, [charConfig]);
+
+  // Dash execution (strictly if dash capability is configured)
+  const triggerDash = useCallback(() => {
+    if (!charConfig.hasDash) return;
+    const p = playerRef.current;
+    if (!charConfig.allowAirDash && !p.isGrounded) return;
+    if (p.dashCooldown > 0 || p.stamina < 20) return;
+    p.isDashing = true;
+    p.dashTimer = charConfig.dashDurationFrames;
+    p.dashCooldown = charConfig.dashCooldownFrames;
+    p.stamina = Math.max(0, p.stamina - 20);
+    p.vx = p.facing === 'right' ? charConfig.dashSpeed : -charConfig.dashSpeed;
+    p.vy = 0;
+
+    p.ghostTrails.push({
+      x: p.x,
+      y: p.y,
+      facing: p.facing,
+      alpha: 0.75,
+      color: testCharacter?.tintColor || '#06b6d4'
+    });
+  }, [testCharacter, charConfig]);
+
+  // Reset player to spawn point when entering play mode
   useEffect(() => {
-    let animId: number;
-    const tick = () => {
-      if (fadeAlphaRef.current < 1.0) {
-        const now = performance.now();
-        const dt = Math.min((now - lastTimeRef.current) / 1000, 0.1);
-        lastTimeRef.current = now;
+    if (mode === 'play') {
+      respawnPlayer();
+    }
+  }, [mode, respawnPlayer]);
 
-        const transitionSpeed = 2.5; // 0.4 seconds crossfade duration
-        fadeAlphaRef.current = Math.min(1.0, fadeAlphaRef.current + dt * transitionSpeed);
+  // Play Mode Keyboard Listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
+        return;
+      }
 
-        if (fadeAlphaRef.current >= 1.0) {
-          prevBiomeRef.current = null;
+      if (mode === 'play') {
+        keysDownRef.current[e.code] = true;
+
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          onExitPlayMode?.();
+          setMode?.('paint');
+          return;
         }
 
-        setRenderTrigger(t => t + 1);
-        animId = requestAnimationFrame(tick);
+        if (e.code === 'KeyR') {
+          e.preventDefault();
+          respawnPlayer();
+          return;
+        }
+
+        // Jump / Wall Jump trigger
+        if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+          e.preventDefault();
+          const p = playerRef.current;
+
+          // Wall kick jump
+          if (p.isWallSliding && charConfig.hasWallCling) {
+            p.vy = -charConfig.wallJumpForceY;
+            p.vx = p.facing === 'left' ? charConfig.wallJumpForceX : -charConfig.wallJumpForceX;
+            p.facing = p.facing === 'left' ? 'right' : 'left';
+            p.isWallSliding = false;
+            p.isGrounded = false;
+            p.jumpStretch = 1.3;
+            // Wall kick sparks
+            for (let i = 0; i < 6; i++) {
+              p.particles.push({
+                x: p.x,
+                y: p.y - 12,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -Math.random() * 3,
+                life: 12,
+                maxLife: 12,
+                color: '#38bdf8',
+                size: 2
+              });
+            }
+            return;
+          }
+
+          // Standard Ground / Air Jump
+          if (charConfig.canJump && p.jumpsLeft > 0) {
+            p.vy = -Math.abs(charConfig.jumpForce);
+            p.jumpsLeft -= 1;
+            p.isGrounded = false;
+            p.isWallSliding = false;
+            p.jumpStretch = 1.25;
+            // Jump dust particles
+            for (let i = 0; i < 5; i++) {
+              p.particles.push({
+                x: p.x + (Math.random() - 0.5) * 12,
+                y: p.y,
+                vx: (Math.random() - 0.5) * 3,
+                vy: -Math.random() * 2,
+                life: 14,
+                maxLife: 14,
+                color: 'rgba(200, 200, 200, 0.7)',
+                size: 2
+              });
+            }
+          }
+        }
+
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyC') {
+          e.preventDefault();
+          triggerDash();
+        }
+
+        if (e.code === 'KeyJ' || e.code === 'KeyZ') {
+          e.preventDefault();
+          triggerAttack();
+        }
+
+        if (e.code === 'KeyK' || e.code === 'KeyX') {
+          e.preventDefault();
+          triggerSpecial();
+        }
       }
     };
 
-    if (fadeAlphaRef.current < 1.0) {
-      lastTimeRef.current = performance.now();
-      animId = requestAnimationFrame(tick);
-    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysDownRef.current[e.code] = false;
+    };
 
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [mode, onExitPlayMode, setMode, respawnPlayer, triggerDash, triggerAttack, triggerSpecial, charConfig]);
+
+  // Main 60 FPS Physics & Animation Ticker for Play Mode
+  useEffect(() => {
+    if (mode !== 'play') return;
+
+    let animId: number;
+    const physicsTick = () => {
+      const p = playerRef.current;
+      const keys = keysDownRef.current;
+
+      p.animTime += 0.16;
+
+      // Regenerate stamina & mana up to configured max
+      p.stamina = Math.min(charConfig.maxSp, p.stamina + 0.35);
+      p.mana = Math.min(charConfig.maxMp, p.mana + 0.2);
+
+      // Dash timers
+      if (p.dashCooldown > 0) p.dashCooldown--;
+      if (p.dashTimer > 0) {
+        p.dashTimer--;
+        if (p.dashTimer <= 0) p.isDashing = false;
+      }
+      if (p.attackTimer > 0) {
+        p.attackTimer--;
+        if (p.attackTimer <= 0) p.isAttacking = false;
+      }
+      if (p.specialTimer > 0) p.specialTimer--;
+
+      // Decay squash and stretch
+      if (p.landingSquash > 1.0) p.landingSquash = Math.max(1.0, p.landingSquash - 0.05);
+      if (p.jumpStretch > 1.0) p.jumpStretch = Math.max(1.0, p.jumpStretch - 0.04);
+
+      // Helper to check if tile at (tx, ty) is solid
+      const isSolidTile = (tx: number, ty: number): boolean => {
+        const cell = getCell(mapData, tx, ty);
+        return !!(cell && cell.tile_type_id);
+      };
+
+      const halfW = charConfig.radius;
+      const charH = charConfig.height;
+
+      // Movement Input (if not dashing and character speed > 0)
+      if (!p.isDashing) {
+        if (charConfig.baseSpeed > 0) {
+          const left = keys['KeyA'] || keys['ArrowLeft'];
+          const right = keys['KeyD'] || keys['ArrowRight'];
+          const effectiveAccel = p.isGrounded ? charConfig.accel : charConfig.accel * charConfig.airCtrl;
+          const maxSpeed = charConfig.baseSpeed;
+
+          if (left && !right) {
+            p.vx = Math.max(p.vx - effectiveAccel, -maxSpeed);
+            p.facing = 'left';
+            p.isWalking = true;
+          } else if (right && !left) {
+            p.vx = Math.min(p.vx + effectiveAccel, maxSpeed);
+            p.facing = 'right';
+            p.isWalking = true;
+          } else {
+            p.vx *= (p.isGrounded ? 0.76 : 0.92);
+            if (Math.abs(p.vx) < 0.1) p.vx = 0;
+            p.isWalking = false;
+          }
+        } else {
+          p.vx = 0;
+          p.isWalking = false;
+        }
+
+        // Gravity scaled by behavior movement gravityScale
+        p.vy = Math.min(p.vy + 0.52 * charConfig.gravScale, 14);
+      }
+
+      // Wall Cling / Wall Slide Detection
+      let wallTouching: 'left' | 'right' | null = null;
+      if (!p.isGrounded && p.vy > 0 && charConfig.hasWallCling) {
+        const checkTileY = Math.floor((p.y - charH / 2) / TILE_SIZE);
+        const tileLeftX = Math.floor((p.x - halfW - 2) / TILE_SIZE);
+        const tileRightX = Math.floor((p.x + halfW + 2) / TILE_SIZE);
+
+        if (isSolidTile(tileLeftX, checkTileY) && (keys['KeyA'] || keys['ArrowLeft'])) {
+          wallTouching = 'left';
+        } else if (isSolidTile(tileRightX, checkTileY) && (keys['KeyD'] || keys['ArrowRight'])) {
+          wallTouching = 'right';
+        }
+
+        if (wallTouching) {
+          p.vy = Math.min(p.vy, 2.0 * (1 - charConfig.wallFriction));
+          p.isWallSliding = true;
+          p.facing = wallTouching === 'left' ? 'left' : 'right';
+        } else {
+          p.isWallSliding = false;
+        }
+      } else {
+        p.isWallSliding = false;
+      }
+
+      // 1. Move X with Collision Check
+      const nextX = p.x + p.vx;
+      const checkY1 = p.y - 4;
+      const checkY2 = p.y - charH + 4;
+      const testTileX = Math.floor((p.vx > 0 ? nextX + halfW : nextX - halfW) / TILE_SIZE);
+      const testTileY1 = Math.floor(checkY1 / TILE_SIZE);
+      const testTileY2 = Math.floor(checkY2 / TILE_SIZE);
+
+      if (isSolidTile(testTileX, testTileY1) || isSolidTile(testTileX, testTileY2)) {
+        p.vx = 0;
+      } else {
+        p.x = nextX;
+      }
+
+      // 2. Move Y with Collision Check
+      const nextY = p.y + p.vy;
+      if (p.vy >= 0) {
+        // Falling down
+        const footTileY = Math.floor(nextY / TILE_SIZE);
+        const footLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+        const footRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+
+        if (isSolidTile(footLeftX, footTileY) || isSolidTile(footRightX, footTileY)) {
+          p.y = footTileY * TILE_SIZE;
+          if (p.vy > 5) {
+            p.landingSquash = 1.3;
+            // Landing dust
+            for (let i = 0; i < 4; i++) {
+              p.particles.push({
+                x: p.x + (Math.random() - 0.5) * 14,
+                y: p.y,
+                vx: (Math.random() - 0.5) * 3,
+                vy: -Math.random() * 1.5,
+                life: 12,
+                maxLife: 12,
+                color: 'rgba(210, 210, 210, 0.6)',
+                size: 2
+              });
+            }
+          }
+          p.vy = 0;
+          p.isGrounded = true;
+          p.isWallSliding = false;
+          p.jumpsLeft = charConfig.totalJumps;
+        } else {
+          p.y = nextY;
+          p.isGrounded = false;
+        }
+      } else {
+        // Jumping up (Ceiling check)
+        const headTileY = Math.floor((nextY - charH) / TILE_SIZE);
+        const headLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+        const headRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+
+        if (isSolidTile(headLeftX, headTileY) || isSolidTile(headRightX, headTileY)) {
+          p.y = (headTileY + 1) * TILE_SIZE + charH;
+          p.vy = 0;
+        } else {
+          p.y = nextY;
+          p.isGrounded = false;
+        }
+      }
+
+      // Auto respawn if falling off world
+      const bounds = calculateMapBounds(mapData);
+      if (p.y > (bounds.maxY + 12) * TILE_SIZE || p.y < (bounds.minY - 20) * TILE_SIZE) {
+        respawnPlayer();
+      }
+
+      // Update Particles
+      p.particles.forEach(pt => {
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.life--;
+      });
+      p.particles = p.particles.filter(pt => pt.life > 0);
+
+      // Update Ghost Trails
+      p.ghostTrails.forEach(gt => {
+        gt.alpha -= 0.08;
+      });
+      p.ghostTrails = p.ghostTrails.filter(gt => gt.alpha > 0);
+
+      // Update Slashes
+      p.slashes.forEach(sl => {
+        sl.frame++;
+      });
+      p.slashes = p.slashes.filter(sl => sl.frame < sl.maxFrames);
+
+      // Smooth Camera Follow
+      const targetPanX = canvasWidth / 2 - p.x * scale;
+      const targetPanY = canvasHeight / 2 - (p.y - 20) * scale;
+      setPan(prev => ({
+        x: prev.x + (targetPanX - prev.x) * 0.12,
+        y: prev.y + (targetPanY - prev.y) * 0.12
+      }));
+
+      // Update HUD State periodically
+      setHudState({
+        health: p.health,
+        maxHealth: charConfig.maxHp,
+        stamina: Math.round(p.stamina),
+        mana: Math.round(p.mana),
+        isGrounded: p.isGrounded,
+        isWallSliding: p.isWallSliding,
+        facing: p.facing
+      });
+
+      setRenderTrigger(t => t + 1);
+      animId = requestAnimationFrame(physicsTick);
+    };
+
+    animId = requestAnimationFrame(physicsTick);
     return () => {
       if (animId) cancelAnimationFrame(animId);
     };
-  }, [fadeAlphaRef.current < 1.0, targetBiomeId]);
+  }, [mode, mapData, canvasWidth, canvasHeight, scale, setPan, respawnPlayer, charConfig]);
 
   // Main Render Loop: 7-Layer Parallax Architecture & 64px Dual-Noise Blended Terrain
   useEffect(() => {
@@ -599,7 +1174,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     // ==========================================
     // 10. LIGHT DASHED BRUSH PREVIEW OUTLINE
     // ==========================================
-    if (hoverTile && mode !== 'pan') {
+    if (hoverTile && (mode as string) !== 'pan') {
       const brushTiles = getBrushTiles(hoverTile.x, hoverTile.y, brushSize, activeTool);
 
       let fillColor = 'rgba(56, 189, 248, 0.16)';
@@ -675,6 +1250,232 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           ctx.fillText(badgeText, badgeX + 4 / scale, badgeY + 7.5 / scale);
         }
       }
+
+      ctx.restore();
+    }
+
+    // ==========================================
+    // 11. CHARACTER SPAWN & TEST PLAYER RENDERING
+    // ==========================================
+    if (mode === 'paint') {
+      // Draw Placed Character Spawn Point Marker
+      const spawnX = (spawnPoint?.x ?? 4) * TILE_SIZE + TILE_SIZE / 2;
+      const spawnY = (spawnPoint?.y ?? 12) * TILE_SIZE + TILE_SIZE;
+      const charColor = testCharacter?.tintColor || '#06b6d4';
+
+      ctx.save();
+      // Pulsing Ground Ring
+      const pulseTime = performance.now() / 1000;
+      const ringRadius = 12 + Math.sin(pulseTime * 3) * 2;
+      
+      ctx.beginPath();
+      ctx.ellipse(spawnX, spawnY - 2, ringRadius, ringRadius * 0.45, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+      ctx.fill();
+      ctx.lineWidth = 1.5 / scale;
+      ctx.strokeStyle = charColor;
+      ctx.stroke();
+
+      // Vertical Beacon Ray
+      const grad = ctx.createLinearGradient(spawnX, spawnY, spawnX, spawnY - 48);
+      grad.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+      grad.addColorStop(1, 'rgba(6, 182, 212, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(spawnX - 10, spawnY - 48, 20, 48);
+
+      // Character Capsule Silhouette
+      ctx.fillStyle = charColor;
+      ctx.beginPath();
+      ctx.roundRect(spawnX - 7, spawnY - 28, 14, 26, 6);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1 / scale;
+      ctx.stroke();
+
+      // Avatar Icon
+      ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(testCharacter?.avatarIcon || '🛡️', spawnX, spawnY - 14);
+
+      // Facing Arrow
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      if ((spawnPoint?.facing || 'right') === 'right') {
+        ctx.moveTo(spawnX + 11, spawnY - 14);
+        ctx.lineTo(spawnX + 6, spawnY - 18);
+        ctx.lineTo(spawnX + 6, spawnY - 10);
+      } else {
+        ctx.moveTo(spawnX - 11, spawnY - 14);
+        ctx.lineTo(spawnX - 6, spawnY - 18);
+        ctx.lineTo(spawnX - 6, spawnY - 10);
+      }
+      ctx.fill();
+
+      // Name & Spawn Badge
+      const spawnLabel = `📍 SPAWN • ${testCharacter?.name || 'Player'}`;
+      ctx.font = `bold ${Math.max(9 / scale, 8)}px monospace`;
+      const textW = ctx.measureText(spawnLabel).width;
+      const bX = spawnX - textW / 2 - 4 / scale;
+      const bY = spawnY - 42 / scale;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.fillRect(bX, bY, textW + 8 / scale, 12 / scale);
+      ctx.strokeStyle = charColor;
+      ctx.lineWidth = 1 / scale;
+      ctx.strokeRect(bX, bY, textW + 8 / scale, 12 / scale);
+      ctx.fillStyle = '#67e8f9';
+      ctx.fillText(spawnLabel, spawnX, bY + 6 / scale);
+
+      // Hover Spawn Placement Preview
+      if (activeTool === 'spawn_place' && hoverTile) {
+        const hX = hoverTile.x * TILE_SIZE + TILE_SIZE / 2;
+        const hY = hoverTile.y * TILE_SIZE + TILE_SIZE;
+
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.setLineDash([4 / scale, 3 / scale]);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5 / scale;
+        ctx.beginPath();
+        ctx.ellipse(hX, hY - 2, 14, 6, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+        ctx.beginPath();
+        ctx.roundRect(hX - 7, hY - 28, 14, 26, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(testCharacter?.avatarIcon || '📍', hX, hY - 14);
+
+        const placeLabel = 'CLICK TO PLACE SPAWN';
+        ctx.font = `bold ${Math.max(9 / scale, 8)}px monospace`;
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(placeLabel, hX, hY - 36 / scale);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    } else if (mode === 'play') {
+      // ==========================================
+      // PLAY MODE: RENDER INTERACTIVE TEST CHARACTER
+      // ==========================================
+      const p = playerRef.current;
+      const charColor = testCharacter?.tintColor || '#06b6d4';
+
+      ctx.save();
+
+      // 1. Ghost Shadow Trails (Dash Effect)
+      p.ghostTrails.forEach(gt => {
+        ctx.save();
+        ctx.globalAlpha = gt.alpha * 0.6;
+        ctx.fillStyle = gt.color;
+        ctx.beginPath();
+        ctx.roundRect(gt.x - 7, gt.y - 28, 14, 26, 6);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // 2. Ground Contact Shadow
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y - 1, 10, 3.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fill();
+
+      // 3. Animated Character Body (with Squash & Stretch)
+      ctx.save();
+      ctx.translate(p.x, p.y);
+
+      // Run animation bounce / tilt
+      const runBounce = p.isWalking && p.isGrounded ? Math.sin(p.animTime * 12) * 1.5 : 0;
+      const runTilt = p.isWalking && p.isGrounded ? (p.facing === 'right' ? 0.08 : -0.08) : 0;
+      ctx.rotate(runTilt);
+
+      let scaleX = p.landingSquash;
+      let scaleY = p.jumpStretch / p.landingSquash;
+      ctx.scale(scaleX, scaleY);
+
+      // Body Capsule
+      const bodyGrad = ctx.createLinearGradient(0, -28 + runBounce, 0, runBounce);
+      bodyGrad.addColorStop(0, charColor);
+      bodyGrad.addColorStop(1, '#0f172a');
+      ctx.fillStyle = bodyGrad;
+      ctx.beginPath();
+      ctx.roundRect(-8, -28 + runBounce, 16, 27, 6);
+      ctx.fill();
+      ctx.lineWidth = 1.2 / scale;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      // Visor / Eyes in facing direction
+      ctx.fillStyle = '#ffffff';
+      const eyeOffset = p.facing === 'right' ? 3 : -5;
+      ctx.fillRect(eyeOffset, -22 + runBounce, 3, 3);
+
+      // Character Avatar Icon inside body
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(testCharacter?.avatarIcon || '🛡️', 0, -12 + runBounce);
+
+      ctx.restore();
+
+      // 4. Weapon Slash Arc Trajectory
+      p.slashes.forEach(sl => {
+        const progress = sl.frame / sl.maxFrames;
+        const slashRadius = 24;
+        const startAngle = sl.facing === 'right' ? -Math.PI * 0.45 : Math.PI * 0.45;
+        const endAngle = sl.facing === 'right' ? Math.PI * 0.45 : -Math.PI * 0.45;
+        const currentAngle = startAngle + (endAngle - startAngle) * progress;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(sl.x, sl.y, slashRadius, startAngle, currentAngle, sl.facing === 'left');
+        ctx.strokeStyle = sl.color;
+        ctx.lineWidth = Math.max(3.5 / scale, 2) * (1 - progress * 0.6);
+        ctx.lineCap = 'round';
+        ctx.shadowColor = sl.color;
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+
+        // White hot tip
+        const tipX = sl.x + Math.cos(currentAngle) * slashRadius;
+        const tipY = sl.y + Math.sin(currentAngle) * slashRadius;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, 2.5 / scale, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      });
+
+      // 5. Active Particles (Sparks & Dust)
+      p.particles.forEach(pt => {
+        const alpha = pt.life / pt.maxLife;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, Math.max(1, (pt.size / scale) * alpha), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // 6. Floating Name & Mini Health Pip
+      const nameText = testCharacter?.name || 'Player Hero';
+      ctx.font = `bold ${Math.max(8 / scale, 7.5)}px monospace`;
+      const nW = ctx.measureText(nameText).width;
+      const nX = p.x - nW / 2 - 3 / scale;
+      const nY = p.y - 38 / scale;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fillRect(nX, nY, nW + 6 / scale, 10 / scale);
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.fillText(nameText, p.x, nY + 5 / scale);
 
       ctx.restore();
     }
@@ -839,6 +1640,30 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       }
     }
 
+    // PLAY MODE: Direct interactive combat & skill triggers
+    if (mode === 'play') {
+      if ('button' in e) {
+        const btn = (e as React.MouseEvent).button;
+        if (btn === 0) {
+          triggerAttack();
+        } else if (btn === 2) {
+          triggerSpecial();
+        }
+      } else {
+        triggerAttack();
+      }
+      return;
+    }
+
+    // SPAWN PLACEMENT TOOL: Place spawn point without painting tiles
+    if (activeTool === 'spawn_place') {
+      const coords = getCoordinates(e);
+      if (coords && onSetSpawnPoint) {
+        onSetSpawnPoint(coords.x, coords.y);
+      }
+      return;
+    }
+
     if ('button' in e) {
       const btn = (e as React.MouseEvent).button;
       const isSpace = (window as any).__isSpaceDown || false;
@@ -862,6 +1687,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     if (coords) {
       setHoverTile(coords);
     }
+    if (mode === 'play' || activeTool === 'spawn_place') return;
     if (!isDrawing || isPanning) return;
     if (!coords) return;
 
@@ -899,12 +1725,19 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       onMouseMove={handleContainerPointerMove}
       onTouchStart={handleContainerPointerDown}
       onTouchMove={handleContainerPointerMove}
-      onContextMenu={handleContextMenu}
+      onContextMenu={(e) => {
+        if (mode === 'play') {
+          e.preventDefault();
+          triggerSpecial();
+          return;
+        }
+        handleContextMenu(e);
+      }}
       onMouseUp={handlePointerUp}
       onMouseLeave={handleMouseLeaveContainer}
       onTouchEnd={handlePointerUp}
       className={`relative w-full h-full bg-neutral-950 border border-neutral-800 select-none overflow-hidden ${
-        isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
+        mode === 'play' ? 'cursor-crosshair' : isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
       }`}
       style={{ touchAction: 'none' }}
     >
@@ -918,8 +1751,199 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         style={{ width: '100%', height: '100%' }}
       />
 
+      {/* ==========================================
+          PLAY MODE HUD OVERLAY (METROIDVANIA STYLE)
+          ========================================== */}
+      {mode === 'play' && (
+        <>
+          {/* Top-Left Character Stats & Health Orb/Gauges */}
+          <div 
+            data-no-paint="true"
+            className="absolute top-4 left-4 z-30 flex items-start gap-3 bg-neutral-950/85 backdrop-blur-md p-3 rounded-2xl border border-cyan-500/40 shadow-2xl shadow-cyan-950/50 select-none pointer-events-auto"
+          >
+            {/* Character Portrait Gem */}
+            <div 
+              className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 border-cyan-400 bg-gradient-to-b from-neutral-900 to-neutral-950 shadow-lg relative shrink-0"
+              style={{ borderColor: testCharacter?.tintColor || '#06b6d4' }}
+            >
+              <span className="text-2xl drop-shadow">{testCharacter?.avatarIcon || '🛡️'}</span>
+              <span className="text-[8px] font-mono font-black text-white/70 uppercase mt-0.5">LV 1</span>
+              {hudState.isWallSliding ? (
+                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-neutral-950 animate-bounce" title="Wall Clinging" />
+              ) : hudState.isGrounded ? (
+                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-neutral-950" title="Grounded" />
+              ) : (
+                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-neutral-950 animate-pulse" title="Airborne" />
+              )}
+            </div>
+
+            {/* Bars & Character Metadata */}
+            <div className="flex flex-col gap-1.5 min-w-[220px]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black text-white tracking-wide truncate max-w-[120px]">
+                  {testCharacter?.name || 'Player Hero'}
+                </span>
+                <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-neutral-900 border border-neutral-700 text-cyan-300 font-bold shrink-0">
+                  {testCharacter?.characterType?.replace('_', ' ') || 'Hero'}
+                </span>
+              </div>
+
+              {/* Linked Behavior Badge */}
+              <div className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-400">
+                <span className="flex items-center gap-1 text-cyan-300/90 truncate max-w-[200px]" title={`Behavior: ${linkedBehavior?.name || testCharacter?.assignedBehaviorFileName || 'Default'}`}>
+                  <Cpu size={10} className="shrink-0 text-cyan-400" />
+                  <span className="truncate">{linkedBehavior?.name || testCharacter?.assignedBehaviorFileName || 'Default'}</span>
+                </span>
+              </div>
+
+              {/* Health Bar */}
+              <div className="flex items-center gap-1.5">
+                <Heart size={12} className="text-rose-400 shrink-0 fill-rose-500" />
+                <div className="flex-1 h-3.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 p-0.5 relative">
+                  <div 
+                    className="h-full bg-gradient-to-r from-red-600 via-rose-500 to-pink-500 rounded-full transition-all duration-75 shadow-sm"
+                    style={{ width: `${Math.min(100, (hudState.health / Math.max(1, hudState.maxHealth)) * 100)}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-mono font-bold text-white drop-shadow">
+                    {hudState.health} / {hudState.maxHealth}
+                  </span>
+                </div>
+              </div>
+
+              {/* Stamina & Mana Dual Rows */}
+              <div className="flex items-center gap-2">
+                {/* Stamina Bar */}
+                <div className="flex-1 flex items-center gap-1">
+                  <Zap size={11} className="text-amber-400 shrink-0 fill-amber-400" />
+                  <div className="flex-1 h-2.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 relative">
+                    <div 
+                      className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-75"
+                      style={{ width: `${Math.min(100, (hudState.stamina / Math.max(1, charConfig.maxSp)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Mana Bar */}
+                <div className="flex-1 flex items-center gap-1">
+                  <Sparkles size={11} className="text-purple-400 shrink-0 fill-purple-400" />
+                  <div className="flex-1 h-2.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 relative">
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-600 to-cyan-400 rounded-full transition-all duration-75"
+                      style={{ width: `${Math.min(100, (hudState.mana / Math.max(1, charConfig.maxMp)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Top-Right Play Controls */}
+          <div 
+            data-no-paint="true"
+            className="absolute top-4 right-4 z-30 flex items-center gap-2 bg-neutral-950/90 backdrop-blur-md p-1.5 rounded-2xl border border-cyan-500/50 shadow-2xl pointer-events-auto"
+          >
+            <button
+              type="button"
+              onClick={respawnPlayer}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-bold transition border border-neutral-700"
+              title="Respawn character at spawn point (Hotkey: R)"
+            >
+              <RotateCcw size={13} className="text-cyan-400" />
+              <span>Respawn (R)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onExitPlayMode?.();
+                setMode?.('paint');
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow-lg shadow-rose-950/60 border border-rose-400"
+              title="Exit Play Mode (Hotkey: Esc)"
+            >
+              <Square size={13} fill="currentColor" />
+              <span>Exit Play Mode (Esc)</span>
+            </button>
+          </div>
+
+          {/* Bottom Floating Controls Helper Banner — Strictly derived from configured capabilities */}
+          <div 
+            data-no-paint="true"
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
+          >
+            <div className="bg-neutral-950/90 border border-neutral-700/80 shadow-2xl backdrop-blur-md px-4 py-2 rounded-2xl flex items-center gap-3 text-xs text-neutral-300">
+              <span className="text-[10px] font-mono uppercase text-cyan-400 font-extrabold tracking-wider bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 rounded-lg">
+                Active Actions
+              </span>
+              
+              {charConfig.baseSpeed > 0 && (
+                <>
+                  <span className="font-medium">
+                    <strong className="text-white font-mono">WASD / ◄►</strong> Move
+                  </span>
+                  <span className="text-neutral-600">•</span>
+                </>
+              )}
+
+              {charConfig.canJump && (
+                <>
+                  <span className="font-medium">
+                    <strong className="text-white font-mono">Space</strong> Jump {charConfig.maxAirJumps > 0 ? `(${1 + charConfig.maxAirJumps}x)` : '(Single)'}
+                  </span>
+                  <span className="text-neutral-600">•</span>
+                </>
+              )}
+
+              {charConfig.hasWallCling && (
+                <>
+                  <span className="font-medium">
+                    <strong className="text-white font-mono">Wall + Space</strong> Wall Kick
+                  </span>
+                  <span className="text-neutral-600">•</span>
+                </>
+              )}
+
+              {charConfig.hasDash && (
+                <>
+                  <span className="font-medium">
+                    <strong className="text-white font-mono">Shift</strong> Dash {charConfig.allowAirDash ? '(Air/Gnd)' : '(Gnd)'}
+                  </span>
+                  <span className="text-neutral-600">•</span>
+                </>
+              )}
+
+              {charConfig.hasAttack && (
+                <>
+                  <span className="font-medium">
+                    <strong className="text-white font-mono">J / Click</strong> Attack
+                  </span>
+                  <span className="text-neutral-600">•</span>
+                </>
+              )}
+
+              {charConfig.hasSpecial && (
+                <>
+                  <span className="font-medium">
+                    <strong className="text-white font-mono">K / R-Click</strong> Skill
+                  </span>
+                  <span className="text-neutral-600">•</span>
+                </>
+              )}
+
+              <span className="font-medium">
+                <strong className="text-white font-mono">R</strong> Respawn
+              </span>
+              <span className="text-neutral-600">•</span>
+              <span className="font-medium">
+                <strong className="text-white font-mono">Esc</strong> Exit
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Biome Region Transition HUD Overlay Banner */}
-      {fadeAlphaRef.current < 1.0 && (currentBiomeRef.current || prevBiomeRef.current) && (
+      {mode === 'paint' && fadeAlphaRef.current < 1.0 && (currentBiomeRef.current || prevBiomeRef.current) && (
         <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-300">
           <div className="bg-neutral-950/90 border border-cyan-500/40 shadow-2xl shadow-cyan-950/60 backdrop-blur-md px-4 py-2 rounded-2xl flex items-center gap-3 animate-fade-in">
             <Compass className="w-4 h-4 text-cyan-400 animate-spin" style={{ animationDuration: '6s' }} />
@@ -940,115 +1964,117 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       )}
 
 
-      {/* Floating Viewport Navigation & Parallax HUD */}
-      <div 
-        data-no-paint="true"
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseMove={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-        className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-neutral-900/90 backdrop-blur-md p-1.5 rounded-xl border border-neutral-700/80 shadow-2xl text-xs select-none"
-      >
-        {/* Grid Toggle Checkbox / Button */}
-        <button
-          type="button"
-          onClick={() => setShowGrid?.(!showGrid)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-            showGrid 
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' 
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800 border border-neutral-800'
-          }`}
-          title="Toggle Tile Grid & Chunk Outlines (Shortcut: G)"
+      {/* Floating Viewport Navigation & Parallax HUD (Paint Mode only) */}
+      {mode === 'paint' && (
+        <div 
+          data-no-paint="true"
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseMove={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-neutral-900/90 backdrop-blur-md p-1.5 rounded-xl border border-neutral-700/80 shadow-2xl text-xs select-none"
         >
-          <Grid size={13} className={showGrid ? 'text-emerald-400' : 'text-neutral-500'} />
-          <span>Grid</span>
-        </button>
+          {/* Grid Toggle Checkbox / Button */}
+          <button
+            type="button"
+            onClick={() => setShowGrid?.(!showGrid)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+              showGrid 
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' 
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-800 border border-neutral-800'
+            }`}
+            title="Toggle Tile Grid & Chunk Outlines (Shortcut: G)"
+          >
+            <Grid size={13} className={showGrid ? 'text-emerald-400' : 'text-neutral-500'} />
+            <span>Grid</span>
+          </button>
 
-        <div className="h-4 w-px bg-neutral-700 mx-0.5" />
+          <div className="h-4 w-px bg-neutral-700 mx-0.5" />
 
-        {/* Parallax Layer Toggles */}
-        <button
-          type="button"
-          onClick={() => setShowParallaxBg(!showParallaxBg)}
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-            showParallaxBg 
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' 
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-          }`}
-          title="Toggle Parallax Background Layers (-5 to -1)"
-        >
-          <Layers size={13} />
-          <span>BG Parallax</span>
-        </button>
+          {/* Parallax Layer Toggles */}
+          <button
+            type="button"
+            onClick={() => setShowParallaxBg(!showParallaxBg)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+              showParallaxBg 
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' 
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+            }`}
+            title="Toggle Parallax Background Layers (-5 to -1)"
+          >
+            <Layers size={13} />
+            <span>BG Parallax</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setShowForegroundLayer(!showForegroundLayer)}
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-            showForegroundLayer 
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-          }`}
-          title="Toggle Foreground Layer (+1)"
-        >
-          {showForegroundLayer ? <Eye size={13} /> : <EyeOff size={13} />}
-          <span>+1 FG</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setShowForegroundLayer(!showForegroundLayer)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+              showForegroundLayer 
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+            }`}
+            title="Toggle Foreground Layer (+1)"
+          >
+            {showForegroundLayer ? <Eye size={13} /> : <EyeOff size={13} />}
+            <span>+1 FG</span>
+          </button>
 
-        <div className="h-4 w-px bg-neutral-700 mx-0.5" />
+          <div className="h-4 w-px bg-neutral-700 mx-0.5" />
 
-        <div className="flex items-center gap-1 px-2 text-[11px] font-mono text-neutral-400 border-r border-neutral-800">
-          <Move size={12} className="text-cyan-400" />
-          <span className="hidden sm:inline">R-Click Pan • Wheel Zoom</span>
+          <div className="flex items-center gap-1 px-2 text-[11px] font-mono text-neutral-400 border-r border-neutral-800">
+            <Move size={12} className="text-cyan-400" />
+            <span className="hidden sm:inline">R-Click Pan • Wheel Zoom</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={zoomOut}
+            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
+            title="Zoom Out"
+          >
+            <ZoomOut size={14} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => centerContent(logicalMapWidth, logicalMapHeight, 1.0)}
+            className="px-2 py-1 rounded-lg text-neutral-200 hover:text-white hover:bg-neutral-800 font-mono text-xs font-semibold transition"
+            title="Reset Zoom to 100% & Center"
+          >
+            {Math.round(scale * 100)}%
+          </button>
+
+          <button
+            type="button"
+            onClick={zoomIn}
+            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
+            title="Zoom In"
+          >
+            <ZoomIn size={14} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleFitMap}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 hover:bg-cyan-600 hover:text-white border border-cyan-500/40 shadow-sm transition"
+            title="Fit Entire Map in Viewport"
+          >
+            <Maximize2 size={13} />
+            <span>Fit</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => centerContent(logicalMapWidth, logicalMapHeight, 0.8)}
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
+            title="Reset Center & Pan"
+          >
+            <RotateCcw size={13} />
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={zoomOut}
-          className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-          title="Zoom Out"
-        >
-          <ZoomOut size={14} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => centerContent(logicalMapWidth, logicalMapHeight, 1.0)}
-          className="px-2 py-1 rounded-lg text-neutral-200 hover:text-white hover:bg-neutral-800 font-mono text-xs font-semibold transition"
-          title="Reset Zoom to 100% & Center"
-        >
-          {Math.round(scale * 100)}%
-        </button>
-
-        <button
-          type="button"
-          onClick={zoomIn}
-          className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-          title="Zoom In"
-        >
-          <ZoomIn size={14} />
-        </button>
-
-        <button
-          type="button"
-          onClick={handleFitMap}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 hover:bg-cyan-600 hover:text-white border border-cyan-500/40 shadow-sm transition"
-          title="Fit Entire Map in Viewport"
-        >
-          <Maximize2 size={13} />
-          <span>Fit</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => centerContent(logicalMapWidth, logicalMapHeight, 0.8)}
-          className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
-          title="Reset Center & Pan"
-        >
-          <RotateCcw size={13} />
-        </button>
-      </div>
+      )}
     </div>
   );
 };

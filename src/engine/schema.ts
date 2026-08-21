@@ -105,28 +105,11 @@ export interface Foci {
   variants: [FociVariant, ...FociVariant[]]; // Base + up to 8 deviations
 }
 
-export type ArchetypeTraversalTag = 'double_jump' | 'wall_climb' | 'dash' | 'glide';
-
-export interface Archetype {
-  id: string;
-  name: string;
-  backstory: string;
-  traversalTags: ArchetypeTraversalTag[];
-  foci: {
-    action: [string, string, string];
-    ability: [string, string, string, string];
-    armor: string;
-    defensive: string;
-  };
-  baseStats: {
-    health: number;
-    energy: number;
-  };
-}
+export type TraversalTag = 'double_jump' | 'wall_climb' | 'dash' | 'glide';
 
 export interface CombatEntity {
   id: string;
-  archetypeId: string | null;
+  characterId: string | null;
   health: number;
   maxHealth: number;
   armor: number;

@@ -61,27 +61,6 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     version: MASON_VERSION_DISPLAY
   },
   {
-    id: 'archetypes',
-    name: 'Archetypes',
-    tagline: 'Player classes, traversal tags, foci slots, damage affinities & narrative prose',
-    category: 'Actors & Combat',
-    subfolder: 'modules/archetypes',
-    entryHtml: '/modules/archetypes/index.html',
-    associatedFolder: 'archetypes',
-    associatedExtension: '.arch',
-    icon: '🛡️',
-    accentColor: 'blue',
-    description: 'A dedicated mini-app to configure playable hero archetypes, mobility tags (Double Jump, Air Dash, Wall Cling, Grapple Hook), core stats (Health, Energy, Stamina, Poise), action foci slots, and backstory lore.',
-    features: [
-      'Movement physics & traversal modifier tags',
-      'Base attribute matrices & energy pools',
-      'Action & spell foci slot configurations',
-      'Damage affinity & resistance profiling',
-      'Narrative lore & archetype register (.arch format)'
-    ],
-    version: MASON_VERSION_DISPLAY
-  },
-  {
     id: 'ui',
     name: 'UI & HUD',
     tagline: 'Gothic orbs, cyber gauges, minimap radars, dialogue boxes & boss bars',
@@ -104,8 +83,8 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
   },
   {
     id: 'characters',
-    name: 'Character Creator',
-    tagline: 'Visual sprites, sensory socket tags (eyes, ears, hurtbox), animation sheets & behavior links',
+    name: 'Character Creator & AI',
+    tagline: 'Visual spritesheets, hurtboxes, sensory sockets, attributes & bespoke IFTTT rule engine',
     category: 'Actors & Combat',
     subfolder: 'modules/characters',
     entryHtml: '/modules/characters/index.html',
@@ -113,32 +92,12 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     associatedExtension: '.character',
     icon: '🎭',
     accentColor: 'rose',
-    description: 'A dedicated mini-app to author player heroes, NPCs, and enemy sprites, calibrate sensory tag sockets (head_eyes for sight, head_ears for hearing, feet_ground for footsteps), configure animation frame states, and attach behavior scripts.',
+    description: 'Author player heroes, NPCs, and enemy sprites with custom spritesheets, frame sequences, sensory tag sockets (head_eyes for sight, head_ears for hearing), hurtboxes/hitboxes, custom variables, and bespoke IFTTT behavior rule logic.',
     features: [
-      'Visual Sprite Customizer: Scale, tinting, sprite sheets & avatar icons',
-      'Sensory Socket Tag Editor: Calibrate offset positions for head_eyes, head_ears, torso_center, feet_ground, hand_weapon',
-      'Animation Frame State Sheet: Idle, walk, run, jump, attack, hurt, death frame rates & SFX cues',
-      'Unified Driver Linkage to Behaviors (.behavior) and Archetypes (.arch)'
-    ],
-    version: MASON_VERSION_DISPLAY
-  },
-  {
-    id: 'behaviors',
-    name: 'Behaviors & AI',
-    tagline: 'Rule-based IFTTT engine, sight/sound attributes, camera loci & movement controllers',
-    category: 'Actors & Combat',
-    subfolder: 'modules/behaviors',
-    entryHtml: '/modules/behaviors/index.html',
-    associatedFolder: 'behaviors',
-    associatedExtension: '.behavior',
-    icon: '🧠',
-    accentColor: 'indigo',
-    description: 'A dedicated mini-app to author "If This Then That" (IFTTT) conditional behavior rules using sensory attributes (Sight rays from head_eyes, Sound hearing from head_ears, Proximity, Health, Timers) and trigger actions.',
-    features: [
-      'Rule-Based IFTTT Engine: Author IF (Sight, Sound, Proximity, Health, Collision) -> THEN (Move, Attack, Signal, Anim) rules',
-      'Sensory Tag Integration: Bind sight raycasts to head_eyes and acoustic listening to head_ears',
-      'Camera Foci & Kinematic Movement: Deadzones, player tracking, ledge patrol, sine waves & turrets',
-      '1-Click Driver Assignment to Characters (.character), Archetypes (.arch) & Map Entities'
+      'Visual Animation Studio: Multi-spritesheet support, frame sequencing, hitbox/hurtbox polygons & sockets',
+      'Base Attributes & Variables: Manage stats, proficiencies, and custom variables with auto-generated IDs',
+      'Bespoke IFTTT Rule Engine: Author sensory sight, sound hearing, proximity, player input, and camera tracking rules',
+      'Rule Inheritance & Cloning: 1-click duplicate character or copy behavior rules from another character'
     ],
     version: MASON_VERSION_DISPLAY
   },
@@ -160,27 +119,6 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Loading screen wipe styles & lore hints carousel',
       'Metroidvania progression flag registry',
       'System pause menu & map tracker configuration (.gamestructure format)'
-    ],
-    version: MASON_VERSION_DISPLAY
-  },
-  {
-    id: 'macro',
-    name: 'Map Macro',
-    tagline: '1px:1tile procedural cellular automata, biome zoning masks & level structure generation',
-    category: 'Generative Tools',
-    subfolder: 'modules/maps/macro',
-    entryHtml: '/modules/macro/index.html',
-    associatedFolder: 'maps',
-    associatedExtension: '.macro',
-    icon: '⚡',
-    accentColor: 'rose',
-    description: 'A dedicated subset studio inside the Maps module to procedurally generate large-scale biome distribution heatmaps, cellular cave networks, and platforming layouts using the 1px:1tile macro synthesis engine.',
-    features: [
-      'Perlin/Simplex macro biome allocation',
-      'Metroidvania cave & platforming synthesis templates',
-      'Brush painting with biome territory masks',
-      'Direct 1-click level synthesis onto active .map files',
-      'Procedural seed randomization'
     ],
     version: MASON_VERSION_DISPLAY
   }

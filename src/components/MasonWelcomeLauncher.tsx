@@ -57,7 +57,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
           </h1>
 
           <p className="text-sm md:text-base text-neutral-400 max-w-xl mx-auto leading-relaxed">
-            Modular 2D Metroidvania & Sidescroller world authoring system. Load independent HTML mini-apps for level editing, biomes, archetypes, and game flow.
+            Modular 2D Metroidvania & Sidescroller world authoring system. Load independent HTML mini-apps for level editing, biomes, characters, and game flow.
           </p>
 
           {/* PWA Install Action (Only when not installed) */}
@@ -94,7 +94,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                   Create New Project
                 </h2>
                 <p className="text-xs text-neutral-400 leading-relaxed">
-                  Start a new 2D Metroidvania universe with starter maps, 7-layer parallax biomes, archetype hero classes, and UI presets.
+                  Start a new 2D Metroidvania universe with starter maps, 7-layer parallax biomes, characters, and UI presets.
                 </p>
               </div>
 

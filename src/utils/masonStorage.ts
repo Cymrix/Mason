@@ -2,13 +2,11 @@ import {
   MasonProject, 
   MapFile, 
   BiomeFile, 
-  ArchetypeFile, 
   UIThemeFile, 
   GameStructureFile,
   createInitialMasonProject,
   createDefaultMapFile,
   DEFAULT_UI_THEMES,
-  DEFAULT_ARCHETYPES,
   createDefaultGameStructure
 } from '../engine/masonProjectSchema';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
@@ -347,10 +345,6 @@ export const exportBiomeFile = (file: BiomeFile) => {
   downloadJsonFile(file.fileName.endsWith('.biome') ? file.fileName : `${file.fileName}.biome`, file);
 };
 
-export const exportArchetypeFile = (file: ArchetypeFile) => {
-  downloadJsonFile(file.fileName.endsWith('.arch') ? file.fileName : `${file.fileName}.arch`, file);
-};
-
 export const exportUIThemeFile = (file: UIThemeFile) => {
   downloadJsonFile(file.fileName.endsWith('.ui') ? file.fileName : `${file.fileName}.ui`, file);
 };
@@ -431,44 +425,6 @@ export const createNewBiomeInProject = (
 
   saveActiveMasonProject(updatedProject);
   return { project: updatedProject, newFile: newBiomeFile };
-};
-
-export const createNewArchetypeInProject = (
-  project: MasonProject,
-  name: string
-): { project: MasonProject; newFile: ArchetypeFile } => {
-  const safeFileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.arch`;
-  const baseArch = DEFAULT_ARCHETYPES[0];
-  const newArchData = {
-    ...baseArch,
-    id: `arch_${Date.now()}`,
-    name,
-    title: `${name} (Initiate)`
-  };
-
-  const newArchFile: ArchetypeFile = {
-    id: newArchData.id,
-    name,
-    fileName: safeFileName,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    archetypeData: newArchData
-  };
-
-  const updatedProject: MasonProject = {
-    ...project,
-    activeFiles: {
-      ...project.activeFiles,
-      archetypeFileName: safeFileName
-    },
-    fileSystem: {
-      ...project.fileSystem,
-      archetypes: [...project.fileSystem.archetypes, newArchFile]
-    }
-  };
-
-  saveActiveMasonProject(updatedProject);
-  return { project: updatedProject, newFile: newArchFile };
 };
 
 export const createNewUIThemeInProject = (

@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   MasonProject, 
   MasonModuleId,
   MapFile,
   BiomeFile,
-  ArchetypeFile,
   UIThemeFile,
   GameStructureFile,
   createDefaultMapFile
 } from '../engine/masonProjectSchema';
+import { MASON_MODULES } from '../engine/modulesRegistry';
 import { 
   getActiveMasonProject,
   saveActiveMasonProject, 
@@ -35,7 +35,6 @@ import { BiomeMacroMapModal } from './BiomeMacroMapModal';
 import { ModuleRunnerContainer } from './ModuleRunnerContainer';
 import { RefinedMapCanvas } from './RefinedMapCanvas';
 import { RefinedBiomeEditor } from './RefinedBiomeEditor';
-import { ArchetypeEditor } from './ArchetypeEditor';
 import { UIThemeModule } from './UIThemeModule';
 import { GameStructureModule } from './GameStructureModule';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
@@ -60,7 +59,11 @@ import {
   Moon,
   ChevronDown,
   RefreshCw,
-  Grid
+  Grid,
+  MapPin,
+  Play,
+  Square,
+  User
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
@@ -103,16 +106,54 @@ export const EditorLayout: React.FC = () => {
     }
   };
 
+  const handleNavigateToModule = (modId: string, options?: { behaviorFileName?: string; characterFileName?: string }) => {
+    if (options?.behaviorFileName || options?.characterFileName) {
+      setProject(prev => ({
+        ...prev,
+        activeFiles: {
+          ...prev.activeFiles,
+          ...(options.behaviorFileName ? { behaviorFileName: options.behaviorFileName } : {}),
+          ...(options.characterFileName ? { characterFileName: options.characterFileName } : {})
+        }
+      }));
+    }
+    handleLaunchModule(modId);
+  };
+
   // Saved projects index cache for launcher
   const [savedProjects, setSavedProjects] = useState<ProjectIndexItem[]>(() => listSavedProjects());
 
   // Modals state
   const [isModulesModalOpen, setIsModulesModalOpen] = useState(false);
+  const [isModulesMenuOpen, setIsModulesMenuOpen] = useState(false);
+  const modulesMenuRef = useRef<HTMLDivElement>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [isExplorerModalOpen, setIsExplorerModalOpen] = useState(false);
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
   const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
+
+  // Close modules menu on outside click or escape
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (modulesMenuRef.current && !modulesMenuRef.current.contains(e.target as Node)) {
+        setIsModulesMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsModulesMenuOpen(false);
+      }
+    };
+    if (isModulesMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModulesMenuOpen]);
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -150,11 +191,13 @@ export const EditorLayout: React.FC = () => {
 
   // Sync project update
   const handleUpdateProject = (updated: MasonProject | ((prev: MasonProject) => MasonProject)) => {
-    if (!project) return;
-    const newProject = typeof updated === 'function' ? updated(project) : updated;
-    setProject(newProject);
-    saveActiveMasonProject(newProject);
-    refreshSavedProjects();
+    setProject(prev => {
+      if (!prev) return prev;
+      const newProject = typeof updated === 'function' ? updated(prev) : updated;
+      saveActiveMasonProject(newProject);
+      refreshSavedProjects();
+      return newProject;
+    });
   };
 
   // Project lifecycle handlers
@@ -257,6 +300,181 @@ export const EditorLayout: React.FC = () => {
     cells: currentMapFile.cells || (currentMapFile as any).data?.cells,
     chunks: currentMapFile.chunks || (currentMapFile as any).data?.chunks || {}
   } : null;
+
+  // Character Play Mode State & Spawn Configuration
+  const [selectedTestCharacterId, setSelectedTestCharacterId] = useState<string>('hero_knight');
+
+  const availableCharacters = React.useMemo(() => {
+    const charsFromProject = project?.fileSystem?.characters?.map(c => c.characterData) || [];
+    if (charsFromProject.length > 0) {
+      return charsFromProject;
+    }
+    return [
+      {
+        id: 'hero_knight',
+        name: 'Ashen Knight',
+        characterType: 'player_hero' as const,
+        avatarIcon: '🛡️',
+        spriteWidth: 32,
+        spriteHeight: 32,
+        tintColor: '#06b6d4',
+        baseScale: 1.0,
+        animations: [],
+        sockets: []
+      },
+      {
+        id: 'hero_sorceress',
+        name: 'Astral Sorceress',
+        characterType: 'player_hero' as const,
+        avatarIcon: '🔮',
+        spriteWidth: 32,
+        spriteHeight: 32,
+        tintColor: '#a855f7',
+        baseScale: 1.0,
+        animations: [],
+        sockets: []
+      },
+      {
+        id: 'hero_rogue',
+        name: 'Shadow Stalker',
+        characterType: 'player_hero' as const,
+        avatarIcon: '🗡️',
+        spriteWidth: 32,
+        spriteHeight: 32,
+        tintColor: '#10b981',
+        baseScale: 1.0,
+        animations: [],
+        sockets: []
+      },
+      {
+        id: 'hero_valkyrie',
+        name: 'Valkyrie Warden',
+        characterType: 'player_hero' as const,
+        avatarIcon: '⚡',
+        spriteWidth: 32,
+        spriteHeight: 32,
+        tintColor: '#f59e0b',
+        baseScale: 1.0,
+        animations: [],
+        sockets: []
+      }
+    ];
+  }, [project?.fileSystem?.characters]);
+
+  const activeTestCharacter = React.useMemo(() => {
+    return availableCharacters.find(c => c.id === selectedTestCharacterId) || availableCharacters[0];
+  }, [availableCharacters, selectedTestCharacterId]);
+
+  // Resolve Linked Behavior from Character Configuration (preferring bespoke character rules)
+  const linkedBehavior = React.useMemo(() => {
+    if (!activeTestCharacter) return undefined;
+    if (activeTestCharacter.rules && activeTestCharacter.rules.length > 0) {
+      return {
+        id: activeTestCharacter.id,
+        name: activeTestCharacter.name,
+        title: activeTestCharacter.name,
+        description: activeTestCharacter.backstory || '',
+        category: (activeTestCharacter.characterType === 'player_hero' ? 'hero' : activeTestCharacter.characterType === 'boss_archon' ? 'boss' : activeTestCharacter.characterType === 'friendly_npc' ? 'npc' : 'mob') as any,
+        sensoryTags: activeTestCharacter.sockets?.map(s => ({
+          tagId: s.tagId,
+          label: s.label,
+          offsetX: s.offsetX,
+          offsetY: s.offsetY,
+          visualMarkerColor: s.visualMarkerColor
+        })) || [],
+        rules: activeTestCharacter.rules || [],
+        states: activeTestCharacter.states || ['idle', 'patrol', 'combat'],
+        foci: {
+          id: `foci_${activeTestCharacter.id}`,
+          name: 'Camera Tracker',
+          focusType: 'player_tracker' as const,
+          cameraZoom: 1.0,
+          smoothingDamping: 0.15,
+          deadzoneWidth: 64,
+          deadzoneHeight: 48,
+          lookAheadOffsetX: 40,
+          lookAheadOffsetY: 0,
+          lockOnPriority: 5
+        },
+        movement: activeTestCharacter.movement || {
+          id: `mov_${activeTestCharacter.id}`,
+          name: 'Kinematic Movement',
+          movementType: 'ground_patrol',
+          moveSpeed: activeTestCharacter.baseStats?.speed || 4.0,
+          acceleration: 0.2,
+          jumpForce: 12.0,
+          gravityScale: 1.0,
+          turnOnEdge: true,
+          turnOnObstacle: true,
+          sineFrequency: 1.0,
+          sineAmplitude: 1.0,
+          airControl: 0.8,
+          trackNodeSpeed: 4
+        },
+        ai: activeTestCharacter.ai || {
+          id: `ai_${activeTestCharacter.id}`,
+          name: 'AI',
+          aiProfile: 'aggressive_chaser' as const,
+          visionRadiusPx: 200,
+          visionAngleDeg: 120,
+          losCheckWall: true,
+          attackRangePx: 40,
+          telegraphWindupMs: 300,
+          attackCooldownMs: 1000,
+          retreatHealthPercent: 20,
+          comboChainCount: 2,
+          enragePhaseTriggerPercent: 40,
+          fsmStates: activeTestCharacter.states || ['idle', 'patrol', 'combat']
+        }
+      };
+    }
+    const behFileName = activeTestCharacter.assignedBehaviorFileName;
+    if (behFileName) {
+      const found = project?.fileSystem?.behaviors?.find(b => b.fileName === behFileName || b.id === behFileName);
+      if (found) return found.behaviorData;
+    }
+    // Fallback: try to find behavior with matching id or name
+    return project?.fileSystem?.behaviors?.find(b => b.behaviorData?.id === activeTestCharacter.id || b.behaviorData?.name === activeTestCharacter.name)?.behaviorData;
+  }, [activeTestCharacter, project?.fileSystem?.behaviors]);
+
+  const currentSpawnPoint = React.useMemo(() => {
+    const spawns = currentMapFile?.playerSpawns;
+    if (spawns && spawns.length > 0) {
+      return spawns[0];
+    }
+    return { x: 4, y: 12, facing: 'right' as const };
+  }, [currentMapFile?.playerSpawns]);
+
+  const handleSetSpawnPoint = (x: number, y: number) => {
+    if (!currentMapFile) return;
+    const newSpawns = [{ 
+      spawnId: 'spawn_default', 
+      x, 
+      y, 
+      facing: 'right' as const,
+      isDefault: true 
+    }];
+    handleUpdateProject(prev => {
+      if (!prev) return prev;
+      const updatedMaps = prev.fileSystem.maps.map(m => {
+        if (m.fileName === currentMapFile.fileName) {
+          return {
+            ...m,
+            playerSpawns: newSpawns
+          };
+        }
+        return m;
+      });
+      return {
+        ...prev,
+        fileSystem: {
+          ...prev.fileSystem,
+          maps: updatedMaps
+        }
+      };
+    });
+    showToast(`Set character spawn point to (${x}, ${y})`, 'success');
+  };
 
   // Map tile editing handler
   const handleMapTileInteract = (x: number, y: number, points?: Array<{ x: number; y: number }>) => {
@@ -537,7 +755,7 @@ export const EditorLayout: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-screen bg-neutral-950 text-neutral-100 font-sans overflow-hidden select-none">
       
-      {/* Top Navbar: Hamburger Menu replaces the 2D-Metroidvania tag */}
+      {/* Top Navbar: Full-featured Header */}
       <header className="h-14 border-b border-neutral-800/80 bg-neutral-900/90 backdrop-blur flex items-center justify-between px-4 shrink-0 z-30">
         <div className="flex items-center gap-3">
           
@@ -578,14 +796,14 @@ export const EditorLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveModuleId(null)}
-                className="text-xs font-mono text-cyan-300 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800"
-                title="Click to view Project Info"
+                className="text-xs font-mono text-cyan-300 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800"
+                title="Click to view Project Dashboard"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                <span className="truncate max-w-[180px] sm:max-w-[240px]">{project.name}</span>
+                <span className="truncate max-w-[180px] sm:max-w-[240px] font-semibold">{project.name}</span>
               </button>
             ) : (
-              <span className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-800">
+              <span className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800">
                 No Project Loaded
               </span>
             )}
@@ -600,7 +818,7 @@ export const EditorLayout: React.FC = () => {
 
         {/* Right Action Tools */}
         <div className="flex items-center gap-2">
-          {/* PWA Install Action (Always accessible so users can install to desktop/phone anytime) */}
+          {/* PWA Install Action */}
           <button
             type="button"
             onClick={async () => {
@@ -620,15 +838,77 @@ export const EditorLayout: React.FC = () => {
 
           {project && (
             <>
-              {/* Modules Browser Button */}
-              <button
-                type="button"
-                onClick={() => setIsModulesModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl text-xs font-bold transition shadow-sm"
-                title="Browse & Launch Mini-Apps"
-              >
-                <span>🧩 Modules</span>
-              </button>
+              {/* Modules Dropdown Button & Icon Grid Popover */}
+              <div className="relative" ref={modulesMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsModulesMenuOpen(!isModulesMenuOpen)}
+                  className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl text-base transition shadow-sm border ${
+                    isModulesMenuOpen
+                      ? 'bg-neutral-800 border-cyan-500/60 text-white shadow-md ring-1 ring-cyan-500/30'
+                      : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200'
+                  }`}
+                  title="Quick Modules Navigator"
+                >
+                  <span>🧩</span>
+                </button>
+
+                {/* Instant Modules Grid Dropdown (Pure Icons) */}
+                {isModulesMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-auto bg-neutral-900/95 border border-neutral-700 rounded-2xl shadow-2xl backdrop-blur-xl z-50 p-3 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="flex items-center justify-between gap-4 pb-2.5 mb-2.5 border-b border-neutral-800">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 font-mono">
+                        Modules
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsModulesMenuOpen(false);
+                          setActiveModuleId(null);
+                        }}
+                        className={`text-[11px] font-mono px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 ${
+                          activeModuleId === null 
+                            ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold' 
+                            : 'text-neutral-300 hover:text-white bg-neutral-950 hover:bg-neutral-800 border border-neutral-800'
+                        }`}
+                      >
+                        <span>📊</span>
+                        <span>Dashboard</span>
+                      </button>
+                    </div>
+
+                    {/* Pure Icon Grid for Quick Navigation */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {MASON_MODULES.map(mod => {
+                        const isActive = activeModuleId === mod.id;
+                        return (
+                          <button
+                            key={mod.id}
+                            type="button"
+                            onClick={() => {
+                              handleLaunchModule(mod.id);
+                              setIsModulesMenuOpen(false);
+                            }}
+                            title={`${mod.name} (${mod.associatedExtension})`}
+                            className={`w-11 h-11 rounded-xl border flex items-center justify-center text-2xl transition active:scale-95 group relative ${
+                              isActive
+                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-300 ring-2 ring-cyan-500/40 shadow-lg shadow-cyan-950/50'
+                                : 'bg-neutral-950/80 border-neutral-800/80 hover:border-neutral-600 hover:bg-neutral-800/90 text-neutral-200'
+                            }`}
+                          >
+                            <span className="group-hover:scale-110 transition-transform">
+                              {mod.icon}
+                            </span>
+                            {isActive && (
+                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-cyan-400 rounded-full ring-2 ring-neutral-900 animate-pulse" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Virtual Files Explorer Button */}
               <button
@@ -788,47 +1068,115 @@ export const EditorLayout: React.FC = () => {
                   accentColor="cyan"
                 />
 
-                {/* Submode Switcher: Tilemap Studio vs Map Macro */}
-                <div className="h-10 bg-neutral-900/90 border-b border-neutral-800 px-4 flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded-lg border border-neutral-800">
-                    <button
-                      type="button"
-                      onClick={() => setMapsSubMode('tilemap')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition ${
-                        mapsSubMode === 'tilemap'
-                          ? 'bg-cyan-600 text-white shadow-sm'
-                          : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
-                      }`}
-                    >
-                      <span>🗺️ Tilemap Studio</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMapsSubMode('macro')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition ${
-                        mapsSubMode === 'macro'
-                          ? 'bg-rose-600 text-white shadow-sm'
-                          : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
-                      }`}
-                    >
-                      <span>⚡ Map Macro (1px:1tile)</span>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {mapsSubMode === 'tilemap' && (
+                {/* Submode Switcher & Play Mode Controls */}
+                <div className="h-11 bg-neutral-900/90 border-b border-neutral-800 px-4 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded-lg border border-neutral-800">
                       <button
                         type="button"
-                        onClick={() => setIsLitMode(!isLitMode)}
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold transition border ${
-                          isLitMode 
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
-                            : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:text-neutral-200'
+                        onClick={() => setMapsSubMode('tilemap')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition ${
+                          mapsSubMode === 'tilemap'
+                            ? 'bg-cyan-600 text-white shadow-sm'
+                            : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
                         }`}
-                        title="Toggle Lit / Unlit Mode"
                       >
-                        {isLitMode ? <Sun size={14} /> : <Moon size={14} />}
-                        <span>{isLitMode ? 'Lit Mode' : 'Unlit Mode'}</span>
+                        <span>🗺️ Tilemap Studio</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMapsSubMode('macro');
+                          if (mode === 'play') setMode('paint');
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition ${
+                          mapsSubMode === 'macro'
+                            ? 'bg-rose-600 text-white shadow-sm'
+                            : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
+                        }`}
+                      >
+                        <span>⚡ Map Macro (1px:1tile)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    {mapsSubMode === 'tilemap' && (
+                      <>
+                        {/* Test Character Selector */}
+                        <div className="flex items-center gap-1.5 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
+                          <span className="text-neutral-400 text-xs font-semibold">Test Hero:</span>
+                          <select
+                            value={selectedTestCharacterId}
+                            onChange={(e) => setSelectedTestCharacterId(e.target.value)}
+                            className="bg-neutral-900 border border-neutral-700 text-xs font-bold text-cyan-300 rounded px-2 py-0.5 outline-none cursor-pointer hover:border-cyan-500 transition"
+                            title="Select which character to spawn and test control in this map"
+                          >
+                            {availableCharacters.map(c => (
+                              <option key={c.id} value={c.id}>
+                                {c.avatarIcon} {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Place Spawn Point Tool Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (mode === 'play') setMode('paint');
+                            setActiveTool(activeTool === 'spawn_place' ? 'brush' : 'spawn_place');
+                          }}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition border ${
+                            activeTool === 'spawn_place' && mode !== 'play'
+                              ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400 shadow-sm' 
+                              : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:text-white hover:bg-neutral-750'
+                          }`}
+                          title="Click anywhere on the map to place character spawn point"
+                        >
+                          <MapPin size={13} className={activeTool === 'spawn_place' ? 'text-cyan-400' : 'text-neutral-400'} />
+                          <span>Place Spawn</span>
+                        </button>
+
+                        {/* Play Mode / Run Map Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (mode === 'play') {
+                              setMode('paint');
+                            } else {
+                              setMode('play');
+                              showToast(`Running map with ${activeTestCharacter.name}! Use WASD to move.`, 'info');
+                            }
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition shadow-md border ${
+                            mode === 'play'
+                              ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 shadow-rose-950/50 animate-pulse'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 shadow-emerald-950/50'
+                          }`}
+                          title={mode === 'play' ? 'Exit Play Mode (Esc)' : 'Test Play Level with character physics & combat'}
+                        >
+                          {mode === 'play' ? <Square size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
+                          <span>{mode === 'play' ? 'Stop Playing' : 'Play Level'}</span>
+                        </button>
+
+                        <div className="h-4 w-px bg-neutral-800 mx-0.5" />
+
+                        {/* Lit Mode Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => setIsLitMode(!isLitMode)}
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold transition border ${
+                            isLitMode 
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
+                              : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:text-neutral-200'
+                          }`}
+                          title="Toggle Lit / Unlit Mode"
+                        >
+                          {isLitMode ? <Sun size={13} /> : <Moon size={13} />}
+                          <span>{isLitMode ? 'Lit' : 'Unlit'}</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -854,9 +1202,12 @@ export const EditorLayout: React.FC = () => {
                   <aside className="w-16 border-r border-neutral-800 bg-neutral-900/60 backdrop-blur flex flex-col items-center py-4 shrink-0 z-10 gap-2">
                     <button
                       type="button"
-                      onClick={() => setActiveTool('brush')}
+                      onClick={() => {
+                        if (mode === 'play') setMode('paint');
+                        setActiveTool('brush');
+                      }}
                       className={`p-2.5 rounded-xl border transition ${
-                        activeTool === 'brush' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                        activeTool === 'brush' && mode !== 'play' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                       }`}
                       title="Paint Brush"
                     >
@@ -864,9 +1215,12 @@ export const EditorLayout: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTool('eraser')}
+                      onClick={() => {
+                        if (mode === 'play') setMode('paint');
+                        setActiveTool('eraser');
+                      }}
                       className={`p-2.5 rounded-xl border transition ${
-                        activeTool === 'eraser' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                        activeTool === 'eraser' && mode !== 'play' ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                       }`}
                       title="Eraser / Void"
                     >
@@ -875,9 +1229,26 @@ export const EditorLayout: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => setActiveTool('chunk_add')}
+                      onClick={() => {
+                        if (mode === 'play') setMode('paint');
+                        setActiveTool('spawn_place');
+                      }}
                       className={`p-2.5 rounded-xl border transition ${
-                        activeTool === 'chunk_add' ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                        activeTool === 'spawn_place' && mode !== 'play' ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                      title="Place Character Spawn Point"
+                    >
+                      <MapPin size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (mode === 'play') setMode('paint');
+                        setActiveTool('chunk_add');
+                      }}
+                      className={`p-2.5 rounded-xl border transition ${
+                        activeTool === 'chunk_add' && mode !== 'play' ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                       }`}
                       title="Add Chunk (Paints entire chunk)"
                     >
@@ -885,15 +1256,17 @@ export const EditorLayout: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTool('chunk_delete')}
+                      onClick={() => {
+                        if (mode === 'play') setMode('paint');
+                        setActiveTool('chunk_delete');
+                      }}
                       className={`p-2.5 rounded-xl border transition ${
-                        activeTool === 'chunk_delete' ? 'bg-red-600 text-white border-red-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
+                        activeTool === 'chunk_delete' && mode !== 'play' ? 'bg-red-600 text-white border-red-400' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                       }`}
                       title="Delete Chunk (Removes chunk completely)"
                     >
                       <MinusSquare size={16} />
                     </button>
-
 
                     <div className="w-8 h-px bg-neutral-800 my-2" />
 
@@ -945,6 +1318,12 @@ export const EditorLayout: React.FC = () => {
                       brushSize={brushSize}
                       activeTool={activeTool}
                       mode={mode}
+                      setMode={setMode}
+                      testCharacter={activeTestCharacter}
+                      linkedBehavior={linkedBehavior}
+                      spawnPoint={currentSpawnPoint}
+                      onSetSpawnPoint={handleSetSpawnPoint}
+                      onExitPlayMode={() => setMode('paint')}
                     />
 
                     {/* Canvas Status Badge */}
@@ -1394,6 +1773,7 @@ export const EditorLayout: React.FC = () => {
                 onBackToProjectInfo={() => setActiveModuleId(null)}
                 onOpenModulesModal={() => setIsModulesModalOpen(true)}
                 onOpenExplorer={() => setIsExplorerModalOpen(true)}
+                onNavigateToModule={handleNavigateToModule}
               />
             )}
           </>
@@ -1438,7 +1818,8 @@ export const EditorLayout: React.FC = () => {
             if (file) {
               if (mod === 'maps') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, mapFileName: file } }));
               else if (mod === 'biomes') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, biomeFileName: file } }));
-              else if (mod === 'archetypes') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, archetypeFileName: file } }));
+              else if (mod === 'characters') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, characterFileName: file } }));
+              else if (mod === 'behaviors') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, behaviorFileName: file } }));
               else if (mod === 'ui') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, uiFileName: file } }));
               else if (mod === 'gamestructure') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, gameStructureFileName: file } }));
             }
@@ -1467,9 +1848,9 @@ export const EditorLayout: React.FC = () => {
                       const primaryTile = biomeObj?.primaryTileTypeId || biomeObj?.tileTypes?.[0]?.id || 'ashen_basalt';
                       
                       let isSolid = true;
-                      if (layout === 'metroidvania_sidescroller') {
+                      if (layout === 'sidescroller_platforms') {
                         isSolid = y >= matrix.height - 4 || (y === Math.floor(matrix.height * 0.6) && (x < 10 || x > 20)) || (y === Math.floor(matrix.height * 0.35) && x >= 10 && x <= 22);
-                      } else if (layout === 'blank_open_air') {
+                      } else if (layout === 'blank_air') {
                         isSolid = false;
                       }
 

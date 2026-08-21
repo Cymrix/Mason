@@ -13,6 +13,10 @@ import { INITIAL_REFINED_BIOMES } from '../engine/refinedBiomes';
 import { DEFAULT_PARALLAX_LAYERS } from '../engine/parallaxConfig';
 import { BlobTilesetPreview } from './BlobTilesetPreview';
 import { ParallaxLayersEditor } from './ParallaxLayersEditor';
+import { BiomePropsEditor } from './BiomePropsEditor';
+import { BiomeStatesEditor } from './BiomeStatesEditor';
+import { BiomeVariablesEditor } from './BiomeVariablesEditor';
+import { BiomeBehaviorsEditor } from './BiomeBehaviorsEditor';
 import { 
   TreePine, 
   Layers, 
@@ -43,7 +47,11 @@ import {
   Palette,
   X,
   ZoomIn,
-  Maximize2
+  Maximize2,
+  ArrowLeft,
+  Database,
+  Brain,
+  Activity
 } from 'lucide-react';
 
 interface RefinedBiomeEditorProps {
@@ -51,6 +59,8 @@ interface RefinedBiomeEditorProps {
   onUpdateBiomes: (biomes: RefinedBiome[]) => void;
   onSelectForPainting?: (biomeId: string, tileTypeId?: string) => void;
   activePaintBiomeId?: string;
+  onBackToDashboard?: () => void;
+  availableMaps?: { fileName: string; name: string }[];
 }
 
 const TRAVERSAL_TAG_LIST: { tag: TraversalModifierTag; label: string }[] = [
@@ -251,10 +261,14 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   biomes,
   onUpdateBiomes,
   onSelectForPainting,
-  activePaintBiomeId
+  activePaintBiomeId,
+  onBackToDashboard,
+  availableMaps = []
 }) => {
   const [selectedBiomeId, setSelectedBiomeId] = useState<string>(biomes?.[0]?.id || 'mourne_ashen_steppes');
-  const [activeSubTab, setActiveSubTab] = useState<'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax'>('tile_types');
+  const [activeSubTab, setActiveSubTab] = useState<
+    'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors'
+  >('tile_types');
   const [selectedTileTypeIndex, setSelectedTileTypeIndex] = useState<number>(0);
   const [previewModalImage, setPreviewModalImage] = useState<{ title: string; url: string } | null>(null);
   const [deleteConfirmBiomeId, setDeleteConfirmBiomeId] = useState<string | null>(null);
@@ -455,21 +469,32 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
       
       {/* Left Biomes Rail */}
       <aside className="w-72 border-r border-neutral-800 bg-neutral-900/90 flex flex-col shrink-0">
-        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-sm text-neutral-100 flex items-center gap-2">
-              <TreePine size={16} className="text-emerald-400" />
-              Regional Biomes
-            </h2>
-            <p className="text-[11px] text-neutral-400 mt-0.5">Multi-Tile, Dual-Noise PBR Strata</p>
+        <div className="p-3 border-b border-neutral-800 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            {onBackToDashboard && (
+              <button
+                type="button"
+                onClick={onBackToDashboard}
+                className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800 transition"
+                title="Return to Project Dashboard"
+              >
+                <ArrowLeft size={13} className="text-cyan-400" />
+              </button>
+            )}
+            <div>
+              <h2 className="font-bold text-xs text-neutral-100 flex items-center gap-1.5 truncate">
+                <TreePine size={14} className="text-emerald-400 shrink-0" />
+                Regional Biomes
+              </h2>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={handleAddNewBiome}
-              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow"
+              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-semibold flex items-center gap-1 transition shadow"
               title="Add New Biome"
             >
-              <Plus size={13} />
+              <Plus size={12} />
               <span>New</span>
             </button>
             <button
@@ -481,10 +506,10 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                 onUpdateBiomes([...biomes, cloned]);
                 setSelectedBiomeId(newId);
               }}
-              className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow border border-neutral-700"
-              title="Duplicate selected Biome"
+              className="p-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-xs transition"
+              title="Duplicate Selected Biome"
             >
-              <Copy size={13} />
+              <Copy size={12} />
             </button>
           </div>
         </div>
@@ -589,49 +614,49 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
       {/* Main Biome Workspace */}
       <main className="flex-1 flex flex-col overflow-hidden bg-neutral-950">
         
-        {/* Top Header */}
-        <div className="p-5 border-b border-neutral-800/80 bg-neutral-900/60 backdrop-blur flex items-center justify-between shrink-0">
-          <div className="space-y-1 max-w-xl">
-            <div className="flex items-center gap-3">
-              <input
-                type="text"
-                value={selectedBiome.name}
-                onChange={(e) => handleUpdateCurrentBiome(b => ({ ...b, name: e.target.value }))}
-                className="font-bold text-lg text-neutral-100 bg-transparent border-b border-dashed border-neutral-700 hover:border-emerald-500 focus:border-emerald-500 outline-none px-1 py-0.5"
-              />
-            </div>
-            <p className="text-xs text-neutral-400">
+        {/* Top Workspace Header */}
+        <div className="h-9 px-3 border-b border-neutral-800/80 bg-neutral-900/60 backdrop-blur flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 max-w-xl min-w-0">
+            <TreePine size={13} className="text-emerald-400 shrink-0" />
+            <input
+              type="text"
+              value={selectedBiome.name}
+              onChange={(e) => handleUpdateCurrentBiome(b => ({ ...b, name: e.target.value }))}
+              className="font-bold text-xs sm:text-sm text-neutral-100 bg-transparent border-b border-dashed border-neutral-700 hover:border-emerald-500 focus:border-emerald-500 outline-none px-1 py-0.5 max-w-[180px] sm:max-w-[260px] truncate"
+              title="Click to edit biome name"
+            />
+            <span className="text-[10px] text-neutral-500 font-mono hidden md:inline truncate">
               {selectedBiome.description}
-            </p>
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-lg text-xs text-neutral-300">
-              <Compass size={13} className="text-emerald-400" />
-              <span>Region Map Tint:</span>
+            <div className="flex items-center gap-1.5 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs text-neutral-300">
+              <Compass size={12} className="text-emerald-400" />
+              <span className="text-[10px]">Tint:</span>
               <input
                 type="color"
                 value={selectedBiome.regionColor}
                 onChange={(e) => handleUpdateCurrentBiome(b => ({ ...b, regionColor: e.target.value }))}
-                className="w-5 h-5 rounded cursor-pointer bg-transparent border border-neutral-700 ml-1"
+                className="w-3.5 h-3.5 rounded cursor-pointer bg-transparent border border-neutral-700 ml-0.5"
               />
             </div>
 
             {biomes.length > 1 && (
               deleteConfirmBiomeId === selectedBiome.id ? (
-                <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/60 rounded-lg p-1 animate-in fade-in duration-150">
-                  <span className="text-[11px] text-red-300 font-semibold px-1">Delete Biome?</span>
+                <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/60 rounded p-0.5 animate-in fade-in duration-150">
+                  <span className="text-[10px] text-red-300 font-semibold px-1">Delete Biome?</span>
                   <button
                     type="button"
                     onClick={() => handleDeleteBiome(selectedBiome.id)}
-                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-md text-xs font-bold transition shadow"
+                    className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition shadow"
                   >
-                    Yes, Delete
+                    Yes
                   </button>
                   <button
                     type="button"
                     onClick={() => setDeleteConfirmBiomeId(null)}
-                    className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-md text-xs transition"
+                    className="px-1.5 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-[10px] transition"
                   >
                     Cancel
                   </button>
@@ -640,11 +665,11 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                 <button
                   type="button"
                   onClick={() => setDeleteConfirmBiomeId(selectedBiome.id)}
-                  className="px-3 py-1.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-800 hover:border-red-500/50 text-neutral-400 hover:text-red-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                  className="px-2 py-0.5 bg-neutral-900 hover:bg-red-950/60 border border-neutral-800 hover:border-red-500/50 text-neutral-400 hover:text-red-400 rounded text-xs font-semibold flex items-center gap-1.5 transition"
                   title="Delete this Biome"
                 >
-                  <Trash2 size={13} />
-                  <span>Delete Biome</span>
+                  <Trash2 size={11} />
+                  <span>Delete</span>
                 </button>
               )
             )}
@@ -652,34 +677,34 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         </div>
 
         {/* Sub-Navigation Tabs */}
-        <div className="px-6 pt-3 pb-2 border-b border-neutral-800 flex items-center gap-2 shrink-0 bg-neutral-900/30 overflow-x-auto">
+        <div className="px-4 py-1.5 border-b border-neutral-800 flex items-center gap-1.5 shrink-0 bg-neutral-900/30 overflow-x-auto">
           <button
             onClick={() => setActiveSubTab('tile_types')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
               activeSubTab === 'tile_types' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <Layers size={14} /> 1. Tile Types, Textures & Autotiling ({selectedBiome?.tileTypes?.length || 0})
+            <Layers size={14} /> 1. Tiles ({selectedBiome?.tileTypes?.length || 0})
           </button>
           <button
             onClick={() => setActiveSubTab('environmental')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
               activeSubTab === 'environmental' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <TreePine size={14} /> 2. Environmental Non-Tile Details ({selectedBiome?.environmentalDetails?.length || 0})
+            <TreePine size={14} /> 2. Details ({selectedBiome?.environmentalDetails?.length || 0})
           </button>
           <button
             onClick={() => setActiveSubTab('interactive')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-              activeSubTab === 'interactive' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+              activeSubTab === 'interactive' ? 'bg-amber-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <Box size={14} /> 3. Interactive Placements ({selectedBiome?.interactiveDetails?.length || 0})
+            <Box size={14} /> 3. Props & Zones ({selectedBiome?.interactiveDetails?.length || 0})
           </button>
           <button
             onClick={() => setActiveSubTab('wildlife')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
               activeSubTab === 'wildlife' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
@@ -687,19 +712,43 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
           </button>
           <button
             onClick={() => setActiveSubTab('soundtrack')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
               activeSubTab === 'soundtrack' ? 'bg-emerald-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <Music size={14} /> 5. Soundtrack & Audio Cues
+            <Music size={14} /> 5. Soundtrack
           </button>
           <button
             onClick={() => setActiveSubTab('parallax')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
               activeSubTab === 'parallax' ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
             }`}
           >
-            <Layers size={14} className="text-cyan-300" /> 6. Parallax Backgrounds (-5 to +1)
+            <Layers size={14} className="text-cyan-300" /> 6. Parallax
+          </button>
+          <button
+            onClick={() => setActiveSubTab('biome_states')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+              activeSubTab === 'biome_states' ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+            }`}
+          >
+            <Activity size={14} className="text-cyan-300" /> 7. Biome States ({selectedBiome?.stateMachine?.states?.length || 1})
+          </button>
+          <button
+            onClick={() => setActiveSubTab('biome_variables')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+              activeSubTab === 'biome_variables' ? 'bg-rose-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+            }`}
+          >
+            <Database size={14} className="text-rose-300" /> 8. Biome Variables ({selectedBiome?.variables?.length || 0})
+          </button>
+          <button
+            onClick={() => setActiveSubTab('biome_behaviors')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+              activeSubTab === 'biome_behaviors' ? 'bg-amber-600 text-white shadow' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+            }`}
+          >
+            <Brain size={14} className="text-amber-300" /> 9. Biome Behaviors ({selectedBiome?.behaviorRules?.length || 0})
           </button>
         </div>
 
@@ -1131,7 +1180,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           sublabel="Upload a 45° Up-Right slope (◢). Mirrored horizontally for Up-Left (◣)."
                           imageUrl={selectedTileType.tileDetails.slopeTop?.overlayTextureUrl || (selectedTileType.tileDetails as any).slope?.overlayTextureUrl}
                           
-                          accentColor="orange"
+                          accentColor="amber"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
                               ...tt,
@@ -1223,7 +1272,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                           sublabel="Concave corner transition where slopes meet adjacent ground or walls."
                           imageUrl={selectedTileType.tileDetails.slopeInnerCorner?.overlayTextureUrl}
                           
-                          accentColor="teal"
+                          accentColor="cyan"
                           onUpload={(url) => {
                             handleUpdateCurrentTileType(tt => ({
                               ...tt,
@@ -1653,128 +1702,214 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             </div>
           )}
 
-          {/* TAB 2: ENVIRONMENTAL NON-TILE DETAILS (Trees, Rocks, Bushes) */}
+          {/* TAB 2: ENVIRONMENTAL NON-TILE DETAILS (Trees, Rocks, Bushes, Flora) */}
           {activeSubTab === 'environmental' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-200">Environmental Details (Non-Tile)</h3>
-                  <p className="text-xs text-neutral-400">
-                    Trees, bushes, and rocks. Environmental assets not intended for player interaction beyond possible destruction.
+                  <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
+                    <TreePine size={16} className="text-emerald-400" />
+                    Environmental Flora & Scatter Details ({selectedBiome.environmentalDetails.length})
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    Trees, foliage, crystals, and boulders placed across the world. Configurable dimensions, auto-scatter density, and destructibility.
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     const newDetail: EnvironmentalDetail = {
                       id: `env_${Date.now()}`,
-                      name: 'New Flora / Rock Detail',
-                      category: 'rock',
-                      icon: '🪨',
-                      color: '#475569',
+                      name: 'Wild Flora Bush',
+                      category: 'bush',
+                      icon: '🌿',
+                      color: '#10b981',
                       widthTiles: 1,
                       heightTiles: 1,
                       spawnFrequency: 0.15,
-                      isDestructible: true,
-                      health: 60,
-                      armor: 5
+                      isDestructible: false,
+                      health: 40,
+                      armor: 0
                     };
                     handleUpdateCurrentBiome(b => ({
                       ...b,
                       environmentalDetails: [...b.environmentalDetails, newDetail]
                     }));
                   }}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/30"
                 >
-                  <Plus size={13} /> Add Environmental Detail
+                  <Plus size={14} /> Add Flora / Detail
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {selectedBiome.environmentalDetails.map((detail, idx) => (
-                  <div key={detail.id} className="bg-neutral-900/80 border border-neutral-800 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{detail.icon}</span>
-                        <div>
+              {selectedBiome.environmentalDetails.length === 0 ? (
+                <div className="text-center py-12 bg-neutral-900/40 rounded-2xl border border-neutral-800 text-neutral-500 text-xs">
+                  No flora or environmental details added to this biome yet. Click <strong>+ Add Flora / Detail</strong> above to create one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {selectedBiome.environmentalDetails.map((detail, idx) => (
+                    <div key={detail.id} className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3.5 shadow-lg relative group">
+                      <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <input
                             type="text"
-                            value={detail.name}
+                            value={detail.icon}
                             onChange={(e) => {
                               const updated = [...selectedBiome.environmentalDetails];
-                              updated[idx] = { ...detail, name: e.target.value };
+                              updated[idx] = { ...detail, icon: e.target.value };
                               handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
                             }}
-                            className="font-bold text-xs text-neutral-200 bg-transparent border-b border-dashed border-neutral-700 outline-none"
+                            className="w-8 h-8 text-xl bg-neutral-950 border border-neutral-800 rounded-lg text-center outline-none shrink-0"
+                            title="Emoji Icon"
                           />
-                          <div className="text-[10px] text-neutral-500 font-mono capitalize">{detail.category}</div>
+                          <div className="min-w-0">
+                            <input
+                              type="text"
+                              value={detail.name}
+                              onChange={(e) => {
+                                const updated = [...selectedBiome.environmentalDetails];
+                                updated[idx] = { ...detail, name: e.target.value };
+                                handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
+                              }}
+                              className="font-bold text-xs text-neutral-200 bg-transparent border-b border-dashed border-neutral-700 focus:border-emerald-500 outline-none w-full truncate"
+                            />
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <select
+                                value={detail.category}
+                                onChange={(e) => {
+                                  const updated = [...selectedBiome.environmentalDetails];
+                                  updated[idx] = { ...detail, category: e.target.value as any };
+                                  handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
+                                }}
+                                className="text-[10px] text-emerald-400 bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5 outline-none font-mono"
+                              >
+                                <option value="tree">🌲 Tree</option>
+                                <option value="bush">🌿 Bush / Foliage</option>
+                                <option value="rock">🪨 Rock / Boulder</option>
+                                <option value="ruin">🏛️ Ruin / Pillar</option>
+                                <option value="crystal">💎 Crystal Spire</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <input
+                            type="color"
+                            value={detail.color}
+                            onChange={(e) => {
+                              const updated = [...selectedBiome.environmentalDetails];
+                              updated[idx] = { ...detail, color: e.target.value };
+                              handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
+                            }}
+                            className="w-5 h-5 rounded cursor-pointer bg-transparent border border-neutral-700"
+                            title="Tint Color"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateCurrentBiome(b => ({
+                                ...b,
+                                environmentalDetails: b.environmentalDetails.filter((_, i) => i !== idx)
+                              }));
+                            }}
+                            className="p-1 text-neutral-500 hover:text-red-400 hover:bg-neutral-800 rounded transition"
+                            title="Delete Flora"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </div>
-                      <input
-                        type="color"
-                        value={detail.color}
-                        onChange={(e) => {
-                          const updated = [...selectedBiome.environmentalDetails];
-                          updated[idx] = { ...detail, color: e.target.value };
-                          handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
-                        }}
-                        className="w-5 h-5 rounded cursor-pointer bg-transparent border border-neutral-700"
-                      />
-                    </div>
 
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-neutral-400">Auto-Scatter Frequency</span>
-                        <span className="font-mono text-emerald-400">{(detail.spawnFrequency * 100).toFixed(0)}%</span>
+                      {/* Dimensions (Width x Height in Tiles) */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-neutral-950 p-2 rounded-xl border border-neutral-800/80 space-y-1">
+                          <span className="text-[10px] text-neutral-400 font-bold uppercase">Width (Tiles)</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="16"
+                            value={detail.widthTiles}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              const updated = [...selectedBiome.environmentalDetails];
+                              updated[idx] = { ...detail, widthTiles: val };
+                              handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
+                            }}
+                            className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
+                          />
+                        </div>
+
+                        <div className="bg-neutral-950 p-2 rounded-xl border border-neutral-800/80 space-y-1">
+                          <span className="text-[10px] text-neutral-400 font-bold uppercase">Height (Tiles)</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="16"
+                            value={detail.heightTiles}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              const updated = [...selectedBiome.environmentalDetails];
+                              updated[idx] = { ...detail, heightTiles: val };
+                              handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
+                            }}
+                            className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
+                          />
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min="0.01"
-                        max="0.5"
-                        step="0.01"
-                        value={detail.spawnFrequency}
-                        onChange={(e) => {
-                          const updated = [...selectedBiome.environmentalDetails];
-                          updated[idx] = { ...detail, spawnFrequency: parseFloat(e.target.value) };
-                          handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
-                        }}
-                        className="w-full accent-emerald-500"
-                      />
+
+                      {/* Scatter Frequency */}
+                      <div className="space-y-1 bg-neutral-950 p-2.5 rounded-xl border border-neutral-800/80">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-neutral-400 text-[11px]">Procedural Scatter Density</span>
+                          <span className="font-mono text-emerald-400 font-bold">{(detail.spawnFrequency * 100).toFixed(0)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.01"
+                          max="0.5"
+                          step="0.01"
+                          value={detail.spawnFrequency}
+                          onChange={(e) => {
+                            const updated = [...selectedBiome.environmentalDetails];
+                            updated[idx] = { ...detail, spawnFrequency: parseFloat(e.target.value) };
+                            handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
+                          }}
+                          className="w-full accent-emerald-500 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Destructible Toggle */}
+                      <div className="pt-1">
+                        <label className="flex items-center justify-between cursor-pointer p-2 bg-neutral-950 rounded-xl border border-neutral-800/80">
+                          <span className="text-xs text-neutral-300">Destructible by Player</span>
+                          <input
+                            type="checkbox"
+                            checked={detail.isDestructible}
+                            onChange={(e) => {
+                              const updated = [...selectedBiome.environmentalDetails];
+                              updated[idx] = { ...detail, isDestructible: e.target.checked };
+                              handleUpdateCurrentBiome(b => ({ ...b, environmentalDetails: updated }));
+                            }}
+                            className="rounded accent-emerald-500 cursor-pointer"
+                          />
+                        </label>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 3: INTERACTIVE PLACEMENTS */}
+          {/* TAB 3: INTERACTIVE PROPS & TRIGGER ZONES */}
           {activeSubTab === 'interactive' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-200">Interactive Placements</h3>
-                  <p className="text-xs text-neutral-400">
-                    Binding stones (checkpoints), doors/gates, enemy spawners, and chests/containers.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {selectedBiome.interactiveDetails.map((item) => (
-                  <div key={item.id} className="bg-neutral-900/80 border border-neutral-800 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{item.icon}</span>
-                      <div>
-                        <div className="font-bold text-xs text-neutral-200">{item.name}</div>
-                        <div className="text-[10px] text-amber-400 font-mono capitalize">{item.type.replace('_', ' ')}</div>
-                      </div>
-                    </div>
-                    <div className="text-xs bg-neutral-950 p-2 rounded text-neutral-400 italic">
-                      Prompt: "{item.interactionPrompt}"
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <BiomePropsEditor
+              biome={selectedBiome}
+              onUpdateBiome={handleUpdateCurrentBiome}
+              availableMaps={availableMaps}
+            />
           )}
 
           {/* TAB 4: WILDLIFE */}
@@ -1841,6 +1976,31 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             <ParallaxLayersEditor
               biome={selectedBiome}
               onUpdateBiome={handleUpdateCurrentBiome}
+            />
+          )}
+
+          {/* TAB 7: BIOME STATES */}
+          {activeSubTab === 'biome_states' && (
+            <BiomeStatesEditor
+              biome={selectedBiome}
+              onUpdateBiome={handleUpdateCurrentBiome}
+            />
+          )}
+
+          {/* TAB 8: BIOME VARIABLES */}
+          {activeSubTab === 'biome_variables' && (
+            <BiomeVariablesEditor
+              biome={selectedBiome}
+              onUpdateBiome={handleUpdateCurrentBiome}
+            />
+          )}
+
+          {/* TAB 9: BIOME BEHAVIORS */}
+          {activeSubTab === 'biome_behaviors' && (
+            <BiomeBehaviorsEditor
+              biome={selectedBiome}
+              onUpdateBiome={handleUpdateCurrentBiome}
+              availableMaps={availableMaps}
             />
           )}
 

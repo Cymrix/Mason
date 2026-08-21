@@ -25,7 +25,7 @@ export interface RefinedMapData {
   chunkSize?: number;
 }
 
-export type ToolType = 'brush' | 'bucket' | 'eraser' | 'chunk_add' | 'chunk_delete';
+export type ToolType = 'brush' | 'bucket' | 'eraser' | 'chunk_add' | 'chunk_delete' | 'spawn_place';
 export type ModeType = 'paint' | 'play';
 export type PaintCategory = 'tile_type' | 'environmental' | 'interactive' | 'wildlife';
 
@@ -63,4 +63,4 @@ export interface MapData {
   [key: string]: any;
 }
 
-export type LayerType = 'terrain' | 'flora' | 'interactive' | 'wildlife';
+export type LayerType = 'terrain' | 'flora' | 'interactive' | 'wildlife' | 'procedural' | 'manual';

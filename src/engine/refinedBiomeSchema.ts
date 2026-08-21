@@ -231,19 +231,198 @@ export interface EnvironmentalDetail {
   modalityWeakness?: DamageType;
 }
 
+export type PropKind = 'zone' | 'item';
+export type PropInteractionMethod = 'overlap' | 'touch_collision' | 'interact';
+export type PropActionType = 'immediate_transport' | 'destination_menu' | 'trigger_behavior' | 'modify_resource' | 'spawn_entity' | 'none';
+
+export type PropInteractionTrigger = 'on_overlap' | 'on_interact_prompt' | 'on_interact_no_prompt';
+export type PropTransportBehavior = 'none' | 'popup_menu' | 'immediate_transport';
+
 /**
- * Manually Placeable Interactive Detail (Enemies, doors, gates, items, chests, binding stones)
- * Intended for direct gameplay/player interaction
+ * Manually Placeable Interactive Detail (Zones or Items, with/without sprites)
+ * Supports Overlap, Touch/Collision, and Interact triggers with rich actions
  */
 export interface InteractivePlacementDetail {
   id: string;
   name: string;
-  type: 'enemy' | 'door_gate' | 'chest' | 'binding_stone' | 'hazard_emitter' | 'npc' | 'switch';
+  propKind?: PropKind; // 'zone' (trigger area) or 'item' (placed object)
+  hasSprite?: boolean; // For items: whether an explicit sprite image is used or algorithmic icon
+  spriteUrl?: string;
+  type?: 'enemy' | 'door_gate' | 'chest' | 'binding_stone' | 'hazard_emitter' | 'npc' | 'switch' | 'zone' | string;
   icon: string;
   color: string;
-  interactionPrompt: string; // e.g. "Open Chest", "Attune Binding Stone", "Unlock Gate"
+  interactionPrompt: string; // e.g. "Open Chest", "Attune Binding Stone", "Press [E] to Inspect"
+  interactionMethod?: PropInteractionMethod; // 'overlap' | 'touch_collision' | 'interact'
+  actionType?: PropActionType; // 'immediate_transport' | 'destination_menu' | 'trigger_behavior' | 'modify_resource' | 'spawn_entity' | 'none'
+  
+  // Dimensions for zone or large item
+  widthTiles?: number; // 1 to 32
+  heightTiles?: number; // 1 to 32
+  zoneType?: 'transition_zone' | 'trigger_zone' | 'boundary_warp' | 'safe_zone' | 'audio_zone';
+  
+  // Action Payload: Transport
+  immediateDestinationId?: string; // Target .map fileName
+  targetSpawnId?: string; // Optional arrival spawn identifier
+  popupMenuTitle?: string; // Title for popup destination menu
+  allowedDestinations?: string[]; // Array of linked map fileNames
+  
+  // Action Payload: Behavior Trigger
+  targetBehaviorId?: string; // ID of Biome Behavior rule
+  behaviorPayload?: string; // Optional payload / custom event string
+  
+  // Action Payload: Resource Modification
+  resourceType?: 'health' | 'mana' | 'stamina' | 'gold' | 'ammo' | 'key' | 'biome_variable';
+  targetVariableId?: string; // If resourceType === 'biome_variable'
+  resourceOp?: 'add' | 'subtract' | 'set' | 'toggle';
+  resourceAmount?: number;
+  feedbackMessage?: string; // e.g. "+50 Gold", "Ancient Shrine Attuned"
+  
+  // Action Payload: Entity / Fauna / Item Drop Spawning
+  spawnCategory?: 'wildlife' | 'enemy' | 'npc' | 'prop' | 'item_drop';
+  spawnEntityId?: string; // Creature / wildlife ID or entity name
+  spawnCount?: number;
+  
+  // Legacy / Additional fields
   health?: number;
   properties?: Record<string, any>;
+  triggerType?: PropInteractionTrigger;
+  transportBehavior?: PropTransportBehavior;
+}
+
+/**
+ * Biome Variable Specification
+ * Custom variables and attributes scoped locally or globally across biomes & maps
+ */
+export interface BiomeVariable {
+  id: string; // e.g. bvar_xxxxxxxx
+  name: string;
+  category: 'environment' | 'progression' | 'hazard' | 'weather' | 'custom' | string;
+  type: 'number' | 'string' | 'boolean' | 'enum';
+  scope: 'local_biome' | 'global_interbiome'; // interbiome persists across all maps
+  options?: string[]; // Used if type is enum
+  defaultValue: any;
+  currentValue?: any;
+  minValue?: number;
+  maxValue?: number;
+  description?: string;
+}
+
+/**
+ * Biome State Node Specification
+ */
+export interface BiomeStateNode {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  ambientColor?: string;
+  fogDensity?: number; // 0.0 to 1.0
+  hazardLevel?: 'none' | 'mild' | 'severe' | 'fatal';
+  weatherType?: 'clear' | 'ash_storm' | 'rain' | 'fog' | 'blizzard' | 'spore_drift' | 'acid_rain' | 'solar_flare';
+  wildlifeSpawnMultiplier?: number;
+  musicTrackOverride?: string;
+  isDefault?: boolean;
+  x?: number;
+  y?: number;
+}
+
+/**
+ * Biome State Transition Specification
+ */
+export interface BiomeStateTransition {
+  id: string;
+  fromStateId: string;
+  toStateId: string;
+  triggerLabel?: string;
+  conditionVariableId?: string;
+  conditionComparator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
+  conditionValue?: any;
+}
+
+/**
+ * Biome State Machine Specification
+ */
+export interface BiomeStateMachine {
+  states: BiomeStateNode[];
+  transitions: BiomeStateTransition[];
+  defaultStateId: string;
+}
+
+/**
+ * Biome Behavior Triggers
+ */
+export type BiomeTriggerType = 
+  | 'on_variable_value'
+  | 'on_map_load'
+  | 'on_biome_state'
+  | 'on_prop_interact'
+  | 'on_time_tick'
+  | 'on_enter_biome'
+  | 'manual_trigger';
+
+export interface BiomeBehaviorTrigger {
+  type: BiomeTriggerType;
+  variableId?: string;
+  comparator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
+  targetValue?: any;
+  mapFileName?: string; // '.map' file name, or 'any_map'
+  biomeStateId?: string;
+  propId?: string;
+  intervalSeconds?: number;
+  customEventName?: string;
+}
+
+/**
+ * Biome Behavior Actions
+ */
+export type BiomeActionType =
+  | 'set_variable'
+  | 'change_biome_state'
+  | 'change_map'
+  | 'spawn_entity'
+  | 'environmental_effect'
+  | 'audio_cue'
+  | 'unlock_progression_flag'
+  | 'broadcast_interbiome_signal';
+
+export interface BiomeBehaviorAction {
+  id: string;
+  actionType: BiomeActionType;
+  // set_variable
+  variableId?: string;
+  variableOp?: 'set' | 'add' | 'subtract' | 'toggle';
+  variableValue?: any;
+  // change_biome_state
+  targetStateId?: string;
+  // change_map
+  targetMapFileName?: string;
+  targetSpawnPoint?: string;
+  // spawn_entity
+  spawnCategory?: 'wildlife' | 'enemy' | 'npc' | 'item';
+  spawnEntityId?: string;
+  spawnCount?: number;
+  // environmental_effect
+  effectType?: 'screen_shake' | 'weather_change' | 'fog_surge' | 'lightning_flash' | 'corrupt_pulse';
+  intensity?: number;
+  durationMs?: number;
+  // audio_cue
+  soundTrackName?: string;
+  volume?: number;
+  // unlock_progression_flag
+  flagId?: string;
+  // broadcast_interbiome_signal
+  signalName?: string;
+  signalPayload?: string;
+}
+
+export interface BiomeBehaviorRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  scope: 'local_biome' | 'global_interbiome'; // interbiome rule
+  description?: string;
+  trigger: BiomeBehaviorTrigger;
+  actions: BiomeBehaviorAction[];
 }
 
 /**
@@ -299,7 +478,7 @@ export interface RefinedBiome {
   // Environmental Non-Tile Details (trees, rocks, bushes, etc.)
   environmentalDetails: EnvironmentalDetail[];
 
-  // Interactive Placeable Details (enemies, items, doors, binding stones)
+  // Interactive Placeable Details (enemies, items, doors, binding stones, zones)
   interactiveDetails: InteractivePlacementDetail[];
 
   // Wildlife Details
@@ -314,6 +493,15 @@ export interface RefinedBiome {
     elevationRange: [number, number]; // 0.0 to 1.0
     moistureRange: [number, number]; // 0.0 to 1.0
   };
+
+  // Biome Variables (Local & Interbiome Global)
+  variables?: BiomeVariable[];
+
+  // Biome State Machine (States & Transitions)
+  stateMachine?: BiomeStateMachine;
+
+  // Biome Behaviors (IFTTT Rules & Global Actions)
+  behaviorRules?: BiomeBehaviorRule[];
 }
 
 /**

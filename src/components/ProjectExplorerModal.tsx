@@ -4,20 +4,17 @@ import {
   MasonModuleId,
   MapFile,
   BiomeFile,
-  ArchetypeFile,
   UIThemeFile,
   GameStructureFile
 } from '../engine/masonProjectSchema';
 import { 
   exportMapFile, 
   exportBiomeFile, 
-  exportArchetypeFile, 
   exportUIThemeFile, 
   exportGameStructureFile, 
   exportFullProjectBundle,
   createNewMapInProject,
   createNewBiomeInProject,
-  createNewArchetypeInProject,
   createNewUIThemeInProject,
   createNewGameStructureInProject
 } from '../utils/masonStorage';
@@ -61,16 +58,14 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
   onNavigateToModule
 }) => {
   const [selectedFile, setSelectedFile] = useState<{
-    subfolder: 'maps' | 'biomes' | 'archetypes' | 'characters' | 'behaviors' | 'ui' | 'game';
+    subfolder: 'maps' | 'biomes' | 'characters' | 'ui' | 'game';
     file: any;
   } | null>(null);
 
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
     maps: true,
     biomes: true,
-    archetypes: true,
     characters: true,
-    behaviors: true,
     ui: true,
     game: true
   });
@@ -95,9 +90,6 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
     } else if (newFileInput.subfolder === 'biomes') {
       const { project: updated } = createNewBiomeInProject(project, name);
       onUpdateProject(() => updated);
-    } else if (newFileInput.subfolder === 'archetypes') {
-      const { project: updated } = createNewArchetypeInProject(project, name);
-      onUpdateProject(() => updated);
     } else if (newFileInput.subfolder === 'characters') {
       const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.character`;
       const newChar = {
@@ -115,41 +107,47 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
           spriteHeight: 64,
           tintColor: '#f59e0b',
           baseScale: 1.0,
+          states: ['idle', 'patrol', 'combat'],
+          variables: [
+            { id: 'var_max_hp', name: 'Max Health', category: 'attribute' as const, type: 'number' as const, isStatic: true, defaultValue: 100 },
+            { id: 'var_speed', name: 'Move Speed', category: 'attribute' as const, type: 'number' as const, isStatic: false, defaultValue: 3.0 }
+          ],
+          behaviorVariables: {
+            var_max_hp: 100,
+            var_speed: 3.0
+          },
+          rules: [
+            {
+              id: 'rule_sight',
+              name: 'Sight Raycast Detection',
+              enabled: true,
+              trigger: {
+                type: 'sight' as const,
+                sensoryTag: 'head_eyes' as const,
+                visionRadiusPx: 200,
+                visionAngleDeg: 120,
+                requireLineOfSight: true,
+                targetFilter: 'player' as const
+              },
+              actions: [
+                { id: 'act_alert', actionType: 'emit_signal' as const, signalType: 'alert_icon' as const, signalRadiusPx: 100 },
+                { id: 'act_chase', actionType: 'move' as const, moveMode: 'towards_target' as const, speed: 4.0 }
+              ]
+            }
+          ],
           sockets: [
-            { tagId: 'head_eyes', label: 'Sight Locus (Eyes)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
-            { tagId: 'head_ears', label: 'Acoustic Ears', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
-            { tagId: 'torso_center', label: 'Torso Hurtbox', offsetX: 0, offsetY: 0, visualMarkerColor: '#22c55e' }
+            { tagId: 'head_eyes' as const, label: 'Sight Locus (Eyes)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
+            { tagId: 'head_ears' as const, label: 'Acoustic Ears', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
+            { tagId: 'torso_center' as const, label: 'Torso Hurtbox', offsetX: 0, offsetY: 0, visualMarkerColor: '#22c55e' }
           ],
           animations: [
-            { stateId: 'idle', label: 'Idle Stance', frameCount: 4, frameRateFps: 8, loop: true, spriteRow: 0 }
+            { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_main', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
           ]
         }
       };
       onUpdateProject(p => ({
         ...p,
         fileSystem: { ...p.fileSystem, characters: [...(p.fileSystem.characters || []), newChar] }
-      }));
-    } else if (newFileInput.subfolder === 'behaviors') {
-      const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.behavior`;
-      const newBeh = {
-        id: `beh_${Date.now()}`,
-        name,
-        fileName: safeName,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        behaviorData: {
-          id: `beh_${Date.now()}`,
-          name,
-          title: `${name} Controller`,
-          category: 'mob' as const,
-          foci: { focusType: 'player_tracker' as const, cameraZoom: 1.0, smoothingDamping: 0.15, deadzoneWidth: 120, deadzoneHeight: 80, lookAheadOffsetX: 40, lookAheadOffsetY: 0, lockOnPriority: 1 },
-          movement: { movementType: 'ground_patrol' as const, moveSpeed: 4.0, acceleration: 12.0, jumpForce: 10.0, gravityScale: 1.0, turnOnEdge: true, turnOnObstacle: true },
-          ai: { aiProfile: 'aggressive_chaser' as const, visionRadiusPx: 200, visionAngleDeg: 120, losCheckWall: true, attackRangePx: 40, telegraphWindupMs: 300, attackCooldownMs: 1000, fsmStates: ['IDLE', 'PATROL', 'ALERT', 'CHASE', 'ATTACK'] }
-        }
-      };
-      onUpdateProject(p => ({
-        ...p,
-        fileSystem: { ...p.fileSystem, behaviors: [...(p.fileSystem.behaviors || []), newBeh] }
       }));
     } else if (newFileInput.subfolder === 'ui') {
       const { project: updated } = createNewUIThemeInProject(project, name);
@@ -183,11 +181,6 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
           onUpdateProject(p => ({
             ...p,
             fileSystem: { ...p.fileSystem, biomes: [...p.fileSystem.biomes, parsed] }
-          }));
-        } else if (file.name.endsWith('.arch') || parsed.traversalTags) {
-          onUpdateProject(p => ({
-            ...p,
-            fileSystem: { ...p.fileSystem, archetypes: [...p.fileSystem.archetypes, parsed] }
           }));
         } else if (file.name.endsWith('.character') || parsed.characterData) {
           onUpdateProject(p => ({
@@ -238,7 +231,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Subfolder-based virtual file storage for Maps, Biomes, Archetypes, UI & Game Framework
+                Subfolder-based virtual file storage for Maps, Biomes, Characters, Behaviors, UI & Game Framework
               </p>
             </div>
           </div>
@@ -365,49 +358,6 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
               )}
             </div>
 
-            {/* FOLDER 3: /archetypes/ (.arch) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
-                <button
-                  type="button"
-                  onClick={() => toggleFolder('archetypes')}
-                  className="flex items-center gap-2 text-xs font-bold text-neutral-200"
-                >
-                  {expandedFolders.archetypes ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
-                  <Folder size={15} className="text-blue-400" />
-                  <span>archetypes/</span>
-                  <span className="text-[10px] font-mono text-neutral-500">({project.fileSystem.archetypes.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewFileInput({ subfolder: 'archetypes', name: '' })}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-blue-400 rounded"
-                  title="New .arch file"
-                >
-                  <Plus size={13} />
-                </button>
-              </div>
-
-              {expandedFolders.archetypes && (
-                <div className="pl-6 space-y-0.5">
-                  {project.fileSystem.archetypes.map(a => (
-                    <button
-                      key={a.fileName}
-                      type="button"
-                      onClick={() => setSelectedFile({ subfolder: 'archetypes', file: a })}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
-                        selectedFile?.file?.fileName === a.fileName
-                          ? 'bg-blue-950/60 text-blue-200 border border-blue-500/40'
-                          : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-                      }`}
-                    >
-                      <span className="truncate">{a.fileName}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* FOLDER 3.5: /characters/ (.character) */}
             <div className="space-y-1">
               <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
@@ -451,50 +401,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
               )}
             </div>
 
-            {/* FOLDER 4: /behaviors/ (.behavior) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
-                <button
-                  type="button"
-                  onClick={() => toggleFolder('behaviors')}
-                  className="flex items-center gap-2 text-xs font-bold text-neutral-200"
-                >
-                  {expandedFolders.behaviors ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
-                  <Folder size={15} className="text-indigo-400" />
-                  <span>behaviors/</span>
-                  <span className="text-[10px] font-mono text-neutral-500">({(project.fileSystem.behaviors || []).length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewFileInput({ subfolder: 'behaviors', name: '' })}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-indigo-400 rounded"
-                  title="New .behavior file"
-                >
-                  <Plus size={13} />
-                </button>
-              </div>
-
-              {expandedFolders.behaviors && (
-                <div className="pl-6 space-y-0.5">
-                  {(project.fileSystem.behaviors || []).map(b => (
-                    <button
-                      key={b.fileName}
-                      type="button"
-                      onClick={() => setSelectedFile({ subfolder: 'behaviors', file: b })}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
-                        selectedFile?.file?.fileName === b.fileName
-                          ? 'bg-indigo-950/60 text-indigo-200 border border-indigo-500/40'
-                          : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
-                      }`}
-                    >
-                      <span className="truncate">{b.fileName}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* FOLDER 5: /ui/ (.ui) */}
+            {/* FOLDER 4: /ui/ (.ui) */}
             <div className="space-y-1">
               <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
                 <button
@@ -608,9 +515,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                         const targetModule: MasonModuleId = 
                           selectedFile.subfolder === 'maps' ? 'maps' :
                           selectedFile.subfolder === 'biomes' ? 'biomes' :
-                          selectedFile.subfolder === 'archetypes' ? 'archetypes' :
                           selectedFile.subfolder === 'characters' ? 'characters' :
-                          selectedFile.subfolder === 'behaviors' ? 'behaviors' :
                           selectedFile.subfolder === 'ui' ? 'ui' : 'gamestructure';
 
                         onNavigateToModule(targetModule, selectedFile.file.fileName);
@@ -627,7 +532,6 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                       onClick={() => {
                         if (selectedFile.subfolder === 'maps') exportMapFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'biomes') exportBiomeFile(selectedFile.file);
-                        else if (selectedFile.subfolder === 'archetypes') exportArchetypeFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'ui') exportUIThemeFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'game') exportGameStructureFile(selectedFile.file);
                         else {

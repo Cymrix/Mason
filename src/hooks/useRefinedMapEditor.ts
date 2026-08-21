@@ -268,7 +268,7 @@ export const useRefinedMapEditor = () => {
               tile_type_id: '',
               current_health: 100,
               damage_threshold_index: 0,
-              shape: 'block'
+              shape: 'full'
             }));
           }
           target = getCell(newMap, x, y)!;

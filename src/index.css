@@ -7,3 +7,26 @@ canvas, img, svg, .pixel-art {
   image-rendering: -moz-crisp-edges !important;
   -ms-interpolation-mode: nearest-neighbor !important;
 }
+
+/* Custom Webkit Scrollbars for darker, consistent look */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a; /* neutral-950 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155; /* neutral-700 */
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* neutral-600 */
+}
+
+::-webkit-scrollbar-corner {
+  background: #0f172a;
+}

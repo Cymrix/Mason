@@ -1,26 +1,17 @@
 import React, { useState } from 'react';
 import { MasonProject } from '../engine/masonProjectSchema';
-import { MASON_MODULES } from '../engine/modulesRegistry';
 import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { usePWA } from '../hooks/usePWA';
 import { 
-  Play, 
   Folder, 
   FileCode, 
   Clock, 
   User, 
   Edit3, 
   Sparkles, 
-  Check, 
   Layers, 
   Compass, 
   Download, 
-  ExternalLink, 
-  ChevronRight, 
-  Shield, 
-  Palette, 
-  Layout, 
-  Globe, 
   Settings,
   DownloadCloud
 } from 'lucide-react';
@@ -30,7 +21,7 @@ interface ProjectDashboardProps {
   onUpdateProject: (updated: MasonProject) => void;
   onLaunchModule: (moduleId: string) => void;
   onOpenExplorer: () => void;
-  onOpenModulesModal: () => void;
+  onOpenModulesModal?: () => void;
   onExportBundle: () => void;
   onOpenPWAInstallModal?: () => void;
 }
@@ -61,12 +52,11 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
 
   const mapCount = project.fileSystem?.maps?.length || 0;
   const biomeCount = project.fileSystem?.biomes?.length || 0;
-  const archetypeCount = project.fileSystem?.archetypes?.length || 0;
-  const behaviorCount = project.fileSystem?.behaviors?.length || 0;
+  const characterCount = project.fileSystem?.characters?.length || 0;
   const uiCount = project.fileSystem?.ui?.length || 0;
   const gameCount = project.fileSystem?.game?.length || 0;
 
-  const totalFiles = mapCount + biomeCount + archetypeCount + behaviorCount + uiCount + gameCount;
+  const totalFiles = mapCount + biomeCount + characterCount + uiCount + gameCount;
   const { isInstalled } = usePWA();
 
   return (
@@ -93,7 +83,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             </h1>
 
             <p className="text-sm text-neutral-400 max-w-2xl leading-relaxed">
-              {project.description || '2D Metroidvania project with modular level design, 7-layer parallax biomes, hero archetypes, and game flow architecture.'}
+              {project.description || '2D Metroidvania project with modular level design, 7-layer parallax biomes, characters, and game flow architecture.'}
             </p>
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-400 pt-2 font-mono">
@@ -202,183 +192,81 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         )}
       </div>
 
-      {/* Subfolder Stats Overview Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      {/* Subfolder Stats Overview Cards - Dynamically centered */}
+      <div className="flex flex-wrap justify-center items-stretch gap-3.5 w-full mx-auto">
         {/* Maps */}
         <div 
           onClick={() => onLaunchModule('maps')}
-          className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-cyan-500/60 transition cursor-pointer group"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-cyan-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
             <span className="text-xl">🗺️</span>
             <span className="text-[10px] font-mono bg-cyan-950/60 text-cyan-400 px-1.5 py-0.5 rounded font-bold">.map</span>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white group-hover:text-cyan-400 transition font-mono">{mapCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Maps</div>
-            <div className="text-[9px] text-neutral-500 font-mono">/maps/</div>
+          <div className="mt-2.5">
+            <div className="text-xl font-black text-white group-hover:text-cyan-400 transition font-mono">{mapCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300 truncate">Maps</div>
           </div>
         </div>
 
         {/* Biomes */}
         <div 
           onClick={() => onLaunchModule('biomes')}
-          className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-emerald-500/60 transition cursor-pointer group"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-emerald-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
             <span className="text-xl">🌲</span>
             <span className="text-[10px] font-mono bg-emerald-950/60 text-emerald-400 px-1.5 py-0.5 rounded font-bold">.biome</span>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white group-hover:text-emerald-400 transition font-mono">{biomeCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Biomes</div>
-            <div className="text-[9px] text-neutral-500 font-mono">/biomes/</div>
+          <div className="mt-2.5">
+            <div className="text-xl font-black text-white group-hover:text-emerald-400 transition font-mono">{biomeCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300 truncate">Biomes</div>
           </div>
         </div>
 
-        {/* Archetypes */}
+        {/* Characters & Bespoke AI */}
         <div 
-          onClick={() => onLaunchModule('archetypes')}
-          className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-blue-500/60 transition cursor-pointer group"
+          onClick={() => onLaunchModule('characters')}
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-rose-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xl">🛡️</span>
-            <span className="text-[10px] font-mono bg-blue-950/60 text-blue-400 px-1.5 py-0.5 rounded font-bold">.arch</span>
+            <span className="text-xl">🎭</span>
+            <span className="text-[10px] font-mono bg-rose-950/60 text-rose-400 px-1.5 py-0.5 rounded font-bold">.character</span>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white group-hover:text-blue-400 transition font-mono">{archetypeCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Archetypes</div>
-            <div className="text-[9px] text-neutral-500 font-mono">/archetypes/</div>
-          </div>
-        </div>
-
-        {/* Behaviors & AI */}
-        <div 
-          onClick={() => onLaunchModule('behaviors')}
-          className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-indigo-500/60 transition cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xl">🧠</span>
-            <span className="text-[10px] font-mono bg-indigo-950/60 text-indigo-400 px-1.5 py-0.5 rounded font-bold">.behavior</span>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white group-hover:text-indigo-400 transition font-mono">{behaviorCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Behaviors & AI</div>
-            <div className="text-[9px] text-neutral-500 font-mono">/behaviors/</div>
+          <div className="mt-2.5">
+            <div className="text-xl font-black text-white group-hover:text-rose-400 transition font-mono">{characterCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300 truncate">Characters & AI</div>
           </div>
         </div>
 
         {/* UI & HUD */}
         <div 
           onClick={() => onLaunchModule('ui')}
-          className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-amber-500/60 transition cursor-pointer group"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-amber-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
             <span className="text-xl">💎</span>
             <span className="text-[10px] font-mono bg-amber-950/60 text-amber-400 px-1.5 py-0.5 rounded font-bold">.ui</span>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white group-hover:text-amber-400 transition font-mono">{uiCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">UI & HUD</div>
-            <div className="text-[9px] text-neutral-500 font-mono">/ui/</div>
+          <div className="mt-2.5">
+            <div className="text-xl font-black text-white group-hover:text-amber-400 transition font-mono">{uiCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300 truncate">UI & HUD</div>
           </div>
         </div>
 
         {/* Game Structure */}
         <div 
           onClick={() => onLaunchModule('gamestructure')}
-          className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-purple-500/60 transition cursor-pointer group"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-purple-500/60 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
             <span className="text-xl">🌐</span>
             <span className="text-[10px] font-mono bg-purple-950/60 text-purple-400 px-1.5 py-0.5 rounded font-bold">.gamestructure</span>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white group-hover:text-purple-400 transition font-mono">{gameCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300">Game Structure</div>
-            <div className="text-[9px] text-neutral-500 font-mono">/game/</div>
+          <div className="mt-2.5">
+            <div className="text-xl font-black text-white group-hover:text-purple-400 transition font-mono">{gameCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300 truncate">Game Graph</div>
           </div>
-        </div>
-      </div>
-
-      {/* Launch a Module Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-neutral-100 flex items-center gap-2">
-              <span>🚀 Launch Mason Module</span>
-            </h2>
-            <p className="text-xs text-neutral-400">
-              Select a mini-app module below to load its dedicated workspace inside Mason.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onOpenModulesModal}
-            className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-          >
-            <span>View All Modules ({MASON_MODULES.length})</span>
-            <ChevronRight size={14} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {MASON_MODULES.map(mod => {
-            const count = mod.id === 'maps' ? mapCount 
-              : mod.id === 'biomes' ? biomeCount 
-              : mod.id === 'archetypes' ? archetypeCount 
-              : mod.id === 'ui' ? uiCount 
-              : mod.id === 'gamestructure' ? gameCount : 1;
-
-            return (
-              <div
-                key={mod.id}
-                className="p-5 rounded-2xl bg-neutral-900/70 border border-neutral-800 hover:border-neutral-700 transition flex flex-col justify-between group"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-center text-xl shadow-inner group-hover:scale-105 transition">
-                        {mod.icon}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-neutral-100 group-hover:text-cyan-300 transition">
-                          {mod.name}
-                        </h3>
-                        <span className="text-[10px] font-mono text-neutral-500">
-                          {mod.subfolder}/
-                        </span>
-                      </div>
-                    </div>
-
-                    <span className="text-[10px] font-mono bg-neutral-950 text-neutral-400 border border-neutral-800 px-2 py-0.5 rounded">
-                      {count} files
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed">
-                    {mod.tagline}
-                  </p>
-                </div>
-
-                <div className="pt-4 mt-4 border-t border-neutral-800/80 flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-neutral-500 uppercase">
-                    {mod.associatedExtension}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => onLaunchModule(mod.id)}
-                    className="px-3.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-cyan-600 text-neutral-200 hover:text-white text-xs font-bold flex items-center gap-1.5 transition"
-                  >
-                    <Play size={12} fill="currentColor" />
-                    <span>Launch</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
 

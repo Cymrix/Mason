@@ -82,6 +82,7 @@ import { PWAInstallModal } from './PWAInstallModal';
 import { ThemeModal } from './ThemeModal';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Palette } from 'lucide-react';
+import { MasonBrandIcon } from './MasonBrandIcon';
 
 export const EditorLayout: React.FC = () => {
   // Master Mason Project State (null when no project is loaded)
@@ -780,8 +781,8 @@ export const EditorLayout: React.FC = () => {
               title="Mason Studio - View Dashboard"
             >
               {/* Sky Blue Mason Citadel Brand Icon */}
-              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-sky-900/90 via-sky-950 to-neutral-950 border border-sky-500/50 flex items-center justify-center shadow-md shadow-sky-950/60 shrink-0 group-hover:border-sky-400 group-hover:scale-105 transition-all">
-                <img src="/favicon.svg" alt="Mason Logo" className="w-4 h-4 drop-shadow" />
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-sky-900/90 via-sky-950 to-neutral-950 border border-sky-500/50 flex items-center justify-center shadow-md shadow-sky-950/60 shrink-0 group-hover:border-sky-400 group-hover:scale-105 transition-all p-1">
+                <MasonBrandIcon size={18} className="drop-shadow" />
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="font-black text-sm tracking-tight text-neutral-100 group-hover:text-white transition">Mason</span>

@@ -14,18 +14,21 @@ import {
   ChevronRight,
   Info,
   Compass,
-  Zap
+  Zap,
+  Palette
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
 import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { usePWA } from '../hooks/usePWA';
+import { useAppTheme } from '../theme/ThemeContext';
 import { DownloadCloud, WifiOff } from 'lucide-react';
 
 interface HamburgerMenuProps {
   project: MasonProject | null;
   onOpenModulesModal: () => void;
   onOpenExplorerModal: () => void;
+  onOpenThemeModal: () => void;
   onShowProjectInfo: () => void;
   onNewProject: () => void;
   onLoadProject: () => void;
@@ -41,6 +44,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   project,
   onOpenModulesModal,
   onOpenExplorerModal,
+  onOpenThemeModal,
   onShowProjectInfo,
   onNewProject,
   onLoadProject,
@@ -55,6 +59,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { isInstalled, isOffline } = usePWA();
+  const { theme, primaryDef } = useAppTheme();
 
   // Close when clicking outside
   useEffect(() => {
@@ -96,13 +101,16 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
           {/* Header */}
           <div className="px-4 py-2 border-b border-neutral-800/80 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-[10px] text-indigo-300 font-black">
-                M
+              <div className="w-6 h-6 rounded-lg bg-indigo-950/90 border border-indigo-500/50 flex items-center justify-center shrink-0 shadow-xs">
+                <img src="/favicon.svg" alt="Mason" className="w-3.5 h-3.5 drop-shadow" />
               </div>
               <span className="text-xs font-bold text-neutral-200">Mason Navigation</span>
             </div>
             {project && (
-              <span className="text-[10px] font-mono text-indigo-400 font-semibold truncate max-w-[120px]">
+              <span 
+                className="text-[10px] font-mono font-semibold truncate max-w-[120px]"
+                style={{ color: primaryDef.hex }}
+              >
                 {project.name}
               </span>
             )}
@@ -122,7 +130,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
               <div className="flex items-center gap-2.5">
                 <span className="text-base">🧩</span>
                 <div>
-                  <span className="font-bold text-neutral-100 group-hover:text-indigo-300 transition">Modules Directory</span>
+                  <span className="font-bold text-neutral-100 group-hover:text-white transition">Modules Directory</span>
                   <p className="text-[10px] text-neutral-400">Browse & launch mini-apps</p>
                 </div>
               </div>
@@ -139,9 +147,18 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 }}
                 className={`w-full px-3 py-2 rounded-xl text-left text-xs font-medium flex items-center justify-between group transition ${
                   activeModuleId === null 
-                    ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-500/40' 
+                    ? 'border' 
                     : 'text-neutral-200 hover:bg-neutral-800'
                 }`}
+                style={
+                  activeModuleId === null
+                    ? {
+                        backgroundColor: `rgba(${primaryDef.rgb}, 0.15)`,
+                        borderColor: `rgba(${primaryDef.rgb}, 0.4)`,
+                        color: primaryDef.hex
+                      }
+                    : undefined
+                }
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">📄</span>
@@ -151,7 +168,15 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                   </div>
                 </div>
                 {activeModuleId === null && (
-                  <span className="text-[9px] font-mono bg-indigo-900/60 text-indigo-300 px-1.5 py-0.5 rounded">Active</span>
+                  <span 
+                    className="text-[9px] font-mono px-1.5 py-0.5 rounded font-semibold"
+                    style={{
+                      backgroundColor: `rgba(${primaryDef.rgb}, 0.3)`,
+                      color: primaryDef.hex
+                    }}
+                  >
+                    Active
+                  </span>
                 )}
               </button>
             )}
@@ -176,6 +201,40 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
               </button>
             )}
+
+            {/* App Theme Option */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenThemeModal();
+              }}
+              className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-neutral-200 hover:bg-neutral-800 flex items-center justify-between group transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <div 
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-xs shadow-sm border"
+                  style={{
+                    backgroundColor: `rgba(${primaryDef.rgb}, 0.25)`,
+                    borderColor: primaryDef.hex,
+                    color: primaryDef.hex
+                  }}
+                >
+                  <Palette size={12} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-neutral-100 group-hover:text-white transition">App Theme & Colors</span>
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: primaryDef.hex }} 
+                    />
+                  </div>
+                  <p className="text-[10px] text-neutral-400 truncate max-w-[170px]">{theme.name}</p>
+                </div>
+              </div>
+              <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
+            </button>
           </div>
 
           <div className="h-px bg-neutral-800 my-1.5"></div>

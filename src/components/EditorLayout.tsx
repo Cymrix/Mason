@@ -79,10 +79,16 @@ import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
 import { usePWA } from '../hooks/usePWA';
 import { DownloadCloud, WifiOff } from 'lucide-react';
 import { PWAInstallModal } from './PWAInstallModal';
+import { ThemeModal } from './ThemeModal';
+import { useAppTheme } from '../theme/ThemeContext';
+import { Palette } from 'lucide-react';
 
 export const EditorLayout: React.FC = () => {
   // Master Mason Project State (null when no project is loaded)
   const [project, setProject] = useState<MasonProject | null>(() => getActiveMasonProject());
+  
+  // App Theme Hook
+  const { theme, primaryDef, bgDef, getModuleColorDef } = useAppTheme();
   
   // PWA Support Hook
   const { 
@@ -134,6 +140,7 @@ export const EditorLayout: React.FC = () => {
   const [isExplorerModalOpen, setIsExplorerModalOpen] = useState(false);
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
   const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -744,6 +751,7 @@ export const EditorLayout: React.FC = () => {
             project={project}
             onOpenModulesModal={() => setIsModulesModalOpen(true)}
             onOpenExplorerModal={() => setIsExplorerModalOpen(true)}
+            onOpenThemeModal={() => setIsThemeModalOpen(true)}
             onShowProjectInfo={() => setActiveModuleId(null)}
             onNewProject={() => setIsCreateModalOpen(true)}
             onLoadProject={() => setIsLoadModalOpen(true)}
@@ -765,22 +773,36 @@ export const EditorLayout: React.FC = () => {
 
           {/* Project Title / Studio Brand & Version */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="font-black text-sm tracking-tight text-neutral-100">Mason</span>
-              <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-950/70 border border-indigo-500/30 px-1.5 py-0.2 rounded">
-                {MASON_VERSION_DISPLAY}
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setActiveModuleId(null)}
+              className="flex items-center gap-2 group hover:opacity-90 transition text-left"
+              title="Mason Studio - View Dashboard"
+            >
+              {/* Blue Mason Citadel Brand Icon */}
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-900/90 via-indigo-950 to-neutral-950 border border-indigo-500/50 flex items-center justify-center shadow-md shadow-indigo-950/60 shrink-0 group-hover:border-indigo-400 group-hover:scale-105 transition-all">
+                <img src="/favicon.svg" alt="Mason Logo" className="w-4 h-4 drop-shadow" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-sm tracking-tight text-neutral-100 group-hover:text-white transition">Mason</span>
+                <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-950/80 border border-indigo-500/40 px-1.5 py-0.2 rounded shadow-xs">
+                  {MASON_VERSION_DISPLAY}
+                </span>
+              </div>
+            </button>
 
             {project ? (
               <button
                 type="button"
                 onClick={() => setActiveModuleId(null)}
-                className="text-xs font-mono text-indigo-300 hover:underline flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800"
+                className="text-xs font-mono flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-neutral-700 transition"
                 title="Click to view Project Dashboard"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                <span className="truncate max-w-[180px] sm:max-w-[240px] font-semibold">{project.name}</span>
+                <span 
+                  className="w-1.5 h-1.5 rounded-full" 
+                  style={{ backgroundColor: primaryDef.hex }}
+                />
+                <span className="truncate max-w-[180px] sm:max-w-[240px] font-semibold text-neutral-200">{project.name}</span>
               </button>
             ) : (
               <span className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800">
@@ -809,13 +831,29 @@ export const EditorLayout: React.FC = () => {
                   title="Project Dashboard"
                   className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 relative border ${
                     activeModuleId === null
-                      ? 'bg-indigo-950/80 border-indigo-500/50 text-indigo-300 ring-2 ring-indigo-500/30 shadow-md shadow-indigo-950/60'
-                      : 'border-transparent text-indigo-400/80 hover:text-indigo-300 hover:bg-neutral-800'
+                      ? 'border shadow-md'
+                      : 'border-transparent hover:bg-neutral-800 hover:border-neutral-700'
                   }`}
+                  style={
+                    activeModuleId === null
+                      ? {
+                          backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
+                          borderColor: `rgba(${primaryDef.rgb}, 0.5)`,
+                          color: primaryDef.hex,
+                          boxShadow: `0 4px 12px rgba(${primaryDef.rgb}, 0.3)`
+                        }
+                      : {
+                          color: primaryDef.hex,
+                          backgroundColor: `rgba(${primaryDef.rgb}, 0.08)`
+                        }
+                  }
                 >
                   <LayoutDashboard size={16} />
                   {activeModuleId === null && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-indigo-400 rounded-full ring-2 ring-neutral-900 animate-pulse" />
+                    <span 
+                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-neutral-900 animate-pulse" 
+                      style={{ backgroundColor: primaryDef.hex }}
+                    />
                   )}
                 </button>
 
@@ -824,55 +862,18 @@ export const EditorLayout: React.FC = () => {
                 {/* Modules Direct Line Art Icons */}
                 {MASON_MODULES.map(mod => {
                   const isActive = activeModuleId === mod.id;
+                  const modColor = getModuleColorDef(mod.id);
 
-                  const getModuleColorStyles = () => {
-                    switch (mod.accentColor) {
-                      case 'cyan':
-                        return {
-                          icon: <Map size={16} />,
-                          active: 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300 ring-2 ring-cyan-500/30 shadow-md shadow-cyan-950/60',
-                          dot: 'bg-cyan-400',
-                          inactive: 'text-cyan-400/80 hover:text-cyan-300 hover:bg-neutral-800'
-                        };
-                      case 'emerald':
-                        return {
-                          icon: <TreePine size={16} />,
-                          active: 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 ring-2 ring-emerald-500/30 shadow-md shadow-emerald-950/60',
-                          dot: 'bg-emerald-400',
-                          inactive: 'text-emerald-400/80 hover:text-emerald-300 hover:bg-neutral-800'
-                        };
-                      case 'rose':
-                        return {
-                          icon: <Users size={16} />,
-                          active: 'bg-rose-950/80 border-rose-500/50 text-rose-300 ring-2 ring-rose-500/30 shadow-md shadow-rose-950/60',
-                          dot: 'bg-rose-400',
-                          inactive: 'text-rose-400/80 hover:text-rose-300 hover:bg-neutral-800'
-                        };
-                      case 'amber':
-                        return {
-                          icon: <Sliders size={16} />,
-                          active: 'bg-amber-950/80 border-amber-500/50 text-amber-300 ring-2 ring-amber-500/30 shadow-md shadow-amber-950/60',
-                          dot: 'bg-amber-400',
-                          inactive: 'text-amber-400/80 hover:text-amber-300 hover:bg-neutral-800'
-                        };
-                      case 'purple':
-                        return {
-                          icon: <Network size={16} />,
-                          active: 'bg-purple-950/80 border-purple-500/50 text-purple-300 ring-2 ring-purple-500/30 shadow-md shadow-purple-950/60',
-                          dot: 'bg-purple-400',
-                          inactive: 'text-purple-400/80 hover:text-purple-300 hover:bg-neutral-800'
-                        };
-                      default:
-                        return {
-                          icon: <Map size={16} />,
-                          active: 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300 ring-2 ring-cyan-500/30 shadow-md shadow-cyan-950/60',
-                          dot: 'bg-cyan-400',
-                          inactive: 'text-cyan-400/80 hover:text-cyan-300 hover:bg-neutral-800'
-                        };
+                  const renderModIcon = () => {
+                    switch (mod.iconName) {
+                      case 'Map': return <Map size={16} />;
+                      case 'TreePine': return <TreePine size={16} />;
+                      case 'Users': return <Users size={16} />;
+                      case 'Sliders': return <Sliders size={16} />;
+                      case 'Network': return <Network size={16} />;
+                      default: return <Map size={16} />;
                     }
                   };
-
-                  const styles = getModuleColorStyles();
 
                   return (
                     <button
@@ -882,15 +883,31 @@ export const EditorLayout: React.FC = () => {
                       title={`${mod.name} (${mod.associatedExtension})`}
                       className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 group relative border ${
                         isActive
-                          ? styles.active
-                          : `border-transparent ${styles.inactive}`
+                          ? 'shadow-md ring-1'
+                          : 'border-transparent hover:bg-neutral-800 hover:border-neutral-700'
                       }`}
+                      style={
+                        isActive
+                          ? {
+                              backgroundColor: `rgba(${modColor.rgb}, 0.25)`,
+                              borderColor: `rgba(${modColor.rgb}, 0.6)`,
+                              color: modColor.hex,
+                              boxShadow: `0 4px 12px rgba(${modColor.rgb}, 0.35)`
+                            }
+                          : {
+                              color: modColor.hex,
+                              backgroundColor: `rgba(${modColor.rgb}, 0.08)`
+                            }
+                      }
                     >
                       <span className="group-hover:scale-110 transition-transform">
-                        {styles.icon}
+                        {renderModIcon()}
                       </span>
                       {isActive && (
-                        <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 ${styles.dot} rounded-full ring-2 ring-neutral-900 animate-pulse`} />
+                        <span 
+                          className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-neutral-900 animate-pulse" 
+                          style={{ backgroundColor: modColor.hex }}
+                        />
                       )}
                     </button>
                   );
@@ -910,6 +927,17 @@ export const EditorLayout: React.FC = () => {
                 <FolderOpen size={16} className="text-amber-400" />
               </button>
 
+              {/* Theme Settings Button (Icon Only) */}
+              <button
+                type="button"
+                onClick={() => setIsThemeModalOpen(true)}
+                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl transition shadow-sm group"
+                title={`Theme Settings: ${theme.name}`}
+                aria-label="Theme Settings"
+              >
+                <Palette size={16} style={{ color: primaryDef.hex }} className="group-hover:scale-110 transition-transform" />
+              </button>
+
               {/* Save Project Button (Icon Only) */}
               <button
                 type="button"
@@ -918,7 +946,11 @@ export const EditorLayout: React.FC = () => {
                   refreshSavedProjects();
                   showToast(`Saved ${project.name}`, 'success');
                 }}
-                className="w-8 h-8 flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition shadow-md shadow-indigo-600/30"
+                className="w-8 h-8 flex items-center justify-center text-white rounded-xl transition shadow-md active:scale-95"
+                style={{
+                  backgroundColor: primaryDef.hex,
+                  boxShadow: `0 4px 12px rgba(${primaryDef.rgb}, 0.35)`
+                }}
                 title="Save Project"
                 aria-label="Save"
               >
@@ -931,8 +963,20 @@ export const EditorLayout: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setIsThemeModalOpen(true)}
+                className="p-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 rounded-xl transition"
+                title="Theme Settings"
+              >
+                <Palette size={16} style={{ color: primaryDef.hex }} />
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-md shadow-indigo-600/30"
+                className="px-3 py-1.5 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-md active:scale-95"
+                style={{
+                  backgroundColor: primaryDef.hex,
+                  boxShadow: `0 4px 12px rgba(${primaryDef.rgb}, 0.35)`
+                }}
               >
                 <Plus size={14} />
                 <span>Create Project</span>
@@ -972,6 +1016,7 @@ export const EditorLayout: React.FC = () => {
             onLaunchModule={(modId) => setActiveModuleId(modId)}
             onOpenExplorer={() => setIsExplorerModalOpen(true)}
             onOpenModulesModal={() => setIsModulesModalOpen(true)}
+            onOpenThemeModal={() => setIsThemeModalOpen(true)}
             onExportBundle={handleExportBundle}
           />
         )}
@@ -1933,19 +1978,41 @@ export const EditorLayout: React.FC = () => {
         onTriggerNativeInstall={triggerNativeInstall}
       />
 
+      {/* App Theme Settings & Palette Modal */}
+      <ThemeModal
+        isOpen={isThemeModalOpen}
+        onClose={() => setIsThemeModalOpen(false)}
+      />
+
       {/* Toast Notification Alerts */}
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
-          <div className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
-            toast.type === 'success'
-              ? 'bg-indigo-950/95 border-indigo-500/60 text-indigo-100 shadow-indigo-950/60'
-              : toast.type === 'error'
-              ? 'bg-red-950/95 border-red-500/60 text-red-200'
-              : 'bg-neutral-900/95 border-indigo-500/30 text-neutral-200'
-          }`}>
-            {toast.type === 'success' && <CheckCircle2 size={15} className="text-indigo-400 shrink-0" />}
+          <div 
+            className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
+              toast.type === 'success'
+                ? 'shadow-lg'
+                : toast.type === 'error'
+                ? 'bg-red-950/95 border-red-500/60 text-red-200'
+                : 'bg-neutral-900/95 border-neutral-700 text-neutral-200'
+            }`}
+            style={
+              toast.type === 'success'
+                ? {
+                    backgroundColor: `rgba(${primaryDef.rgb}, 0.25)`,
+                    borderColor: `rgba(${primaryDef.rgb}, 0.6)`,
+                    color: '#ffffff',
+                    boxShadow: `0 10px 25px -5px rgba(${primaryDef.rgb}, 0.4)`
+                  }
+                : undefined
+            }
+          >
+            {toast.type === 'success' && (
+              <CheckCircle2 size={15} style={{ color: primaryDef.hex }} className="shrink-0" />
+            )}
             {toast.type === 'error' && <AlertTriangle size={15} className="text-red-400 shrink-0" />}
-            {toast.type === 'info' && <HardDrive size={15} className="text-indigo-400 shrink-0" />}
+            {toast.type === 'info' && (
+              <HardDrive size={15} style={{ color: primaryDef.hex }} className="shrink-0" />
+            )}
             <span>{toast.text}</span>
           </div>
         </div>

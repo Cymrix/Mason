@@ -4,7 +4,13 @@
  */
 
 import { EditorLayout } from './components/EditorLayout';
+import { ThemeProvider } from './theme/ThemeContext';
 
 export default function App() {
-  return <EditorLayout />;
+  return (
+    <ThemeProvider>
+      <EditorLayout />
+    </ThemeProvider>
+  );
 }
+

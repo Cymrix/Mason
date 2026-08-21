@@ -101,7 +101,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
           {/* Header */}
           <div className="px-4 py-2 border-b border-neutral-800/80 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-indigo-950/90 border border-indigo-500/50 flex items-center justify-center shrink-0 shadow-xs">
+              <div className="w-6 h-6 rounded-lg bg-sky-950/90 border border-sky-500/50 flex items-center justify-center shrink-0 shadow-xs">
                 <img src="/favicon.svg" alt="Mason" className="w-3.5 h-3.5 drop-shadow" />
               </div>
               <span className="text-xs font-bold text-neutral-200">Mason Navigation</span>

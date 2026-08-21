@@ -779,13 +779,13 @@ export const EditorLayout: React.FC = () => {
               className="flex items-center gap-2 group hover:opacity-90 transition text-left"
               title="Mason Studio - View Dashboard"
             >
-              {/* Blue Mason Citadel Brand Icon */}
-              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-900/90 via-indigo-950 to-neutral-950 border border-indigo-500/50 flex items-center justify-center shadow-md shadow-indigo-950/60 shrink-0 group-hover:border-indigo-400 group-hover:scale-105 transition-all">
+              {/* Sky Blue Mason Citadel Brand Icon */}
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-sky-900/90 via-sky-950 to-neutral-950 border border-sky-500/50 flex items-center justify-center shadow-md shadow-sky-950/60 shrink-0 group-hover:border-sky-400 group-hover:scale-105 transition-all">
                 <img src="/favicon.svg" alt="Mason Logo" className="w-4 h-4 drop-shadow" />
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="font-black text-sm tracking-tight text-neutral-100 group-hover:text-white transition">Mason</span>
-                <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-950/80 border border-indigo-500/40 px-1.5 py-0.2 rounded shadow-xs">
+                <span className="text-[10px] font-mono font-bold text-sky-400 bg-sky-950/80 border border-sky-500/40 px-1.5 py-0.2 rounded shadow-xs">
                   {MASON_VERSION_DISPLAY}
                 </span>
               </div>

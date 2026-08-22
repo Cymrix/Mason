@@ -741,10 +741,19 @@ export const EditorLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-neutral-950 text-neutral-100 font-sans overflow-hidden select-none">
+    <div 
+      className="flex flex-col h-screen w-screen text-neutral-100 font-sans overflow-hidden select-none transition-colors duration-200"
+      style={{ backgroundColor: bgDef.hex }}
+    >
       
       {/* Top Navbar: Full-featured Header */}
-      <header className="h-14 border-b border-neutral-800/80 bg-neutral-900/90 backdrop-blur flex items-center justify-between px-4 shrink-0 z-30">
+      <header 
+        className="h-14 border-b px-4 flex items-center justify-between shrink-0 z-30 backdrop-blur transition-colors duration-200"
+        style={{
+          backgroundColor: `rgba(${primaryDef.rgb}, 0.08)`,
+          borderColor: `rgba(${primaryDef.rgb}, 0.22)`
+        }}
+      >
         <div className="flex items-center gap-3">
           
           {/* Hamburger Menu Navigation */}
@@ -995,7 +1004,10 @@ export const EditorLayout: React.FC = () => {
       </header>
 
       {/* Main Body Layout */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div 
+        className="flex-1 flex overflow-hidden relative transition-colors duration-200"
+        style={{ backgroundColor: bgDef.hex }}
+      >
         
         {/* CASE A: No Project Loaded -> Mason Welcome & Launcher View */}
         {!project && (

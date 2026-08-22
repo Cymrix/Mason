@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.86
+ * Current Release: v0.89
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.86';
-export const MASON_VERSION_DISPLAY = 'v0.86';
-export const MASON_FULL_VERSION = 'v0.86';
+export const MASON_VERSION = '0.89';
+export const MASON_VERSION_DISPLAY = 'v0.89';
+export const MASON_FULL_VERSION = 'v0.89';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,32 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.89',
+    date: '2026-08-22',
+    changes: [
+      'Synchronized Dashboard Card Theming: Wired all project dashboard cards, banners, quick actions, and subfolder stat blocks to dynamic theme surface colors (bgDef.cardHex & bgDef.borderHex), ensuring the dashboard cards update in real-time to match the live theme preview.',
+      'Synchronized Launcher Cards: Updated Mason welcome and project launcher cards to dynamically react to the active theme background and surface tones.'
+    ]
+  },
+  {
+    version: 'v0.88',
+    date: '2026-08-22',
+    changes: [
+      'Accurate Live Theme Workspace Preview: Updated the interactive live preview in the Theme Modal to render full miniature app chrome with true canvas background coloring, ensuring live theme changes match the actual application workspace.',
+      'Refined Background Palette UI: Removed redundant quick-swatch strip, option counter label, and top-right color preview for a cleaner, unified custom theme mixer.'
+    ]
+  },
+  {
+    version: 'v0.87',
+    date: '2026-08-22',
+    changes: [
+      'Dynamic App Background Theming: Fixed application background color persistence by wiring root layouts, canvas backdrops, and dashboard containers directly to dynamic theme CSS variables and bgDef colors.',
+      'Expanded Background Tones (12 Total Options): Added a comprehensive suite of rich ambient dark tones including Volcanic Obsidian, Verdant Deepwood, Occult Amethyst, Blood Abyss, Mariana Trench, Industrial Zinc, and Antique Bronze.',
+      'Background Color Swatch Selector: Redesigned the Custom Theme background palette picker into a compact responsive swatch grid and quick-swatch strip with active checkmarks and hex labels matching the accent color UI.',
+      'Instant Pre-mount Background Initialization: Injected lightweight pre-render background tone sync script into HTML document head to eliminate contrast flashing during initial app boot.'
+    ]
+  },
   {
     version: 'v0.86',
     date: '2026-08-21',

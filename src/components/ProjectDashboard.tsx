@@ -73,11 +73,18 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   const gameColor = getModuleColorDef('gamestructure');
 
   return (
-    <div className="flex-1 bg-neutral-950 overflow-y-auto p-6 md:p-8 space-y-6 select-none max-w-6xl mx-auto w-full">
+    <div 
+      className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 select-none max-w-6xl mx-auto w-full transition-colors duration-200"
+      style={{ backgroundColor: bgDef.hex }}
+    >
       
       {/* Project Banner & Overview */}
       <div 
-        className="relative overflow-hidden rounded-3xl border border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-900/90 to-neutral-950 p-6 md:p-8 shadow-2xl transition-all duration-300"
+        className="relative overflow-hidden rounded-3xl border p-6 md:p-8 shadow-2xl transition-all duration-300"
+        style={{
+          backgroundColor: bgDef.cardHex,
+          borderColor: bgDef.borderHex
+        }}
       >
         {/* Dynamic Glow backdrop */}
         <div 
@@ -98,7 +105,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               >
                 Active Mason Project
               </span>
-              <span className="text-xs font-mono text-neutral-400 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded">
+              <span 
+                className="text-xs font-mono text-neutral-400 border px-2 py-0.5 rounded"
+                style={{
+                  backgroundColor: bgDef.hex,
+                  borderColor: bgDef.borderHex
+                }}
+              >
                 {MASON_VERSION_DISPLAY}
               </span>
             </div>
@@ -145,7 +158,11 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               <button
                 type="button"
                 onClick={onOpenExplorer}
-                className="flex-1 px-4 py-2 rounded-2xl bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-neutral-300 text-xs font-bold flex items-center justify-center gap-2 transition"
+                className="flex-1 px-4 py-2 rounded-2xl border text-neutral-300 text-xs font-bold flex items-center justify-center gap-2 transition hover:text-white"
+                style={{
+                  backgroundColor: bgDef.hex,
+                  borderColor: bgDef.borderHex
+                }}
               >
                 <span>📂 Files Hub</span>
               </button>
@@ -154,7 +171,11 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 <button
                   type="button"
                   onClick={onOpenThemeModal}
-                  className="px-3.5 py-2 rounded-2xl bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 text-neutral-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                  className="px-3.5 py-2 rounded-2xl border text-neutral-300 text-xs font-bold flex items-center justify-center gap-1.5 transition hover:text-white"
+                  style={{
+                    backgroundColor: bgDef.hex,
+                    borderColor: bgDef.borderHex
+                  }}
                   title="Customize Theme & Colors"
                 >
                   <Palette size={14} style={{ color: primaryDef.hex }} />
@@ -176,14 +197,21 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
 
         {/* Project Metadata Edit Form (Collapsible) */}
         {isEditingMetadata && (
-          <div className="mt-6 pt-6 border-t border-neutral-800 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in duration-200">
+          <div 
+            className="mt-6 pt-6 border-t grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in duration-200"
+            style={{ borderColor: bgDef.borderHex }}
+          >
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase text-neutral-400">Project Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
+                className="w-full border rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
+                style={{
+                  backgroundColor: bgDef.hex,
+                  borderColor: bgDef.borderHex
+                }}
               />
             </div>
             <div className="space-y-1">
@@ -192,7 +220,11 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 type="text"
                 value={author}
                 onChange={e => setAuthor(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
+                className="w-full border rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
+                style={{
+                  backgroundColor: bgDef.hex,
+                  borderColor: bgDef.borderHex
+                }}
               />
             </div>
             <div className="space-y-1">
@@ -201,14 +233,22 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 type="text"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
+                className="w-full border rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
+                style={{
+                  backgroundColor: bgDef.hex,
+                  borderColor: bgDef.borderHex
+                }}
               />
             </div>
             <div className="md:col-span-3 flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setIsEditingMetadata(false)}
-                className="px-4 py-1.5 rounded-xl text-neutral-400 hover:bg-neutral-800 text-xs"
+                className="px-4 py-1.5 rounded-xl text-neutral-400 border hover:text-white text-xs"
+                style={{
+                  backgroundColor: bgDef.hex,
+                  borderColor: bgDef.borderHex
+                }}
               >
                 Cancel
               </button>
@@ -230,10 +270,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         {/* Maps */}
         <div 
           onClick={() => onLaunchModule('maps')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
-          style={{ borderColor: undefined }}
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          style={{
+            backgroundColor: bgDef.cardHex,
+            borderColor: bgDef.borderHex
+          }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = mapsColor.hex)}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = '')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
         >
           <div className="flex items-center justify-between">
             <div 
@@ -260,7 +303,6 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           <div className="mt-2.5">
             <div 
               className="text-xl font-black text-white group-hover:opacity-90 transition font-mono"
-              style={{ color: undefined }}
             >
               {mapCount}
             </div>
@@ -271,9 +313,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         {/* Biomes */}
         <div 
           onClick={() => onLaunchModule('biomes')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          style={{
+            backgroundColor: bgDef.cardHex,
+            borderColor: bgDef.borderHex
+          }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = biomesColor.hex)}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = '')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
         >
           <div className="flex items-center justify-between">
             <div 
@@ -306,9 +352,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         {/* Characters & Bespoke AI */}
         <div 
           onClick={() => onLaunchModule('characters')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          style={{
+            backgroundColor: bgDef.cardHex,
+            borderColor: bgDef.borderHex
+          }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = charactersColor.hex)}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = '')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
         >
           <div className="flex items-center justify-between">
             <div 
@@ -341,9 +391,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         {/* UI & HUD */}
         <div 
           onClick={() => onLaunchModule('ui')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          style={{
+            backgroundColor: bgDef.cardHex,
+            borderColor: bgDef.borderHex
+          }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = uiColor.hex)}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = '')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
         >
           <div className="flex items-center justify-between">
             <div 
@@ -376,9 +430,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         {/* Game Structure */}
         <div 
           onClick={() => onLaunchModule('gamestructure')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:bg-neutral-850 transition cursor-pointer group flex flex-col justify-between"
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          style={{
+            backgroundColor: bgDef.cardHex,
+            borderColor: bgDef.borderHex
+          }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = gameColor.hex)}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = '')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
         >
           <div className="flex items-center justify-between">
             <div 

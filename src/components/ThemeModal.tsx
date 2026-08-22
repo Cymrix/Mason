@@ -14,6 +14,7 @@ import {
   Network,
   ShieldCheck
 } from 'lucide-react';
+import { MasonBrandIcon } from './MasonBrandIcon';
 import { 
   useAppTheme 
 } from '../theme/ThemeContext';
@@ -620,15 +621,20 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
               {/* 3. Dark Backdrop Tone */}
               <div className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800 space-y-3">
                 <div>
-                  <h3 className="font-bold text-sm text-neutral-100">
-                    App Background Tone
+                  <h3 className="font-bold text-sm text-neutral-100 flex items-center gap-2">
+                    <span 
+                      className="w-3.5 h-3.5 rounded-md border border-neutral-700 shadow-inner" 
+                      style={{ backgroundColor: bgDef.hex }} 
+                    />
+                    <span>App Background Tone</span>
                   </h3>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    Select the foundational dark tone for the workspace canvas, dashboard backdrop, and cards.
+                    Choose the ambient dark tone for the workspace canvas, project dashboard, and UI chrome.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                {/* Swatch Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pt-1">
                   {toneKeys.map(t => {
                     const bgOption = BACKGROUND_TONES[t];
                     const isSelected = theme.backgroundTone === t;
@@ -638,22 +644,31 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         key={t}
                         type="button"
                         onClick={() => setBackgroundTone(t)}
-                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 ${
+                        className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 relative group ${
                           isSelected
-                            ? 'border-white/60 ring-2'
-                            : 'border-neutral-800 hover:border-neutral-700'
+                            ? 'ring-2 shadow-lg'
+                            : 'border-neutral-800 hover:border-neutral-650'
                         }`}
                         style={{ 
                           backgroundColor: bgOption.hex,
-                          borderColor: isSelected ? primaryDef.hex : undefined,
+                          borderColor: isSelected ? primaryDef.hex : '#262626',
                           boxShadow: isSelected ? `0 0 0 2px ${primaryDef.hex}` : undefined
                         }}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">{bgOption.name}</span>
-                          {isSelected && <Check size={12} className={primaryDef.textClass} />}
+                        <div 
+                          className="w-5 h-5 rounded-lg shrink-0 border border-neutral-700 flex items-center justify-center shadow-inner"
+                          style={{ backgroundColor: bgOption.cardHex }}
+                        >
+                          {isSelected && <Check size={11} style={{ color: primaryDef.hex }} />}
                         </div>
-                        <span className="text-[10px] font-mono text-neutral-400">{bgOption.hex}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-neutral-100 truncate group-hover:text-white transition">
+                            {bgOption.name}
+                          </div>
+                          <div className="text-[10px] font-mono text-neutral-400 truncate">
+                            {bgOption.hex}
+                          </div>
+                        </div>
                       </button>
                     );
                   })}
@@ -671,87 +686,140 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                 Live Theme Preview
               </span>
               <span className="text-[10px] font-mono text-neutral-500">
-                Primary: {primaryDef.name} ({primaryDef.hex})
+                Primary: {primaryDef.name} ({primaryDef.hex}) • Background: {bgDef.name} ({bgDef.hex})
               </span>
             </div>
 
-            {/* Simulated mini dashboard card */}
+            {/* Simulated mini Mason application window matching actual app workspace behavior */}
             <div 
-              className="p-4 rounded-2xl border relative overflow-hidden transition-all duration-300"
+              className="rounded-2xl border overflow-hidden transition-all duration-300 shadow-2xl"
               style={{
                 backgroundColor: bgDef.hex,
-                borderColor: `rgba(${primaryDef.rgb}, 0.3)`
+                borderColor: `rgba(${primaryDef.rgb}, 0.25)`
               }}
             >
-              {/* Glow overlay */}
+              {/* Mini Window App Header / Bar */}
               <div 
-                className="absolute -top-12 -right-12 w-48 h-48 rounded-full blur-2xl pointer-events-none opacity-25"
-                style={{ backgroundColor: primaryDef.hex }}
-              />
-
-              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span 
-                      className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border"
-                      style={{
-                        backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
-                        borderColor: `rgba(${primaryDef.rgb}, 0.4)`,
-                        color: primaryDef.hex
-                      }}
-                    >
-                      Active Mason Project
-                    </span>
+                className="h-9 px-3 border-b flex items-center justify-between transition-colors duration-200"
+                style={{
+                  backgroundColor: `rgba(${primaryDef.rgb}, 0.12)`,
+                  borderColor: `rgba(${primaryDef.rgb}, 0.25)`
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-500/80" />
+                    <span className="w-2 h-2 rounded-full bg-amber-500/80" />
+                    <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
                   </div>
-                  <h4 className="text-base font-bold text-white">Citadel Metroidvania Core</h4>
-                  <p className="text-xs text-neutral-400">Modular level geometry & 7-layer parallax</p>
+                  <div className="h-3 w-px bg-white/20 mx-1" />
+                  <span className="text-xs font-bold text-neutral-100 flex items-center gap-1.5">
+                    <MasonBrandIcon size={14} />
+                    <span>Mason Studio</span>
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-lg transition"
+                <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                  <span 
+                    className="px-2 py-0.5 rounded border"
                     style={{
-                      backgroundColor: primaryDef.hex,
-                      boxShadow: `0 8px 16px -4px rgba(${primaryDef.rgb}, 0.4)`
+                      backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
+                      borderColor: `rgba(${primaryDef.rgb}, 0.4)`,
+                      color: primaryDef.hex
                     }}
                   >
-                    Open Directory
-                  </button>
+                    {primaryDef.name}
+                  </span>
+                </div>
+              </div>
 
-                  <div className="flex items-center gap-1 bg-neutral-900/80 p-1 rounded-xl border border-neutral-800">
-                    <div 
-                      className="w-7 h-7 rounded-lg flex items-center justify-center border text-xs"
-                      style={{
-                        backgroundColor: `rgba(${getModuleColorDef('maps').rgb}, 0.2)`,
-                        borderColor: getModuleColorDef('maps').hex,
-                        color: getModuleColorDef('maps').hex
-                      }}
-                      title="Maps"
-                    >
-                      <Map size={14} />
+              {/* Mini App Workspace Canvas (Matches true app background) */}
+              <div 
+                className="p-4 sm:p-5 relative overflow-hidden transition-colors duration-300"
+                style={{ backgroundColor: bgDef.hex }}
+              >
+                {/* Simulated inner project dashboard card */}
+                <div 
+                  className="p-4 rounded-2xl border relative overflow-hidden transition-all duration-300 shadow-xl"
+                  style={{
+                    backgroundColor: bgDef.cardHex,
+                    borderColor: bgDef.borderHex
+                  }}
+                >
+                  {/* Dynamic Primary Accent Glow overlay */}
+                  <div 
+                    className="absolute -top-12 -right-12 w-48 h-48 rounded-full blur-2xl pointer-events-none opacity-20"
+                    style={{ backgroundColor: primaryDef.hex }}
+                  />
+
+                  <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="text-[10px] font-mono font-bold px-2 py-0.5 rounded border"
+                          style={{
+                            backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
+                            borderColor: `rgba(${primaryDef.rgb}, 0.4)`,
+                            color: primaryDef.hex
+                          }}
+                        >
+                          Active Mason Project
+                        </span>
+                        <span className="text-[10px] font-mono text-neutral-400 bg-black/40 border border-neutral-700/50 px-1.5 py-0.5 rounded">
+                          {bgDef.name} Canvas
+                        </span>
+                      </div>
+                      <h4 className="text-sm sm:text-base font-bold text-white">Citadel Metroidvania Core</h4>
+                      <p className="text-xs text-neutral-400">Modular level geometry & 7-layer parallax</p>
                     </div>
-                    <div 
-                      className="w-7 h-7 rounded-lg flex items-center justify-center border text-xs"
-                      style={{
-                        backgroundColor: `rgba(${getModuleColorDef('biomes').rgb}, 0.2)`,
-                        borderColor: getModuleColorDef('biomes').hex,
-                        color: getModuleColorDef('biomes').hex
-                      }}
-                      title="Biomes"
-                    >
-                      <TreePine size={14} />
-                    </div>
-                    <div 
-                      className="w-7 h-7 rounded-lg flex items-center justify-center border text-xs"
-                      style={{
-                        backgroundColor: `rgba(${getModuleColorDef('characters').rgb}, 0.2)`,
-                        borderColor: getModuleColorDef('characters').hex,
-                        color: getModuleColorDef('characters').hex
-                      }}
-                      title="Characters & AI"
-                    >
-                      <Users size={14} />
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-lg transition"
+                        style={{
+                          backgroundColor: primaryDef.hex,
+                          boxShadow: `0 6px 14px -3px rgba(${primaryDef.rgb}, 0.4)`
+                        }}
+                      >
+                        Open Editor
+                      </button>
+
+                      <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-neutral-800">
+                        <div 
+                          className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
+                          style={{
+                            backgroundColor: `rgba(${getModuleColorDef('maps').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('maps').hex,
+                            color: getModuleColorDef('maps').hex
+                          }}
+                          title="Maps"
+                        >
+                          <Map size={13} />
+                        </div>
+                        <div 
+                          className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
+                          style={{
+                            backgroundColor: `rgba(${getModuleColorDef('biomes').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('biomes').hex,
+                            color: getModuleColorDef('biomes').hex
+                          }}
+                          title="Biomes"
+                        >
+                          <TreePine size={13} />
+                        </div>
+                        <div 
+                          className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
+                          style={{
+                            backgroundColor: `rgba(${getModuleColorDef('characters').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('characters').hex,
+                            color: getModuleColorDef('characters').hex
+                          }}
+                          title="Characters & AI"
+                        >
+                          <Users size={13} />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

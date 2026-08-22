@@ -24,7 +24,19 @@ export type AccentColorKey =
   | 'okabe_vermillion'
   | 'okabe_redpurple';
 
-export type BackgroundToneKey = 'void' | 'slate' | 'navy' | 'carbon' | 'espresso';
+export type BackgroundToneKey = 
+  | 'void' 
+  | 'slate' 
+  | 'navy' 
+  | 'carbon' 
+  | 'espresso'
+  | 'obsidian'
+  | 'emerald_dark'
+  | 'amethyst_dark'
+  | 'crimson_dark'
+  | 'deep_ocean'
+  | 'zinc'
+  | 'amber_dark';
 
 export type ThemeCategory = 'standard' | 'accessibility';
 
@@ -328,41 +340,137 @@ export const COLOR_DEFINITIONS: Record<AccentColorKey, ColorDef> = {
   }
 };
 
-export const BACKGROUND_TONES: Record<BackgroundToneKey, { name: string; bgClass: string; cardClass: string; borderClass: string; hex: string }> = {
+export interface BackgroundToneDef {
+  name: string;
+  bgClass: string;
+  cardClass: string;
+  borderClass: string;
+  hex: string;
+  cardHex: string;
+  borderHex: string;
+  description: string;
+}
+
+export const BACKGROUND_TONES: Record<BackgroundToneKey, BackgroundToneDef> = {
   void: {
     name: 'Void Black',
     bgClass: 'bg-neutral-950',
     cardClass: 'bg-neutral-900/90',
     borderClass: 'border-neutral-800',
-    hex: '#0a0a0a'
+    hex: '#0a0a0a',
+    cardHex: '#141414',
+    borderHex: '#262626',
+    description: 'Pure pitch black OLED contrast'
   },
   slate: {
     name: 'Dark Slate',
     bgClass: 'bg-slate-950',
     cardClass: 'bg-slate-900/90',
     borderClass: 'border-slate-800',
-    hex: '#020617'
+    hex: '#0b0f19',
+    cardHex: '#131b2e',
+    borderHex: '#1e293b',
+    description: 'Cool midnight grey-blue studio'
   },
   navy: {
     name: 'Midnight Navy',
-    bgClass: 'bg-[#060b18]',
-    cardClass: 'bg-[#0c1328]/90',
-    borderClass: 'border-[#1e294b]',
-    hex: '#060b18'
+    bgClass: 'bg-[#050c1e]',
+    cardClass: 'bg-[#0d1836]/90',
+    borderClass: 'border-[#1c2d5a]',
+    hex: '#050c1e',
+    cardHex: '#0d1836',
+    borderHex: '#1c2d5a',
+    description: 'Abyssal deep sci-fi maritime blue'
   },
   carbon: {
     name: 'Carbon Steel',
-    bgClass: 'bg-[#121214]',
-    cardClass: 'bg-[#1a1a1e]/90',
-    borderClass: 'border-[#27272e]',
-    hex: '#121214'
+    bgClass: 'bg-[#121215]',
+    cardClass: 'bg-[#1c1c22]/90',
+    borderClass: 'border-[#2c2c36]',
+    hex: '#121215',
+    cardHex: '#1c1c22',
+    borderHex: '#2c2c36',
+    description: 'Neutral matte graphite charcoal'
   },
   espresso: {
     name: 'Espresso Dark',
-    bgClass: 'bg-[#120e0c]',
-    cardClass: 'bg-[#1c1714]/90',
-    borderClass: 'border-[#2d2420]',
-    hex: '#120e0c'
+    bgClass: 'bg-[#140f0d]',
+    cardClass: 'bg-[#1f1714]/90',
+    borderClass: 'border-[#362722]',
+    hex: '#140f0d',
+    cardHex: '#1f1714',
+    borderHex: '#362722',
+    description: 'Warm earthy dark roasted coffee'
+  },
+  obsidian: {
+    name: 'Volcanic Obsidian',
+    bgClass: 'bg-[#120911]',
+    cardClass: 'bg-[#1d101c]/90',
+    borderClass: 'border-[#361c34]',
+    hex: '#120911',
+    cardHex: '#1d101c',
+    borderHex: '#361c34',
+    description: 'Velvet plum gothic dark wine'
+  },
+  emerald_dark: {
+    name: 'Verdant Deepwood',
+    bgClass: 'bg-[#05130e]',
+    cardClass: 'bg-[#0a2119]/90',
+    borderClass: 'border-[#133b2c]',
+    hex: '#05130e',
+    cardHex: '#0a2119',
+    borderHex: '#133b2c',
+    description: 'Nocturnal dark forest pine & moss'
+  },
+  amethyst_dark: {
+    name: 'Occult Amethyst',
+    bgClass: 'bg-[#0e0918]',
+    cardClass: 'bg-[#170f28]/90',
+    borderClass: 'border-[#2c1c4d]',
+    hex: '#0e0918',
+    cardHex: '#170f28',
+    borderHex: '#2c1c4d',
+    description: 'Deep twilight astral dark violet'
+  },
+  crimson_dark: {
+    name: 'Blood Abyss',
+    bgClass: 'bg-[#160708]',
+    cardClass: 'bg-[#240c0e]/90',
+    borderClass: 'border-[#421418]',
+    hex: '#160708',
+    cardHex: '#240c0e',
+    borderHex: '#421418',
+    description: 'Sinister gothic dungeon crimson'
+  },
+  deep_ocean: {
+    name: 'Mariana Trench',
+    bgClass: 'bg-[#04131c]',
+    cardClass: 'bg-[#082030]/90',
+    borderClass: 'border-[#0f3854]',
+    hex: '#04131c',
+    cardHex: '#082030',
+    borderHex: '#0f3854',
+    description: 'Submerged oceanic teal abyss'
+  },
+  zinc: {
+    name: 'Industrial Zinc',
+    bgClass: 'bg-[#101114]',
+    cardClass: 'bg-[#181a1f]/90',
+    borderClass: 'border-[#292d36]',
+    hex: '#101114',
+    cardHex: '#181a1f',
+    borderHex: '#292d36',
+    description: 'Tactical gunmetal titanium'
+  },
+  amber_dark: {
+    name: 'Antique Bronze',
+    bgClass: 'bg-[#151006]',
+    cardClass: 'bg-[#22190a]/90',
+    borderClass: 'border-[#3d2e14]',
+    hex: '#151006',
+    cardHex: '#22190a',
+    borderHex: '#3d2e14',
+    description: 'Subtle warm vintage dark amber'
   }
 };
 
@@ -582,9 +690,17 @@ export function applyThemeCSSVariables(theme: AppThemeConfig): void {
     root.style.setProperty('--mason-ui-color', COLOR_DEFINITIONS[theme.moduleColors.ui]?.hex || '#f59e0b');
     root.style.setProperty('--mason-gamestructure-color', COLOR_DEFINITIONS[theme.moduleColors.gamestructure]?.hex || '#a855f7');
     root.style.setProperty('--mason-bg-base', bgDef.hex);
+    root.style.setProperty('--mason-bg-card', bgDef.cardHex);
+    root.style.setProperty('--mason-border-base', bgDef.borderHex);
 
-    // Update all <meta name="theme-color"> tags to color the PWA window titlebar and browser chrome
+    // Update document & body background colors directly for immediate full-app application
     if (typeof document !== 'undefined') {
+      document.documentElement.style.backgroundColor = bgDef.hex;
+      if (document.body) {
+        document.body.style.backgroundColor = bgDef.hex;
+      }
+
+      // Update all <meta name="theme-color"> tags to color the PWA window titlebar and browser chrome
       const themeMetas = document.querySelectorAll('meta[name="theme-color"]');
       if (themeMetas.length > 0) {
         themeMetas.forEach(meta => meta.setAttribute('content', primaryDef.hex));

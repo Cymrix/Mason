@@ -24,6 +24,28 @@
     <meta property="og:description" content="Modular 2D Metroidvania world authoring tool with mini-apps." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Instant Pre-mount Background Tone Initialization -->
+    <script>
+      (function() {
+        try {
+          var raw = localStorage.getItem('mason_app_theme_v1');
+          if (raw) {
+            var theme = JSON.parse(raw);
+            var tone = theme && theme.backgroundTone;
+            var tones = {
+              void: '#0a0a0a', slate: '#0b0f19', navy: '#050c1e', carbon: '#121215',
+              espresso: '#140f0d', obsidian: '#120911', emerald_dark: '#05130e',
+              amethyst_dark: '#0e0918', crimson_dark: '#160708', deep_ocean: '#04131c',
+              zinc: '#101114', amber_dark: '#151006'
+            };
+            if (tone && tones[tone]) {
+              document.documentElement.style.backgroundColor = tones[tone];
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body class="bg-neutral-950 text-neutral-100 antialiased overflow-hidden select-none">
     <div id="root"></div>

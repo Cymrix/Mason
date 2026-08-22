@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.89
+ * Current Release: v0.91
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.89';
-export const MASON_VERSION_DISPLAY = 'v0.89';
-export const MASON_FULL_VERSION = 'v0.89';
+export const MASON_VERSION = '0.91';
+export const MASON_VERSION_DISPLAY = 'v0.91';
+export const MASON_FULL_VERSION = 'v0.91';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,23 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.91',
+    date: '2026-08-22',
+    changes: [
+      'Map Module HUD Enhancement: Replaced the center-top Region Transitioning progress overlay with an Upper-Left Map Chunk Biome HUD inspector.',
+      'Real-Time Hover Inspection: The new upper-left HUD dynamically tracks the mouse cursor and displays the exact chunk coordinates [cx, cy], tile coordinates (x, y), biome name, and regional color gem for whichever chunk is currently hovered.'
+    ]
+  },
+  {
+    version: 'v0.90',
+    date: '2026-08-22',
+    changes: [
+      'Character Module Spritesheet Optimization: Removed redundant Total Frames input from spritesheet slot cards (frames are configured directly per animation clip).',
+      'Tile Grid Inspector Cleanup: Removed the redundant "Set as Start Frame" button from the spritesheet inspector.',
+      'Fixed Spritesheet Zoom & Viewport Framing: Synchronized tile grid cell dimensions with background slice size and offsets across all zoom levels (0.5x, 1x, 2x, 3x, 4x), guaranteeing every sprite frame stays perfectly centered and bounded inside each cell.'
+    ]
+  },
   {
     version: 'v0.89',
     date: '2026-08-22',

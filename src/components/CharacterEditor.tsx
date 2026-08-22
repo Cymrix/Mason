@@ -335,7 +335,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   // Spritesheet Viewer & Image Cache States
   const [selectedSheetId, setSelectedSheetId] = useState<string>('');
   const [inspectedFrameIdx, setInspectedFrameIdx] = useState<number | null>(null);
-  const [sheetViewerZoom, setSheetViewerZoom] = useState<number>(2.0);
+  const [sheetViewerZoom, setSheetViewerZoom] = useState<number>(1.0);
   const [forceCanvasRedraw, setForceCanvasRedraw] = useState<number>(0);
   const loadedImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
@@ -2689,7 +2689,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                             className="max-h-24 object-contain image-rendering-pixelated rounded"
                           />
                           <span className="text-[10px] text-neutral-400 font-mono mt-1">
-                            {sheet.cols} cols × {sheet.rows} rows ({sheet.cols * sheet.rows} frames)
+                            {sheet.cols} cols × {sheet.rows} rows
                           </span>
                         </div>
                       ) : (
@@ -2786,7 +2786,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] text-neutral-400 font-bold block">Columns</label>
                           <input
@@ -2815,20 +2815,6 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                             className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] text-neutral-400 font-bold block">Total Frames</label>
-                          <input
-                            type="number"
-                            value={sheet.totalFrames || (sheet.cols * sheet.rows)}
-                            onChange={(e) => {
-                              updateCharacter(c => ({
-                                ...c,
-                                spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? { ...s, totalFrames: Number(e.target.value) } : s)
-                              }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                          />
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -2846,6 +2832,11 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
               const tw = activeSheet.tileWidth || 64;
               const th = activeSheet.tileHeight || 64;
               const total = cols * rows;
+              const scale = sheetViewerZoom;
+              const cellW = Math.round(tw * scale);
+              const cellH = Math.round(th * scale);
+              const sheetW = cols * cellW;
+              const sheetH = rows * cellH;
 
               return (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-4">
@@ -2862,13 +2853,13 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-neutral-400 font-mono">Zoom:</span>
-                      {[1, 2, 3, 4].map(z => (
+                      {[0.5, 1, 2, 3, 4].map(z => (
                         <button
                           key={z}
                           type="button"
                           onClick={() => setSheetViewerZoom(z)}
                           className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${
-                            sheetViewerZoom === z ? 'bg-purple-600 text-white' : 'bg-neutral-800 text-neutral-400 hover:text-white'
+                            sheetViewerZoom === z ? 'bg-purple-600 text-white shadow-md' : 'bg-neutral-800 text-neutral-400 hover:text-white'
                           }`}
                         >
                           {z}x
@@ -2878,12 +2869,12 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                   </div>
 
                   {/* Interactive Tile Grid Matrix */}
-                  <div className="overflow-x-auto p-2 bg-neutral-950 border border-neutral-800 rounded-xl">
+                  <div className="overflow-auto max-h-[520px] p-3 bg-neutral-950 border border-neutral-800 rounded-xl">
                     <div 
-                      className="grid gap-1 relative"
+                      className="grid gap-1.5 relative"
                       style={{
-                        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                        width: `${cols * tw * (sheetViewerZoom * 0.4)}px`
+                        gridTemplateColumns: `repeat(${cols}, ${cellW}px)`,
+                        width: 'max-content'
                       }}
                     >
                       {Array.from({ length: total }).map((_, fIdx) => {
@@ -2895,29 +2886,30 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           <div
                             key={fIdx}
                             onClick={() => setInspectedFrameIdx(fIdx)}
-                            className={`relative border rounded cursor-pointer group transition overflow-hidden ${
+                            className={`relative border rounded-lg cursor-pointer group transition overflow-hidden ${
                               isInspected
                                 ? 'border-purple-400 bg-purple-950/60 ring-2 ring-purple-400/50'
                                 : 'border-purple-900/30 bg-neutral-900/80 hover:border-purple-500/60 hover:bg-neutral-800'
                             }`}
                             style={{
-                              height: `${th * (sheetViewerZoom * 0.4)}px`
+                              width: `${cellW}px`,
+                              height: `${cellH}px`
                             }}
                             title={`Frame #${fIdx} (Col ${col}, Row ${row})`}
                           >
                             {/* Frame Index Badge */}
-                            <span className="absolute top-0.5 left-0.5 text-[9px] font-mono font-bold px-1 rounded bg-black/70 text-purple-300 z-10">
+                            <span className="absolute top-0.5 left-0.5 text-[9px] font-mono font-bold px-1 rounded bg-black/80 text-purple-300 z-10 select-none">
                               #{fIdx}
                             </span>
 
                             {/* Rendered Frame Image Slice if Available */}
                             {activeSheet.imageUrl || activeSheet.dataUrl ? (
                               <div
-                                className="w-full h-full bg-no-repeat image-rendering-pixelated"
+                                className="w-full h-full bg-no-repeat image-rendering-pixelated pointer-events-none"
                                 style={{
                                   backgroundImage: `url(${activeSheet.imageUrl || activeSheet.dataUrl})`,
-                                  backgroundPosition: `-${col * tw}px -${row * th}px`,
-                                  backgroundSize: `${cols * tw}px ${rows * th}px`
+                                  backgroundPosition: `-${col * cellW}px -${row * cellH}px`,
+                                  backgroundSize: `${sheetW}px ${sheetH}px`
                                 }}
                               />
                             ) : (
@@ -2935,14 +2927,14 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                   {inspectedFrameIdx !== null && (
                     <div className="p-3 bg-neutral-950 border border-purple-900/40 rounded-xl flex items-center justify-between flex-wrap gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded bg-neutral-900 border border-purple-500/40 p-1 flex items-center justify-center overflow-hidden shrink-0">
+                        <div className="w-14 h-14 rounded-xl bg-neutral-900 border border-purple-500/40 p-1 flex items-center justify-center overflow-hidden shrink-0">
                           {activeSheet.imageUrl || activeSheet.dataUrl ? (
                             <div
                               className="w-full h-full bg-no-repeat image-rendering-pixelated"
                               style={{
                                 backgroundImage: `url(${activeSheet.imageUrl || activeSheet.dataUrl})`,
-                                backgroundPosition: `-${(inspectedFrameIdx % cols) * tw}px -${Math.floor(inspectedFrameIdx / cols) * th}px`,
-                                backgroundSize: `${cols * tw}px ${rows * th}px`
+                                backgroundPosition: `-${(inspectedFrameIdx % cols) * 48}px -${Math.floor(inspectedFrameIdx / cols) * 48}px`,
+                                backgroundSize: `${cols * 48}px ${rows * 48}px`
                               }}
                             />
                           ) : (
@@ -2962,23 +2954,6 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           </p>
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateCharacter(c => ({
-                            ...c,
-                            animations: (c.animations || []).map(a => a.stateId === currentAnimation.stateId ? {
-                              ...a,
-                              spritesheetId: activeSheet.id,
-                              startFrameIndex: inspectedFrameIdx
-                            } : a)
-                          }));
-                        }}
-                        className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition"
-                      >
-                        Set as Start Frame for Current Animation ({currentAnimation.stateId})
-                      </button>
                     </div>
                   )}
                 </div>

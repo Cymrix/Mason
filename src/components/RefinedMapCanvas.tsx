@@ -72,7 +72,7 @@ import { renderRefinedTileCell } from '../engine/tileMaterialRenderer';
 import { drawThresholdCrackMask } from '../engine/heightBlendShader';
 import { renderParallaxLayer } from '../engine/parallaxRenderer';
 import { globalChunkCache } from '../engine/chunkCacheManager';
-import { getCell, calculateMapBounds, CHUNK_SIZE } from '../engine/mapChunkHelper';
+import { getCell, calculateMapBounds, CHUNK_SIZE, getChunkCoords, getChunkKey } from '../engine/mapChunkHelper';
 import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
 import { 
   ZoomIn, 
@@ -408,6 +408,32 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       lastTimeRef.current = performance.now();
     }
   }, [targetBiomeId]);
+
+  // Hovered Chunk & Biome derivation for Upper-Left HUD
+  const hoveredChunkInfo = React.useMemo(() => {
+    if (!hoverTile) return null;
+    const { cx, cy, lx, ly } = getChunkCoords(hoverTile.x, hoverTile.y);
+    const chunkKey = getChunkKey(cx, cy);
+    const chunk = mapData.chunks?.[chunkKey];
+    
+    // Check cell directly first, then fall back to chunk cells
+    const cell = chunk ? chunk[ly * CHUNK_SIZE + lx] : (mapData.cells ? getCell(mapData, hoverTile.x, hoverTile.y) : null);
+    const firstCellWithBiome = chunk ? chunk.find(c => c && c.biome_id) : null;
+    const biomeId = cell?.biome_id || firstCellWithBiome?.biome_id;
+    
+    const biome = biomeId ? (biomeMap[biomeId] || biomes.find(b => b.id === biomeId) || null) : null;
+    const hasChunk = !!chunk || (mapData.cells && cell !== null);
+    
+    return {
+      cx,
+      cy,
+      tileX: hoverTile.x,
+      tileY: hoverTile.y,
+      hasChunk,
+      biome,
+      biomeId
+    };
+  }, [hoverTile, mapData, biomeMap, biomes]);
 
   // Keyboard shortcut for toggling grid
   useEffect(() => {
@@ -1942,22 +1968,79 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         </>
       )}
 
-      {/* Biome Region Transition HUD Overlay Banner */}
-      {mode === 'paint' && fadeAlphaRef.current < 1.0 && (currentBiomeRef.current || prevBiomeRef.current) && (
-        <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-300">
-          <div className="bg-neutral-950/90 border border-cyan-500/40 shadow-2xl shadow-cyan-950/60 backdrop-blur-md px-4 py-2 rounded-2xl flex items-center gap-3 animate-fade-in">
-            <Compass className="w-4 h-4 text-cyan-400 animate-spin" style={{ animationDuration: '6s' }} />
-            <div className="flex flex-col">
-              <span className="text-[9px] uppercase tracking-widest text-cyan-400/80 font-mono font-bold">Region Transitioning</span>
-              <span className="text-xs font-extrabold text-white tracking-wide">
-                {currentBiomeRef.current ? currentBiomeRef.current.name : 'Unallocated Void (No Biome)'}
-              </span>
-            </div>
-            <div className="w-12 h-1.5 bg-neutral-800/80 rounded-full overflow-hidden ml-1 border border-neutral-700/50">
-              <div 
-                className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-75"
-                style={{ width: `${Math.round(fadeAlphaRef.current * 100)}%` }}
+      {/* Upper-Left Hovered Map Chunk Biome HUD Overlay */}
+      {mode === 'paint' && (
+        <div className="absolute top-4 left-4 z-20 pointer-events-none select-none transition-all duration-200">
+          <div 
+            className="bg-neutral-950/90 border shadow-2xl backdrop-blur-md px-3.5 py-2 rounded-2xl flex items-center gap-3 animate-fade-in"
+            style={{
+              borderColor: hoveredChunkInfo?.biome?.regionColor 
+                ? `${hoveredChunkInfo.biome.regionColor}60` 
+                : (hoveredChunkInfo?.hasChunk ? 'rgba(56, 189, 248, 0.4)' : (hoveredChunkInfo ? 'rgba(148, 163, 184, 0.3)' : 'rgba(56, 189, 248, 0.3)')),
+              boxShadow: hoveredChunkInfo?.biome?.regionColor
+                ? `0 10px 25px -5px ${hoveredChunkInfo.biome.regionColor}33`
+                : undefined
+            }}
+          >
+            {/* Biome Indicator Gem */}
+            <div 
+              className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0 transition-colors shadow-inner"
+              style={{
+                backgroundColor: hoveredChunkInfo?.biome?.regionColor 
+                  ? `${hoveredChunkInfo.biome.regionColor}25` 
+                  : (hoveredChunkInfo?.hasChunk ? 'rgba(56, 189, 248, 0.15)' : 'rgba(100, 116, 139, 0.15)'),
+                borderColor: hoveredChunkInfo?.biome?.regionColor 
+                  ? hoveredChunkInfo.biome.regionColor 
+                  : (hoveredChunkInfo?.hasChunk ? '#38bdf8' : '#64748b')
+              }}
+            >
+              <Compass 
+                className="w-4 h-4 transition-transform"
+                style={{
+                  color: hoveredChunkInfo?.biome?.regionColor || (hoveredChunkInfo?.hasChunk ? '#38bdf8' : '#94a3b8')
+                }} 
               />
+            </div>
+
+            {/* Chunk & Biome Label */}
+            <div className="flex flex-col min-w-0 pr-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] uppercase tracking-widest text-neutral-400 font-mono font-bold">
+                  {hoveredChunkInfo 
+                    ? `Chunk [${hoveredChunkInfo.cx}, ${hoveredChunkInfo.cy}]` 
+                    : 'Current Map Biome'
+                  }
+                </span>
+                {hoveredChunkInfo && (
+                  <span className="text-[9px] font-mono text-neutral-500">
+                    Tile ({hoveredChunkInfo.tileX}, {hoveredChunkInfo.tileY})
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 truncate">
+                <span 
+                  className="text-xs font-extrabold text-white tracking-wide truncate"
+                >
+                  {hoveredChunkInfo
+                    ? (hoveredChunkInfo.biome 
+                        ? hoveredChunkInfo.biome.name 
+                        : (hoveredChunkInfo.hasChunk ? 'Custom / Unassigned Biome' : 'Unallocated Void'))
+                    : (activeBiome?.name || 'No Biome Selected')
+                  }
+                </span>
+                {hoveredChunkInfo?.biome?.regionColor ? (
+                  <span 
+                    className="w-2 h-2 rounded-full shrink-0 shadow-sm"
+                    style={{ backgroundColor: hoveredChunkInfo.biome.regionColor }}
+                  />
+                ) : !hoveredChunkInfo && activeBiome?.regionColor ? (
+                  <span 
+                    className="w-2 h-2 rounded-full shrink-0 shadow-sm"
+                    style={{ backgroundColor: activeBiome.regionColor }}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
         </div>

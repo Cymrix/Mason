@@ -568,17 +568,52 @@ export function saveAppTheme(theme: AppThemeConfig): void {
 }
 
 export function applyThemeCSSVariables(theme: AppThemeConfig): void {
-  const root = document.documentElement;
-  const primaryDef = COLOR_DEFINITIONS[theme.primary] || COLOR_DEFINITIONS.indigo;
-  const bgDef = BACKGROUND_TONES[theme.backgroundTone] || BACKGROUND_TONES.void;
+  try {
+    const root = document.documentElement;
+    const primaryDef = COLOR_DEFINITIONS[theme.primary] || COLOR_DEFINITIONS.indigo;
+    const bgDef = BACKGROUND_TONES[theme.backgroundTone] || BACKGROUND_TONES.void;
 
-  root.style.setProperty('--mason-primary', primaryDef.hex);
-  root.style.setProperty('--mason-primary-rgb', primaryDef.rgb);
+    root.style.setProperty('--mason-primary', primaryDef.hex);
+    root.style.setProperty('--mason-primary-rgb', primaryDef.rgb);
 
-  root.style.setProperty('--mason-maps-color', COLOR_DEFINITIONS[theme.moduleColors.maps]?.hex || '#06b6d4');
-  root.style.setProperty('--mason-biomes-color', COLOR_DEFINITIONS[theme.moduleColors.biomes]?.hex || '#10b981');
-  root.style.setProperty('--mason-characters-color', COLOR_DEFINITIONS[theme.moduleColors.characters]?.hex || '#f43f5e');
-  root.style.setProperty('--mason-ui-color', COLOR_DEFINITIONS[theme.moduleColors.ui]?.hex || '#f59e0b');
-  root.style.setProperty('--mason-gamestructure-color', COLOR_DEFINITIONS[theme.moduleColors.gamestructure]?.hex || '#a855f7');
-  root.style.setProperty('--mason-bg-base', bgDef.hex);
+    root.style.setProperty('--mason-maps-color', COLOR_DEFINITIONS[theme.moduleColors.maps]?.hex || '#06b6d4');
+    root.style.setProperty('--mason-biomes-color', COLOR_DEFINITIONS[theme.moduleColors.biomes]?.hex || '#10b981');
+    root.style.setProperty('--mason-characters-color', COLOR_DEFINITIONS[theme.moduleColors.characters]?.hex || '#f43f5e');
+    root.style.setProperty('--mason-ui-color', COLOR_DEFINITIONS[theme.moduleColors.ui]?.hex || '#f59e0b');
+    root.style.setProperty('--mason-gamestructure-color', COLOR_DEFINITIONS[theme.moduleColors.gamestructure]?.hex || '#a855f7');
+    root.style.setProperty('--mason-bg-base', bgDef.hex);
+
+    // Update all <meta name="theme-color"> tags to color the PWA window titlebar and browser chrome
+    if (typeof document !== 'undefined') {
+      const themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+      if (themeMetas.length > 0) {
+        themeMetas.forEach(meta => meta.setAttribute('content', primaryDef.hex));
+      } else {
+        const meta = document.createElement('meta');
+        meta.setAttribute('name', 'theme-color');
+        meta.setAttribute('content', primaryDef.hex);
+        document.head.appendChild(meta);
+      }
+
+      // Update msapplication-navbutton-color for Windows/Edge
+      let msNav = document.querySelector('meta[name="msapplication-navbutton-color"]');
+      if (!msNav) {
+        msNav = document.createElement('meta');
+        msNav.setAttribute('name', 'msapplication-navbutton-color');
+        document.head.appendChild(msNav);
+      }
+      msNav.setAttribute('content', primaryDef.hex);
+
+      // Update apple status bar
+      let appleMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+      if (!appleMeta) {
+        appleMeta = document.createElement('meta');
+        appleMeta.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
+        document.head.appendChild(appleMeta);
+      }
+      appleMeta.setAttribute('content', 'black-translucent');
+    }
+  } catch (e) {
+    console.warn('Failed to apply theme variables / meta tags:', e);
+  }
 }

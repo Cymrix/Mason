@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.85
+ * Current Release: v0.86
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.85';
-export const MASON_VERSION_DISPLAY = 'v0.85';
-export const MASON_FULL_VERSION = 'v0.85';
+export const MASON_VERSION = '0.86';
+export const MASON_VERSION_DISPLAY = 'v0.86';
+export const MASON_FULL_VERSION = 'v0.86';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,15 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.86',
+    date: '2026-08-21',
+    changes: [
+      'PWA & Window Title Bar Dynamic Accent Coloring: Connected the OS window title bar (<meta name="theme-color">, msapplication-navbutton-color, and Apple status bar) to immediately and reactively paint with the active theme primary color.',
+      'Instant Startup Synchronization: Inlined theme loader in main.tsx before DOM render to ensure installed PWA window chrome launches without color flash or lag.',
+      'In-App Header Glow: Synchronized top navigation bar backdrop tint and borders with active theme CSS variables.'
+    ]
+  },
   {
     version: 'v0.85',
     date: '2026-08-21',

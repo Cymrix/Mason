@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MasonProject, 
   MasonModuleId,
@@ -72,7 +72,9 @@ import {
   Network,
   Cloud,
   RotateCcw,
-  RotateCw
+  RotateCw,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
@@ -264,28 +266,133 @@ export const EditorLayout: React.FC = () => {
     }
   };
 
-  // Keyboard shortcut Ctrl+S
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (project) {
-          saveActiveMasonProject(project);
-          refreshSavedProjects();
-          showToast(`Saved ${project.name} to local storage`, 'success');
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [project]);
-
   // Derived references for active project
   const currentMapFile = project ? (project.fileSystem.maps.find(m => m.fileName === project.activeFiles.mapFileName) || project.fileSystem.maps[0]) : null;
   const currentBiomeFile = project ? (project.fileSystem.biomes.find(b => b.fileName === project.activeFiles.biomeFileName) || project.fileSystem.biomes[0]) : null;
   const currentCharacterFile = project ? (project.fileSystem?.characters?.find(c => c.fileName === project.activeFiles?.characterFileName) || project.fileSystem?.characters?.[0]) : null;
   const activeBiome: RefinedBiome | null = currentBiomeFile?.biomeData || project?.fileSystem.biomes?.[0]?.biomeData || null;
   const biomesList: RefinedBiome[] = project ? project.fileSystem.biomes?.map(b => b.biomeData) : [];
+
+  // ==========================================
+  // UNDO / REDO HISTORY ENGINE FOR MAP EDITOR
+  // ==========================================
+  const [undoStack, setUndoStack] = useState<MapFile[]>([]);
+  const [redoStack, setRedoStack] = useState<MapFile[]>([]);
+  const strokeStartMapRef = useRef<MapFile | null>(null);
+  const currentMapFileRef = useRef<MapFile | null>(currentMapFile);
+
+  useEffect(() => {
+    currentMapFileRef.current = currentMapFile;
+  }, [currentMapFile]);
+
+  // Reset undo/redo history when active map file changes
+  const activeMapFileName = project?.activeFiles?.mapFileName;
+  useEffect(() => {
+    setUndoStack([]);
+    setRedoStack([]);
+    strokeStartMapRef.current = null;
+  }, [activeMapFileName]);
+
+  // Push an explicit snapshot for one-shot actions (fill, clear, macro, spawn, chunk mod)
+  const pushUndoSnapshot = useCallback(() => {
+    if (currentMapFileRef.current) {
+      const clone = JSON.parse(JSON.stringify(currentMapFileRef.current));
+      setUndoStack(prev => [...prev, clone].slice(-50));
+      setRedoStack([]);
+    }
+  }, []);
+
+  // Stroke-level snapshot bundling: capture state on stroke start, commit on stroke end
+  useEffect(() => {
+    if (isDrawing) {
+      if (currentMapFileRef.current && !strokeStartMapRef.current) {
+        strokeStartMapRef.current = JSON.parse(JSON.stringify(currentMapFileRef.current));
+      }
+    } else {
+      if (strokeStartMapRef.current) {
+        const startSnapshot = strokeStartMapRef.current;
+        strokeStartMapRef.current = null;
+        setUndoStack(prev => [...prev, startSnapshot].slice(-50));
+        setRedoStack([]);
+      }
+    }
+  }, [isDrawing]);
+
+  // Undo Handler
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0 || !project || !currentMapFile) return;
+
+    const previousMap = undoStack[undoStack.length - 1];
+    const newUndoStack = undoStack.slice(0, undoStack.length - 1);
+    const currentCloned = JSON.parse(JSON.stringify(currentMapFile));
+
+    setUndoStack(newUndoStack);
+    setRedoStack(prev => [...prev, currentCloned].slice(-50));
+
+    handleUpdateProject(p => ({
+      ...p,
+      fileSystem: {
+        ...p.fileSystem,
+        maps: p.fileSystem.maps.map(m => m.fileName === previousMap.fileName ? previousMap : m)
+      }
+    }));
+
+    globalChunkCache.invalidateMap(previousMap.id);
+    showToast('Undid map edit (Ctrl+Z)', 'info');
+  }, [undoStack, project, currentMapFile]);
+
+  // Redo Handler
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0 || !project || !currentMapFile) return;
+
+    const nextMap = redoStack[redoStack.length - 1];
+    const newRedoStack = redoStack.slice(0, redoStack.length - 1);
+    const currentCloned = JSON.parse(JSON.stringify(currentMapFile));
+
+    setRedoStack(newRedoStack);
+    setUndoStack(prev => [...prev, currentCloned].slice(-50));
+
+    handleUpdateProject(p => ({
+      ...p,
+      fileSystem: {
+        ...p.fileSystem,
+        maps: p.fileSystem.maps.map(m => m.fileName === nextMap.fileName ? nextMap : m)
+      }
+    }));
+
+    globalChunkCache.invalidateMap(nextMap.id);
+    showToast('Redid map edit (Ctrl+Y)', 'info');
+  }, [redoStack, project, currentMapFile]);
+
+  // Global Keyboard Shortcuts (Ctrl+S, Ctrl+Z Undo, Ctrl+Y / Ctrl+Shift+Z Redo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (project) {
+          saveActiveMasonProject(project);
+          refreshSavedProjects();
+          showToast(`Saved ${project.name} to local storage`, 'success');
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [project, handleUndo, handleRedo]);
 
   const currentMapData: RefinedMapData | null = currentMapFile ? {
     id: currentMapFile.id,
@@ -467,6 +574,7 @@ export const EditorLayout: React.FC = () => {
 
   const handleSetSpawnPoint = (x: number, y: number) => {
     if (!currentMapFile) return;
+    pushUndoSnapshot();
     const newSpawns = [{ 
       spawnId: 'spawn_default', 
       x, 
@@ -703,6 +811,7 @@ export const EditorLayout: React.FC = () => {
 
   const handleReassignAllChunksToActiveBiome = () => {
     if (!project || !currentMapFile || !activeBiome) return;
+    pushUndoSnapshot();
     handleUpdateProject(p => {
       const updatedMaps = p.fileSystem.maps?.map(m => {
         if (m.fileName === currentMapFile.fileName) {
@@ -747,6 +856,7 @@ export const EditorLayout: React.FC = () => {
   // Map Macro procedural synthesis handler
   const handleApplyMacroToLevel = (matrix: BiomeAllocationMatrix, layoutStyle: MetroidvaniaLayoutStyle) => {
     if (!project || !currentMapFile) return;
+    pushUndoSnapshot();
     const generated = buildMapFromBiomeMatrix(matrix, biomesList, layoutStyle);
 
     handleUpdateProject(p => ({
@@ -958,6 +1068,51 @@ export const EditorLayout: React.FC = () => {
 
               <div className="h-4 w-px bg-neutral-800" />
 
+              {/* Undo & Redo Header Action Buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={undoStack.length === 0}
+                  className={`w-8 h-8 flex items-center justify-center rounded-xl border transition shadow-sm relative ${
+                    undoStack.length > 0
+                      ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200 hover:text-white cursor-pointer active:scale-95'
+                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-600 cursor-not-allowed'
+                  }`}
+                  title={`Undo (Ctrl+Z)${undoStack.length > 0 ? ` [${undoStack.length} step${undoStack.length > 1 ? 's' : ''}]` : ''}`}
+                  aria-label="Undo"
+                >
+                  <Undo2 size={15} className={undoStack.length > 0 ? 'text-cyan-400' : 'text-neutral-600'} />
+                  {undoStack.length > 0 && (
+                    <span className="absolute -top-1 -left-1 px-1 min-w-[14px] h-3.5 bg-cyan-950 text-[9px] font-mono font-bold text-cyan-300 rounded-full flex items-center justify-center border border-cyan-700 shadow-sm">
+                      {undoStack.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRedo}
+                  disabled={redoStack.length === 0}
+                  className={`w-8 h-8 flex items-center justify-center rounded-xl border transition shadow-sm relative ${
+                    redoStack.length > 0
+                      ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200 hover:text-white cursor-pointer active:scale-95'
+                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-600 cursor-not-allowed'
+                  }`}
+                  title={`Redo (Ctrl+Y / Cmd+Shift+Z)${redoStack.length > 0 ? ` [${redoStack.length} step${redoStack.length > 1 ? 's' : ''}]` : ''}`}
+                  aria-label="Redo"
+                >
+                  <Redo2 size={15} className={redoStack.length > 0 ? 'text-amber-400' : 'text-neutral-600'} />
+                  {redoStack.length > 0 && (
+                    <span className="absolute -top-1 -right-1 px-1 min-w-[14px] h-3.5 bg-amber-950 text-[9px] font-mono font-bold text-amber-300 rounded-full flex items-center justify-center border border-amber-700 shadow-sm">
+                      {redoStack.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="h-4 w-px bg-neutral-800" />
+
               {/* Virtual Files Explorer Button (Icon Only) */}
               <button
                 type="button"
@@ -979,17 +1134,6 @@ export const EditorLayout: React.FC = () => {
               >
                 <Cloud size={16} />
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-neutral-950 animate-pulse" />
-              </button>
-
-              {/* Theme Settings Button (Icon Only) */}
-              <button
-                type="button"
-                onClick={() => setIsThemeModalOpen(true)}
-                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl transition shadow-sm group"
-                title={`Theme Settings: ${theme.name}`}
-                aria-label="Theme Settings"
-              >
-                <Palette size={16} style={{ color: primaryDef.hex }} className="group-hover:scale-110 transition-transform" />
               </button>
 
               {/* Save Project Button (Icon Only) */}
@@ -1015,14 +1159,6 @@ export const EditorLayout: React.FC = () => {
 
           {!project && (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsThemeModalOpen(true)}
-                className="p-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 rounded-xl transition"
-                title="Theme Settings"
-              >
-                <Palette size={16} style={{ color: primaryDef.hex }} />
-              </button>
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
@@ -1415,7 +1551,38 @@ export const EditorLayout: React.FC = () => {
                       <MinusSquare size={16} />
                     </button>
 
-                    <div className="w-8 h-px bg-neutral-800 my-2" />
+                    <div className="w-8 h-px bg-neutral-800 my-1" />
+
+                    {/* Quick Undo / Redo in Tool Rail */}
+                    <button
+                      type="button"
+                      onClick={handleUndo}
+                      disabled={undoStack.length === 0}
+                      className={`p-2.5 rounded-xl border transition relative ${
+                        undoStack.length > 0
+                          ? 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 active:scale-95'
+                          : 'bg-neutral-950/40 border-neutral-900 text-neutral-600 cursor-not-allowed'
+                      }`}
+                      title={`Undo Map Change (Ctrl+Z)${undoStack.length > 0 ? ` [${undoStack.length}]` : ''}`}
+                    >
+                      <Undo2 size={16} className={undoStack.length > 0 ? 'text-cyan-400' : 'text-neutral-600'} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRedo}
+                      disabled={redoStack.length === 0}
+                      className={`p-2.5 rounded-xl border transition relative ${
+                        redoStack.length > 0
+                          ? 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 active:scale-95'
+                          : 'bg-neutral-950/40 border-neutral-900 text-neutral-600 cursor-not-allowed'
+                      }`}
+                      title={`Redo Map Change (Ctrl+Y / Cmd+Shift+Z)${redoStack.length > 0 ? ` [${redoStack.length}]` : ''}`}
+                    >
+                      <Redo2 size={16} className={redoStack.length > 0 ? 'text-amber-400' : 'text-neutral-600'} />
+                    </button>
+
+                    <div className="w-8 h-px bg-neutral-800 my-1" />
 
                     {/* Brush Size Picker Dropdown */}
                     <div className="flex flex-col items-center gap-2">
@@ -1471,6 +1638,12 @@ export const EditorLayout: React.FC = () => {
                       spawnPoint={currentSpawnPoint}
                       onSetSpawnPoint={handleSetSpawnPoint}
                       onExitPlayMode={() => setMode('paint')}
+                      onUndo={handleUndo}
+                      onRedo={handleRedo}
+                      canUndo={undoStack.length > 0}
+                      canRedo={redoStack.length > 0}
+                      undoCount={undoStack.length}
+                      redoCount={redoStack.length}
                     />
 
                     {/* Canvas Status Badge */}

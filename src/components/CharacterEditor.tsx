@@ -41,6 +41,7 @@ import {
   Brain, 
   Layers, 
   Check, 
+  CheckCircle2,
   X, 
   Key, 
   Shield, 
@@ -127,6 +128,10 @@ const createDefaultTrigger = (type: TriggerType): BehaviorTrigger => {
       return { type: 'keyboard_key', key: 'KeyE' };
     case 'listener':
       return { type: 'listener', channelTag: 'global_event' };
+    case 'solid_detection':
+      return { type: 'solid_detection', direction: 'below', detectionDistancePx: 4, checkMode: 'touching' };
+    case 'physics_state':
+      return { type: 'physics_state', stateKind: 'jump_peak', velocityThreshold: 0.5, gravityEnvironment: 'normal_g' };
     default:
       return { type: 'sight', sensoryTag: 'head_eyes', visionRadiusPx: 200, visionAngleDeg: 120, requireLineOfSight: true, targetFilter: 'player' };
   }
@@ -209,6 +214,18 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   onOpenFiles,
   onBackToDashboard
 }) => {
+  // Toast notification state for Character Module
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ text, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3200);
+  };
+
   // Primary Studio View Tabs: 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'
   const [activeTab, setActiveTab] = useState<'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'>('animation_studio');
 
@@ -2015,7 +2032,13 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         onDuplicateFile={(_fileName) => {
           handleDuplicateCharacter();
         }}
-        onSaveFile={() => {}}
+        onSaveFile={() => {
+          updateCharacter(c => ({
+            ...c,
+            updatedAt: new Date().toISOString()
+          }));
+          showToast(`Saved character "${char.name || currentFile.name}" (${currentFile.fileName})`, 'success');
+        }}
         onExportFile={(fileName) => {
           const jsonStr = JSON.stringify(currentFile, null, 2);
           const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -5189,6 +5212,11 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
               <div className="space-y-3">
                 {rulesList.map((rule, rIdx) => {
                   const isExpanded = expandedRuleIds.has(rule.id);
+                  const effectiveTriggers: BehaviorTrigger[] = (rule.triggers && rule.triggers.length > 0)
+                    ? rule.triggers
+                    : [rule.trigger || createDefaultTrigger('state')];
+                  const ruleLogic = rule.triggerLogic || 'AND';
+
                   const triggerTypeLabels: Record<string, string> = {
                     possession: '🎮 Possession',
                     mapped_input: '🕹️ Mapped Input',
@@ -5204,11 +5232,12 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                     input_press: '⌨️ Input Press',
                     player_condition: '🏃 Player State',
                     keyboard_key: '⌨️ Key Press',
-                    listener: '📡 Signal Listener'
+                    listener: '📡 Signal Listener',
+                    solid_detection: '🧱 Solid Detection',
+                    physics_state: '⚛️ Physics & Gravity'
                   };
 
-                  const triggerSummary = (() => {
-                    const t = rule.trigger;
+                  const getSingleTriggerSummary = (t: BehaviorTrigger): string => {
                     if (t.type === 'state') {
                       return `State: ${t.requiredState || 'Any'}${t.stateMode && t.stateMode !== 'is_state' ? ` (${t.stateMode})` : ''}`;
                     }
@@ -5235,8 +5264,54 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                     if (t.type === 'timer') {
                       return `Timer: ${t.intervalMs || 1000}ms`;
                     }
+                    if (t.type === 'solid_detection') {
+                      return `Solid: ${t.direction || 'below'} (${t.checkMode || 'touching'})`;
+                    }
+                    if (t.type === 'physics_state') {
+                      return `Physics: ${t.stateKind || 'jump_peak'}`;
+                    }
                     return triggerTypeLabels[t.type] || t.type;
-                  })();
+                  };
+
+                  const triggerSummary = effectiveTriggers.length === 1
+                    ? getSingleTriggerSummary(effectiveTriggers[0])
+                    : `${effectiveTriggers.length} IFs (${ruleLogic}): ${getSingleTriggerSummary(effectiveTriggers[0])}...`;
+
+                  // Helper to update triggers array for this rule
+                  const updateRuleTriggers = (newTriggers: BehaviorTrigger[], newLogic?: 'AND' | 'OR') => {
+                    updateCharacter(c => ({
+                      ...c,
+                      rules: (c.rules || []).map(r => {
+                        if (r.id === rule.id) {
+                          return {
+                            ...r,
+                            trigger: newTriggers[0] || r.trigger,
+                            triggers: newTriggers,
+                            ...(newLogic !== undefined ? { triggerLogic: newLogic } : {})
+                          };
+                        }
+                        return r;
+                      })
+                    }));
+                  };
+
+                  const updateSingleTriggerAt = (tIdx: number, newTrigger: BehaviorTrigger) => {
+                    const next = [...effectiveTriggers];
+                    next[tIdx] = newTrigger;
+                    updateRuleTriggers(next);
+                  };
+
+                  const addTriggerToRule = () => {
+                    const newTrig = createDefaultTrigger('solid_detection');
+                    const next = [...effectiveTriggers, newTrig];
+                    updateRuleTriggers(next);
+                  };
+
+                  const removeTriggerFromRule = (tIdx: number) => {
+                    if (effectiveTriggers.length <= 1) return;
+                    const next = effectiveTriggers.filter((_, idx) => idx !== tIdx);
+                    updateRuleTriggers(next);
+                  };
 
                   return (
                     <div
@@ -5288,7 +5363,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           {/* Trigger summary pill */}
                           <span className="px-2 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-300 text-[11px] font-mono flex items-center gap-1">
                             <Zap size={11} className="text-amber-400" />
-                            <span className="truncate max-w-[130px]">{triggerSummary}</span>
+                            <span className="truncate max-w-[150px]">{triggerSummary}</span>
                           </span>
 
                           {/* Action count pill */}
@@ -5331,463 +5406,654 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       {isExpanded && (
                         <div className="p-4 md:p-5 pt-1 space-y-4 border-t border-neutral-800/80 bg-neutral-900/40">
                           
-                          {/* IF TRIGGER SECTION */}
+                          {/* MULTI-IF TRIGGER SECTION */}
                           <div className="p-3.5 bg-neutral-950/80 border border-neutral-800 rounded-xl space-y-3">
                             <div className="flex items-center justify-between flex-wrap gap-2">
-                              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                                <Zap size={14} />
-                                IF (Trigger Condition)
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Zap size={14} />
+                                  IF Trigger Conditions ({effectiveTriggers.length})
+                                </span>
 
-                              <select
-                                value={rule.trigger.type}
-                                onChange={(e) => {
-                                  const newType = e.target.value as TriggerType;
-                                  updateCharacter(c => ({
-                                    ...c,
-                                    rules: (c.rules || []).map(r => {
-                                      if (r.id === rule.id) {
-                                        return {
-                                          ...r,
-                                          trigger: createDefaultTrigger(newType)
-                                        };
-                                      }
-                                      return r;
-                                    })
-                                  }));
-                                }}
-                                className="bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-1 text-xs text-amber-300 font-mono"
+                                {/* AND / OR LOGIC TOGGLE */}
+                                <div className="flex items-center bg-neutral-900 rounded-lg p-0.5 border border-neutral-700">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRuleTriggers(effectiveTriggers, 'AND')}
+                                    className={`px-2 py-0.5 text-[11px] font-bold rounded ${
+                                      ruleLogic === 'AND'
+                                        ? 'bg-amber-600 text-white shadow'
+                                        : 'text-neutral-400 hover:text-neutral-200'
+                                    }`}
+                                    title="All trigger conditions must be true"
+                                  >
+                                    AND (All)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRuleTriggers(effectiveTriggers, 'OR')}
+                                    className={`px-2 py-0.5 text-[11px] font-bold rounded ${
+                                      ruleLogic === 'OR'
+                                        ? 'bg-amber-600 text-white shadow'
+                                        : 'text-neutral-400 hover:text-neutral-200'
+                                    }`}
+                                    title="Any trigger condition can be true"
+                                  >
+                                    OR (Any)
+                                  </button>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={addTriggerToRule}
+                                className="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 bg-amber-950/40 border border-amber-600/30 px-2.5 py-1 rounded-lg transition hover:bg-amber-900/40"
                               >
-                                <option value="state">⚡ State Active / Event</option>
-                                <option value="possession">🎮 Player Takes Possession</option>
-                                <option value="mapped_input">🕹️ Mapped Player Input</option>
-                                <option value="sight">👁️ Sight Raycast (Sensory Eyes)</option>
-                                <option value="sound">👂 Acoustic Hearing (Sensory Ears)</option>
-                                <option value="proximity">📍 Proximity Distance</option>
-                                <option value="health">❤️ Health Threshold</option>
-                                <option value="variable_condition">🔢 Variable Condition</option>
-                                <option value="timer">⏱️ Timer Interval</option>
-                                <option value="dialogue_trigger">💬 Dialogue Interaction</option>
-                                <option value="collision">💥 Physics Collision</option>
-                              </select>
+                                <Plus size={13} />
+                                <span>+ Add IF Condition</span>
+                              </button>
                             </div>
 
-                            {/* Dynamic Trigger Fields */}
-                            <div className="text-xs space-y-2 pt-1">
-                              
-                              {/* 1. STATE ACTIVE / EVENT TRIGGER (WITH SECONDARY STATE DROPDOWN) */}
-                              {rule.trigger.type === 'state' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">State Event Condition</label>
-                                    <select
-                                      value={rule.trigger.stateMode || 'is_state'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, stateMode: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                                    >
-                                      <option value="is_state">While In State (Continuous Active)</option>
-                                      <option value="on_enter">On State Enter (Enter Event)</option>
-                                      <option value="on_exit">On State Exit (Exit Event)</option>
-                                      <option value="on_transition">On Transition Fired (Transition Event)</option>
-                                    </select>
-                                  </div>
+                            {/* Trigger Cards List */}
+                            <div className="space-y-3 pt-1">
+                              {effectiveTriggers.map((trig, tIdx) => {
+                                return (
+                                  <div key={tIdx} className="p-3 bg-neutral-900/90 border border-neutral-800 rounded-xl space-y-2.5">
+                                    <div className="flex items-center justify-between flex-wrap gap-2 border-b border-neutral-800 pb-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded">
+                                          IF #{tIdx + 1} {tIdx > 0 && <span className="text-neutral-400">({ruleLogic})</span>}
+                                        </span>
+                                        <span className="text-xs font-bold text-neutral-300">
+                                          Condition Type
+                                        </span>
+                                      </div>
 
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block flex items-center justify-between">
-                                      <span>{rule.trigger.stateMode === 'on_transition' ? 'Triggering Transition' : 'Target State Node'}</span>
-                                      <span className="text-indigo-400 font-mono text-[9px]">{stateNodes.length} Available</span>
-                                    </label>
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          value={trig.type}
+                                          onChange={(e) => {
+                                            const newType = e.target.value as TriggerType;
+                                            updateSingleTriggerAt(tIdx, createDefaultTrigger(newType));
+                                          }}
+                                          className="bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1 text-xs text-amber-300 font-mono"
+                                        >
+                                          <option value="solid_detection">🧱 Solid Detection (Left / Right / Above / Below)</option>
+                                          <option value="physics_state">⚛️ Physics & Gravity (Jump Peak / Falling / Low-G)</option>
+                                          <option value="state">⚡ State Active / Event</option>
+                                          <option value="possession">🎮 Player Takes Possession</option>
+                                          <option value="mapped_input">🕹️ Mapped Player Input</option>
+                                          <option value="sight">👁️ Sight Raycast (Sensory Eyes)</option>
+                                          <option value="sound">👂 Acoustic Hearing (Sensory Ears)</option>
+                                          <option value="proximity">📍 Proximity Distance</option>
+                                          <option value="health">❤️ Health Threshold</option>
+                                          <option value="variable_condition">🔢 Variable Condition</option>
+                                          <option value="timer">⏱️ Timer Interval</option>
+                                          <option value="dialogue_trigger">💬 Dialogue Interaction</option>
+                                          <option value="collision">💥 Physics Collision</option>
+                                        </select>
 
-                                    {rule.trigger.stateMode === 'on_transition' ? (
-                                      <select
-                                        value={rule.trigger.transitionId || stateTransitions[0]?.id || ''}
-                                        onChange={(e) => {
-                                          updateCharacter(c => ({
-                                            ...c,
-                                            rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, transitionId: e.target.value } } : r)
-                                          }));
-                                        }}
-                                        className="w-full bg-neutral-900 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                                      >
-                                        {stateTransitions.map(tr => {
-                                          const from = stateNodes.find(s => s.id === tr.fromStateId)?.name || tr.fromStateId;
-                                          const to = stateNodes.find(s => s.id === tr.toStateId)?.name || tr.toStateId;
-                                          return (
-                                            <option key={tr.id} value={tr.id}>
-                                              {from} {tr.isBidirectional ? '↔' : '→'} {to} ({tr.triggerLabel || 'Transition'})
-                                            </option>
-                                          );
-                                        })}
-                                      </select>
-                                    ) : (
-                                      <select
-                                        value={rule.trigger.requiredState || stateNodes[0]?.name || 'Idle'}
-                                        onChange={(e) => {
-                                          updateCharacter(c => ({
-                                            ...c,
-                                            rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, requiredState: e.target.value } } : r)
-                                          }));
-                                        }}
-                                        className="w-full bg-neutral-900 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                                      >
-                                        {stateNodes.map(st => (
-                                          <option key={st.id} value={st.name}>
-                                            ● {st.name} ({st.id}){st.isInitial ? ' [Initial]' : ''}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
+                                        {effectiveTriggers.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => removeTriggerFromRule(tIdx)}
+                                            className="p-1 text-neutral-500 hover:text-red-400 transition rounded"
+                                            title="Remove this IF condition"
+                                          >
+                                            <Trash2 size={13} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
 
-                              {/* 2. POSSESSION TRIGGER */}
-                              {rule.trigger.type === 'possession' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Possession Event</label>
-                                    <select
-                                      value={rule.trigger.event || 'on_possess'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, event: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                                    >
-                                      <option value="on_possess">On Player Possess (Spawn/Switch In)</option>
-                                      <option value="on_unpossess">On Player Unpossess (Release/Switch Out)</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              )}
+                                    {/* Dynamic Trigger Fields */}
+                                    <div className="text-xs space-y-2">
+                                      
+                                      {/* 1. SOLID DETECTION TRIGGER */}
+                                      {trig.type === 'solid_detection' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Solid Direction</label>
+                                            <select
+                                              value={trig.direction || 'below'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  direction: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="below">⬇️ Below / Ground (Solid floor under feet)</option>
+                                              <option value="above">⬆️ Above / Ceiling (Solid overhead obstacle)</option>
+                                              <option value="left">⬅️ Left Wall (Solid barrier to the left)</option>
+                                              <option value="right">➡️ Right Wall (Solid barrier to the right)</option>
+                                              <option value="wall_forward">⏩ Forward Wall (Facing direction solid)</option>
+                                              <option value="wall_backward">⏪ Backward Wall (Behind character)</option>
+                                            </select>
+                                          </div>
 
-                              {/* 3. MAPPED INPUT TRIGGER */}
-                              {rule.trigger.type === 'mapped_input' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Mapped Input Action</label>
-                                    <select
-                                      value={rule.trigger.inputId || availableInputMappings[0]?.id || 'inp_jump'}
-                                      onChange={(e) => {
-                                        const sel = availableInputMappings.find(m => m.id === e.target.value || m.name === e.target.value);
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, inputId: e.target.value, inputName: sel?.name || e.target.value } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                                    >
-                                      {availableInputMappings.map(m => (
-                                        <option key={m.id} value={m.id}>
-                                          {m.label || m.name} ({m.keys?.join('/') || 'Key'})
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                              )}
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Detection Mode</label>
+                                            <select
+                                              value={trig.checkMode || 'touching'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  checkMode: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="touching">Touching / Direct Contact (0-4px)</option>
+                                              <option value="near">Near Distance (Within Sensor Range)</option>
+                                              <option value="clear">Clear / No Solid (Free Space / Pit)</option>
+                                              <option value="ledge_ahead">Ledge Ahead (Floor drops off)</option>
+                                            </select>
+                                          </div>
 
-                              {/* 4. SIGHT RAYCAST TRIGGER */}
-                              {rule.trigger.type === 'sight' && (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Sensory Socket</label>
-                                    <select
-                                      value={rule.trigger.sensoryTag || 'head_eyes'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, sensoryTag: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      <option value="head_eyes">head_eyes (Eyes Socket)</option>
-                                      <option value="torso_center">torso_center (Chest Socket)</option>
-                                      {pointsList.map(pt => (
-                                        <option key={pt.id} value={pt.name}>{pt.name} ({pt.id})</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Vision Radius (px)</label>
-                                    <input
-                                      type="number"
-                                      value={rule.trigger.visionRadiusPx || 200}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, visionRadiusPx: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Cone Angle (°)</label>
-                                    <input
-                                      type="number"
-                                      value={rule.trigger.visionAngleDeg || 120}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, visionAngleDeg: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Target Filter</label>
-                                    <select
-                                      value={rule.trigger.targetFilter || 'player'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, targetFilter: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      <option value="player">Player Hero</option>
-                                      <option value="enemy">Enemy Mob</option>
-                                      <option value="any">Any Actor</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              )}
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Detection Distance (px)</label>
+                                            <input
+                                              type="number"
+                                              value={trig.detectionDistancePx ?? 4}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  detectionDistancePx: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
 
-                              {/* 5. ACOUSTIC SOUND TRIGGER */}
-                              {rule.trigger.type === 'sound' && (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Hearing Socket</label>
-                                    <select
-                                      value={rule.trigger.sensoryTag || 'head_ears'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, sensoryTag: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      <option value="head_ears">head_ears (Ears Socket)</option>
-                                      <option value="torso_center">torso_center (Body)</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Hearing Radius (px)</label>
-                                    <input
-                                      type="number"
-                                      value={rule.trigger.hearingRadiusPx || 250}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, hearingRadiusPx: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                </div>
-                              )}
+                                      {/* 2. PHYSICS & GRAVITY STATE TRIGGER */}
+                                      {trig.type === 'physics_state' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Velocity & Kinematic Event</label>
+                                            <select
+                                              value={trig.stateKind || 'jump_peak'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  stateKind: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="jump_peak">🏔️ Jump Peak (Apex reached / vy ≈ 0)</option>
+                                              <option value="falling">🪂 Falling (Pulled down by gravity / vy &gt; 0)</option>
+                                              <option value="rising">🚀 Rising Upward (Ascending / vy &lt; 0)</option>
+                                              <option value="grounded">🦶 Grounded (Standing on floor)</option>
+                                              <option value="airborne">🕊️ Airborne (In mid-air)</option>
+                                              <option value="wall_sliding">🧗 Wall Sliding (Clinging to wall)</option>
+                                              <option value="moving_horizontally">🏃 Moving Horizontally (|vx| &gt; 0)</option>
+                                              <option value="stopped">🛑 Stopped / Zero Velocity</option>
+                                              <option value="weightless_environment">🌌 Weightless / Zero-G Environment</option>
+                                              <option value="high_velocity">⚡ High Velocity (Terminal speed)</option>
+                                              <option value="direction_change">🔄 Direction Turn Fired</option>
+                                            </select>
+                                          </div>
 
-                              {/* 6. PROXIMITY TRIGGER */}
-                              {rule.trigger.type === 'proximity' && (
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Distance Threshold (px)</label>
-                                    <input
-                                      type="number"
-                                      value={rule.trigger.distancePx || 100}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, distancePx: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Comparator</label>
-                                    <select
-                                      value={rule.trigger.comparator || 'less_than'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, comparator: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      <option value="less_than">Closer Than (&lt;)</option>
-                                      <option value="greater_than">Farther Than (&gt;)</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              )}
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Gravity Environment Filter</label>
+                                            <select
+                                              value={trig.gravityEnvironment || 'normal_g'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  gravityEnvironment: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="normal_g">Standard Gravity (1.0x)</option>
+                                              <option value="zero_g">Zero Gravity / Weightless (0.0x)</option>
+                                              <option value="low_g">Low Gravity / Moon (0.3x)</option>
+                                              <option value="high_g">Heavy Gravity (1.8x)</option>
+                                              <option value="inverted_g">Inverted / Ceiling Pull (-1.0x)</option>
+                                            </select>
+                                          </div>
 
-                              {/* 7. HEALTH THRESHOLD TRIGGER */}
-                              {rule.trigger.type === 'health' && (
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Health Threshold (%)</label>
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      max={100}
-                                      value={rule.trigger.healthPercentThreshold || 30}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, healthPercentThreshold: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Comparison</label>
-                                    <select
-                                      value={rule.trigger.comparator || 'less_than'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, comparator: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      <option value="less_than">Health Drops Below (&lt;=)</option>
-                                      <option value="greater_than">Health Above (&gt;=)</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              )}
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Velocity Threshold (px/tick)</label>
+                                            <input
+                                              type="number"
+                                              step="0.1"
+                                              value={trig.velocityThreshold ?? 0.5}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  velocityThreshold: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
 
-                              {/* 8. VARIABLE CONDITION TRIGGER */}
-                              {rule.trigger.type === 'variable_condition' && (
-                                <div className="grid grid-cols-3 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Variable</label>
-                                    <select
-                                      value={rule.trigger.variableId || variablesList[0]?.id || ''}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, variableId: e.target.value } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      {variablesList.map(v => (
-                                        <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Condition</label>
-                                    <select
-                                      value={rule.trigger.comparator || 'equals'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, comparator: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      <option value="equals">Equal To (==)</option>
-                                      <option value="not_equals">Not Equal (!=)</option>
-                                      <option value="greater_than">Greater Than (&gt;)</option>
-                                      <option value="less_than">Less Than (&lt;)</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Target Value</label>
-                                    <input
-                                      type="number"
-                                      value={Number(rule.trigger.value) || 0}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, value: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                </div>
-                              )}
+                                      {/* 3. STATE ACTIVE / EVENT TRIGGER */}
+                                      {trig.type === 'state' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">State Event Condition</label>
+                                            <select
+                                              value={trig.stateMode || 'is_state'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  stateMode: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="is_state">While In State (Continuous Active)</option>
+                                              <option value="on_enter">On State Enter (Enter Event)</option>
+                                              <option value="on_exit">On State Exit (Exit Event)</option>
+                                              <option value="on_transition">On Transition Fired (Transition Event)</option>
+                                            </select>
+                                          </div>
 
-                              {/* 9. TIMER INTERVAL TRIGGER */}
-                              {rule.trigger.type === 'timer' && (
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Interval (ms)</label>
-                                    <input
-                                      type="number"
-                                      step="100"
-                                      value={rule.trigger.intervalMs || 2000}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, intervalMs: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Random Jitter (ms)</label>
-                                    <input
-                                      type="number"
-                                      value={rule.trigger.randomJitterMs || 0}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, randomJitterMs: Number(e.target.value) } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    />
-                                  </div>
-                                </div>
-                              )}
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block flex items-center justify-between">
+                                              <span>{trig.stateMode === 'on_transition' ? 'Triggering Transition' : 'Target State Node'}</span>
+                                              <span className="text-indigo-400 font-mono text-[9px]">{stateNodes.length} Available</span>
+                                            </label>
 
-                              {/* 10. COLLISION TRIGGER */}
-                              {rule.trigger.type === 'collision' && (
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-neutral-400 font-bold block">Contact Type</label>
-                                    <select
-                                      value={rule.trigger.contactType || 'wall_impact'}
-                                      onChange={(e) => {
-                                        updateCharacter(c => ({
-                                          ...c,
-                                          rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, trigger: { ...r.trigger, contactType: e.target.value as any } } : r)
-                                        }));
-                                      }}
-                                      className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                    >
-                                      <option value="wall_impact">Wall / Obstacle Impact</option>
-                                      <option value="ground_touch">Ground Touch (Landing)</option>
-                                      <option value="hazard_touch">Hazard / Spikes Touch</option>
-                                      <option value="character_overlap">Hero/Mob Overlap</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              )}
+                                            {trig.stateMode === 'on_transition' ? (
+                                              <select
+                                                value={trig.transitionId || stateTransitions[0]?.id || ''}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    transitionId: e.target.value
+                                                  });
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                              >
+                                                {stateTransitions.map(tr => {
+                                                  const from = stateNodes.find(s => s.id === tr.fromStateId)?.name || tr.fromStateId;
+                                                  const to = stateNodes.find(s => s.id === tr.toStateId)?.name || tr.toStateId;
+                                                  return (
+                                                    <option key={tr.id} value={tr.id}>
+                                                      {from} {tr.isBidirectional ? '↔' : '→'} {to} ({tr.triggerLabel || 'Transition'})
+                                                    </option>
+                                                  );
+                                                })}
+                                              </select>
+                                            ) : (
+                                              <select
+                                                value={trig.requiredState || stateNodes[0]?.name || 'Idle'}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    requiredState: e.target.value
+                                                  });
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                              >
+                                                {stateNodes.map(st => (
+                                                  <option key={st.id} value={st.name}>
+                                                    ● {st.name} ({st.id}){st.isInitial ? ' [Initial]' : ''}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
 
+                                      {/* 4. POSSESSION TRIGGER */}
+                                      {trig.type === 'possession' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Possession Event</label>
+                                            <select
+                                              value={trig.event || 'on_possess'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  event: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="on_possess">On Player Possess (Spawn/Switch In)</option>
+                                              <option value="on_unpossess">On Player Unpossess (Release/Switch Out)</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 5. MAPPED INPUT TRIGGER */}
+                                      {trig.type === 'mapped_input' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Mapped Input Action</label>
+                                            <select
+                                              value={trig.inputId || availableInputMappings[0]?.id || 'inp_jump'}
+                                              onChange={(e) => {
+                                                const sel = availableInputMappings.find(m => m.id === e.target.value || m.name === e.target.value);
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  inputId: e.target.value,
+                                                  inputName: sel?.name || e.target.value
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              {availableInputMappings.map(m => (
+                                                <option key={m.id} value={m.id}>
+                                                  {m.label || m.name} ({m.keys?.join('/') || 'Key'})
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 6. SIGHT RAYCAST TRIGGER */}
+                                      {trig.type === 'sight' && (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Sensory Socket</label>
+                                            <select
+                                              value={trig.sensoryTag || 'head_eyes'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  sensoryTag: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              <option value="head_eyes">head_eyes (Eyes Socket)</option>
+                                              <option value="torso_center">torso_center (Chest Socket)</option>
+                                              {pointsList.map(pt => (
+                                                <option key={pt.id} value={pt.name}>{pt.name} ({pt.id})</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Vision Radius (px)</label>
+                                            <input
+                                              type="number"
+                                              value={trig.visionRadiusPx || 200}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  visionRadiusPx: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Cone Angle (°)</label>
+                                            <input
+                                              type="number"
+                                              value={trig.visionAngleDeg || 120}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  visionAngleDeg: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Target Filter</label>
+                                            <select
+                                              value={trig.targetFilter || 'player'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  targetFilter: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              <option value="player">Player Hero</option>
+                                              <option value="enemy">Enemy Mob</option>
+                                              <option value="any">Any Actor</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 7. ACOUSTIC SOUND TRIGGER */}
+                                      {trig.type === 'sound' && (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Hearing Socket</label>
+                                            <select
+                                              value={trig.sensoryTag || 'head_ears'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  sensoryTag: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              <option value="head_ears">head_ears (Ears Socket)</option>
+                                              <option value="torso_center">torso_center (Body)</option>
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Hearing Radius (px)</label>
+                                            <input
+                                              type="number"
+                                              value={trig.hearingRadiusPx || 250}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  hearingRadiusPx: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 8. PROXIMITY TRIGGER */}
+                                      {trig.type === 'proximity' && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Distance Threshold (px)</label>
+                                            <input
+                                              type="number"
+                                              value={trig.distancePx || 100}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  distancePx: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Comparator</label>
+                                            <select
+                                              value={trig.comparator || 'less_than'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  comparator: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              <option value="less_than">Closer Than (&lt;)</option>
+                                              <option value="greater_than">Farther Than (&gt;)</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 9. HEALTH THRESHOLD TRIGGER */}
+                                      {trig.type === 'health' && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Health Threshold (%)</label>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              max={100}
+                                              value={trig.healthPercentThreshold || 30}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  healthPercentThreshold: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Comparison</label>
+                                            <select
+                                              value={trig.comparator || 'less_than'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  comparator: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              <option value="less_than">Health Drops Below (&lt;=)</option>
+                                              <option value="greater_than">Health Above (&gt;=)</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 10. VARIABLE CONDITION TRIGGER */}
+                                      {trig.type === 'variable_condition' && (
+                                        <div className="grid grid-cols-3 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Variable</label>
+                                            <select
+                                              value={trig.variableId || variablesList[0]?.id || ''}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  variableId: e.target.value
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              {variablesList.map(v => (
+                                                <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Condition</label>
+                                            <select
+                                              value={trig.comparator || 'equals'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  comparator: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              <option value="equals">Equal To (==)</option>
+                                              <option value="not_equals">Not Equal (!=)</option>
+                                              <option value="greater_than">Greater Than (&gt;)</option>
+                                              <option value="less_than">Less Than (&lt;)</option>
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Target Value</label>
+                                            <input
+                                              type="number"
+                                              value={Number(trig.value) || 0}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  value: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 11. TIMER INTERVAL TRIGGER */}
+                                      {trig.type === 'timer' && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Interval (ms)</label>
+                                            <input
+                                              type="number"
+                                              step="100"
+                                              value={trig.intervalMs || 2000}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  intervalMs: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Random Jitter (ms)</label>
+                                            <input
+                                              type="number"
+                                              value={trig.randomJitterMs || 0}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  randomJitterMs: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 12. COLLISION TRIGGER */}
+                                      {trig.type === 'collision' && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Contact Type</label>
+                                            <select
+                                              value={trig.contactType || 'wall_impact'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  contactType: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            >
+                                              <option value="wall_impact">Wall / Obstacle Impact</option>
+                                              <option value="ground_touch">Ground Touch (Landing)</option>
+                                              <option value="hazard_touch">Hazard / Spikes Touch</option>
+                                              <option value="character_overlap">Hero/Mob Overlap</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
 
@@ -6672,6 +6938,28 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Toast Notification Alert for Character Module */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+          <div 
+            className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
+              toast.type === 'success'
+                ? 'bg-cyan-950/95 border-cyan-500/60 text-white shadow-cyan-950/50'
+                : toast.type === 'error'
+                ? 'bg-red-950/95 border-red-500/60 text-red-200 shadow-red-950/50'
+                : 'bg-neutral-900/95 border-neutral-700 text-neutral-200 shadow-neutral-950/50'
+            }`}
+          >
+            {toast.type === 'success' && (
+              <CheckCircle2 size={16} className="text-cyan-400 shrink-0" />
+            )}
+            {toast.type === 'error' && <AlertTriangle size={16} className="text-red-400 shrink-0" />}
+            {toast.type === 'info' && <Database size={16} className="text-cyan-400 shrink-0" />}
+            <span>{toast.text}</span>
+          </div>
         </div>
       )}
 

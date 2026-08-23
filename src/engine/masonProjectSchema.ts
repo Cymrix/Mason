@@ -82,7 +82,7 @@ export interface BehaviorSkill {
   triggerInputId?: string; // Links to MappedInput ID
 }
 
-export type TriggerType = 'sight' | 'sound' | 'proximity' | 'health' | 'timer' | 'state' | 'collision' | 'input_press' | 'player_condition' | 'keyboard_key' | 'listener' | 'mapped_input' | 'possession' | 'variable_condition' | 'dialogue_trigger';
+export type TriggerType = 'sight' | 'sound' | 'proximity' | 'health' | 'timer' | 'state' | 'collision' | 'input_press' | 'player_condition' | 'keyboard_key' | 'listener' | 'mapped_input' | 'possession' | 'variable_condition' | 'dialogue_trigger' | 'solid_detection' | 'physics_state';
 
 export interface SightTrigger {
   type: 'sight';
@@ -136,6 +136,31 @@ export interface CollisionTrigger {
 export interface InputPressTrigger {
   type: 'input_press';
   button: 'jump' | 'dash' | 'attack_primary' | 'attack_heavy' | 'interact' | 'skill_1' | 'skill_2' | 'block';
+}
+
+export interface SolidDetectionTrigger {
+  type: 'solid_detection';
+  direction: 'left' | 'right' | 'above' | 'below' | 'ground' | 'ceiling' | 'wall_forward' | 'wall_backward';
+  detectionDistancePx?: number; // Distance in pixels to check for solids (default 2-4px)
+  checkMode?: 'touching' | 'near' | 'clear' | 'ledge_ahead'; // touching = directly colliding, near = within distance, clear = no solids, ledge_ahead = solid below ahead
+}
+
+export interface PhysicsStateTrigger {
+  type: 'physics_state';
+  stateKind: 
+    | 'jump_peak'               // Vertical velocity near zero at apex of jump
+    | 'falling'                 // Pulled down by gravity (vy > 0)
+    | 'rising'                  // Ascending upward (vy < 0)
+    | 'grounded'                // Standing on solid floor
+    | 'airborne'                // Free falling or leaping in air
+    | 'wall_sliding'            // Clinging / sliding on vertical wall
+    | 'moving_horizontally'     // Horizontal speed |vx| > threshold
+    | 'stopped'                 // Zero velocity / at rest
+    | 'weightless_environment'  // Low/zero gravity zone or underwater/space
+    | 'high_velocity'           // Moving faster than nominal terminal threshold
+    | 'direction_change';       // Swapped moving direction
+  velocityThreshold?: number;   // Optional numerical threshold (e.g. min vy or vx)
+  gravityEnvironment?: 'zero_g' | 'low_g' | 'normal_g' | 'high_g' | 'inverted_g';
 }
 
 export interface KeyboardKeyTrigger {
@@ -193,7 +218,9 @@ export type BehaviorTrigger =
   | MappedInputTrigger
   | PossessionTrigger
   | VariableConditionTrigger
-  | DialogueTrigger;
+  | DialogueTrigger
+  | SolidDetectionTrigger
+  | PhysicsStateTrigger;
 
 export type ActionType = 'move' | 'attack' | 'state_change' | 'emit_signal' | 'animation' | 'camera' | 'hero_impulse' | 'variable_modify' | 'audio' | 'dialogue';
 

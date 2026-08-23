@@ -48,6 +48,8 @@ import {
   RotateCcw,
   Shuffle,
   Info,
+  CheckCircle2,
+  AlertTriangle,
   Upload,
   Image as ImageIcon,
   Trash2,
@@ -317,6 +319,18 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   const [selectedTileTypeIndex, setSelectedTileTypeIndex] = useState<number>(0);
   const [previewModalImage, setPreviewModalImage] = useState<{ title: string; url: string } | null>(null);
 
+  // Toast notification state for Biome Editor
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ text, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3200);
+  };
+
   const selectedTileType = selectedBiome?.tileTypes?.[selectedTileTypeIndex] || selectedBiome?.tileTypes?.[0];
 
   const handleUpdateCurrentBiome = (updater: (prev: RefinedBiome) => RefinedBiome) => {
@@ -571,6 +585,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   const handleSaveBiomeFile = () => {
     if (project) {
       saveActiveMasonProject(project);
+      showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName})`, 'success');
     }
   };
 
@@ -2068,6 +2083,28 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                 Close Preview
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Alert for Biome Module */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+          <div 
+            className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
+              toast.type === 'success'
+                ? 'bg-emerald-950/95 border-emerald-500/60 text-white shadow-emerald-950/50'
+                : toast.type === 'error'
+                ? 'bg-red-950/95 border-red-500/60 text-red-200 shadow-red-950/50'
+                : 'bg-neutral-900/95 border-neutral-700 text-neutral-200 shadow-neutral-950/50'
+            }`}
+          >
+            {toast.type === 'success' && (
+              <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+            )}
+            {toast.type === 'error' && <AlertTriangle size={16} className="text-red-400 shrink-0" />}
+            {toast.type === 'info' && <Database size={16} className="text-emerald-400 shrink-0" />}
+            <span>{toast.text}</span>
           </div>
         </div>
       )}

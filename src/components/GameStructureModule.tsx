@@ -23,6 +23,7 @@ import {
   ArrowRight, 
   ArrowLeftRight, 
   CheckCircle2, 
+  AlertTriangle,
   Sparkles, 
   Maximize2,
   Lock,
@@ -95,6 +96,18 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
   const [previewingMainMenu, setPreviewingMainMenu] = useState(false);
   const [previewingLoadingScreen, setPreviewingLoadingScreen] = useState(false);
   const [testFlagState, setTestFlagState] = useState<Record<string, boolean>>({});
+
+  // Toast notification state for Game Structure Module
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ text, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3200);
+  };
 
   // Graph Pan, Zoom & Dragging States
   const [graphZoom, setGraphZoom] = useState<number>(1.0);
@@ -396,7 +409,10 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
             }
           }));
         }}
-        onSaveFile={() => {}}
+        onSaveFile={() => {
+          updateStructure(s => ({ ...s }));
+          showToast(`Saved framework "${data.gameTitle || currentStructureFile.name}" (${currentStructureFile.fileName})`, 'success');
+        }}
         onExportFile={(fName) => {
           const target = project.fileSystem.game.find(g => g.fileName === fName);
           if (target) {
@@ -1629,6 +1645,29 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
 
         </main>
       </div>
+
+      {/* Toast Notification Alert for Game Structure Module */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+          <div 
+            className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
+              toast.type === 'success'
+                ? 'bg-purple-950/95 border-purple-500/60 text-white shadow-purple-950/50'
+                : toast.type === 'error'
+                ? 'bg-red-950/95 border-red-500/60 text-red-200 shadow-red-950/50'
+                : 'bg-neutral-900/95 border-neutral-700 text-neutral-200 shadow-neutral-950/50'
+            }`}
+          >
+            {toast.type === 'success' && (
+              <CheckCircle2 size={16} className="text-purple-400 shrink-0" />
+            )}
+            {toast.type === 'error' && <AlertTriangle size={16} className="text-red-400 shrink-0" />}
+            {toast.type === 'info' && <Compass size={16} className="text-purple-400 shrink-0" />}
+            <span>{toast.text}</span>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.94
+ * Current Release: v0.95
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92 -> v0.93 -> v0.94).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92 -> v0.93 -> v0.94 -> v0.95).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.94';
-export const MASON_VERSION_DISPLAY = 'v0.94';
-export const MASON_FULL_VERSION = 'v0.94';
+export const MASON_VERSION = '0.95';
+export const MASON_VERSION_DISPLAY = 'v0.95';
+export const MASON_FULL_VERSION = 'v0.95';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.95',
+    date: '2026-08-23',
+    changes: [
+      'Engine Sensory Triggers: Integrated solid detection (left, right, ceiling, floor, forward, backward, ledge ahead) and kinematics physics triggers (jump peak, apex, falling, rising, grounded, wall sliding).',
+      'Multi-Condition IF Evaluator: Added full AND / OR multi-trigger condition evaluation in Character and Behavior rules.',
+      'Parallax Viewport Centering: Parallax backdrop rendering strictly synchronizes with the center viewport chunk, fading out completely when positioned over unallocated void chunks.',
+      'Top Navigation Polish: Removed theme shortcut button from top navbar in favor of main menu theme settings.'
+    ]
+  },
   {
     version: 'v0.94',
     date: '2026-08-22',

@@ -177,6 +177,18 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
   const [testActionFeedback, setTestActionFeedback] = useState<string | null>(null);
   const [testNavigationHistory, setTestNavigationHistory] = useState<string[]>([]);
 
+  // Toast notification state for UI Theme Module
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ text, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3200);
+  };
+
   // Sync test mode active screen when switching to test mode
   useEffect(() => {
     if (isTestMode) {
@@ -822,7 +834,7 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
         }}
         onSaveFile={() => {
           updateUI(u => ({ ...u, updatedAt: new Date().toISOString() }));
-          triggerActionFeedback("Theme configuration saved");
+          showToast(`Saved UI theme "${ui.name || currentUiFile.name}" (${currentUiFile.fileName})`, 'success');
         }}
         onExportFile={(fName) => {
           const target = project.fileSystem.ui.find(u => u.fileName === fName);
@@ -2891,6 +2903,29 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
           </div>
         </div>
       )}
+
+      {/* Toast Notification Alert for UI Module */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+          <div 
+            className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
+              toast.type === 'success'
+                ? 'bg-emerald-950/95 border-emerald-500/60 text-white shadow-emerald-950/50'
+                : toast.type === 'error'
+                ? 'bg-red-950/95 border-red-500/60 text-red-200 shadow-red-950/50'
+                : 'bg-neutral-900/95 border-neutral-700 text-neutral-200 shadow-neutral-950/50'
+            }`}
+          >
+            {toast.type === 'success' && (
+              <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+            )}
+            {toast.type === 'error' && <Flame size={16} className="text-red-400 shrink-0" />}
+            {toast.type === 'info' && <Layout size={16} className="text-emerald-400 shrink-0" />}
+            <span>{toast.text}</span>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

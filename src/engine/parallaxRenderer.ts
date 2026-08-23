@@ -3,7 +3,7 @@ import { ParallaxLayerConfig, ParallaxLayerIndex, RefinedBiome } from './refined
 // Image cache for user-uploaded custom parallax layer textures
 const imageCache = new Map<string, HTMLImageElement>();
 
-export function getOrLoadParallaxImage(url: string): HTMLImageElement | null {
+export function getOrLoadParallaxImage(url: string, onLoaded?: () => void): HTMLImageElement | null {
   if (!url) return null;
   if (imageCache.has(url)) {
     const img = imageCache.get(url)!;
@@ -13,6 +13,9 @@ export function getOrLoadParallaxImage(url: string): HTMLImageElement | null {
   img.src = url;
   img.onload = () => {
     imageCache.set(url, img);
+    if (onLoaded) {
+      onLoaded();
+    }
   };
   imageCache.set(url, img);
   return null;
@@ -30,7 +33,8 @@ export function renderParallaxLayer(
   cameraPanY: number,
   scale: number,
   biome: RefinedBiome,
-  transitionAlpha: number = 1.0
+  transitionAlpha: number = 1.0,
+  onImageLoaded?: () => void
 ) {
   const effectiveOpacity = layer.opacity * transitionAlpha;
   if (effectiveOpacity <= 0.001) return;
@@ -45,7 +49,7 @@ export function renderParallaxLayer(
 
   // If custom image exists and is loaded
   if (layer.textureUrl) {
-    const img = getOrLoadParallaxImage(layer.textureUrl);
+    const img = getOrLoadParallaxImage(layer.textureUrl, onImageLoaded);
     if (img && img.naturalWidth > 0) {
       renderImageLayer(ctx, img, layer, viewportWidth, viewportHeight, offsetX, offsetY, scale);
       ctx.restore();

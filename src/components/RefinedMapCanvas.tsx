@@ -96,7 +96,9 @@ import {
   Activity,
   Flame,
   Cpu,
-  Bookmark
+  Bookmark,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 
 interface RefinedMapCanvasProps {
@@ -119,6 +121,12 @@ interface RefinedMapCanvasProps {
   spawnPoint?: { x: number; y: number; facing?: 'left' | 'right' };
   onSetSpawnPoint?: (x: number, y: number) => void;
   onExitPlayMode?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  undoCount?: number;
+  redoCount?: number;
 }
 
 export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
@@ -140,7 +148,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   linkedBehavior,
   spawnPoint = { x: 4, y: 12, facing: 'right' },
   onSetSpawnPoint,
-  onExitPlayMode
+  onExitPlayMode,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
+  undoCount = 0,
+  redoCount = 0
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showParallaxBg, setShowParallaxBg] = useState<boolean>(true);
@@ -350,7 +364,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     jumpStretch: 0,
     ghostTrails: [] as Array<{ x: number; y: number; facing: 'left' | 'right'; alpha: number; color: string }>,
     particles: [] as Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number }>,
-    slashes: [] as Array<{ x: number; y: number; facing: 'left' | 'right'; frame: number; maxFrames: number; color: string }>
+    slashes: [] as Array<{ x: number; y: number; facing: 'left' | 'right'; frame: number; maxFrames: number; color: string }>,
+    prevVx: 0,
+    prevVy: 0,
+    activeBehaviorState: 'idle'
   });
 
   const [hudState, setHudState] = useState({
@@ -465,27 +482,73 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   }, [biomes]);
 
   // ==========================================
-  // BIOME CROSSFADE ANIMATION ENGINE
+  // BIOME CROSSFADE & CENTER-SCREEN DETECTION ENGINE
   // ==========================================
   const prevBiomeRef = useRef<RefinedBiome | null>(null);
   const currentBiomeRef = useRef<RefinedBiome | null>(null);
   const fadeAlphaRef = useRef<number>(1.0);
-  const lastTimeRef = useRef<number>(performance.now());
 
-  // Determine centermost camera biome (returns null if camera is over unallocated space without a chunk)
-  const centerTileX = Math.floor((canvasWidth / 2 - pan.x) / (scale * TILE_SIZE));
-  const centerTileY = Math.floor((canvasHeight / 2 - pan.y) / (scale * TILE_SIZE));
-  const centerCell = getCell(mapData, centerTileX, centerTileY);
-  const targetBiome = (centerCell?.biome_id && biomeMap[centerCell.biome_id]) ? biomeMap[centerCell.biome_id] : null;
+  // Determine centermost camera biome based strictly on the chunk at the center of the viewport
+  const targetBiome = React.useMemo<RefinedBiome | null>(() => {
+    const centerTileX = Math.floor((canvasWidth / 2 - pan.x) / (scale * TILE_SIZE));
+    const centerTileY = Math.floor((canvasHeight / 2 - pan.y) / (scale * TILE_SIZE));
+
+    if (mapData.chunks) {
+      const { cx, cy } = getChunkCoords(centerTileX, centerTileY);
+      const centerChunkKey = getChunkKey(cx, cy);
+      const centerChunk = mapData.chunks[centerChunkKey];
+
+      // If there is no chunk at the center of the screen, show no biome / no parallax background
+      if (!centerChunk || !Array.isArray(centerChunk) || centerChunk.length === 0) {
+        return null;
+      }
+
+      // Determine the primary biome assigned to this center chunk
+      const biomeCounts = new Map<string, number>();
+      for (let i = 0; i < centerChunk.length; i++) {
+        const c = centerChunk[i];
+        if (c?.biome_id) {
+          biomeCounts.set(c.biome_id, (biomeCounts.get(c.biome_id) || 0) + 1);
+        }
+      }
+
+      let maxCount = 0;
+      let primaryBiomeId: string | null = null;
+      for (const [bId, count] of biomeCounts.entries()) {
+        if (count > maxCount && biomeMap[bId]) {
+          maxCount = count;
+          primaryBiomeId = bId;
+        }
+      }
+
+      if (primaryBiomeId && biomeMap[primaryBiomeId]) {
+        return biomeMap[primaryBiomeId];
+      }
+
+      return null;
+    } else if (mapData.cells) {
+      // Legacy bounds check for non-chunkified maps
+      if (centerTileX >= 0 && centerTileX < mapData.width && centerTileY >= 0 && centerTileY < mapData.height) {
+        const cell = mapData.cells[centerTileY]?.[centerTileX];
+        if (cell?.biome_id && biomeMap[cell.biome_id]) {
+          return biomeMap[cell.biome_id];
+        }
+      }
+      return null;
+    }
+
+    return null;
+  }, [canvasWidth, canvasHeight, pan.x, pan.y, scale, mapData, biomeMap]);
+
   const targetBiomeId = targetBiome ? targetBiome.id : 'VOID';
-
   const isInitialMountRef = useRef(true);
 
-  // Handle Target Biome change with smooth crossfade trigger (including transitions to/from VOID)
+  // Handle Target Biome change with animated smooth crossfade (including transitions into and out of VOID)
   useEffect(() => {
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       currentBiomeRef.current = targetBiome;
+      prevBiomeRef.current = null;
       fadeAlphaRef.current = 1.0;
       return;
     }
@@ -495,9 +558,33 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       prevBiomeRef.current = currentBiomeRef.current;
       currentBiomeRef.current = targetBiome;
       fadeAlphaRef.current = 0.0;
-      lastTimeRef.current = performance.now();
+
+      let rafId: number;
+      const durationMs = 280;
+      const startTime = performance.now();
+
+      const step = (now: number) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(1.0, elapsed / durationMs);
+        // Smooth quadratic ease-out
+        fadeAlphaRef.current = progress * (2 - progress);
+        setRenderTrigger(t => t + 1);
+
+        if (progress < 1.0) {
+          rafId = requestAnimationFrame(step);
+        } else {
+          fadeAlphaRef.current = 1.0;
+          prevBiomeRef.current = null;
+          setRenderTrigger(t => t + 1);
+        }
+      };
+
+      rafId = requestAnimationFrame(step);
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+      };
     }
-  }, [targetBiomeId]);
+  }, [targetBiomeId, targetBiome]);
 
   // Hovered Chunk & Biome derivation for Upper-Left HUD
   const hoveredChunkInfo = React.useMemo(() => {
@@ -940,6 +1027,171 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         respawnPlayer();
       }
 
+      // ==========================================
+      // BEHAVIOR RULES & SENSORY TRIGGER EVALUATION
+      // ==========================================
+      const rulesToEvaluate = linkedBehavior?.rules || testCharacter?.rules || [];
+      if (rulesToEvaluate.length > 0) {
+        // Solid check helper in specific direction and distance in pixels
+        const checkSolidsInDirection = (
+          direction: 'left' | 'right' | 'above' | 'below' | 'ground' | 'ceiling' | 'wall_forward' | 'wall_backward',
+          distancePx: number = 4,
+          mode: 'touching' | 'near' | 'clear' | 'ledge_ahead' = 'touching'
+        ): boolean => {
+          let checkX = p.x;
+          let checkY = p.y;
+          const dist = Math.max(1, distancePx);
+          const fwd = p.facing === 'right' ? 'right' : 'left';
+          const bwd = p.facing === 'right' ? 'left' : 'right';
+
+          let effDir = direction;
+          if (direction === 'wall_forward') effDir = fwd;
+          if (direction === 'wall_backward') effDir = bwd;
+          if (direction === 'ground') effDir = 'below';
+          if (direction === 'ceiling') effDir = 'above';
+
+          if (mode === 'ledge_ahead') {
+            // Ledge check: ground ahead of character in facing direction
+            const lookAheadX = p.x + (p.facing === 'right' ? halfW + dist : -(halfW + dist));
+            const lookDownY = p.y + 6;
+            const tX = Math.floor(lookAheadX / TILE_SIZE);
+            const tY = Math.floor(lookDownY / TILE_SIZE);
+            return !isSolidTile(tX, tY); // True if there is a pit/ledge ahead!
+          }
+
+          let solidDetected = false;
+          if (effDir === 'left') {
+            const tX = Math.floor((p.x - halfW - dist) / TILE_SIZE);
+            const tY1 = Math.floor((p.y - 4) / TILE_SIZE);
+            const tY2 = Math.floor((p.y - charH / 2) / TILE_SIZE);
+            const tY3 = Math.floor((p.y - charH + 4) / TILE_SIZE);
+            solidDetected = isSolidTile(tX, tY1) || isSolidTile(tX, tY2) || isSolidTile(tX, tY3);
+          } else if (effDir === 'right') {
+            const tX = Math.floor((p.x + halfW + dist) / TILE_SIZE);
+            const tY1 = Math.floor((p.y - 4) / TILE_SIZE);
+            const tY2 = Math.floor((p.y - charH / 2) / TILE_SIZE);
+            const tY3 = Math.floor((p.y - charH + 4) / TILE_SIZE);
+            solidDetected = isSolidTile(tX, tY1) || isSolidTile(tX, tY2) || isSolidTile(tX, tY3);
+          } else if (effDir === 'above') {
+            const tY = Math.floor((p.y - charH - dist) / TILE_SIZE);
+            const tX1 = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+            const tX2 = Math.floor(p.x / TILE_SIZE);
+            const tX3 = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+            solidDetected = isSolidTile(tX1, tY) || isSolidTile(tX2, tY) || isSolidTile(tX3, tY);
+          } else if (effDir === 'below') {
+            const tY = Math.floor((p.y + dist) / TILE_SIZE);
+            const tX1 = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+            const tX2 = Math.floor(p.x / TILE_SIZE);
+            const tX3 = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+            solidDetected = isSolidTile(tX1, tY) || isSolidTile(tX2, tY) || isSolidTile(tX3, tY);
+          }
+
+          if (mode === 'clear') {
+            return !solidDetected;
+          }
+          return solidDetected;
+        };
+
+        // Physics State evaluation helper
+        const evaluatePhysicsState = (
+          stateKind: string,
+          velocityThreshold: number = 0.5,
+          gravityEnvironment?: string
+        ): boolean => {
+          switch (stateKind) {
+            case 'jump_peak':
+              // Peak of jump: ascending previously or airborne with vertical speed near 0
+              return !p.isGrounded && Math.abs(p.vy) <= Math.max(0.6, velocityThreshold) && p.prevVy <= 0.2;
+            case 'falling':
+              // Falling downward pulled by gravity
+              return !p.isGrounded && p.vy > (velocityThreshold > 0 ? velocityThreshold : 0.5);
+            case 'rising':
+              // Ascending upward in air
+              return !p.isGrounded && p.vy < -(velocityThreshold > 0 ? velocityThreshold : 0.5);
+            case 'grounded':
+              return p.isGrounded;
+            case 'airborne':
+              return !p.isGrounded;
+            case 'wall_sliding':
+              return p.isWallSliding;
+            case 'moving_horizontally':
+              return Math.abs(p.vx) > velocityThreshold;
+            case 'stopped':
+              return Math.abs(p.vx) < 0.1 && Math.abs(p.vy) < 0.1;
+            case 'weightless_environment':
+              return charConfig.gravScale <= 0.05 || gravityEnvironment === 'zero_g';
+            case 'high_velocity':
+              return (Math.abs(p.vx) > (velocityThreshold || 6.0)) || (Math.abs(p.vy) > (velocityThreshold || 10.0));
+            case 'direction_change':
+              return (p.prevVx > 0.1 && p.vx < -0.1) || (p.prevVx < -0.1 && p.vx > 0.1);
+            default:
+              return false;
+          }
+        };
+
+        // Evaluate single trigger
+        const evaluateTrigger = (trig: any): boolean => {
+          if (!trig) return false;
+          switch (trig.type) {
+            case 'solid_detection':
+              return checkSolidsInDirection(trig.direction, trig.detectionDistancePx ?? 4, trig.checkMode ?? 'touching');
+            case 'physics_state':
+              return evaluatePhysicsState(trig.stateKind, trig.velocityThreshold ?? 0.5, trig.gravityEnvironment);
+            case 'player_condition':
+              if (trig.condition === 'is_grounded') return p.isGrounded;
+              if (trig.condition === 'is_airborne') return !p.isGrounded;
+              if (trig.condition === 'is_wall_sliding') return p.isWallSliding;
+              if (trig.condition === 'low_health') return p.health <= 30;
+              if (trig.condition === 'low_stamina') return p.stamina <= 20;
+              return false;
+            case 'state':
+              return p.activeBehaviorState === trig.stateId || trig.stateId === 'any';
+            case 'keyboard_key':
+              return !!keys[trig.key] || !!keys[`Key${trig.key?.toUpperCase()}`];
+            case 'collision':
+              return p.isGrounded || p.isWallSliding;
+            default:
+              return false;
+          }
+        };
+
+        // Execute active rules
+        for (const rule of rulesToEvaluate) {
+          if (!rule.enabled) continue;
+          const trigList = rule.triggers && rule.triggers.length > 0 ? rule.triggers : (rule.trigger ? [rule.trigger] : []);
+          if (trigList.length === 0) continue;
+
+          const logic = rule.triggerLogic || 'AND';
+          let rulePassed = false;
+          if (logic === 'OR') {
+            rulePassed = trigList.some(evaluateTrigger);
+          } else {
+            rulePassed = trigList.every(evaluateTrigger);
+          }
+
+          if (rulePassed && rule.actions && rule.actions.length > 0) {
+            for (const action of rule.actions) {
+              if (action.actionType === 'hero_impulse') {
+                if (action.impulseType === 'jump' && p.isGrounded) {
+                  p.vy = -(action.force || 10);
+                  p.isGrounded = false;
+                } else if (action.impulseType === 'dash') {
+                  triggerDash();
+                }
+              } else if (action.actionType === 'state_change' && action.targetState) {
+                p.activeBehaviorState = action.targetState;
+              } else if (action.actionType === 'attack') {
+                triggerAttack();
+              }
+            }
+          }
+        }
+      }
+
+      // Store previous velocity for apex / directional change detection
+      p.prevVx = p.vx;
+      p.prevVy = p.vy;
+
       // Update Particles
       p.particles.forEach(pt => {
         pt.x += pt.vx;
@@ -1002,7 +1254,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
     const fadeAlpha = fadeAlphaRef.current;
     const prevBiome = prevBiomeRef.current;
-    const currBiome = currentBiomeRef.current || targetBiome;
+    const currBiome = currentBiomeRef.current !== undefined ? currentBiomeRef.current : targetBiome;
 
     // Helper to render background layers for a biome with opacity multiplier
     const renderBiomeBg = (biomeToRender: RefinedBiome, opacityMult: number) => {
@@ -1021,7 +1273,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           pan.y,
           scale,
           biomeToRender,
-          opacityMult
+          opacityMult,
+          () => setRenderTrigger(t => t + 1)
         );
       });
     };
@@ -1741,7 +1994,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           pan.y,
           scale,
           biomeToRender,
-          opacityMult
+          opacityMult,
+          () => setRenderTrigger(t => t + 1)
         );
       });
     };
@@ -2273,6 +2527,43 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           onClick={(e) => e.stopPropagation()}
           className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-neutral-900/90 backdrop-blur-md p-1.5 rounded-xl border border-neutral-700/80 shadow-2xl text-xs select-none"
         >
+          {/* Undo & Redo Quick Buttons */}
+          {onUndo && (
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                canUndo 
+                  ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 active:scale-95' 
+                  : 'text-neutral-600 cursor-not-allowed'
+              }`}
+              title={`Undo Map Change (Ctrl+Z)${undoCount > 0 ? ` [${undoCount}]` : ''}`}
+            >
+              <Undo2 size={13} className={canUndo ? 'text-cyan-400' : 'text-neutral-600'} />
+              <span className="hidden sm:inline">Undo</span>
+            </button>
+          )}
+
+          {onRedo && (
+            <button
+              type="button"
+              onClick={onRedo}
+              disabled={!canRedo}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                canRedo 
+                  ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 active:scale-95' 
+                  : 'text-neutral-600 cursor-not-allowed'
+              }`}
+              title={`Redo Map Change (Ctrl+Y / Cmd+Shift+Z)${redoCount > 0 ? ` [${redoCount}]` : ''}`}
+            >
+              <Redo2 size={13} className={canRedo ? 'text-amber-400' : 'text-neutral-600'} />
+              <span className="hidden sm:inline">Redo</span>
+            </button>
+          )}
+
+          {(onUndo || onRedo) && <div className="h-4 w-px bg-neutral-700 mx-0.5" />}
+
           {/* Grid Toggle Checkbox / Button */}
           <button
             type="button"

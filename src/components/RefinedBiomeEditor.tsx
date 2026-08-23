@@ -704,6 +704,23 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                 title="Biome map tint color"
               />
             </div>
+            <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-[10px] text-neutral-300 shrink-0">
+              <span>Gravity:</span>
+              <select
+                value={selectedBiome.gravityScale ?? 1.0}
+                onChange={(e) => handleUpdateCurrentBiome(b => ({ ...b, gravityScale: parseFloat(e.target.value) || 0 }))}
+                className="bg-transparent text-amber-300 font-mono text-[10px] outline-none cursor-pointer"
+                title="Biome Base Gravity Multiplier (0.0x = Weightless, 0.3x = Moon, 1.0x = Standard)"
+              >
+                <option value="0">🌌 0.0x (Weightless)</option>
+                <option value="0.3">🌙 0.3x (Low-G / Moon)</option>
+                <option value="0.7">💨 0.7x (Floaty)</option>
+                <option value="1">🌍 1.0x (Standard)</option>
+                <option value="1.5">🏋️ 1.5x (Dense)</option>
+                <option value="2">⚡ 2.0x (Heavy)</option>
+                <option value="-1">🔄 -1.0x (Inverted)</option>
+              </select>
+            </div>
           </div>
         }
       />

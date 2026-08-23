@@ -96,7 +96,7 @@ const generateVariableId = () => {
 };
 
 // Helper to create properly typed triggers
-const createDefaultTrigger = (type: TriggerType): BehaviorTrigger => {
+const createDefaultTrigger = (type: TriggerType, availableVars?: BehaviorVariable[]): BehaviorTrigger => {
   switch (type) {
     case 'possession':
       return { type: 'possession', event: 'on_possess' };
@@ -112,8 +112,16 @@ const createDefaultTrigger = (type: TriggerType): BehaviorTrigger => {
       return { type: 'health', healthPercentThreshold: 30, comparator: 'less_than' };
     case 'state':
       return { type: 'state', stateMode: 'is_state', requiredState: 'Idle' };
-    case 'variable_condition':
-      return { type: 'variable_condition', variableId: 'var_custom', comparator: 'equals', value: 100 };
+    case 'variable_condition': {
+      const firstVar = availableVars?.[0];
+      const isBool = firstVar?.type === 'boolean';
+      return {
+        type: 'variable_condition',
+        variableId: firstVar?.id || 'var_custom',
+        comparator: 'equals',
+        value: isBool ? true : (firstVar?.defaultValue ?? (firstVar?.type === 'number' ? 100 : ''))
+      };
+    }
     case 'timer':
       return { type: 'timer', intervalMs: 2000, randomJitterMs: 0 };
     case 'dialogue_trigger':
@@ -131,7 +139,7 @@ const createDefaultTrigger = (type: TriggerType): BehaviorTrigger => {
     case 'solid_detection':
       return { type: 'solid_detection', direction: 'below', detectionDistancePx: 4, checkMode: 'touching' };
     case 'physics_state':
-      return { type: 'physics_state', stateKind: 'jump_peak', velocityThreshold: 0.5, gravityEnvironment: 'normal_g' };
+      return { type: 'physics_state', stateKind: 'jump_peak', velocityThreshold: 0.5 };
     default:
       return { type: 'sight', sensoryTag: 'head_eyes', visionRadiusPx: 200, visionAngleDeg: 120, requireLineOfSight: true, targetFilter: 'player' };
   }
@@ -258,14 +266,27 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     fromStateId: string;
     toStateId: string;
     triggerLabel: string;
+    behaviorRuleId?: string;
+    conditionType?: 'none' | 'behavior' | 'custom';
     isEditing: boolean;
   }>({
     id: 'tr_1',
     fromStateId: '',
     toStateId: '',
     triggerLabel: '',
+    behaviorRuleId: undefined,
+    conditionType: 'none',
     isEditing: false
   });
+
+  // Helper to check if a transition condition is unset or 'none'
+  const isTransitionConditionUnset = (tr: CharacterStateTransition | { triggerLabel?: string; behaviorRuleId?: string; conditionType?: string }): boolean => {
+    if (!tr.behaviorRuleId || tr.behaviorRuleId === 'none') return true;
+    if (tr.conditionType === 'none') return true;
+    if (!tr.triggerLabel) return true;
+    const t = tr.triggerLabel.trim().toLowerCase();
+    return t === '' || t === 'none' || t === 'unset' || t === 'no condition';
+  };
 
   // State graph node dragging & connection wire
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
@@ -745,7 +766,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             fromStateId: transitionForm.fromStateId,
             toStateId: transitionForm.toStateId,
             isBidirectional: false,
-            triggerLabel: transitionForm.triggerLabel
+            triggerLabel: transitionForm.triggerLabel,
+            behaviorRuleId: transitionForm.behaviorRuleId,
+            conditionType: transitionForm.conditionType
           } : t)
         };
       } else {
@@ -754,7 +777,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           fromStateId: transitionForm.fromStateId,
           toStateId: transitionForm.toStateId,
           isBidirectional: false,
-          triggerLabel: transitionForm.triggerLabel
+          triggerLabel: transitionForm.triggerLabel,
+          behaviorRuleId: transitionForm.behaviorRuleId,
+          conditionType: transitionForm.conditionType
         };
         return {
           ...sm,
@@ -3586,6 +3611,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {spritesheetsList.map((sheet, sIdx) => {
                 const isSelected = (selectedSheetId === sheet.id) || (!selectedSheetId && sIdx === 0);
+                const sheetW = sheet.imageWidth || ((sheet.cols || 8) * (sheet.tileWidth || 64)) || 512;
+                const sheetH = sheet.imageHeight || ((sheet.rows || 4) * (sheet.tileHeight || 64)) || 256;
+                const splitMode = sheet.splitMode || 'pixels';
 
                 const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
                   const file = e.target.files?.[0];
@@ -3598,10 +3626,24 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
                     const img = new Image();
                     img.onload = () => {
-                      const tw = sheet.tileWidth || 64;
-                      const th = sheet.tileHeight || 64;
-                      const detectedCols = Math.max(1, Math.floor(img.naturalWidth / tw));
-                      const detectedRows = Math.max(1, Math.floor(img.naturalHeight / th));
+                      const totalW = img.naturalWidth || 512;
+                      const totalH = img.naturalHeight || 256;
+                      let tw = sheet.tileWidth || 64;
+                      let th = sheet.tileHeight || 64;
+                      let detectedCols = sheet.cols || 8;
+                      let detectedRows = sheet.rows || 4;
+
+                      if (sheet.splitMode === 'columns') {
+                        detectedCols = Math.max(1, sheet.cols || 8);
+                        detectedRows = Math.max(1, sheet.rows || 4);
+                        tw = Math.max(1, Math.floor(totalW / detectedCols));
+                        th = Math.max(1, Math.floor(totalH / detectedRows));
+                      } else {
+                        tw = Math.max(1, sheet.tileWidth || 64);
+                        th = Math.max(1, sheet.tileHeight || 64);
+                        detectedCols = Math.max(1, Math.floor(totalW / tw));
+                        detectedRows = Math.max(1, Math.floor(totalH / th));
+                      }
                       const total = detectedCols * detectedRows;
 
                       updateCharacter(c => ({
@@ -3610,6 +3652,10 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           ...s,
                           imageUrl: dataUrl,
                           dataUrl: dataUrl,
+                          imageWidth: totalW,
+                          imageHeight: totalH,
+                          tileWidth: tw,
+                          tileHeight: th,
                           cols: detectedCols,
                           rows: detectedRows,
                           totalFrames: total
@@ -3626,10 +3672,12 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                   const th = sheet.tileHeight || 64;
                   const cols = sheet.cols || 8;
                   const rows = sheet.rows || 4;
+                  const totalW = tw * cols;
+                  const totalH = th * rows;
 
                   const cvs = document.createElement('canvas');
-                  cvs.width = tw * cols;
-                  cvs.height = th * rows;
+                  cvs.width = totalW;
+                  cvs.height = totalH;
                   const ctx = cvs.getContext('2d');
                   if (ctx) {
                     const total = cols * rows;
@@ -3679,7 +3727,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? {
                         ...s,
                         imageUrl: sampleDataUrl,
-                        dataUrl: sampleDataUrl
+                        dataUrl: sampleDataUrl,
+                        imageWidth: totalW,
+                        imageHeight: totalH
                       } : s)
                     }));
                   }
@@ -3689,7 +3739,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                   <div 
                     key={sheet.id}
                     onClick={() => setSelectedSheetId(sheet.id)}
-                    className={`bg-neutral-900 border rounded-2xl p-4 space-y-4 transition cursor-pointer ${
+                    className={`bg-neutral-900 border rounded-2xl p-4 space-y-3.5 transition cursor-pointer ${
                       isSelected ? 'border-purple-500 ring-2 ring-purple-500/20' : 'border-neutral-800 hover:border-neutral-700'
                     }`}
                   >
@@ -3720,6 +3770,17 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       </div>
                     </div>
 
+                    {/* Prominent Spritesheet Size Banner */}
+                    <div className="flex items-center justify-between text-xs bg-neutral-950 px-3 py-2 rounded-xl border border-neutral-800/80 shadow-inner">
+                      <span className="text-neutral-400 font-mono text-[11px] flex items-center gap-1.5">
+                        <Maximize2 size={13} className="text-purple-400" />
+                        Spritesheet Size:
+                      </span>
+                      <span className="text-white font-mono font-bold text-xs bg-purple-950/60 text-purple-200 px-2 py-0.5 rounded border border-purple-500/30">
+                        {sheetW} × {sheetH} px
+                      </span>
+                    </div>
+
                     {/* Image Preview / Upload Area */}
                     <div className="relative group bg-neutral-950 border border-neutral-800 rounded-xl p-3 flex flex-col items-center justify-center min-h-[100px] overflow-hidden">
                       {sheet.imageUrl || sheet.dataUrl ? (
@@ -3729,9 +3790,11 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                             alt={sheet.name} 
                             className="max-h-24 object-contain image-rendering-pixelated rounded"
                           />
-                          <span className="text-[10px] text-neutral-400 font-mono mt-1">
-                            {sheet.cols} cols × {sheet.rows} rows
-                          </span>
+                          <div className="text-[10px] text-neutral-400 font-mono mt-1.5 flex items-center gap-2">
+                            <span>{sheet.cols} cols × {sheet.rows} rows</span>
+                            <span>•</span>
+                            <span>{sheet.tileWidth}×{sheet.tileHeight} px/tile</span>
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center space-y-1">
@@ -3780,7 +3843,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       </div>
                     </div>
 
-                    <div className="space-y-2 text-xs">
+                    <div className="space-y-3 text-xs">
                       <div>
                         <label className="text-[10px] text-neutral-400 font-bold block">Sheet Label</label>
                         <input
@@ -3796,67 +3859,165 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-neutral-400 font-bold block">Tile Width (px)</label>
-                          <input
-                            type="number"
-                            value={sheet.tileWidth}
-                            onChange={(e) => {
+                      {/* Split Method Option Selector: Pixels (Width/Height) OR Columns/Rows */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-neutral-400 font-bold block flex items-center justify-between">
+                          <span>Split Sheet By:</span>
+                          <span className="text-[9px] text-purple-400 font-mono">
+                            {splitMode === 'pixels' ? 'Tile Pixels (W×H)' : 'Columns & Rows'}
+                          </span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-1 p-1 bg-neutral-950 border border-neutral-800 rounded-xl">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               updateCharacter(c => ({
                                 ...c,
-                                spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? { ...s, tileWidth: Number(e.target.value) } : s)
+                                spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? { ...s, splitMode: 'pixels' } : s)
                               }));
                             }}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-neutral-400 font-bold block">Tile Height (px)</label>
-                          <input
-                            type="number"
-                            value={sheet.tileHeight}
-                            onChange={(e) => {
+                            className={`py-1.5 px-2 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1 font-mono ${
+                              splitMode === 'pixels'
+                                ? 'bg-purple-600 text-white shadow-md'
+                                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
+                            }`}
+                          >
+                            <span>📏 Tile Pixels</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               updateCharacter(c => ({
                                 ...c,
-                                spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? { ...s, tileHeight: Number(e.target.value) } : s)
+                                spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? { ...s, splitMode: 'columns' } : s)
                               }));
                             }}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                          />
+                            className={`py-1.5 px-2 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1 font-mono ${
+                              splitMode === 'columns'
+                                ? 'bg-purple-600 text-white shadow-md'
+                                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
+                            }`}
+                          >
+                            <span>🔢 Columns & Rows</span>
+                          </button>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-neutral-400 font-bold block">Columns</label>
-                          <input
-                            type="number"
-                            value={sheet.cols}
-                            onChange={(e) => {
-                              updateCharacter(c => ({
-                                ...c,
-                                spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? { ...s, cols: Number(e.target.value) } : s)
-                              }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                          />
+                      {/* Option A: Split by Tile Width / Height Pixels */}
+                      {splitMode === 'pixels' ? (
+                        <div className="space-y-2 p-2.5 bg-neutral-950/70 border border-neutral-800 rounded-xl">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] text-neutral-300 font-bold block">Tile Width (px)</label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={sheet.tileWidth}
+                                onChange={(e) => {
+                                  const newTw = Math.max(1, Number(e.target.value) || 1);
+                                  const computedCols = Math.max(1, Math.floor(sheetW / newTw));
+                                  const computedTotal = computedCols * (sheet.rows || 1);
+                                  updateCharacter(c => ({
+                                    ...c,
+                                    spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? {
+                                      ...s,
+                                      tileWidth: newTw,
+                                      cols: computedCols,
+                                      totalFrames: computedTotal
+                                    } : s)
+                                  }));
+                                }}
+                                className="w-full bg-neutral-900 border border-purple-500/40 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-neutral-300 font-bold block">Tile Height (px)</label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={sheet.tileHeight}
+                                onChange={(e) => {
+                                  const newTh = Math.max(1, Number(e.target.value) || 1);
+                                  const computedRows = Math.max(1, Math.floor(sheetH / newTh));
+                                  const computedTotal = (sheet.cols || 1) * computedRows;
+                                  updateCharacter(c => ({
+                                    ...c,
+                                    spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? {
+                                      ...s,
+                                      tileHeight: newTh,
+                                      rows: computedRows,
+                                      totalFrames: computedTotal
+                                    } : s)
+                                  }));
+                                }}
+                                className="w-full bg-neutral-900 border border-purple-500/40 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                              />
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-neutral-400 font-mono flex items-center justify-between pt-1 border-t border-neutral-800">
+                            <span>Calculated Grid:</span>
+                            <span className="text-purple-300 font-bold">{sheet.cols} cols × {sheet.rows} rows ({sheet.totalFrames} frames)</span>
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-[10px] text-neutral-400 font-bold block">Rows</label>
-                          <input
-                            type="number"
-                            value={sheet.rows}
-                            onChange={(e) => {
-                              updateCharacter(c => ({
-                                ...c,
-                                spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? { ...s, rows: Number(e.target.value) } : s)
-                              }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                          />
+                      ) : (
+                        /* Option B: Split by Columns and Rows */
+                        <div className="space-y-2 p-2.5 bg-neutral-950/70 border border-neutral-800 rounded-xl">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] text-neutral-300 font-bold block">Columns (count)</label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={sheet.cols}
+                                onChange={(e) => {
+                                  const newCols = Math.max(1, Number(e.target.value) || 1);
+                                  const computedTw = Math.max(1, Math.floor(sheetW / newCols));
+                                  const computedTotal = newCols * (sheet.rows || 1);
+                                  updateCharacter(c => ({
+                                    ...c,
+                                    spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? {
+                                      ...s,
+                                      cols: newCols,
+                                      tileWidth: computedTw,
+                                      totalFrames: computedTotal
+                                    } : s)
+                                  }));
+                                }}
+                                className="w-full bg-neutral-900 border border-purple-500/40 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-neutral-300 font-bold block">Rows (count)</label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={sheet.rows}
+                                onChange={(e) => {
+                                  const newRows = Math.max(1, Number(e.target.value) || 1);
+                                  const computedTh = Math.max(1, Math.floor(sheetH / newRows));
+                                  const computedTotal = (sheet.cols || 1) * newRows;
+                                  updateCharacter(c => ({
+                                    ...c,
+                                    spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? {
+                                      ...s,
+                                      rows: newRows,
+                                      tileHeight: computedTh,
+                                      totalFrames: computedTotal
+                                    } : s)
+                                  }));
+                                }}
+                                className="w-full bg-neutral-900 border border-purple-500/40 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                              />
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-neutral-400 font-mono flex items-center justify-between pt-1 border-t border-neutral-800">
+                            <span>Calculated Tile Size:</span>
+                            <span className="text-purple-300 font-bold">{sheet.tileWidth} × {sheet.tileHeight} px ({sheet.totalFrames} frames)</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -4359,6 +4520,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       if (!fromNode || !toNode || fromNode.id === toNode.id) return null;
 
                       const isSelected = selectedTransitionId === tr.id;
+                      const isUnset = isTransitionConditionUnset(tr);
 
                       const dx = toNode.x - fromNode.x;
                       const dy = toNode.y - fromNode.y;
@@ -4377,6 +4539,19 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       const pathD = `M ${p0.x} ${p0.y} Q ${p1.x} ${p1.y} ${p2.x} ${p2.y}`;
                       const arrowHeads = getQuadBezierArrowHeads(p0, p1, p2, [0.22, 0.38, 0.62, 0.78]);
 
+                      // Wire colors: Red if no condition, cyan/indigo if condition set
+                      const wireStroke = isUnset
+                        ? (isSelected ? '#f87171' : '#ef4444')
+                        : (isSelected ? '#38bdf8' : '#6366f1');
+                      
+                      const arrowFill = isUnset
+                        ? (isSelected ? '#f87171' : '#ef4444')
+                        : (isSelected ? '#38bdf8' : '#818cf8');
+                      
+                      const arrowStroke = isUnset
+                        ? (isSelected ? '#dc2626' : '#991b1b')
+                        : (isSelected ? '#0284c7' : '#4338ca');
+
                       return (
                         <g 
                           key={tr.id} 
@@ -4393,6 +4568,8 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                               fromStateId: tr.fromStateId,
                               toStateId: tr.toStateId,
                               triggerLabel: tr.triggerLabel || '',
+                              behaviorRuleId: tr.behaviorRuleId,
+                              conditionType: tr.conditionType || (isUnset ? 'none' : 'custom'),
                               isEditing: true
                             });
                             setIsTransitionModalOpen(true);
@@ -4402,17 +4579,17 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           <path
                             d={pathD}
                             stroke="transparent"
-                            strokeWidth={16}
+                            strokeWidth={18}
                             fill="none"
                           />
                           {/* Main connecting wire */}
                           <path
                             d={pathD}
-                            stroke={isSelected ? '#38bdf8' : '#6366f1'}
-                            strokeWidth={isSelected ? 3 : 2}
+                            stroke={wireStroke}
+                            strokeWidth={isSelected ? 3.5 : 2.5}
                             fill="none"
-                            strokeDasharray={isSelected ? '4 2' : undefined}
-                            className="transition-all hover:stroke-cyan-400"
+                            strokeDasharray={isUnset ? (isSelected ? '6 3' : '4 3') : (isSelected ? '4 2' : undefined)}
+                            className="transition-all hover:stroke-red-400"
                           />
                           {/* 4 Distinct Directional Arrow Heads along the link */}
                           {arrowHeads.map((arrow, idx) => (
@@ -4423,9 +4600,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                             >
                               <path
                                 d="M -7 -5.5 L 5 0 L -7 5.5 L -3.5 0 Z"
-                                fill={isSelected ? '#38bdf8' : '#818cf8'}
-                                stroke={isSelected ? '#0284c7' : '#4338ca'}
-                                strokeWidth={0.8}
+                                fill={arrowFill}
+                                stroke={arrowStroke}
+                                strokeWidth={0.9}
                                 className="transition-colors"
                               />
                             </g>
@@ -4457,6 +4634,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       const midY = ((fromNode.y + toNode.y) / 2) + normY * 32;
 
                       const isSelected = selectedTransitionId === tr.id;
+                      const isUnset = isTransitionConditionUnset(tr);
 
                       return (
                         <div
@@ -4476,19 +4654,29 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                               fromStateId: tr.fromStateId,
                               toStateId: tr.toStateId,
                               triggerLabel: tr.triggerLabel || '',
+                              behaviorRuleId: tr.behaviorRuleId,
+                              conditionType: tr.conditionType || (isUnset ? 'none' : 'custom'),
                               isEditing: true
                             });
                             setIsTransitionModalOpen(true);
                           }}
                           className={`pointer-events-auto absolute cursor-pointer px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 shadow-lg border transition select-none group ${
                             isSelected 
-                              ? 'bg-cyan-500 text-black ring-2 ring-cyan-300 border-cyan-400 font-extrabold scale-105' 
-                              : 'bg-neutral-900/95 border-neutral-700 text-neutral-300 hover:border-cyan-400 hover:text-white hover:scale-105'
+                              ? (isUnset 
+                                  ? 'bg-red-500 text-white ring-2 ring-red-300 border-red-400 font-extrabold scale-105' 
+                                  : 'bg-cyan-500 text-black ring-2 ring-cyan-300 border-cyan-400 font-extrabold scale-105')
+                              : (isUnset 
+                                  ? 'bg-red-950/95 border-red-500/80 text-red-300 ring-1 ring-red-500/40 hover:border-red-400 hover:text-white hover:scale-105' 
+                                  : 'bg-neutral-900/95 border-neutral-700 text-neutral-300 hover:border-cyan-400 hover:text-white hover:scale-105')
                           }`}
-                          title={`Transition: ${fromNode.name} → ${toNode.name}. Click to select & edit label in sidebar, or double-click to open edit modal.`}
+                          title={`Transition: ${fromNode.name} → ${toNode.name}.${isUnset ? ' [⚠️ NO CONDITION SET - Wire is red]' : ` Condition: ${tr.triggerLabel}`}`}
                         >
-                          <span className={`text-[11px] font-bold ${isSelected ? 'text-black' : 'text-cyan-400'}`}>→</span>
-                          <span className="truncate max-w-[110px]">{tr.triggerLabel || 'Condition'}</span>
+                          <span className={`text-[11px] font-bold ${isSelected ? (isUnset ? 'text-white' : 'text-black') : (isUnset ? 'text-red-400' : 'text-cyan-400')}`}>
+                            {isUnset ? '⚠️' : '→'}
+                          </span>
+                          <span className="truncate max-w-[120px]">
+                            {isUnset ? 'None (No Condition)' : tr.triggerLabel}
+                          </span>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -4500,12 +4688,14 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                 fromStateId: tr.fromStateId,
                                 toStateId: tr.toStateId,
                                 triggerLabel: tr.triggerLabel || '',
+                                behaviorRuleId: tr.behaviorRuleId,
+                                conditionType: tr.conditionType || (isUnset ? 'none' : 'custom'),
                                 isEditing: true
                               });
                               setIsTransitionModalOpen(true);
                             }}
-                            className={`p-0.5 rounded transition ${isSelected ? 'text-black hover:bg-black/20' : 'text-neutral-400 hover:text-cyan-300 opacity-60 group-hover:opacity-100'}`}
-                            title="Edit Transition Label"
+                            className={`p-0.5 rounded transition ${isSelected ? (isUnset ? 'text-white hover:bg-white/20' : 'text-black hover:bg-black/20') : 'text-neutral-400 hover:text-white opacity-60 group-hover:opacity-100'}`}
+                            title="Edit Transition Condition"
                           >
                             <Edit3 size={10} />
                           </button>
@@ -4823,11 +5013,16 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                   if (!activeTr) return null;
                   const fromNode = stateNodes.find(s => s.id === activeTr.fromStateId);
                   const toNode = stateNodes.find(s => s.id === activeTr.toStateId);
+                  const isUnset = isTransitionConditionUnset(activeTr);
 
                   return (
-                    <div className="bg-neutral-900 border border-cyan-500/40 rounded-2xl p-4 space-y-4 shadow-xl">
+                    <div className={`bg-neutral-900 border rounded-2xl p-4 space-y-4 shadow-xl ${
+                      isUnset ? 'border-red-500/60 ring-1 ring-red-500/20' : 'border-cyan-500/40'
+                    }`}>
                       <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
-                        <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5 uppercase tracking-wider">
+                        <span className={`text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider ${
+                          isUnset ? 'text-red-400' : 'text-cyan-400'
+                        }`}>
                           <ArrowRight size={14} />
                           Transition Details
                         </span>
@@ -4840,6 +5035,8 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                 fromStateId: activeTr.fromStateId,
                                 toStateId: activeTr.toStateId,
                                 triggerLabel: activeTr.triggerLabel || '',
+                                behaviorRuleId: activeTr.behaviorRuleId,
+                                conditionType: activeTr.conditionType || (isUnset ? 'none' : 'custom'),
                                 isEditing: true
                               });
                               setIsTransitionModalOpen(true);
@@ -4864,7 +5061,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           <span className="text-white font-bold truncate max-w-[90px]" title={fromNode?.name || activeTr.fromStateId}>
                             {fromNode?.name || activeTr.fromStateId}
                           </span>
-                          <span className="text-cyan-400 text-sm font-bold px-2.5 py-0.5 rounded bg-neutral-900 border border-neutral-800">
+                          <span className={`text-sm font-bold px-2.5 py-0.5 rounded bg-neutral-900 border ${
+                            isUnset ? 'text-red-400 border-red-500/40' : 'text-cyan-400 border-neutral-800'
+                          }`}>
                             →
                           </span>
                           <span className="text-white font-bold truncate max-w-[90px]" title={toNode?.name || activeTr.toStateId}>
@@ -4872,41 +5071,62 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           </span>
                         </div>
 
-                        <div>
-                          <label className="text-[10px] text-neutral-400 font-bold block">Transition Trigger Condition / Label</label>
-                          <input
-                            type="text"
-                            value={activeTr.triggerLabel || ''}
+                        {/* Behavior Condition Selector - ONLY 'none' and available behaviors */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-neutral-400 font-bold block">Transition Behavior Condition</label>
+                          <select
+                            value={activeTr.behaviorRuleId || 'none'}
                             onChange={(e) => {
                               const val = e.target.value;
-                              updateStateMachine(sm => ({
-                                ...sm,
-                                transitions: sm.transitions.map(t => t.id === activeTr.id ? { ...t, triggerLabel: val } : t)
-                              }));
+                              if (val === 'none') {
+                                updateStateMachine(sm => ({
+                                  ...sm,
+                                  transitions: sm.transitions.map(t => t.id === activeTr.id ? {
+                                    ...t,
+                                    triggerLabel: 'None',
+                                    behaviorRuleId: undefined,
+                                    conditionType: 'none'
+                                  } : t)
+                                }));
+                              } else {
+                                const found = rulesList.find(r => r.id === val);
+                                const bName = found ? (found.name || `Rule #${val}`) : val;
+                                updateStateMachine(sm => ({
+                                  ...sm,
+                                  transitions: sm.transitions.map(t => t.id === activeTr.id ? {
+                                    ...t,
+                                    triggerLabel: bName,
+                                    behaviorRuleId: val,
+                                    conditionType: 'behavior'
+                                  } : t)
+                                }));
+                              }
                             }}
-                            placeholder="e.g. Target Spotted, In Range, Damage Taken"
-                            className="w-full bg-neutral-950 border border-cyan-500/50 focus:border-cyan-400 rounded px-2.5 py-1.5 text-white font-mono mt-1 focus:outline-none"
-                          />
-
-                          {/* Quick preset label buttons */}
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {['Target Spotted', 'In Attack Range', 'Damage Taken', 'HP < 30%', 'Timer / Cooldown', 'Patrol Edge', 'Stop Movement', 'Input Pressed'].map(lbl => (
-                              <button
-                                key={lbl}
-                                type="button"
-                                onClick={() => {
-                                  updateStateMachine(sm => ({
-                                    ...sm,
-                                    transitions: sm.transitions.map(t => t.id === activeTr.id ? { ...t, triggerLabel: lbl } : t)
-                                  }));
-                                }}
-                                className="px-2 py-0.5 rounded bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 hover:border-cyan-500/50 text-neutral-300 hover:text-cyan-300 text-[10px] font-mono transition"
-                              >
-                                {lbl}
-                              </button>
+                            className={`w-full bg-neutral-950 border rounded px-2.5 py-2 text-white font-mono text-xs ${
+                              isUnset ? 'border-red-500/60 focus:border-red-400 text-red-300' : 'border-cyan-500/50 focus:border-cyan-400 text-cyan-200'
+                            }`}
+                          >
+                            <option value="none">❌ None (No Condition - Highlighted Red)</option>
+                            {rulesList.map(r => (
+                              <option key={r.id} value={r.id}>
+                                ⚡ Behavior: {r.name || r.id}
+                              </option>
                             ))}
-                          </div>
+                          </select>
+                          {rulesList.length === 0 && (
+                            <p className="text-[10px] text-neutral-500 italic mt-1">
+                              No behavior rules created yet for this character. Add a rule in the Behaviors tab to link it as an IF condition.
+                            </p>
+                          )}
                         </div>
+
+                        {/* Unset Red Notice */}
+                        {isUnset && (
+                          <div className="p-2 rounded-xl bg-red-950/80 border border-red-500/50 text-red-300 text-[11px] flex items-start gap-2">
+                            <span className="text-red-400 font-bold shrink-0">⚠️</span>
+                            <span>Condition is unset. This transition wire & arrows will show in <strong>RED</strong> on the canvas until configured.</span>
+                          </div>
+                        )}
 
                         {/* Quick action: Add Return Transition if not already present */}
                         {(() => {
@@ -4935,6 +5155,8 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                 fromStateId: activeTr.fromStateId,
                                 toStateId: activeTr.toStateId,
                                 triggerLabel: activeTr.triggerLabel || '',
+                                behaviorRuleId: activeTr.behaviorRuleId,
+                                conditionType: activeTr.conditionType || (isUnset ? 'none' : 'custom'),
                                 isEditing: true
                               });
                               setIsTransitionModalOpen(true);
@@ -4966,9 +5188,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                     <ul className="text-xs text-neutral-400 space-y-2 list-disc list-inside">
                       <li>Click and drag any state node to reposition it on the canvas.</li>
                       <li>Click <strong>"Link"</strong> on any node to connect it to a target state.</li>
-                      <li>Click any transition wire or label badge to edit its trigger condition.</li>
+                      <li>Click any transition wire or label badge to choose its Behavior condition.</li>
+                      <li>Transitions with condition <strong>"None"</strong> or unset will appear in <strong className="text-red-400">RED</strong>.</li>
                       <li>Mark any node with <Star size={11} className="inline text-amber-400" /> to declare it as the initial spawn state.</li>
-                      <li>These states and transitions are instantly available as triggers and actions in the <strong>Behaviors</strong> tab!</li>
                     </ul>
                   </div>
                 )}
@@ -5020,7 +5242,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           id: `tr_${Date.now().toString().slice(-4)}`,
                           fromStateId: stateNodes[0]?.id || '',
                           toStateId: stateNodes[1]?.id || '',
-                          triggerLabel: 'Target Seen',
+                          triggerLabel: '',
+                          behaviorRuleId: undefined,
+                          conditionType: 'none',
                           isEditing: false
                         });
                         setIsTransitionModalOpen(true);
@@ -5040,6 +5264,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                         const fromNode = stateNodes.find(s => s.id === tr.fromStateId);
                         const toNode = stateNodes.find(s => s.id === tr.toStateId);
                         const isSelected = selectedTransitionId === tr.id;
+                        const isUnset = isTransitionConditionUnset(tr);
 
                         return (
                           <div
@@ -5050,18 +5275,26 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                             }}
                             className={`p-2 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition group ${
                               isSelected 
-                                ? 'bg-neutral-950 border-cyan-500 text-white ring-1 ring-cyan-500/50' 
-                                : 'bg-neutral-950/60 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                                ? (isUnset ? 'bg-neutral-950 border-red-500 text-white ring-1 ring-red-500/50' : 'bg-neutral-950 border-cyan-500 text-white ring-1 ring-cyan-500/50')
+                                : (isUnset ? 'bg-neutral-950/60 border-red-500/40 text-neutral-300 hover:border-red-400' : 'bg-neutral-950/60 border-neutral-800 text-neutral-300 hover:border-neutral-700')
                             }`}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <span className="font-bold text-white truncate max-w-[70px]">{fromNode?.name || tr.fromStateId}</span>
-                                <span className="text-cyan-400 font-mono">→</span>
+                                <span className={isUnset ? 'text-red-400 font-mono' : 'text-cyan-400 font-mono'}>→</span>
                                 <span className="font-bold text-white truncate max-w-[70px]">{toNode?.name || tr.toStateId}</span>
                               </div>
-                              <div className="text-[10px] text-neutral-400 font-mono truncate mt-0.5">
-                                Label: <span className="text-cyan-300 font-semibold">{tr.triggerLabel || 'None'}</span>
+                              <div className="text-[10px] font-mono truncate mt-0.5">
+                                {isUnset ? (
+                                  <span className="text-red-400 font-bold bg-red-950/80 px-1.5 py-0.5 rounded border border-red-500/30">
+                                    ⚠️ Condition: None (Unset)
+                                  </span>
+                                ) : (
+                                  <span className="text-neutral-400">
+                                    Condition: <span className="text-cyan-300 font-semibold">{tr.triggerLabel}</span>
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -5075,12 +5308,14 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                     fromStateId: tr.fromStateId,
                                     toStateId: tr.toStateId,
                                     triggerLabel: tr.triggerLabel || '',
+                                    behaviorRuleId: tr.behaviorRuleId,
+                                    conditionType: tr.conditionType || (isUnset ? 'none' : 'custom'),
                                     isEditing: true
                                   });
                                   setIsTransitionModalOpen(true);
                                 }}
                                 className="p-1 text-neutral-400 hover:text-white rounded"
-                                title="Edit Transition in Modal"
+                                title="Edit Transition Condition"
                               >
                                 <Edit3 size={11} />
                               </button>
@@ -5157,7 +5392,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       enabled: true,
                       trigger: createDefaultTrigger('sight'),
                       actions: [
-                        { id: `act_${Date.now().toString().slice(-4)}`, actionType: 'state_change', targetState: stateNodes[0]?.name || 'idle' }
+                        { id: `act_${Date.now().toString().slice(-4)}`, actionType: 'none' }
                       ]
                     };
                     updateCharacter(c => ({
@@ -5193,7 +5428,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       enabled: true,
                       trigger: createDefaultTrigger('sight'),
                       actions: [
-                        { id: `act_${Date.now().toString().slice(-4)}`, actionType: 'state_change', targetState: stateNodes[0]?.name || 'idle' }
+                        { id: `act_${Date.now().toString().slice(-4)}`, actionType: 'none' }
                       ]
                     };
                     updateCharacter(c => ({
@@ -5256,7 +5491,11 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                     }
                     if (t.type === 'variable_condition') {
                       const v = variablesList.find(vl => vl.id === t.variableId);
-                      return `${v?.name || t.variableId || 'Var'} ${t.comparator || '=='} ${t.value ?? 0}`;
+                      const compSymbol = t.comparator === 'equals' ? '==' : t.comparator === 'not_equals' ? '!=' : t.comparator === 'greater_than' ? '>' : t.comparator === 'less_than' ? '<' : t.comparator === 'greater_or_equal' ? '>=' : t.comparator === 'less_or_equal' ? '<=' : '==';
+                      const valDisplay = v?.type === 'boolean' 
+                        ? (t.value === undefined || t.value === true || t.value === 'true' || t.value === 1 ? 'True' : 'False') 
+                        : String(t.value ?? 0);
+                      return `${v?.name || t.variableId || 'Var'} ${compSymbol} ${valDisplay}`;
                     }
                     if (t.type === 'proximity') {
                       return `Proximity < ${t.distancePx || 100}px`;
@@ -5474,7 +5713,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                           value={trig.type}
                                           onChange={(e) => {
                                             const newType = e.target.value as TriggerType;
-                                            updateSingleTriggerAt(tIdx, createDefaultTrigger(newType));
+                                            updateSingleTriggerAt(tIdx, createDefaultTrigger(newType, variablesList));
                                           }}
                                           className="bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1 text-xs text-amber-300 font-mono"
                                         >
@@ -5595,26 +5834,6 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                               <option value="weightless_environment">🌌 Weightless / Zero-G Environment</option>
                                               <option value="high_velocity">⚡ High Velocity (Terminal speed)</option>
                                               <option value="direction_change">🔄 Direction Turn Fired</option>
-                                            </select>
-                                          </div>
-
-                                          <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Gravity Environment Filter</label>
-                                            <select
-                                              value={trig.gravityEnvironment || 'normal_g'}
-                                              onChange={(e) => {
-                                                updateSingleTriggerAt(tIdx, {
-                                                  ...trig,
-                                                  gravityEnvironment: e.target.value as any
-                                                });
-                                              }}
-                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                                            >
-                                              <option value="normal_g">Standard Gravity (1.0x)</option>
-                                              <option value="zero_g">Zero Gravity / Weightless (0.0x)</option>
-                                              <option value="low_g">Low Gravity / Moon (0.3x)</option>
-                                              <option value="high_g">Heavy Gravity (1.8x)</option>
-                                              <option value="inverted_g">Inverted / Ceiling Pull (-1.0x)</option>
                                             </select>
                                           </div>
 
@@ -5937,59 +6156,153 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                       )}
 
                                       {/* 10. VARIABLE CONDITION TRIGGER */}
-                                      {trig.type === 'variable_condition' && (
-                                        <div className="grid grid-cols-3 gap-3">
-                                          <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Variable</label>
-                                            <select
-                                              value={trig.variableId || variablesList[0]?.id || ''}
-                                              onChange={(e) => {
-                                                updateSingleTriggerAt(tIdx, {
-                                                  ...trig,
-                                                  variableId: e.target.value
-                                                });
-                                              }}
-                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                            >
-                                              {variablesList.map(v => (
-                                                <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
-                                              ))}
-                                            </select>
+                                      {trig.type === 'variable_condition' && (() => {
+                                        const currentVarId = trig.variableId || variablesList[0]?.id || '';
+                                        const selectedVar = variablesList.find(v => v.id === currentVarId);
+                                        const isBool = selectedVar?.type === 'boolean';
+                                        const isEnum = selectedVar?.type === 'enum';
+                                        const isString = selectedVar?.type === 'string';
+
+                                        return (
+                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-neutral-950/60 p-2.5 rounded-xl border border-neutral-800">
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block mb-1">Variable</label>
+                                              <select
+                                                value={currentVarId}
+                                                onChange={(e) => {
+                                                  const nextVarId = e.target.value;
+                                                  const nextVar = variablesList.find(v => v.id === nextVarId);
+                                                  const nextIsBool = nextVar?.type === 'boolean';
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    variableId: nextVarId,
+                                                    comparator: 'equals',
+                                                    value: nextIsBool 
+                                                      ? (trig.value === false ? false : true) 
+                                                      : (nextVar?.defaultValue ?? (nextVar?.type === 'number' ? 0 : ''))
+                                                  });
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-500 rounded px-2 py-1.5 text-white font-mono text-xs"
+                                              >
+                                                {variablesList.map(v => (
+                                                  <option key={v.id} value={v.id}>
+                                                    {v.type === 'boolean' ? '🔘' : v.type === 'enum' ? '📋' : v.type === 'string' ? '🔤' : '🔢'} {v.name} ({v.id}) [{v.type}]
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </div>
+
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block mb-1">Condition</label>
+                                              {isBool ? (
+                                                <select
+                                                  value="equals"
+                                                  disabled
+                                                  className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1.5 text-neutral-300 font-mono text-xs cursor-not-allowed opacity-90"
+                                                >
+                                                  <option value="equals">== Equal To</option>
+                                                </select>
+                                              ) : isEnum || isString ? (
+                                                <select
+                                                  value={trig.comparator === 'not_equals' ? 'not_equals' : 'equals'}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      comparator: e.target.value as any
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-500 rounded px-2 py-1.5 text-white font-mono text-xs"
+                                                >
+                                                  <option value="equals">== Equal To</option>
+                                                  <option value="not_equals">!= Not Equal</option>
+                                                </select>
+                                              ) : (
+                                                <select
+                                                  value={trig.comparator || 'equals'}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      comparator: e.target.value as any
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-500 rounded px-2 py-1.5 text-white font-mono text-xs"
+                                                >
+                                                  <option value="equals">== Equal To</option>
+                                                  <option value="not_equals">!= Not Equal</option>
+                                                  <option value="greater_than">&gt; Greater Than</option>
+                                                  <option value="greater_or_equal">&gt;= Greater or Equal</option>
+                                                  <option value="less_than">&lt; Less Than</option>
+                                                  <option value="less_or_equal">&lt;= Less or Equal</option>
+                                                </select>
+                                              )}
+                                            </div>
+
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block mb-1">Target Value</label>
+                                              {isBool ? (
+                                                <div className="flex items-center h-[34px] px-3 bg-neutral-900 border border-neutral-700 rounded gap-2.5">
+                                                  <input
+                                                    type="checkbox"
+                                                    id={`trig_bool_${rule.id}_${tIdx}`}
+                                                    checked={trig.value === undefined ? true : Boolean(trig.value === true || trig.value === 'true' || trig.value === 1)}
+                                                    onChange={(e) => {
+                                                      updateSingleTriggerAt(tIdx, {
+                                                        ...trig,
+                                                        comparator: 'equals',
+                                                        value: e.target.checked
+                                                      });
+                                                    }}
+                                                    className="w-4 h-4 rounded border-neutral-700 bg-neutral-950 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                                                  />
+                                                  <label htmlFor={`trig_bool_${rule.id}_${tIdx}`} className="text-xs font-mono font-bold cursor-pointer select-none text-amber-300">
+                                                    {(trig.value === undefined || trig.value === true || trig.value === 'true' || trig.value === 1) ? 'TRUE (Checked)' : 'FALSE (Unchecked)'}
+                                                  </label>
+                                                </div>
+                                              ) : isEnum && selectedVar?.options && selectedVar.options.length > 0 ? (
+                                                <select
+                                                  value={trig.value ?? selectedVar.options[0]}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      value: e.target.value
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-500 rounded px-2 py-1.5 text-white font-mono text-xs"
+                                                >
+                                                  {selectedVar.options.map(opt => (
+                                                    <option key={opt} value={opt}>{opt}</option>
+                                                  ))}
+                                                </select>
+                                              ) : isString ? (
+                                                <input
+                                                  type="text"
+                                                  value={trig.value ?? ''}
+                                                  placeholder="Target string value..."
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      value: e.target.value
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-500 rounded px-2 py-1.5 text-white font-mono text-xs"
+                                                />
+                                              ) : (
+                                                <input
+                                                  type="number"
+                                                  value={trig.value ?? 0}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      value: parseFloat(e.target.value) || 0
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-500 rounded px-2 py-1.5 text-white font-mono text-xs"
+                                                />
+                                              )}
+                                            </div>
                                           </div>
-                                          <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Condition</label>
-                                            <select
-                                              value={trig.comparator || 'equals'}
-                                              onChange={(e) => {
-                                                updateSingleTriggerAt(tIdx, {
-                                                  ...trig,
-                                                  comparator: e.target.value as any
-                                                });
-                                              }}
-                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                            >
-                                              <option value="equals">Equal To (==)</option>
-                                              <option value="not_equals">Not Equal (!=)</option>
-                                              <option value="greater_than">Greater Than (&gt;)</option>
-                                              <option value="less_than">Less Than (&lt;)</option>
-                                            </select>
-                                          </div>
-                                          <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Target Value</label>
-                                            <input
-                                              type="number"
-                                              value={Number(trig.value) || 0}
-                                              onChange={(e) => {
-                                                updateSingleTriggerAt(tIdx, {
-                                                  ...trig,
-                                                  value: Number(e.target.value)
-                                                });
-                                              }}
-                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                            />
-                                          </div>
-                                        </div>
-                                      )}
+                                        );
+                                      })()}
 
                                       {/* 11. TIMER INTERVAL TRIGGER */}
                                       {trig.type === 'timer' && (
@@ -6070,8 +6383,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                 onClick={() => {
                                   const newAct: BehaviorAction = {
                                     id: `act_${Date.now().toString().slice(-4)}`,
-                                    actionType: 'animation',
-                                    animState: 'run'
+                                    actionType: 'none'
                                   };
                                   updateCharacter(c => ({
                                     ...c,
@@ -6096,7 +6408,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
                                     <div className="flex items-center gap-2">
                                       <select
-                                        value={action.actionType}
+                                        value={action.actionType || 'none'}
                                         onChange={(e) => {
                                           const newActType = e.target.value as ActionType;
                                           updateCharacter(c => ({
@@ -6114,11 +6426,13 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                         }}
                                         className="bg-neutral-950 border border-neutral-700 rounded px-2 py-0.5 text-xs text-cyan-300 font-mono"
                                       >
+                                        <option value="none">🚫 None (No Action / Gate Only)</option>
                                         <option value="state_change">⚡ Transition FSM State</option>
                                         <option value="animation">🎬 Play Animation</option>
                                         <option value="camera">🎥 Camera Locus (Track/Shake)</option>
                                         <option value="move">🏃 Kinematic Move</option>
                                         <option value="hero_impulse">🚀 Physics Impulse (Jump/Dash)</option>
+                                        <option value="set_gravity">🪐 Override Biome Gravity</option>
                                         <option value="attack">⚔️ Attack / Telegraph</option>
                                         <option value="variable_modify">🔢 Modify Variable</option>
                                         <option value="audio">🔊 Play Audio SFX</option>
@@ -6141,6 +6455,14 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                       </button>
                                     </div>
                                   </div>
+
+                                  {/* None (Gate Only) Action */}
+                                  {(!action.actionType || action.actionType === 'none') && (
+                                    <div className="p-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-neutral-400 text-xs flex items-center gap-2">
+                                      <span className="text-cyan-400 font-bold shrink-0">ℹ️</span>
+                                      <span>No action will be executed. This rule acts purely as a conditional gate for FSM state transitions.</span>
+                                    </div>
+                                  )}
 
                                   {/* Transition FSM State Action */}
                                   {action.actionType === 'state_change' && (
@@ -6262,7 +6584,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
                                   {/* Move Action Config */}
                                   {action.actionType === 'move' && (
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs pt-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
                                       <div>
                                         <label className="text-[10px] text-neutral-400 font-bold block">Move Mode</label>
                                         <select
@@ -6282,26 +6604,73 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                           <option value="stop">Stop / Brake</option>
                                         </select>
                                       </div>
+
                                       <div>
-                                        <label className="text-[10px] text-neutral-400 font-bold block">Speed (px/tick)</label>
-                                        <input
-                                          type="number"
-                                          value={action.speed ?? 4.0}
+                                        <label className="text-[10px] text-neutral-400 font-bold block">Speed Value Source</label>
+                                        <select
+                                          value={action.speedSource || 'fixed'}
                                           onChange={(e) => {
+                                            const src = e.target.value as 'fixed' | 'variable';
                                             updateCharacter(c => ({
                                               ...c,
-                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speed: Number(e.target.value) } : a) } : r)
+                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedSource: src, speedVariableId: src === 'variable' ? (a.speedVariableId || variablesList[0]?.id) : undefined } : a) } : r)
                                             }));
                                           }}
-                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                        />
+                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-emerald-400 font-mono mt-1"
+                                        >
+                                          <option value="fixed">🔢 Constant Number</option>
+                                          <option value="variable">📊 Character Variable</option>
+                                        </select>
+                                      </div>
+
+                                      <div>
+                                        {action.speedSource === 'variable' ? (
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Character Variable</label>
+                                            <select
+                                              value={action.speedVariableId || variablesList[0]?.id || ''}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedVariableId: e.target.value } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-emerald-300 font-mono mt-1"
+                                            >
+                                              {variablesList.length === 0 ? (
+                                                <option value="">No Variables Defined</option>
+                                              ) : (
+                                                variablesList.map(v => (
+                                                  <option key={v.id} value={v.id}>
+                                                    {v.name} ({v.id}) = {String(v.value ?? v.defaultValue ?? 0)}
+                                                  </option>
+                                                ))
+                                              )}
+                                            </select>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Speed (px/tick)</label>
+                                            <input
+                                              type="number"
+                                              value={action.speed ?? 4.0}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speed: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   )}
 
                                   {/* Hero Impulse Config */}
                                   {action.actionType === 'hero_impulse' && (
-                                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
                                       <div>
                                         <label className="text-[10px] text-neutral-400 font-bold block">Impulse Type</label>
                                         <select
@@ -6320,19 +6689,162 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                           <option value="knockback">Knockback Stagger</option>
                                         </select>
                                       </div>
+
                                       <div>
-                                        <label className="text-[10px] text-neutral-400 font-bold block">Impulse Force</label>
-                                        <input
-                                          type="number"
-                                          value={action.force ?? 12.0}
+                                        <label className="text-[10px] text-neutral-400 font-bold block">Force Value Source</label>
+                                        <select
+                                          value={action.forceSource || 'fixed'}
                                           onChange={(e) => {
+                                            const src = e.target.value as 'fixed' | 'variable';
                                             updateCharacter(c => ({
                                               ...c,
-                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, force: Number(e.target.value) } : a) } : r)
+                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, forceSource: src, forceVariableId: src === 'variable' ? (a.forceVariableId || variablesList[0]?.id) : undefined } : a) } : r)
                                             }));
                                           }}
-                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                        />
+                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-cyan-400 font-mono mt-1"
+                                        >
+                                          <option value="fixed">🔢 Constant Force</option>
+                                          <option value="variable">📊 Character Variable (e.g. jump_force)</option>
+                                        </select>
+                                      </div>
+
+                                      <div>
+                                        {action.forceSource === 'variable' ? (
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Character Variable</label>
+                                            <select
+                                              value={action.forceVariableId || variablesList[0]?.id || ''}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, forceVariableId: e.target.value } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-cyan-300 font-mono mt-1"
+                                            >
+                                              {variablesList.length === 0 ? (
+                                                <option value="">No Variables Defined</option>
+                                              ) : (
+                                                variablesList.map(v => (
+                                                  <option key={v.id} value={v.id}>
+                                                    {v.name} ({v.id}) = {String(v.value ?? v.defaultValue ?? 0)}
+                                                  </option>
+                                                ))
+                                              )}
+                                            </select>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Impulse Force (px/tick)</label>
+                                            <input
+                                              type="number"
+                                              value={action.force ?? 12.0}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, force: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Override Biome Gravity Action */}
+                                  {action.actionType === 'set_gravity' && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
+                                      <div>
+                                        <label className="text-[10px] text-neutral-400 font-bold block">Gravity Override Mode</label>
+                                        <select
+                                          value={action.gravityMode || 'zero_g'}
+                                          onChange={(e) => {
+                                            const mode = e.target.value as any;
+                                            let scale = 0.0;
+                                            if (mode === 'zero_g') scale = 0.0;
+                                            else if (mode === 'low_g') scale = 0.3;
+                                            else if (mode === 'normal') scale = 1.0;
+                                            else if (mode === 'heavy_g') scale = 1.8;
+                                            else if (mode === 'inverted') scale = -1.0;
+                                            updateCharacter(c => ({
+                                              ...c,
+                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, gravityMode: mode, gravityScale: scale } : a) } : r)
+                                            }));
+                                          }}
+                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-300 font-semibold mt-1"
+                                        >
+                                          <option value="zero_g">🌌 Weightless / Zero-G (0.0x)</option>
+                                          <option value="low_g">🌙 Low Gravity (0.3x)</option>
+                                          <option value="normal">🌍 Standard Gravity (1.0x)</option>
+                                          <option value="heavy_g">🏋️ Heavy Gravity (1.8x)</option>
+                                          <option value="inverted">🔄 Inverted Gravity (-1.0x)</option>
+                                          <option value="custom">⚙️ Custom Scale Value</option>
+                                          <option value="reset_to_biome">🔄 Revert / Reset to Biome</option>
+                                        </select>
+                                      </div>
+
+                                      <div>
+                                        <label className="text-[10px] text-neutral-400 font-bold block">Gravity Source</label>
+                                        <select
+                                          value={action.gravitySource || 'fixed'}
+                                          onChange={(e) => {
+                                            const src = e.target.value as 'fixed' | 'variable';
+                                            updateCharacter(c => ({
+                                              ...c,
+                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, gravitySource: src, gravityVariableId: src === 'variable' ? (a.gravityVariableId || variablesList[0]?.id) : undefined } : a) } : r)
+                                            }));
+                                          }}
+                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-400 font-mono mt-1"
+                                        >
+                                          <option value="fixed">🔢 Preset / Fixed Value</option>
+                                          <option value="variable">📊 Character Variable</option>
+                                        </select>
+                                      </div>
+
+                                      <div>
+                                        {action.gravitySource === 'variable' ? (
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Character Variable</label>
+                                            <select
+                                              value={action.gravityVariableId || variablesList[0]?.id || ''}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, gravityVariableId: e.target.value } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-300 font-mono mt-1"
+                                            >
+                                              {variablesList.length === 0 ? (
+                                                <option value="">No Variables Defined</option>
+                                              ) : (
+                                                variablesList.map(v => (
+                                                  <option key={v.id} value={v.id}>
+                                                    {v.name} ({v.id}) = {String(v.value ?? v.defaultValue ?? 0)}
+                                                  </option>
+                                                ))
+                                              )}
+                                            </select>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Gravity Multiplier</label>
+                                            <input
+                                              type="number"
+                                              step="0.1"
+                                              value={action.gravityScale ?? (action.gravityMode === 'zero_g' ? 0 : 1.0)}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, gravityScale: Number(e.target.value), gravityMode: 'custom' } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   )}
@@ -6789,30 +7301,56 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="text-neutral-400 font-bold block">Trigger / Condition Label</label>
-                <input
-                  type="text"
-                  placeholder="e.g. on_enemy_sighted, hp_depleted, jump_key_pressed"
-                  value={transitionForm.triggerLabel}
-                  onChange={(e) => setTransitionForm({ ...transitionForm, triggerLabel: e.target.value })}
-                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500 rounded px-3 py-1.5 text-white font-mono mt-1 focus:outline-none"
-                />
-                
-                {/* Quick suggestions */}
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {['Target Spotted', 'In Attack Range', 'Damage Taken', 'HP < 30%', 'Timer / Cooldown', 'Patrol Edge', 'Stop Movement', 'Input Pressed'].map(lbl => (
-                    <button
-                      key={lbl}
-                      type="button"
-                      onClick={() => setTransitionForm(f => ({ ...f, triggerLabel: lbl }))}
-                      className="px-2 py-0.5 rounded bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 hover:border-indigo-500/50 text-neutral-300 hover:text-indigo-300 text-[10px] font-mono transition"
-                    >
-                      {lbl}
-                    </button>
+              {/* Behavior Selector Condition Dropdown - ONLY 'none' and available character behaviors */}
+              <div className="space-y-1">
+                <label className="text-neutral-400 font-bold block">Behavior Condition</label>
+                <select
+                  value={transitionForm.behaviorRuleId || 'none'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'none') {
+                      setTransitionForm(f => ({
+                        ...f,
+                        triggerLabel: 'None',
+                        behaviorRuleId: undefined,
+                        conditionType: 'none'
+                      }));
+                    } else {
+                      const found = rulesList.find(r => r.id === val);
+                      const bName = found ? (found.name || `Rule #${val}`) : val;
+                      setTransitionForm(f => ({
+                        ...f,
+                        triggerLabel: bName,
+                        behaviorRuleId: val,
+                        conditionType: 'behavior'
+                      }));
+                    }
+                  }}
+                  className={`w-full bg-neutral-950 border rounded px-3 py-2 text-white font-mono text-xs ${
+                    isTransitionConditionUnset(transitionForm) ? 'border-red-500/60 text-red-300' : 'border-indigo-500 text-indigo-200'
+                  }`}
+                >
+                  <option value="none">❌ None (No Condition - Highlighted Red)</option>
+                  {rulesList.map(r => (
+                    <option key={r.id} value={r.id}>
+                      ⚡ Behavior: {r.name || r.id}
+                    </option>
                   ))}
-                </div>
+                </select>
+                {rulesList.length === 0 && (
+                  <p className="text-[10px] text-neutral-500 italic mt-1">
+                    No behavior rules created yet. Add a rule in the Behaviors tab to link it as a transition condition.
+                  </p>
+                )}
               </div>
+
+              {/* Unset Red Notice */}
+              {isTransitionConditionUnset(transitionForm) && (
+                <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/50 text-red-300 text-[11px] flex items-start gap-2">
+                  <span className="text-red-400 font-bold shrink-0">⚠️</span>
+                  <span>Condition is currently unset (None). The transition wire and arrows will display in <strong>RED</strong> on the graph until a condition is configured.</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">

@@ -67,18 +67,27 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
     fromStateId: string;
     toStateId: string;
     triggerLabel: string;
-    conditionVariableId?: string;
-    conditionComparator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
-    conditionValue?: any;
+    behaviorRuleId?: string;
+    conditionType?: 'none' | 'behavior';
     isEditing: boolean;
   }>({
     id: '',
     fromStateId: statesList[0]?.id || '',
     toStateId: statesList[1]?.id || statesList[0]?.id || '',
-    triggerLabel: '',
-    conditionComparator: '>=',
+    triggerLabel: 'None',
+    behaviorRuleId: undefined,
+    conditionType: 'none',
     isEditing: false
   });
+
+  // Helper to check if a biome transition condition is unset or 'none'
+  const isBiomeTransitionUnset = (tr: BiomeStateTransition | { triggerLabel?: string; behaviorRuleId?: string; conditionType?: string }): boolean => {
+    if (!tr.behaviorRuleId || tr.behaviorRuleId === 'none') return true;
+    if (tr.conditionType === 'none') return true;
+    if (!tr.triggerLabel) return true;
+    const t = tr.triggerLabel.trim().toLowerCase();
+    return t === '' || t === 'none' || t === 'unset' || t === 'no condition';
+  };
 
   const updateStateMachine = (updater: (prev: BiomeStateMachine) => BiomeStateMachine) => {
     onUpdateBiome(b => {
@@ -144,14 +153,14 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
   const handleSaveTransition = () => {
     if (!editingTransition.fromStateId || !editingTransition.toStateId) return;
 
+    const isUnset = isBiomeTransitionUnset(editingTransition);
     const newTr: BiomeStateTransition = {
       id: editingTransition.id || `btr_${Date.now().toString().slice(-6)}`,
       fromStateId: editingTransition.fromStateId,
       toStateId: editingTransition.toStateId,
-      triggerLabel: editingTransition.triggerLabel || `${editingTransition.conditionVariableId || 'Trigger'} ${editingTransition.conditionComparator || '>='} ${editingTransition.conditionValue ?? ''}`,
-      conditionVariableId: editingTransition.conditionVariableId || undefined,
-      conditionComparator: editingTransition.conditionComparator || '>=',
-      conditionValue: editingTransition.conditionValue
+      triggerLabel: isUnset ? 'None' : (editingTransition.triggerLabel || 'None'),
+      behaviorRuleId: isUnset ? undefined : editingTransition.behaviorRuleId,
+      conditionType: isUnset ? 'none' : 'behavior'
     };
 
     updateStateMachine(sm => {
@@ -196,8 +205,9 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
                 id: `btr_${Date.now().toString().slice(-6)}`,
                 fromStateId: statesList[0]?.id || '',
                 toStateId: statesList[1]?.id || statesList[0]?.id || '',
-                triggerLabel: '',
-                conditionComparator: '>=',
+                triggerLabel: 'None',
+                behaviorRuleId: undefined,
+                conditionType: 'none',
                 isEditing: false
               });
               setIsTransitionModalOpen(true);
@@ -355,18 +365,23 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
 
         {transitionsList.length === 0 ? (
           <div className="text-center py-8 bg-neutral-900/30 rounded-2xl border border-neutral-800/80 text-neutral-500 text-xs">
-            No state transitions configured yet. Click <strong>+ Add Transition</strong> to link states together via variable thresholds or event triggers.
+            No state transitions configured yet. Click <strong>+ Add Transition</strong> to link states together via biome behavior rules.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {transitionsList.map(tr => {
               const fromNode = statesList.find(s => s.id === tr.fromStateId);
               const toNode = statesList.find(s => s.id === tr.toStateId);
+              const isUnset = isBiomeTransitionUnset(tr);
 
               return (
                 <div
                   key={tr.id}
-                  className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-3.5 flex items-center justify-between text-xs text-neutral-300 shadow-md gap-3"
+                  className={`rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-md gap-3 border ${
+                    isUnset 
+                      ? 'bg-red-950/20 border-red-500/50 text-red-200' 
+                      : 'bg-neutral-900/90 border-neutral-800 text-neutral-300'
+                  }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -379,7 +394,7 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
                       </span>
                     </div>
 
-                    <ArrowRight size={13} className="text-neutral-500 shrink-0" />
+                    <ArrowRight size={13} className={`${isUnset ? 'text-red-400 font-bold' : 'text-neutral-500'} shrink-0`} />
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <div 
@@ -392,9 +407,15 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
                     </div>
 
                     <div className="min-w-0 flex-1 pl-2 border-l border-neutral-800">
-                      <span className="inline-block text-[10px] bg-neutral-950 px-2 py-0.5 rounded-md font-mono text-amber-300 border border-neutral-800 truncate max-w-full">
-                        {tr.triggerLabel || 'Conditional Trigger'}
-                      </span>
+                      {isUnset ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-red-950 px-2 py-0.5 rounded-md font-mono text-red-300 border border-red-500/60 truncate max-w-full font-bold">
+                          ⚠️ None (No Condition)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-neutral-950 px-2 py-0.5 rounded-md font-mono text-amber-300 border border-neutral-800 truncate max-w-full font-semibold">
+                          ⚡ Behavior: {tr.triggerLabel || tr.behaviorRuleId}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -406,10 +427,9 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
                           id: tr.id,
                           fromStateId: tr.fromStateId,
                           toStateId: tr.toStateId,
-                          triggerLabel: tr.triggerLabel || '',
-                          conditionVariableId: tr.conditionVariableId,
-                          conditionComparator: tr.conditionComparator,
-                          conditionValue: tr.conditionValue,
+                          triggerLabel: tr.triggerLabel || 'None',
+                          behaviorRuleId: tr.behaviorRuleId,
+                          conditionType: isBiomeTransitionUnset(tr) ? 'none' : 'behavior',
                           isEditing: true
                         });
                         setIsTransitionModalOpen(true);
@@ -586,61 +606,56 @@ export const BiomeStatesEditor: React.FC<BiomeStatesEditorProps> = ({
                 </div>
               </div>
 
-              {/* Condition Variable & Comparator */}
+              {/* Behavior Condition Selector - ONLY 'none' and available biome behaviors */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-neutral-400 uppercase">Triggering Biome Variable</label>
+                <label className="text-[10px] font-bold text-neutral-400 uppercase">Transition Behavior Condition</label>
                 <select
-                  value={editingTransition.conditionVariableId || ''}
-                  onChange={(e) => setEditingTransition(prev => ({ ...prev, conditionVariableId: e.target.value }))}
-                  className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono text-rose-300"
+                  value={editingTransition.behaviorRuleId || 'none'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'none') {
+                      setEditingTransition(prev => ({
+                        ...prev,
+                        triggerLabel: 'None',
+                        behaviorRuleId: undefined,
+                        conditionType: 'none'
+                      }));
+                    } else {
+                      const found = (biome.behaviorRules || []).find(r => r.id === val);
+                      const bName = found ? (found.name || `Rule #${val}`) : val;
+                      setEditingTransition(prev => ({
+                        ...prev,
+                        triggerLabel: bName,
+                        behaviorRuleId: val,
+                        conditionType: 'behavior'
+                      }));
+                    }
+                  }}
+                  className={`w-full bg-neutral-950 border rounded-lg p-2.5 text-white font-mono text-xs ${
+                    isBiomeTransitionUnset(editingTransition) ? 'border-red-500/60 text-red-300' : 'border-amber-500/60 text-amber-200'
+                  }`}
                 >
-                  <option value="">-- No Variable Condition (Manual/Event) --</option>
-                  {(biome.variables || []).map(v => (
-                    <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
+                  <option value="none">❌ None (No Condition - Highlighted Red)</option>
+                  {(biome.behaviorRules || []).map(r => (
+                    <option key={r.id} value={r.id}>
+                      ⚡ Biome Behavior: {r.name || r.id}
+                    </option>
                   ))}
                 </select>
+                {(biome.behaviorRules || []).length === 0 && (
+                  <p className="text-[10px] text-neutral-500 italic mt-1">
+                    No biome behavior rules created yet. Add a rule in the Biome Behaviors tab to link it as a transition trigger.
+                  </p>
+                )}
               </div>
 
-              {editingTransition.conditionVariableId && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Comparator</label>
-                    <select
-                      value={editingTransition.conditionComparator || '>='}
-                      onChange={(e) => setEditingTransition(prev => ({ ...prev, conditionComparator: e.target.value as any }))}
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono"
-                    >
-                      <option value=">=">&gt;= Greater or Equal</option>
-                      <option value="<=">&lt;= Less or Equal</option>
-                      <option value=">">&gt; Greater Than</option>
-                      <option value="<">&lt; Less Than</option>
-                      <option value="==">== Equals</option>
-                      <option value="!=">!= Not Equal</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Threshold Value</label>
-                    <input
-                      type="number"
-                      value={editingTransition.conditionValue ?? 50}
-                      onChange={(e) => setEditingTransition(prev => ({ ...prev, conditionValue: parseFloat(e.target.value) || 0 }))}
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono"
-                    />
-                  </div>
+              {/* Unset Red Notice */}
+              {isBiomeTransitionUnset(editingTransition) && (
+                <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/50 text-red-300 text-[11px] flex items-start gap-2">
+                  <span className="text-red-400 font-bold shrink-0">⚠️</span>
+                  <span>Condition is currently unset (None). This transition will display in <strong>RED</strong> until a biome behavior rule condition is linked.</span>
                 </div>
               )}
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-neutral-400 uppercase">Trigger Badge Label</label>
-                <input
-                  type="text"
-                  value={editingTransition.triggerLabel}
-                  onChange={(e) => setEditingTransition(prev => ({ ...prev, triggerLabel: e.target.value }))}
-                  className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white"
-                  placeholder="e.g. Heat Index >= 80"
-                />
-              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-800">

@@ -334,6 +334,8 @@ export interface BiomeStateTransition {
   fromStateId: string;
   toStateId: string;
   triggerLabel?: string;
+  behaviorRuleId?: string;
+  conditionType?: 'none' | 'behavior';
   conditionVariableId?: string;
   conditionComparator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
   conditionValue?: any;
@@ -376,8 +378,10 @@ export interface BiomeBehaviorTrigger {
  * Biome Behavior Actions
  */
 export type BiomeActionType =
+  | 'none'
   | 'set_variable'
   | 'change_biome_state'
+  | 'set_gravity'
   | 'change_map'
   | 'spawn_entity'
   | 'environmental_effect'
@@ -394,6 +398,9 @@ export interface BiomeBehaviorAction {
   variableValue?: any;
   // change_biome_state
   targetStateId?: string;
+  // set_gravity
+  gravityScale?: number;
+  gravityMode?: 'normal' | 'zero_g' | 'low_g' | 'heavy_g' | 'inverted' | 'custom';
   // change_map
   targetMapFileName?: string;
   targetSpawnPoint?: string;
@@ -463,10 +470,11 @@ export interface RefinedBiome {
   description: string;
   regionColor: string; // Identification tint in map view
   
-  // Background & Atmosphere
+  // Background & Atmosphere & Environmental Physics
   ambientBackgroundColor?: string;
   atmosphereFogColor?: string;
   atmosphereFogDensity?: number; // 0.0 to 1.0
+  gravityScale?: number; // Biome base gravity scale (1.0 = normal, 0.0 = weightless/zero-g, 0.3 = low-g, 1.8 = high-g, -1.0 = inverted)
 
   // 7-Layer Parallax Configuration (-5 to +1)
   parallaxLayers: ParallaxLayerConfig[];

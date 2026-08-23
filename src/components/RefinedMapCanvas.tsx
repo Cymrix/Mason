@@ -367,7 +367,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     slashes: [] as Array<{ x: number; y: number; facing: 'left' | 'right'; frame: number; maxFrames: number; color: string }>,
     prevVx: 0,
     prevVy: 0,
-    activeBehaviorState: 'idle'
+    activeBehaviorState: 'idle',
+    gravityOverride: null as number | null
   });
 
   const [hudState, setHudState] = useState({
@@ -641,6 +642,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     p.facing = spawnPoint?.facing || 'right';
     p.isGrounded = false;
     p.isWallSliding = false;
+    p.gravityOverride = null;
     p.jumpsLeft = charConfig.totalJumps;
     p.health = charConfig.maxHp;
     p.maxHealth = charConfig.maxHp;
@@ -905,6 +907,38 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const charH = charConfig.height;
 
       // Movement Input (if not dashing and character speed > 0)
+      // 0. Environmental Gravity & Dynamic Kinematic Configuration
+      // Determine active biome for the player's current location or viewport
+      const pTileX = Math.floor(p.x / TILE_SIZE);
+      const pTileY = Math.floor(p.y / TILE_SIZE);
+      const { cx: pCx, cy: pCy, lx: pLx, ly: pLy } = getChunkCoords(pTileX, pTileY);
+      const pChunkKey = getChunkKey(pCx, pCy);
+      const playerChunk = mapData.chunks?.[pChunkKey];
+      const playerCell = playerChunk ? playerChunk[pLy * CHUNK_SIZE + pLx] : (mapData.cells ? getCell(mapData, pTileX, pTileY) : null);
+      const pBiomeId = playerCell?.biome_id || playerChunk?.find(c => c && c.biome_id)?.biome_id || targetBiome?.id || currentBiomeRef.current?.id;
+      const playerBiome = pBiomeId ? (biomeMap[pBiomeId] || biomes.find(b => b.id === pBiomeId) || targetBiome || currentBiomeRef.current) : (targetBiome || currentBiomeRef.current);
+      
+      const biomeGravityScale = playerBiome?.gravityScale !== undefined ? playerBiome.gravityScale : (charConfig.gravScale ?? 1.0);
+      
+      // Effective Gravity: Character behavior override strictly takes precedence over biome gravity
+      const effectiveGravScale = (p.gravityOverride !== null && p.gravityOverride !== undefined)
+        ? p.gravityOverride
+        : biomeGravityScale;
+
+      // Character Variable resolver helper
+      const getCharVarNum = (varIdOrName?: string, fallback: number = 0): number => {
+        if (!varIdOrName) return fallback;
+        const v = (testCharacter?.variables || []).find(cv => cv.id === varIdOrName || cv.name.toLowerCase() === varIdOrName.toLowerCase());
+        if (v) {
+          const rawVal = testCharacter?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue;
+          if (rawVal !== undefined && rawVal !== null) {
+            const n = typeof rawVal === 'number' ? rawVal : parseFloat(rawVal);
+            if (!isNaN(n)) return n;
+          }
+        }
+        return fallback;
+      };
+
       if (!p.isDashing) {
         if (charConfig.baseSpeed > 0) {
           const left = keys['KeyA'] || keys['ArrowLeft'];
@@ -930,8 +964,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           p.isWalking = false;
         }
 
-        // Gravity scaled by behavior movement gravityScale
-        p.vy = Math.min(p.vy + 0.52 * charConfig.gravScale, 14);
+        // Apply environmental or overridden gravity
+        p.vy = Math.min(p.vy + 0.52 * effectiveGravScale, 14);
       }
 
       // Wall Cling / Wall Slide Detection
@@ -1119,7 +1153,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             case 'stopped':
               return Math.abs(p.vx) < 0.1 && Math.abs(p.vy) < 0.1;
             case 'weightless_environment':
-              return charConfig.gravScale <= 0.05 || gravityEnvironment === 'zero_g';
+              return Math.abs(effectiveGravScale) <= 0.05;
             case 'high_velocity':
               return (Math.abs(p.vx) > (velocityThreshold || 6.0)) || (Math.abs(p.vy) > (velocityThreshold || 10.0));
             case 'direction_change':
@@ -1136,7 +1170,26 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             case 'solid_detection':
               return checkSolidsInDirection(trig.direction, trig.detectionDistancePx ?? 4, trig.checkMode ?? 'touching');
             case 'physics_state':
-              return evaluatePhysicsState(trig.stateKind, trig.velocityThreshold ?? 0.5, trig.gravityEnvironment);
+              return evaluatePhysicsState(trig.stateKind, trig.velocityThreshold ?? 0.5);
+            case 'variable_condition': {
+              const v = (testCharacter?.variables || []).find(cv => cv.id === trig.variableId || cv.name.toLowerCase() === trig.variableId?.toLowerCase());
+              if (!v) return false;
+              const leftVal = testCharacter?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue;
+              const rightVal = trig.value;
+              if (v.type === 'boolean') {
+                const bLeft = leftVal === true || leftVal === 'true' || leftVal === 1;
+                const bRight = rightVal === undefined || rightVal === true || rightVal === 'true' || rightVal === 1;
+                if (trig.comparator === 'not_equals' || trig.comparator === '!=') return bLeft !== bRight;
+                return bLeft === bRight;
+              }
+              if (trig.comparator === 'equals' || trig.comparator === '==') return String(leftVal).toLowerCase() === String(rightVal).toLowerCase();
+              if (trig.comparator === 'not_equals' || trig.comparator === '!=') return String(leftVal).toLowerCase() !== String(rightVal).toLowerCase();
+              if (trig.comparator === 'greater_than' || trig.comparator === '>') return Number(leftVal) > Number(rightVal);
+              if (trig.comparator === 'greater_or_equal' || trig.comparator === '>=') return Number(leftVal) >= Number(rightVal);
+              if (trig.comparator === 'less_than' || trig.comparator === '<') return Number(leftVal) < Number(rightVal);
+              if (trig.comparator === 'less_or_equal' || trig.comparator === '<=') return Number(leftVal) <= Number(rightVal);
+              return false;
+            }
             case 'player_condition':
               if (trig.condition === 'is_grounded') return p.isGrounded;
               if (trig.condition === 'is_airborne') return !p.isGrounded;
@@ -1155,6 +1208,106 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           }
         };
 
+        // Helper to execute single character behavior action
+        const executeCharacterAction = (action: any) => {
+          if (!action || action.actionType === 'none') return;
+
+          // 1. Hero Impulse (Jump, Dash, Wall Jump, Knockback) with dynamic Character Variables support
+          if (action.actionType === 'hero_impulse') {
+            const force = (action.forceSource === 'variable' && action.forceVariableId)
+              ? getCharVarNum(action.forceVariableId, action.force ?? 12)
+              : (action.force ?? 12);
+
+            if (action.impulseType === 'jump' && p.isGrounded) {
+              p.vy = -force;
+              p.isGrounded = false;
+            } else if (action.impulseType === 'dash') {
+              triggerDash();
+            } else if (action.impulseType === 'wall_jump' && p.isWallSliding) {
+              p.vy = -force * 0.9;
+              p.vx = (p.facing === 'left' ? 1 : -1) * force * 0.8;
+            } else if (action.impulseType === 'knockback') {
+              p.vx = (p.facing === 'left' ? 1 : -1) * force;
+              p.vy = -force * 0.35;
+            }
+          }
+          // 2. Kinematic Move with dynamic Character Variables support
+          else if (action.actionType === 'move') {
+            const speed = (action.speedSource === 'variable' && action.speedVariableId)
+              ? getCharVarNum(action.speedVariableId, action.speed ?? 4.0)
+              : (action.speed ?? 4.0);
+
+            if (action.moveMode === 'towards_target' || action.moveMode === 'ground_patrol') {
+              p.vx = p.facing === 'right' ? speed : -speed;
+              p.isWalking = true;
+            } else if (action.moveMode === 'away_from_target') {
+              p.vx = p.facing === 'right' ? -speed : speed;
+              p.isWalking = true;
+            } else if (action.moveMode === 'stop') {
+              p.vx = 0;
+              p.isWalking = false;
+            }
+          }
+          // 3. Gravity Override (Overrides active Biome gravity)
+          else if (action.actionType === 'set_gravity') {
+            if (action.gravityMode === 'reset_to_biome') {
+              p.gravityOverride = null;
+            } else {
+              let gravVal = action.gravityScale ?? 1.0;
+              if (action.gravityMode === 'zero_g') gravVal = 0.0;
+              else if (action.gravityMode === 'low_g') gravVal = 0.3;
+              else if (action.gravityMode === 'normal') gravVal = 1.0;
+              else if (action.gravityMode === 'heavy_g') gravVal = 1.8;
+              else if (action.gravityMode === 'inverted') gravVal = -1.0;
+
+              if (action.gravitySource === 'variable' && action.gravityVariableId) {
+                gravVal = getCharVarNum(action.gravityVariableId, gravVal);
+              }
+              p.gravityOverride = gravVal;
+            }
+          }
+          // 4. FSM State Transition
+          else if (action.actionType === 'state_change' && action.targetState) {
+            p.activeBehaviorState = action.targetState;
+          }
+          // 5. Attack Execution
+          else if (action.actionType === 'attack') {
+            triggerAttack();
+          }
+        };
+
+        // Evaluate Character FSM State Transitions conditioned on Behavior "IFs"
+        if (testCharacter?.stateMachine?.transitions && testCharacter.stateMachine.transitions.length > 0) {
+          const charStates = testCharacter.stateMachine.states || [];
+          const currentStateNode = charStates.find(s => s.id === p.activeBehaviorState || s.name.toLowerCase() === (p.activeBehaviorState || '').toLowerCase());
+          const currentFromId = currentStateNode ? currentStateNode.id : (p.activeBehaviorState || 'idle');
+
+          for (const tr of testCharacter.stateMachine.transitions) {
+            if (tr.fromStateId === currentFromId || tr.fromStateId === p.activeBehaviorState) {
+              if (tr.behaviorRuleId) {
+                const bRule = (testCharacter.rules || []).find(r => r.id === tr.behaviorRuleId);
+                if (bRule && bRule.enabled) {
+                  const trigList = bRule.triggers && bRule.triggers.length > 0 ? bRule.triggers : (bRule.trigger ? [bRule.trigger] : []);
+                  if (trigList.length > 0) {
+                    const logic = bRule.triggerLogic || 'AND';
+                    const rulePassed = logic === 'OR' ? trigList.some(evaluateTrigger) : trigList.every(evaluateTrigger);
+                    if (rulePassed) {
+                      const targetNode = charStates.find(s => s.id === tr.toStateId);
+                      p.activeBehaviorState = targetNode ? targetNode.name : tr.toStateId;
+                      if (bRule.actions && bRule.actions.length > 0) {
+                        for (const act of bRule.actions) {
+                          executeCharacterAction(act);
+                        }
+                      }
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
         // Execute active rules
         for (const rule of rulesToEvaluate) {
           if (!rule.enabled) continue;
@@ -1171,18 +1324,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
           if (rulePassed && rule.actions && rule.actions.length > 0) {
             for (const action of rule.actions) {
-              if (action.actionType === 'hero_impulse') {
-                if (action.impulseType === 'jump' && p.isGrounded) {
-                  p.vy = -(action.force || 10);
-                  p.isGrounded = false;
-                } else if (action.impulseType === 'dash') {
-                  triggerDash();
-                }
-              } else if (action.actionType === 'state_change' && action.targetState) {
-                p.activeBehaviorState = action.targetState;
-              } else if (action.actionType === 'attack') {
-                triggerAttack();
-              }
+              executeCharacterAction(action);
             }
           }
         }

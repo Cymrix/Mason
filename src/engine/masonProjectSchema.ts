@@ -160,7 +160,6 @@ export interface PhysicsStateTrigger {
     | 'high_velocity'           // Moving faster than nominal terminal threshold
     | 'direction_change';       // Swapped moving direction
   velocityThreshold?: number;   // Optional numerical threshold (e.g. min vy or vx)
-  gravityEnvironment?: 'zero_g' | 'low_g' | 'normal_g' | 'high_g' | 'inverted_g';
 }
 
 export interface KeyboardKeyTrigger {
@@ -222,13 +221,15 @@ export type BehaviorTrigger =
   | SolidDetectionTrigger
   | PhysicsStateTrigger;
 
-export type ActionType = 'move' | 'attack' | 'state_change' | 'emit_signal' | 'animation' | 'camera' | 'hero_impulse' | 'variable_modify' | 'audio' | 'dialogue';
+export type ActionType = 'none' | 'move' | 'attack' | 'state_change' | 'emit_signal' | 'animation' | 'camera' | 'hero_impulse' | 'variable_modify' | 'set_gravity' | 'audio' | 'dialogue';
 
 export interface BehaviorAction {
   id: string;
   actionType: ActionType;
   moveMode?: 'towards_target' | 'away_from_target' | 'ground_patrol' | 'flying_sine' | 'jump' | 'stop';
   speed?: number;
+  speedSource?: 'fixed' | 'variable';
+  speedVariableId?: string;
   attackType?: 'melee_slash' | 'fire_projectile' | 'charge_dash' | 'guard';
   telegraphWindupMs?: number;
   targetState?: string;
@@ -241,11 +242,18 @@ export interface BehaviorAction {
   cameraLookAheadX?: number;
   cameraLookAheadY?: number;
   cameraShakeIntensity?: number;
-  impulseType?: 'jump' | 'dash' | 'wall_jump' | 'ground_slam';
+  impulseType?: 'jump' | 'dash' | 'wall_jump' | 'ground_slam' | 'knockback';
   force?: number;
+  forceSource?: 'fixed' | 'variable';
+  forceVariableId?: string;
   variableId?: string;
-  variableOp?: 'set' | 'add' | 'subtract' | 'toggle';
+  variableOp?: 'set' | 'add' | 'subtract' | 'multiply' | 'toggle';
   variableValue?: any;
+  // Gravity Override (Overrides active Biome gravity)
+  gravityScale?: number;
+  gravityMode?: 'custom' | 'zero_g' | 'low_g' | 'normal' | 'heavy_g' | 'inverted' | 'reset_to_biome';
+  gravitySource?: 'fixed' | 'variable';
+  gravityVariableId?: string;
   soundCue?: string;
   volume?: number;
   dialogueText?: string;
@@ -360,6 +368,7 @@ export interface BehaviorVariable {
   options?: string[]; // Used if type is enum
   isStatic: boolean;
   defaultValue: any;
+  value?: any;
 }
 
 export interface BehaviorData {
@@ -409,6 +418,9 @@ export interface CharacterSpritesheet {
   name: string;
   dataUrl?: string; // base64 or data URL for uploaded image
   imageUrl?: string; // optional image URL / asset link
+  imageWidth?: number; // total image width in px (e.g. 512)
+  imageHeight?: number; // total image height in px (e.g. 256)
+  splitMode?: 'pixels' | 'columns'; // 'pixels' (tileWidth/tileHeight) or 'columns' (cols/rows)
   tileWidth: number; // e.g., 64
   tileHeight: number; // e.g., 64
   cols: number; // grid columns e.g. 8
@@ -503,6 +515,8 @@ export interface CharacterStateTransition {
   toStateId: string;
   isBidirectional?: boolean; // One-way (false) or both-ways (true)
   triggerLabel?: string; // e.g. 'See Player', 'Lost Target', 'Low HP'
+  behaviorRuleId?: string; // Linked behavior rule ID if behavior condition
+  conditionType?: 'none' | 'behavior' | 'custom';
 }
 
 export interface CharacterStateMachine {

@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.95
+ * Current Release: v0.96
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92 -> v0.93 -> v0.94 -> v0.95).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92 -> v0.93 -> v0.94 -> v0.95 -> v0.96).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.95';
-export const MASON_VERSION_DISPLAY = 'v0.95';
-export const MASON_FULL_VERSION = 'v0.95';
+export const MASON_VERSION = '0.96';
+export const MASON_VERSION_DISPLAY = 'v0.96';
+export const MASON_FULL_VERSION = 'v0.96';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.96',
+    date: '2026-08-23',
+    changes: [
+      'Biome Gravity System: Added biome gravity multiplier controls in Biome Studio (Standard 1.0x, Zero-G / Weightless 0.0x, Low-G Moon 0.3x, Heavy 1.8x, Inverted -1.0x, or Custom scale).',
+      'Character Gravity Overrides: Added action to allow character behaviors to override biome gravity or revert back to biome defaults dynamically.',
+      'Character Variable Binding: Character behaviors can now bind and read character variables (e.g., speed, jump_force, gravity_scale) for movement velocity, impulse jump forces, and gravity modifiers.',
+      'Sensory Triggers Refinement: Removed redundant gravity filters from character triggers, unifying gravity state checks into the multi-condition IF evaluation engine.'
+    ]
+  },
   {
     version: 'v0.95',
     date: '2026-08-23',

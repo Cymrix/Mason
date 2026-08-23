@@ -74,6 +74,8 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
 
   const handleAddRule = () => {
     const newId = `brule_${Date.now().toString().slice(-6)}`;
+    const firstVar = biome.variables?.[0];
+    const isBool = firstVar?.type === 'boolean';
     const newRule: BiomeBehaviorRule = {
       id: newId,
       name: `Biome Logic Rule ${rulesList.length + 1}`,
@@ -82,17 +84,14 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
       description: 'Triggered when environmental conditions or player prop interactions occur.',
       trigger: {
         type: 'on_variable_value',
-        variableId: biome.variables?.[0]?.id || '',
-        comparator: '>=',
-        targetValue: 50
+        variableId: firstVar?.id || '',
+        comparator: isBool ? '==' : '>=',
+        targetValue: isBool ? true : (firstVar?.defaultValue ?? (firstVar?.type === 'number' ? 50 : ''))
       },
       actions: [
         {
           id: `bact_${Date.now().toString().slice(-4)}`,
-          actionType: 'environmental_effect',
-          effectType: 'screen_shake',
-          intensity: 0.5,
-          durationMs: 2000
+          actionType: 'none'
         }
       ]
     };
@@ -108,10 +107,7 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
   const handleAddAction = (ruleId: string) => {
     const newAction: BiomeBehaviorAction = {
       id: `bact_${Date.now().toString().slice(-4)}`,
-      actionType: 'set_variable',
-      variableId: biome.variables?.[0]?.id || '',
-      variableOp: 'set',
-      variableValue: 100
+      actionType: 'none'
     };
 
     handleUpdateRule(ruleId, r => ({
@@ -212,7 +208,11 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
               const t = rule.trigger;
               if (t.type === 'on_variable_value') {
                 const v = variablesList.find(vl => vl.id === t.variableId);
-                return `Variable: ${v?.name || t.variableId || 'Variable'} ${t.comparator || '>='} ${t.targetValue ?? 50}`;
+                const isBool = v?.type === 'boolean';
+                const valDisplay = isBool 
+                  ? (t.targetValue === undefined || t.targetValue === true || t.targetValue === 'true' || t.targetValue === 1 ? 'True' : 'False') 
+                  : String(t.targetValue ?? 50);
+                return `Variable: ${v?.name || t.variableId || 'Variable'} ${t.comparator || '=='} ${valDisplay}`;
               }
               if (t.type === 'on_map_load') {
                 return `Map Load: ${t.mapFileName || 'Any Level'}`;
@@ -374,48 +374,132 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                         </div>
 
                         {/* TRIGGER 1: ON VARIABLE VALUE */}
-                        {rule.trigger.type === 'on_variable_value' && (
-                          <>
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-rose-400 uppercase">Variable</label>
-                              <select
-                                value={rule.trigger.variableId || ''}
-                                onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, variableId: e.target.value } }))}
-                                className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono"
-                              >
-                                {variablesList.map(v => (
-                                  <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
-                                ))}
-                              </select>
-                            </div>
+                        {rule.trigger.type === 'on_variable_value' && (() => {
+                          const currentVarId = rule.trigger.variableId || variablesList[0]?.id || '';
+                          const selectedVar = variablesList.find(v => v.id === currentVarId);
+                          const isBool = selectedVar?.type === 'boolean';
+                          const isEnum = selectedVar?.type === 'enum';
+                          const isString = selectedVar?.type === 'string';
 
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-neutral-400 uppercase">Comparator</label>
-                              <select
-                                value={rule.trigger.comparator || '>='}
-                                onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, comparator: e.target.value as any } }))}
-                                className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono"
-                              >
-                                <option value=">=">&gt;= Greater or Equal</option>
-                                <option value="<=">&lt;= Less or Equal</option>
-                                <option value=">">&gt; Greater Than</option>
-                                <option value="<">&lt; Less Than</option>
-                                <option value="==">== Equals</option>
-                                <option value="!=">!= Not Equal</option>
-                              </select>
-                            </div>
+                          return (
+                            <>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-rose-400 uppercase">Variable</label>
+                                <select
+                                  value={currentVarId}
+                                  onChange={(e) => {
+                                    const nextVarId = e.target.value;
+                                    const nextVar = variablesList.find(v => v.id === nextVarId);
+                                    const nextIsBool = nextVar?.type === 'boolean';
+                                    handleUpdateRule(rule.id, r => ({
+                                      ...r,
+                                      trigger: {
+                                        ...r.trigger,
+                                        variableId: nextVarId,
+                                        comparator: '==',
+                                        targetValue: nextIsBool 
+                                          ? (r.trigger.targetValue === false ? false : true) 
+                                          : (nextVar?.defaultValue ?? (nextVar?.type === 'number' ? 50 : ''))
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono text-xs"
+                                >
+                                  {variablesList.map(v => (
+                                    <option key={v.id} value={v.id}>
+                                      {v.type === 'boolean' ? '🔘' : v.type === 'enum' ? '📋' : v.type === 'string' ? '🔤' : '🔢'} {v.name} ({v.id}) [{v.type}]
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
 
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-neutral-400 uppercase">Target Value</label>
-                              <input
-                                type="number"
-                                value={rule.trigger.targetValue ?? 50}
-                                onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, targetValue: parseFloat(e.target.value) || 0 } }))}
-                                className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono"
-                              />
-                            </div>
-                          </>
-                        )}
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-neutral-400 uppercase">Comparator</label>
+                                {isBool ? (
+                                  <select
+                                    value="=="
+                                    disabled
+                                    className="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2 text-neutral-300 font-mono text-xs cursor-not-allowed opacity-90"
+                                  >
+                                    <option value="==">== Equals</option>
+                                  </select>
+                                ) : isEnum || isString ? (
+                                  <select
+                                    value={rule.trigger.comparator === '!=' ? '!=' : '=='}
+                                    onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, comparator: e.target.value as any } }))}
+                                    className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono text-xs"
+                                  >
+                                    <option value="==">== Equals</option>
+                                    <option value="!=">!= Not Equal</option>
+                                  </select>
+                                ) : (
+                                  <select
+                                    value={rule.trigger.comparator || '>='}
+                                    onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, comparator: e.target.value as any } }))}
+                                    className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono text-xs"
+                                  >
+                                    <option value="==">== Equals</option>
+                                    <option value="!=">!= Not Equal</option>
+                                    <option value=">">&gt; Greater Than</option>
+                                    <option value=">=">&gt;= Greater or Equal</option>
+                                    <option value="<">&lt; Less Than</option>
+                                    <option value="<=">&lt;= Less or Equal</option>
+                                  </select>
+                                )}
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-neutral-400 uppercase">Target Value</label>
+                                {isBool ? (
+                                  <div className="flex items-center h-[38px] px-3 bg-neutral-950 border border-neutral-700 rounded-lg gap-2.5">
+                                    <input
+                                      type="checkbox"
+                                      id={`biome_trig_bool_${rule.id}`}
+                                      checked={rule.trigger.targetValue === undefined ? true : Boolean(rule.trigger.targetValue === true || rule.trigger.targetValue === 'true' || rule.trigger.targetValue === 1)}
+                                      onChange={(e) => handleUpdateRule(rule.id, r => ({
+                                        ...r,
+                                        trigger: {
+                                          ...r.trigger,
+                                          comparator: '==',
+                                          targetValue: e.target.checked
+                                        }
+                                      }))}
+                                      className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 text-rose-500 focus:ring-rose-500 cursor-pointer"
+                                    />
+                                    <label htmlFor={`biome_trig_bool_${rule.id}`} className="text-xs font-mono font-bold cursor-pointer select-none text-rose-300">
+                                      {(rule.trigger.targetValue === undefined || rule.trigger.targetValue === true || rule.trigger.targetValue === 'true' || rule.trigger.targetValue === 1) ? 'TRUE (Checked)' : 'FALSE (Unchecked)'}
+                                    </label>
+                                  </div>
+                                ) : isEnum && selectedVar?.options && selectedVar.options.length > 0 ? (
+                                  <select
+                                    value={rule.trigger.targetValue ?? selectedVar.options[0]}
+                                    onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, targetValue: e.target.value } }))}
+                                    className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono text-xs"
+                                  >
+                                    {selectedVar.options.map(opt => (
+                                      <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                  </select>
+                                ) : isString ? (
+                                  <input
+                                    type="text"
+                                    value={rule.trigger.targetValue ?? ''}
+                                    placeholder="Target string value..."
+                                    onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, targetValue: e.target.value } }))}
+                                    className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono text-xs"
+                                  />
+                                ) : (
+                                  <input
+                                    type="number"
+                                    value={rule.trigger.targetValue ?? 50}
+                                    onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, trigger: { ...r.trigger, targetValue: parseFloat(e.target.value) || 0 } }))}
+                                    className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-white font-mono text-xs"
+                                  />
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
 
                         {/* TRIGGER 2: ON MAP LOAD */}
                         {rule.trigger.type === 'on_map_load' && (
@@ -516,12 +600,14 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                                     {aIdx + 1}
                                   </span>
                                   <select
-                                    value={action.actionType}
+                                    value={action.actionType || 'none'}
                                     onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, actionType: e.target.value as BiomeActionType }))}
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-1 text-xs text-emerald-300 font-bold"
                                   >
+                                    <option value="none">🚫 None (No Action / Gate Only)</option>
                                     <option value="set_variable">🔢 Set Biome Variable</option>
                                     <option value="change_biome_state">⚡ Change Biome State</option>
+                                    <option value="set_gravity">🪐 Set Environmental Gravity</option>
                                     <option value="environmental_effect">🌪️ Environmental / Screen FX</option>
                                     <option value="change_map">🚀 Change Map / Level Warp</option>
                                     <option value="spawn_entity">👾 Spawn Entity / Fauna</option>
@@ -541,7 +627,13 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                               </div>
 
                               {/* ACTION PAYLOADS */}
-                              {/* 1. SET VARIABLE */}
+                              {/* 0. NONE (GATE ONLY) */}
+                              {(!action.actionType || action.actionType === 'none') && (
+                                <div className="p-2.5 bg-neutral-900/80 border border-neutral-800 rounded-xl text-neutral-400 text-xs flex items-center gap-2">
+                                  <span className="text-emerald-400 font-bold shrink-0">ℹ️</span>
+                                  <span>No action will be executed. This rule acts purely as a conditional gate for biome state transitions.</span>
+                                </div>
+                              )}
                               {action.actionType === 'set_variable' && (
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                                   <select
@@ -587,6 +679,55 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                                       <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
                                     ))}
                                   </select>
+                                </div>
+                              )}
+
+                              {/* 3. SET ENVIRONMENTAL GRAVITY */}
+                              {action.actionType === 'set_gravity' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                  <div>
+                                    <label className="text-[10px] text-neutral-400 font-bold block mb-1">Gravity Preset</label>
+                                    <select
+                                      value={action.gravityMode || 'normal'}
+                                      onChange={(e) => {
+                                        const mode = e.target.value as any;
+                                        let scale = 1.0;
+                                        if (mode === 'zero_g') scale = 0.0;
+                                        else if (mode === 'low_g') scale = 0.3;
+                                        else if (mode === 'normal') scale = 1.0;
+                                        else if (mode === 'heavy_g') scale = 1.8;
+                                        else if (mode === 'inverted') scale = -1.0;
+                                        handleUpdateAction(rule.id, action.id, a => ({ 
+                                          ...a, 
+                                          gravityMode: mode,
+                                          gravityScale: scale
+                                        }));
+                                      }}
+                                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-amber-300 font-semibold"
+                                    >
+                                      <option value="zero_g">🌌 Zero-G / Weightless (0.0x)</option>
+                                      <option value="low_g">🌙 Low Gravity / Moon (0.3x)</option>
+                                      <option value="normal">🌍 Standard Gravity (1.0x)</option>
+                                      <option value="heavy_g">🏋️ Heavy Gravity (1.8x)</option>
+                                      <option value="inverted">🔄 Inverted Ceiling Pull (-1.0x)</option>
+                                      <option value="custom">⚙️ Custom Multiplier</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-neutral-400 font-bold block mb-1">Gravity Scale (Multiplier)</label>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      value={action.gravityScale ?? 1.0}
+                                      onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ 
+                                        ...a, 
+                                        gravityScale: parseFloat(e.target.value) || 0.0,
+                                        gravityMode: 'custom'
+                                      }))}
+                                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
+                                      placeholder="1.0"
+                                    />
+                                  </div>
                                 </div>
                               )}
 

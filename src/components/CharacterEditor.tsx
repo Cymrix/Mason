@@ -273,10 +273,10 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Viewport Layer Toggles
-  const [showCapsule, setShowCapsule] = useState<boolean>(true);
-  const [showPoints, setShowPoints] = useState<boolean>(true);
-  const [showPolygons, setShowPolygons] = useState<boolean>(true);
+  // Viewport Layer Toggles (Everything except sprite turned off by default)
+  const [showCapsule, setShowCapsule] = useState<boolean>(false);
+  const [showPoints, setShowPoints] = useState<boolean>(false);
+  const [showPolygons, setShowPolygons] = useState<boolean>(false);
   const [showSprite, setShowSprite] = useState<boolean>(true);
 
   // Per-item individual visibility toggles

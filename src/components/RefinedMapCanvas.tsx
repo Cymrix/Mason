@@ -151,8 +151,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   // Exact character configuration derivation strictly from testCharacter and linkedBehavior
   const charConfig = React.useMemo(() => {
     // 1. Dimensions & Capsule from Character File
-    const radius = testCharacter?.capsule?.radius ?? (testCharacter?.spriteWidth ? Math.min(14, testCharacter.spriteWidth / 4) : 8);
-    const height = testCharacter?.capsule?.height ?? (testCharacter?.spriteHeight ? Math.min(48, testCharacter.spriteHeight * 0.75) : 26);
+    const rawRad = testCharacter?.capsule?.radius;
+    const rawH = testCharacter?.capsule?.height;
+    const radius = (rawRad !== undefined && rawRad > 0) ? rawRad : (testCharacter?.spriteWidth ? Math.min(14, testCharacter.spriteWidth / 4) : 16);
+    const height = (rawH !== undefined && rawH > 0) ? rawH : (testCharacter?.spriteHeight ? Math.min(48, testCharacter.spriteHeight * 0.75) : 44);
+    const offsetX = testCharacter?.capsule?.offsetX ?? 0;
+    const offsetY = testCharacter?.capsule?.offsetY ?? 0;
     
     // 2. Health, Mana, Stamina from Character BaseStats
     const maxHp = testCharacter?.baseStats?.health ?? 100;
@@ -207,6 +211,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     return {
       radius,
       height,
+      offsetX,
+      offsetY,
       maxHp,
       maxMp,
       maxSp,
@@ -771,11 +777,16 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     if (mode !== 'play') return;
 
     let animId: number;
+    let lastTickTime = performance.now();
     const physicsTick = () => {
+      const now = performance.now();
+      const dt = Math.min((now - lastTickTime) / 1000, 0.05);
+      lastTickTime = now;
+
       const p = playerRef.current;
       const keys = keysDownRef.current;
 
-      p.animTime += 0.16;
+      p.animTime += dt;
 
       // Regenerate stamina & mana up to configured max
       p.stamina = Math.min(charConfig.maxSp, p.stamina + 0.35);
@@ -1400,17 +1411,26 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const capRad = charConfig.radius;
       const capH = charConfig.height;
       const halfH = Math.max(0, (capH - capRad * 2) / 2);
-      const capCenterY = spawnY - capH / 2;
+      const capOx = charConfig.offsetX;
+      const capOy = charConfig.offsetY;
+
+      // The Character Editor defines (0,0) as the center of the sprite cell (tileW/2, tileH/2)
+      // On the map, the ground contact is at spawnY, so the sprite center is at (spawnX, spawnY - tileH/2)
+      const spriteTileH = spriteInfo?.tileH || testCharacter?.spriteHeight || 64;
+      const spriteTileW = spriteInfo?.tileW || testCharacter?.spriteWidth || 64;
+      const charCenterY = spawnY - spriteTileH / 2;
 
       ctx.save();
-      ctx.translate(spawnX, capCenterY);
-      ctx.strokeStyle = `${charColor}aa`;
+      ctx.translate(spawnX + capOx, charCenterY + capOy);
+      ctx.strokeStyle = `${charColor}ee`;
+      ctx.fillStyle = `${charColor}22`;
       ctx.setLineDash([3 / scale, 3 / scale]);
-      ctx.lineWidth = 1 / scale;
+      ctx.lineWidth = 1.2 / scale;
       ctx.beginPath();
       ctx.arc(0, -halfH, capRad, Math.PI, 0);
       ctx.arc(0, halfH, capRad, 0, Math.PI);
       ctx.closePath();
+      ctx.fill();
       ctx.stroke();
       ctx.restore();
 
@@ -1425,7 +1445,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         const srcY = row * tileH;
 
         ctx.save();
-        ctx.translate(spawnX, spawnY);
+        ctx.translate(spawnX, spawnY - tileH / 2);
         if (facing === 'left') {
           ctx.scale(-1, 1);
         }
@@ -1433,7 +1453,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.drawImage(
           img,
           srcX, srcY, tileW, tileH,
-          -tileW / 2, -tileH, tileW, tileH
+          -tileW / 2, -tileH / 2, tileW, tileH
         );
         ctx.restore();
       } else {
@@ -1504,12 +1524,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           const srcY = row * tileH;
 
           ctx.save();
-          ctx.translate(hX, hY);
+          ctx.translate(hX, hY - tileH / 2);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(
             img,
             srcX, srcY, tileW, tileH,
-            -tileW / 2, -tileH, tileW, tileH
+            -tileW / 2, -tileH / 2, tileW, tileH
           );
           ctx.restore();
         } else {
@@ -1578,12 +1598,16 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         || testCharacter?.animations?.[0];
 
       // 4. Animated Character Body (with Squash & Stretch and Real Spritesheet Frame)
+      const spriteTileH = spriteInfo?.tileH || testCharacter?.spriteHeight || 64;
+      const spriteTileW = spriteInfo?.tileW || testCharacter?.spriteWidth || 64;
+
       ctx.save();
-      ctx.translate(p.x, p.y);
+      // Translate to character sprite center
+      ctx.translate(p.x, p.y - spriteTileH / 2);
 
       // Run animation bounce / tilt
-      const runBounce = p.isWalking && p.isGrounded ? Math.sin(p.animTime * 12) * 1.5 : 0;
-      const runTilt = p.isWalking && p.isGrounded ? (p.facing === 'right' ? 0.08 : -0.08) : 0;
+      const runBounce = p.isWalking && p.isGrounded ? Math.sin(p.animTime * 10) * 1.5 : 0;
+      const runTilt = p.isWalking && p.isGrounded ? (p.facing === 'right' ? 0.06 : -0.06) : 0;
       ctx.rotate(runTilt);
 
       let scaleX = (p.facing === 'left' ? -1 : 1) * p.landingSquash;
@@ -1595,7 +1619,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         const startIdx = activeAnim.startFrameIndex || 0;
         const endIdx = activeAnim.endFrameIndex !== undefined ? activeAnim.endFrameIndex : startIdx;
         const span = Math.max(1, endIdx - startIdx + 1);
-        const fps = Math.max(1, activeAnim.frameRateFps || 10);
+        const fps = Math.max(1, activeAnim.frameRateFps || 8);
         const frameOffset = Math.floor(p.animTime * fps) % span;
         const globalFrame = startIdx + frameOffset;
 
@@ -1608,16 +1632,16 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.drawImage(
           img,
           srcX, srcY, tileW, tileH,
-          -tileW / 2, -tileH + runBounce, tileW, tileH
+          -tileW / 2, -tileH / 2 + runBounce, tileW, tileH
         );
       } else {
         // Fallback Body Capsule
-        const bodyGrad = ctx.createLinearGradient(0, -28 + runBounce, 0, runBounce);
+        const bodyGrad = ctx.createLinearGradient(0, -14 + runBounce, 0, 14 + runBounce);
         bodyGrad.addColorStop(0, charColor);
         bodyGrad.addColorStop(1, '#0f172a');
         ctx.fillStyle = bodyGrad;
         ctx.beginPath();
-        ctx.roundRect(-8, -28 + runBounce, 16, 27, 6);
+        ctx.roundRect(-8, -14 + runBounce, 16, 27, 6);
         ctx.fill();
         ctx.lineWidth = 1.2 / scale;
         ctx.strokeStyle = '#ffffff';
@@ -1625,13 +1649,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
         // Visor / Eyes in facing direction
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(3, -22 + runBounce, 3, 3);
+        ctx.fillRect(3, -8 + runBounce, 3, 3);
 
         // Character Avatar Icon inside body
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(testCharacter?.avatarIcon || '🛡️', 0, -12 + runBounce);
+        ctx.fillText(testCharacter?.avatarIcon || '🛡️', 0, 0 + runBounce);
       }
 
       ctx.restore();

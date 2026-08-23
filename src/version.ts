@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.92
+ * Current Release: v0.93
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92 -> v0.93).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.92';
-export const MASON_VERSION_DISPLAY = 'v0.92';
-export const MASON_FULL_VERSION = 'v0.92';
+export const MASON_VERSION = '0.93';
+export const MASON_VERSION_DISPLAY = 'v0.93';
+export const MASON_FULL_VERSION = 'v0.93';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,15 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.93',
+    date: '2026-08-22',
+    changes: [
+      'Map Module Character Sync: Auto-synchronized the Map Editor "Test Hero" selector with the active character file in Character Studio.',
+      'Real Character Sprite Rendering: Updated Map Canvas to render the actual character spritesheet frames, collision capsules, and orientation at the spawn location and placement hover preview instead of a generic capsule proxy.',
+      'Play Mode Sprite Animation: Animated real character sprites in Play Mode with state-based clip selection (idle, walk, run, jump, attack, dash), facing direction flips, and squash-and-stretch effects.'
+    ]
+  },
   {
     version: 'v0.92',
     date: '2026-08-22',

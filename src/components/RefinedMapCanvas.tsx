@@ -164,7 +164,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const heroInp = linkedBehavior?.heroInput;
 
     // Movement speed: strictly from Character Base Stats. If no stats, defaults to 5.
-    const baseSpeed = testCharacter.baseStats?.speed ?? 5;
+    const baseSpeed = testCharacter?.baseStats?.speed ?? 5;
     const accel = baseSpeed * 0.8; // Derived from speed
     const gravScale = behMov?.gravityScale !== undefined ? behMov.gravityScale : 1.0;
     const airCtrl = heroInp?.airControlPercent !== undefined 
@@ -231,6 +231,90 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       hasSpecial
     };
   }, [testCharacter, linkedBehavior]);
+
+  // Character Spritesheet Image Loader & Cache
+  const charImgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const [charImgVersion, setCharImgVersion] = useState<number>(0);
+
+  const getCharacterSpriteInfo = useCallback((char?: CharacterData) => {
+    if (!char) return null;
+    const sheet = char.spritesheets?.[0];
+    const tileW = sheet?.tileWidth || char.spriteWidth || 64;
+    const tileH = sheet?.tileHeight || char.spriteHeight || 64;
+    const cols = sheet?.cols || 8;
+    const rows = sheet?.rows || 4;
+
+    let url = sheet?.imageUrl || sheet?.dataUrl || (sheet as any)?.imageBase64 || '';
+    if (!url) {
+      // Procedural fallback spritesheet canvas matching Character Studio
+      const cvs = document.createElement('canvas');
+      cvs.width = tileW * cols;
+      cvs.height = tileH * rows;
+      const ctx = cvs.getContext('2d');
+      if (ctx) {
+        const total = cols * rows;
+        const charColor = char.tintColor || '#06b6d4';
+        const avatar = char.avatarIcon || '🛡️';
+
+        for (let i = 0; i < total; i++) {
+          const c = i % cols;
+          const r = Math.floor(i / cols);
+          const x = c * tileW;
+          const y = r * tileH;
+
+          // Subtle checkered frame box
+          ctx.fillStyle = (c + r) % 2 === 0 ? 'rgba(30, 27, 75, 0.4)' : 'rgba(15, 23, 42, 0.4)';
+          ctx.fillRect(x, y, tileW, tileH);
+
+          const cx = x + tileW / 2;
+          const cy = y + tileH / 2;
+          const bob = Math.sin((i / total) * Math.PI * 4) * 3;
+          const legOffset = Math.sin((i / 8) * Math.PI * 2) * 3;
+
+          // Hero Body Capsule
+          ctx.fillStyle = charColor;
+          ctx.beginPath();
+          ctx.roundRect(cx - 10, cy - 14 + bob, 20, 26, 6);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Visor / Eyes
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(cx + 2, cy - 10 + bob, 5, 3);
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(cx + 4, cy - 9 + bob, 2, 2);
+
+          // Feet
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(cx - 7, cy + 12 + bob + legOffset, 5, 4);
+          ctx.fillRect(cx + 2, cy + 12 + bob - legOffset, 5, 4);
+
+          // Avatar Icon in chest
+          ctx.font = `${Math.round(tileW * 0.26)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(avatar, cx, cy - 1 + bob);
+        }
+        url = cvs.toDataURL('image/png');
+      }
+    }
+
+    if (!url) return null;
+
+    let img = charImgCacheRef.current.get(url);
+    if (!img) {
+      img = new Image();
+      img.src = url;
+      img.onload = () => {
+        setCharImgVersion(v => v + 1);
+      };
+      charImgCacheRef.current.set(url, img);
+    }
+
+    return { img, tileW, tileH, cols, rows };
+  }, []);
 
   // Play Mode Player & Physics Engine State
   const playerRef = useRef({
@@ -1283,67 +1367,111 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     // ==========================================
     // 11. CHARACTER SPAWN & TEST PLAYER RENDERING
     // ==========================================
+    const spriteInfo = getCharacterSpriteInfo(testCharacter);
+
     if (mode === 'paint') {
       // Draw Placed Character Spawn Point Marker
       const spawnX = (spawnPoint?.x ?? 4) * TILE_SIZE + TILE_SIZE / 2;
       const spawnY = (spawnPoint?.y ?? 12) * TILE_SIZE + TILE_SIZE;
       const charColor = testCharacter?.tintColor || '#06b6d4';
+      const facing = spawnPoint?.facing || 'right';
 
       ctx.save();
-      // Pulsing Ground Ring
+      // 1. Pulsing Ground Ring
       const pulseTime = performance.now() / 1000;
-      const ringRadius = 12 + Math.sin(pulseTime * 3) * 2;
+      const ringRadius = 13 + Math.sin(pulseTime * 3) * 2;
       
       ctx.beginPath();
       ctx.ellipse(spawnX, spawnY - 2, ringRadius, ringRadius * 0.45, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+      ctx.fillStyle = `${charColor}33`;
       ctx.fill();
       ctx.lineWidth = 1.5 / scale;
       ctx.strokeStyle = charColor;
       ctx.stroke();
 
-      // Vertical Beacon Ray
+      // 2. Vertical Beacon Ray
       const grad = ctx.createLinearGradient(spawnX, spawnY, spawnX, spawnY - 48);
-      grad.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
-      grad.addColorStop(1, 'rgba(6, 182, 212, 0)');
+      grad.addColorStop(0, `${charColor}55`);
+      grad.addColorStop(1, `${charColor}00`);
       ctx.fillStyle = grad;
-      ctx.fillRect(spawnX - 10, spawnY - 48, 20, 48);
+      ctx.fillRect(spawnX - 12, spawnY - 48, 24, 48);
 
-      // Character Capsule Silhouette
-      ctx.fillStyle = charColor;
-      ctx.beginPath();
-      ctx.roundRect(spawnX - 7, spawnY - 28, 14, 26, 6);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
+      // 3. Collision Capsule Outline
+      const capRad = charConfig.radius;
+      const capH = charConfig.height;
+      const halfH = Math.max(0, (capH - capRad * 2) / 2);
+      const capCenterY = spawnY - capH / 2;
+
+      ctx.save();
+      ctx.translate(spawnX, capCenterY);
+      ctx.strokeStyle = `${charColor}aa`;
+      ctx.setLineDash([3 / scale, 3 / scale]);
       ctx.lineWidth = 1 / scale;
+      ctx.beginPath();
+      ctx.arc(0, -halfH, capRad, Math.PI, 0);
+      ctx.arc(0, halfH, capRad, 0, Math.PI);
+      ctx.closePath();
       ctx.stroke();
+      ctx.restore();
 
-      // Avatar Icon
-      ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(testCharacter?.avatarIcon || '🛡️', spawnX, spawnY - 14);
+      // 4. Render Real Character Sprite Frame (Idle frame 0)
+      if (spriteInfo && spriteInfo.img.complete && spriteInfo.img.naturalWidth > 0) {
+        const { img, tileW, tileH, cols } = spriteInfo;
+        const idleAnim = testCharacter?.animations?.find(a => a.stateId === 'idle') || testCharacter?.animations?.[0];
+        const frameIdx = idleAnim?.startFrameIndex || 0;
+        const col = frameIdx % cols;
+        const row = Math.floor(frameIdx / cols);
+        const srcX = col * tileW;
+        const srcY = row * tileH;
 
-      // Facing Arrow
+        ctx.save();
+        ctx.translate(spawnX, spawnY);
+        if (facing === 'left') {
+          ctx.scale(-1, 1);
+        }
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(
+          img,
+          srcX, srcY, tileW, tileH,
+          -tileW / 2, -tileH, tileW, tileH
+        );
+        ctx.restore();
+      } else {
+        // Fallback Capsule Silhouette
+        ctx.fillStyle = charColor;
+        ctx.beginPath();
+        ctx.roundRect(spawnX - 7, spawnY - 28, 14, 26, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1 / scale;
+        ctx.stroke();
+
+        ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(testCharacter?.avatarIcon || '🛡️', spawnX, spawnY - 14);
+      }
+
+      // 5. Facing Arrow
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      if ((spawnPoint?.facing || 'right') === 'right') {
-        ctx.moveTo(spawnX + 11, spawnY - 14);
-        ctx.lineTo(spawnX + 6, spawnY - 18);
-        ctx.lineTo(spawnX + 6, spawnY - 10);
+      if (facing === 'right') {
+        ctx.moveTo(spawnX + 16, spawnY - 14);
+        ctx.lineTo(spawnX + 10, spawnY - 19);
+        ctx.lineTo(spawnX + 10, spawnY - 9);
       } else {
-        ctx.moveTo(spawnX - 11, spawnY - 14);
-        ctx.lineTo(spawnX - 6, spawnY - 18);
-        ctx.lineTo(spawnX - 6, spawnY - 10);
+        ctx.moveTo(spawnX - 16, spawnY - 14);
+        ctx.lineTo(spawnX - 10, spawnY - 19);
+        ctx.lineTo(spawnX - 10, spawnY - 9);
       }
       ctx.fill();
 
-      // Name & Spawn Badge
+      // 6. Name & Spawn Badge
       const spawnLabel = `📍 SPAWN • ${testCharacter?.name || 'Player'}`;
       ctx.font = `bold ${Math.max(9 / scale, 8)}px monospace`;
       const textW = ctx.measureText(spawnLabel).width;
       const bX = spawnX - textW / 2 - 4 / scale;
-      const bY = spawnY - 42 / scale;
+      const bY = spawnY - Math.max(36, capH) - 18 / scale;
       ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
       ctx.fillRect(bX, bY, textW + 8 / scale, 12 / scale);
       ctx.strokeStyle = charColor;
@@ -1352,13 +1480,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.fillStyle = '#67e8f9';
       ctx.fillText(spawnLabel, spawnX, bY + 6 / scale);
 
-      // Hover Spawn Placement Preview
+      // 7. Hover Spawn Placement Preview
       if (activeTool === 'spawn_place' && hoverTile) {
         const hX = hoverTile.x * TILE_SIZE + TILE_SIZE / 2;
         const hY = hoverTile.y * TILE_SIZE + TILE_SIZE;
 
         ctx.save();
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = 0.75;
         ctx.setLineDash([4 / scale, 3 / scale]);
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 1.5 / scale;
@@ -1366,21 +1494,41 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.ellipse(hX, hY - 2, 14, 6, 0, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
-        ctx.beginPath();
-        ctx.roundRect(hX - 7, hY - 28, 14, 26, 6);
-        ctx.fill();
-        ctx.stroke();
+        if (spriteInfo && spriteInfo.img.complete && spriteInfo.img.naturalWidth > 0) {
+          const { img, tileW, tileH, cols } = spriteInfo;
+          const idleAnim = testCharacter?.animations?.find(a => a.stateId === 'idle') || testCharacter?.animations?.[0];
+          const frameIdx = idleAnim?.startFrameIndex || 0;
+          const col = frameIdx % cols;
+          const row = Math.floor(frameIdx / cols);
+          const srcX = col * tileW;
+          const srcY = row * tileH;
 
-        ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(testCharacter?.avatarIcon || '📍', hX, hY - 14);
+          ctx.save();
+          ctx.translate(hX, hY);
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(
+            img,
+            srcX, srcY, tileW, tileH,
+            -tileW / 2, -tileH, tileW, tileH
+          );
+          ctx.restore();
+        } else {
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+          ctx.beginPath();
+          ctx.roundRect(hX - 7, hY - 28, 14, 26, 6);
+          ctx.fill();
+          ctx.stroke();
 
-        const placeLabel = 'CLICK TO PLACE SPAWN';
+          ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(testCharacter?.avatarIcon || '📍', hX, hY - 14);
+        }
+
+        const placeLabel = `CLICK TO PLACE SPAWN • ${testCharacter?.name || 'Player'}`;
         ctx.font = `bold ${Math.max(9 / scale, 8)}px monospace`;
         ctx.fillStyle = '#38bdf8';
-        ctx.fillText(placeLabel, hX, hY - 36 / scale);
+        ctx.fillText(placeLabel, hX, hY - Math.max(34, charConfig.height) - 14 / scale);
         ctx.restore();
       }
 
@@ -1411,7 +1559,25 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.fill();
 
-      // 3. Animated Character Body (with Squash & Stretch)
+      // 3. Resolve Current Animation State
+      let animState = 'idle';
+      if (p.isAttacking) {
+        animState = 'attack';
+      } else if (p.isDashing) {
+        animState = 'run';
+      } else if (!p.isGrounded) {
+        animState = 'jump';
+      } else if (p.isWalking) {
+        animState = Math.abs(p.vx) > 3.2 ? 'run' : 'walk';
+      } else {
+        animState = 'idle';
+      }
+
+      const activeAnim = testCharacter?.animations?.find(a => a.stateId === animState)
+        || testCharacter?.animations?.find(a => a.stateId === 'idle')
+        || testCharacter?.animations?.[0];
+
+      // 4. Animated Character Body (with Squash & Stretch and Real Spritesheet Frame)
       ctx.save();
       ctx.translate(p.x, p.y);
 
@@ -1420,36 +1586,57 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const runTilt = p.isWalking && p.isGrounded ? (p.facing === 'right' ? 0.08 : -0.08) : 0;
       ctx.rotate(runTilt);
 
-      let scaleX = p.landingSquash;
+      let scaleX = (p.facing === 'left' ? -1 : 1) * p.landingSquash;
       let scaleY = p.jumpStretch / p.landingSquash;
       ctx.scale(scaleX, scaleY);
 
-      // Body Capsule
-      const bodyGrad = ctx.createLinearGradient(0, -28 + runBounce, 0, runBounce);
-      bodyGrad.addColorStop(0, charColor);
-      bodyGrad.addColorStop(1, '#0f172a');
-      ctx.fillStyle = bodyGrad;
-      ctx.beginPath();
-      ctx.roundRect(-8, -28 + runBounce, 16, 27, 6);
-      ctx.fill();
-      ctx.lineWidth = 1.2 / scale;
-      ctx.strokeStyle = '#ffffff';
-      ctx.stroke();
+      if (spriteInfo && spriteInfo.img.complete && spriteInfo.img.naturalWidth > 0 && activeAnim) {
+        const { img, tileW, tileH, cols } = spriteInfo;
+        const startIdx = activeAnim.startFrameIndex || 0;
+        const endIdx = activeAnim.endFrameIndex !== undefined ? activeAnim.endFrameIndex : startIdx;
+        const span = Math.max(1, endIdx - startIdx + 1);
+        const fps = Math.max(1, activeAnim.frameRateFps || 10);
+        const frameOffset = Math.floor(p.animTime * fps) % span;
+        const globalFrame = startIdx + frameOffset;
 
-      // Visor / Eyes in facing direction
-      ctx.fillStyle = '#ffffff';
-      const eyeOffset = p.facing === 'right' ? 3 : -5;
-      ctx.fillRect(eyeOffset, -22 + runBounce, 3, 3);
+        const col = globalFrame % cols;
+        const row = Math.floor(globalFrame / cols);
+        const srcX = col * tileW;
+        const srcY = row * tileH;
 
-      // Character Avatar Icon inside body
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(testCharacter?.avatarIcon || '🛡️', 0, -12 + runBounce);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(
+          img,
+          srcX, srcY, tileW, tileH,
+          -tileW / 2, -tileH + runBounce, tileW, tileH
+        );
+      } else {
+        // Fallback Body Capsule
+        const bodyGrad = ctx.createLinearGradient(0, -28 + runBounce, 0, runBounce);
+        bodyGrad.addColorStop(0, charColor);
+        bodyGrad.addColorStop(1, '#0f172a');
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.roundRect(-8, -28 + runBounce, 16, 27, 6);
+        ctx.fill();
+        ctx.lineWidth = 1.2 / scale;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+
+        // Visor / Eyes in facing direction
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(3, -22 + runBounce, 3, 3);
+
+        // Character Avatar Icon inside body
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(testCharacter?.avatarIcon || '🛡️', 0, -12 + runBounce);
+      }
 
       ctx.restore();
 
-      // 4. Weapon Slash Arc Trajectory
+      // 5. Weapon Slash Arc Trajectory
       p.slashes.forEach(sl => {
         const progress = sl.frame / sl.maxFrames;
         const slashRadius = 24;
@@ -1562,7 +1749,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     hoverTile,
     brushSize,
     activeTool,
-    mode
+    mode,
+    testCharacter,
+    spawnPoint,
+    charImgVersion
   ]);
 
   const isDrawingRef = useRef(false);

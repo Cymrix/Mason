@@ -277,6 +277,7 @@ export const EditorLayout: React.FC = () => {
   // Derived references for active project
   const currentMapFile = project ? (project.fileSystem.maps.find(m => m.fileName === project.activeFiles.mapFileName) || project.fileSystem.maps[0]) : null;
   const currentBiomeFile = project ? (project.fileSystem.biomes.find(b => b.fileName === project.activeFiles.biomeFileName) || project.fileSystem.biomes[0]) : null;
+  const currentCharacterFile = project ? (project.fileSystem?.characters?.find(c => c.fileName === project.activeFiles?.characterFileName) || project.fileSystem?.characters?.[0]) : null;
   const activeBiome: RefinedBiome | null = currentBiomeFile?.biomeData || project?.fileSystem.biomes?.[0]?.biomeData || null;
   const biomesList: RefinedBiome[] = project ? project.fileSystem.biomes?.map(b => b.biomeData) : [];
 
@@ -290,10 +291,12 @@ export const EditorLayout: React.FC = () => {
   } : null;
 
   // Character Play Mode State & Spawn Configuration
-  const [selectedTestCharacterId, setSelectedTestCharacterId] = useState<string>('hero_knight');
+  const [selectedTestCharacterId, setSelectedTestCharacterId] = useState<string>(() => {
+    return currentCharacterFile?.characterData?.id || 'char_korrath';
+  });
 
   const availableCharacters = React.useMemo(() => {
-    const charsFromProject = project?.fileSystem?.characters?.map(c => c.characterData) || [];
+    const charsFromProject = project?.fileSystem?.characters?.map(c => c.characterData).filter(Boolean) || [];
     if (charsFromProject.length > 0) {
       return charsFromProject;
     }
@@ -348,6 +351,29 @@ export const EditorLayout: React.FC = () => {
       }
     ];
   }, [project?.fileSystem?.characters]);
+
+  // Synchronize active character file in Character Studio with Map Editor selected test hero
+  useEffect(() => {
+    if (currentCharacterFile?.characterData?.id) {
+      setSelectedTestCharacterId(currentCharacterFile.characterData.id);
+    } else if (availableCharacters.length > 0 && !availableCharacters.some(c => c.id === selectedTestCharacterId)) {
+      setSelectedTestCharacterId(availableCharacters[0].id);
+    }
+  }, [currentCharacterFile?.characterData?.id, currentCharacterFile?.fileName, availableCharacters]);
+
+  const handleSelectTestCharacter = (charId: string) => {
+    setSelectedTestCharacterId(charId);
+    const matchedCharFile = project?.fileSystem?.characters?.find(c => c.characterData?.id === charId || c.id === charId);
+    if (matchedCharFile && project && project.activeFiles.characterFileName !== matchedCharFile.fileName) {
+      handleUpdateProject(p => ({
+        ...p,
+        activeFiles: {
+          ...p.activeFiles,
+          characterFileName: matchedCharFile.fileName
+        }
+      }));
+    }
+  };
 
   const activeTestCharacter = React.useMemo(() => {
     return availableCharacters.find(c => c.id === selectedTestCharacterId) || availableCharacters[0];
@@ -1211,7 +1237,7 @@ export const EditorLayout: React.FC = () => {
                           <span className="text-neutral-400 text-xs font-semibold">Test Hero:</span>
                           <select
                             value={selectedTestCharacterId}
-                            onChange={(e) => setSelectedTestCharacterId(e.target.value)}
+                            onChange={(e) => handleSelectTestCharacter(e.target.value)}
                             className="bg-neutral-900 border border-neutral-700 text-xs font-bold text-cyan-300 rounded px-2 py-0.5 outline-none cursor-pointer hover:border-cyan-500 transition"
                             title="Select which character to spawn and test control in this map"
                           >

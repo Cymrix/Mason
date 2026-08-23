@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.91
+ * Current Release: v0.92
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92).
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.91';
-export const MASON_VERSION_DISPLAY = 'v0.91';
-export const MASON_FULL_VERSION = 'v0.91';
+export const MASON_VERSION = '0.92';
+export const MASON_VERSION_DISPLAY = 'v0.92';
+export const MASON_FULL_VERSION = 'v0.92';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,15 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.92',
+    date: '2026-08-22',
+    changes: [
+      'Character Animation Studio: Square Keyframe Matrix Grid — Fixed layout and column width table styling with <colgroup> definitions and w-max table-fixed rules, enforcing perfect 28px × 28px square cells.',
+      'Keyframe Matrix UI Polish: Replaced text coordinates with compact centered indicator badges (◆ for keyframes, ○ for holding frames), added vertical drag-resize handles and S/M/L height presets.',
+      'Left Sidebar Resizing: Implemented interactive draggable border handle for adjustable animation sidebar width.'
+    ]
+  },
   {
     version: 'v0.91',
     date: '2026-08-22',

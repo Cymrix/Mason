@@ -393,6 +393,7 @@ export interface CharacterNamedPoint {
   id: string;
   name: string;
   color?: string;
+  tagId?: string;
   defaultOffsetX: number;
   defaultOffsetY: number;
 }

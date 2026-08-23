@@ -82,7 +82,10 @@ import {
   StepBack,
   StepForward,
   SkipBack,
-  SkipForward
+  SkipForward,
+  GripHorizontal,
+  GripVertical,
+  Table
 } from 'lucide-react';
 
 // Helper to generate var_xxxxxxxx IDs
@@ -279,6 +282,68 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   // Per-item individual visibility toggles
   const [hiddenPointIds, setHiddenPointIds] = useState<Set<string>>(new Set());
   const [hiddenPolygonIds, setHiddenPolygonIds] = useState<Set<string>>(new Set());
+
+  // Resizable Sockets and Hitboxes Panel Heights
+  const [socketsHeight, setSocketsHeight] = useState<number>(220);
+  const [hitboxesHeight, setHitboxesHeight] = useState<number>(180);
+
+  // Resizable Studio Column Layout Widths & Heights
+  const [animLeftColWidth, setAnimLeftColWidth] = useState<number>(310);
+  const [animMatrixHeight, setAnimMatrixHeight] = useState<number>(360);
+
+  const isDraggingLeftColWidthRef = useRef<boolean>(false);
+  const startDragLeftColXRef = useRef<number>(0);
+  const startLeftColWRef = useRef<number>(310);
+
+  const handleLeftColResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingLeftColWidthRef.current = true;
+    startDragLeftColXRef.current = e.clientX;
+    startLeftColWRef.current = animLeftColWidth;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingLeftColWidthRef.current) return;
+      const dx = ev.clientX - startDragLeftColXRef.current;
+      const newW = Math.max(220, Math.min(520, startLeftColWRef.current + dx));
+      setAnimLeftColWidth(newW);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingLeftColWidthRef.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const isDraggingMatrixHeightRef = useRef<boolean>(false);
+  const startDragMatrixYRef = useRef<number>(0);
+  const startMatrixHRef = useRef<number>(360);
+
+  const handleMatrixResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingMatrixHeightRef.current = true;
+    startDragMatrixYRef.current = e.clientY;
+    startMatrixHRef.current = animMatrixHeight;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingMatrixHeightRef.current) return;
+      const dy = ev.clientY - startDragMatrixYRef.current;
+      const newH = Math.max(160, Math.min(700, startMatrixHRef.current + dy));
+      setAnimMatrixHeight(newH);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingMatrixHeightRef.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
 
   const dragOverrideRef = useRef<{ id: string; vertexIndex?: number; x: number; y: number } | null>(null);
   const [dragOverride, _setDragOverride] = useState<{ id: string; vertexIndex?: number; x: number; y: number } | null>(null);
@@ -854,28 +919,48 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     return hasKeyframeOnFrame(activeGlobalFrameIndex);
   };
 
+  // Hold-forward evaluation: look for latest keyframe at or before activeGlobalFrameIndex (within current animation clip)
   const getPointPosForActiveFrame = (pt: CharacterNamedPoint): { x: number; y: number } => {
-    const kf = getKeyframeForActiveFrame();
-    const ptKf = kf?.points?.find((p: any) => p.pointId === pt.id);
-    if (ptKf && ptKf.enabled !== false && typeof ptKf.x === 'number' && typeof ptKf.y === 'number') {
-      return { x: ptKf.x, y: ptKf.y };
+    const keyframes = currentAnimation.keyframes || [];
+    // Sort descending by frameIndex and find most recent keyframe <= activeGlobalFrameIndex
+    const sortedKfs = [...keyframes]
+      .filter(k => k.frameIndex >= startIdx && k.frameIndex <= activeGlobalFrameIndex)
+      .sort((a, b) => b.frameIndex - a.frameIndex);
+
+    for (const kf of sortedKfs) {
+      const ptKf = kf.points?.find((p: any) => p.pointId === pt.id);
+      if (ptKf && ptKf.enabled !== false && typeof ptKf.x === 'number' && typeof ptKf.y === 'number') {
+        return { x: ptKf.x, y: ptKf.y };
+      }
     }
     return { x: pt.defaultOffsetX, y: pt.defaultOffsetY };
   };
 
   const getPolyVertsForActiveFrame = (poly: CharacterNamedPolygon): PolygonHitboxVertex[] => {
-    const kf = getKeyframeForActiveFrame();
-    const polyKf = kf?.polygons?.find((p: any) => p.polygonId === poly.id);
-    if (polyKf && polyKf.enabled !== false && polyKf.vertices && polyKf.vertices.length > 0) {
-      return polyKf.vertices;
+    const keyframes = currentAnimation.keyframes || [];
+    const sortedKfs = [...keyframes]
+      .filter(k => k.frameIndex >= startIdx && k.frameIndex <= activeGlobalFrameIndex)
+      .sort((a, b) => b.frameIndex - a.frameIndex);
+
+    for (const kf of sortedKfs) {
+      const polyKf = kf.polygons?.find((p: any) => p.polygonId === poly.id);
+      if (polyKf && polyKf.enabled !== false && polyKf.vertices && polyKf.vertices.length > 0) {
+        return polyKf.vertices;
+      }
     }
     return poly.defaultVertices || [];
   };
 
   const getCapsuleForActiveFrame = (): CharacterCapsuleConfig => {
-    const kf = getKeyframeForActiveFrame();
-    if (kf?.capsule) {
-      return kf.capsule;
+    const keyframes = currentAnimation.keyframes || [];
+    const sortedKfs = [...keyframes]
+      .filter(k => k.frameIndex >= startIdx && k.frameIndex <= activeGlobalFrameIndex)
+      .sort((a, b) => b.frameIndex - a.frameIndex);
+
+    for (const kf of sortedKfs) {
+      if (kf.capsule) {
+        return kf.capsule;
+      }
     }
     return char.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
   };
@@ -883,6 +968,106 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   const isCapsuleKeyframedOnActiveFrame = (): boolean => {
     const kf = getKeyframeForActiveFrame();
     return !!kf?.capsule;
+  };
+
+  const isPointKeyframedOnActiveFrame = (pointId: string): boolean => {
+    const kf = getKeyframeForActiveFrame();
+    const ptKf = kf?.points?.find((p: any) => p.pointId === pointId);
+    return !!(ptKf && ptKf.enabled !== false && typeof ptKf.x === 'number');
+  };
+
+  const updateActiveFramePoint = (pointId: string, pos: { x: number; y: number }) => {
+    updateCharacter(c => {
+      const updatedAnimations = (c.animations || []).map(anim => {
+        if (anim.stateId === currentAnimation.stateId) {
+          const keyframes = anim.keyframes || [];
+          const existingIdx = keyframes.findIndex(k => k.frameIndex === activeGlobalFrameIndex);
+
+          const baseKf = existingIdx >= 0 ? JSON.parse(JSON.stringify(keyframes[existingIdx])) : {
+            frameIndex: activeGlobalFrameIndex,
+            points: []
+          };
+
+          if (!baseKf.points) baseKf.points = [];
+          const pIdx = baseKf.points.findIndex((p: any) => p.pointId === pointId);
+          if (pIdx >= 0) {
+            baseKf.points[pIdx].x = pos.x;
+            baseKf.points[pIdx].y = pos.y;
+            baseKf.points[pIdx].enabled = true;
+          } else {
+            baseKf.points.push({ pointId, enabled: true, x: pos.x, y: pos.y });
+          }
+
+          const newKeyframes = existingIdx >= 0
+            ? keyframes.map((k, i) => i === existingIdx ? baseKf : k)
+            : [...keyframes, baseKf];
+
+          return { ...anim, keyframes: newKeyframes };
+        }
+        return anim;
+      });
+
+      // If user is moving point on frame offset 0, update default offset so it persists everywhere naturally
+      let updatedPoints = c.points || [];
+      let updatedSockets = c.sockets || [];
+      if (currentFrameOffset === 0) {
+        updatedPoints = (c.points || []).map(p => p.id === pointId ? { ...p, defaultOffsetX: pos.x, defaultOffsetY: pos.y } : p);
+        updatedSockets = (c.sockets || []).map(s => {
+          const matchingPt = (c.points || []).find(p => p.id === pointId);
+          if (matchingPt && (s.tagId === matchingPt.id || s.label.toLowerCase().includes(matchingPt.name.toLowerCase()))) {
+            return { ...s, offsetX: pos.x, offsetY: pos.y };
+          }
+          return s;
+        });
+      }
+
+      return { ...c, animations: updatedAnimations, points: updatedPoints, sockets: updatedSockets };
+    });
+  };
+
+  const isPolygonKeyframedOnActiveFrame = (polygonId: string): boolean => {
+    const kf = getKeyframeForActiveFrame();
+    const polyKf = kf?.polygons?.find((p: any) => p.polygonId === polygonId);
+    return !!(polyKf && polyKf.enabled !== false && polyKf.vertices && polyKf.vertices.length > 0);
+  };
+
+  const updateActiveFramePolygon = (polygonId: string, vertices: PolygonHitboxVertex[]) => {
+    updateCharacter(c => {
+      const updatedAnimations = (c.animations || []).map(anim => {
+        if (anim.stateId === currentAnimation.stateId) {
+          const keyframes = anim.keyframes || [];
+          const existingIdx = keyframes.findIndex(k => k.frameIndex === activeGlobalFrameIndex);
+
+          const baseKf = existingIdx >= 0 ? JSON.parse(JSON.stringify(keyframes[existingIdx])) : {
+            frameIndex: activeGlobalFrameIndex,
+            polygons: []
+          };
+
+          if (!baseKf.polygons) baseKf.polygons = [];
+          const polyIdx = baseKf.polygons.findIndex((p: any) => p.polygonId === polygonId);
+          if (polyIdx >= 0) {
+            baseKf.polygons[polyIdx].vertices = JSON.parse(JSON.stringify(vertices));
+            baseKf.polygons[polyIdx].enabled = true;
+          } else {
+            baseKf.polygons.push({ polygonId, enabled: true, vertices: JSON.parse(JSON.stringify(vertices)) });
+          }
+
+          const newKeyframes = existingIdx >= 0
+            ? keyframes.map((k, i) => i === existingIdx ? baseKf : k)
+            : [...keyframes, baseKf];
+
+          return { ...anim, keyframes: newKeyframes };
+        }
+        return anim;
+      });
+
+      let updatedPolygons = c.polygons || [];
+      if (currentFrameOffset === 0) {
+        updatedPolygons = (c.polygons || []).map(p => p.id === polygonId ? { ...p, defaultVertices: JSON.parse(JSON.stringify(vertices)) } : p);
+      }
+
+      return { ...c, animations: updatedAnimations, polygons: updatedPolygons };
+    });
   };
 
   const updateActiveFrameCapsule = (updater: (prev: CharacterCapsuleConfig) => CharacterCapsuleConfig) => {
@@ -895,19 +1080,8 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           const keyframes = anim.keyframes || [];
           const existingIdx = keyframes.findIndex(k => k.frameIndex === activeGlobalFrameIndex);
 
-          const currentPts = (c.points || []).map(p => {
-            const pos = getPointPosForActiveFrame(p);
-            return { pointId: p.id, enabled: true, x: pos.x, y: pos.y };
-          });
-          const currentPolys = (c.polygons || []).map(poly => {
-            const verts = getPolyVertsForActiveFrame(poly);
-            return { polygonId: poly.id, enabled: true, vertices: JSON.parse(JSON.stringify(verts)) };
-          });
-
           const baseKf = existingIdx >= 0 ? JSON.parse(JSON.stringify(keyframes[existingIdx])) : {
-            frameIndex: activeGlobalFrameIndex,
-            points: currentPts,
-            polygons: currentPolys
+            frameIndex: activeGlobalFrameIndex
           };
 
           baseKf.capsule = nextCapsule;
@@ -921,7 +1095,12 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         return anim;
       });
 
-      return { ...c, animations: updatedAnimations };
+      let updatedCapsule = c.capsule;
+      if (currentFrameOffset === 0) {
+        updatedCapsule = nextCapsule;
+      }
+
+      return { ...c, animations: updatedAnimations, capsule: updatedCapsule };
     });
   };
 
@@ -1035,6 +1214,192 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
       return { ...c, animations: updatedAnimations };
     });
+  };
+
+  // Resize Handlers for Sockets & Hitboxes Sidebar Panels
+  const isDraggingSocketsHeightRef = useRef<boolean>(false);
+  const startDragSocketsYRef = useRef<number>(0);
+  const startSocketsHRef = useRef<number>(220);
+
+  const handleSocketsResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingSocketsHeightRef.current = true;
+    startDragSocketsYRef.current = e.clientY;
+    startSocketsHRef.current = socketsHeight;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingSocketsHeightRef.current) return;
+      const dy = ev.clientY - startDragSocketsYRef.current;
+      const newH = Math.max(90, Math.min(650, startSocketsHRef.current + dy));
+      setSocketsHeight(newH);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingSocketsHeightRef.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const isDraggingHitboxesHeightRef = useRef<boolean>(false);
+  const startDragHitboxesYRef = useRef<number>(0);
+  const startHitboxesHRef = useRef<number>(180);
+
+  const handleHitboxesResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingHitboxesHeightRef.current = true;
+    startDragHitboxesYRef.current = e.clientY;
+    startHitboxesHRef.current = hitboxesHeight;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingHitboxesHeightRef.current) return;
+      const dy = ev.clientY - startDragHitboxesYRef.current;
+      const newH = Math.max(90, Math.min(500, startHitboxesHRef.current + dy));
+      setHitboxesHeight(newH);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingHitboxesHeightRef.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Helper to query keyframe data for any item across any animation frame offset
+  const getItemFrameKeyframe = (
+    itemType: 'capsule' | 'point' | 'polygon',
+    itemId: string,
+    frameOffset: number
+  ): { isKeyframed: boolean; data: any } => {
+    const gIdx = startIdx + frameOffset;
+    const kf = currentAnimation.keyframes?.find(k => k.frameIndex === gIdx);
+    if (!kf) return { isKeyframed: false, data: null };
+
+    if (itemType === 'capsule') {
+      return { isKeyframed: !!kf.capsule, data: kf.capsule || null };
+    }
+    if (itemType === 'point') {
+      const ptKf = kf.points?.find(p => p.pointId === itemId && p.enabled !== false && typeof p.x === 'number');
+      return { isKeyframed: !!ptKf, data: ptKf || null };
+    }
+    if (itemType === 'polygon') {
+      const polyKf = kf.polygons?.find(p => p.polygonId === itemId && p.enabled !== false && p.vertices && p.vertices.length > 0);
+      return { isKeyframed: !!polyKf, data: polyKf || null };
+    }
+    return { isKeyframed: false, data: null };
+  };
+
+  // Helper to toggle / set keyframe for an individual item on a specific frame
+  const handleToggleItemKeyframe = (
+    itemType: 'capsule' | 'point' | 'polygon',
+    itemId: string,
+    frameOffset: number
+  ) => {
+    const gIdx = startIdx + frameOffset;
+    updateCharacter(c => {
+      const updatedAnimations = (c.animations || []).map(anim => {
+        if (anim.stateId === currentAnimation.stateId) {
+          const keyframes = anim.keyframes || [];
+          const existingIdx = keyframes.findIndex(k => k.frameIndex === gIdx);
+
+          let baseKf = existingIdx >= 0
+            ? JSON.parse(JSON.stringify(keyframes[existingIdx]))
+            : {
+                frameIndex: gIdx
+              };
+
+          if (itemType === 'capsule') {
+            if (baseKf.capsule && existingIdx >= 0) {
+              delete baseKf.capsule;
+            } else {
+              baseKf.capsule = { ...getCapsuleForActiveFrame() };
+            }
+          } else if (itemType === 'point') {
+            const ptObj = (c.points || []).find(p => p.id === itemId);
+            if (!baseKf.points) baseKf.points = [];
+            const pIdx = baseKf.points.findIndex((p: any) => p.pointId === itemId);
+            if (pIdx >= 0 && existingIdx >= 0) {
+              baseKf.points.splice(pIdx, 1);
+            } else if (ptObj) {
+              const curPos = getPointPosForActiveFrame(ptObj);
+              baseKf.points.push({
+                pointId: itemId,
+                enabled: true,
+                x: curPos.x,
+                y: curPos.y
+              });
+            }
+          } else if (itemType === 'polygon') {
+            const polyObj = (c.polygons || []).find(p => p.id === itemId);
+            if (!baseKf.polygons) baseKf.polygons = [];
+            const polyIdx = baseKf.polygons.findIndex((p: any) => p.polygonId === itemId);
+            if (polyIdx >= 0 && existingIdx >= 0) {
+              baseKf.polygons.splice(polyIdx, 1);
+            } else if (polyObj) {
+              const curVerts = getPolyVertsForActiveFrame(polyObj);
+              baseKf.polygons.push({
+                polygonId: itemId,
+                enabled: true,
+                vertices: JSON.parse(JSON.stringify(curVerts))
+              });
+            }
+          }
+
+          const hasPoints = baseKf.points && baseKf.points.length > 0;
+          const hasPolys = baseKf.polygons && baseKf.polygons.length > 0;
+          const hasCap = !!baseKf.capsule;
+
+          let newKeyframes: any[];
+          if (!hasPoints && !hasPolys && !hasCap) {
+            newKeyframes = keyframes.filter((_, idx) => idx !== existingIdx);
+          } else if (existingIdx >= 0) {
+            newKeyframes = keyframes.map((k, idx) => idx === existingIdx ? baseKf : k);
+          } else {
+            newKeyframes = [...keyframes, baseKf];
+          }
+
+          return { ...anim, keyframes: newKeyframes };
+        }
+        return anim;
+      });
+
+      return { ...c, animations: updatedAnimations };
+    });
+  };
+
+  // Helper to save edited socket or polygon item
+  const handleSaveEditingItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    if (editingItem.type === 'point') {
+      updateCharacter(c => ({
+        ...c,
+        points: (c.points || []).map(p => p.id === editingItem.id ? {
+          ...p,
+          name: editingItem.name,
+          color: editingItem.color,
+          tagId: editingItem.tagId as any
+        } : p)
+      }));
+    } else {
+      updateCharacter(c => ({
+        ...c,
+        polygons: (c.polygons || []).map(poly => poly.id === editingItem.id ? {
+          ...poly,
+          name: editingItem.name,
+          color: editingItem.color,
+          type: editingItem.polyType || 'hitbox'
+        } : poly)
+      }));
+    }
+    setEditingItem(null);
   };
 
   // Animation Playback Tick Effect
@@ -1310,8 +1675,10 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const scaleX = canvas.width / (rect.width || 1);
+    const scaleY = canvas.height / (rect.height || 1);
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
 
     // Pan with Middle Click or Alt / Space
     if (e.button === 1 || e.altKey || e.shiftKey) {
@@ -1365,8 +1732,10 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const scaleX = canvas.width / (rect.width || 1);
+    const scaleY = canvas.height / (rect.height || 1);
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
 
     if (isPanning) {
       setPanX(mouseX - panStart.x);
@@ -1403,39 +1772,33 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             const keyframes = anim.keyframes || [];
             const existingKfIndex = keyframes.findIndex(k => k.frameIndex === activeGlobalFrameIndex);
 
-            const currentPts = (c.points || []).map(p => {
-              const pos = getPointPosForActiveFrame(p);
-              return { pointId: p.id, enabled: true, x: pos.x, y: pos.y };
-            });
-            const currentPolys = (c.polygons || []).map(poly => {
-              const verts = getPolyVertsForActiveFrame(poly);
-              return { polygonId: poly.id, enabled: true, vertices: JSON.parse(JSON.stringify(verts)) };
-            });
-
             const baseKf: any = existingKfIndex >= 0
               ? JSON.parse(JSON.stringify(keyframes[existingKfIndex]))
               : {
-                  frameIndex: activeGlobalFrameIndex,
-                  points: currentPts,
-                  polygons: currentPolys
+                  frameIndex: activeGlobalFrameIndex
                 };
 
             if (dragTarget.type === 'point') {
+              if (!baseKf.points) baseKf.points = [];
               const ptIdx = baseKf.points.findIndex((p: any) => p.pointId === id);
               if (ptIdx >= 0) {
                 baseKf.points[ptIdx].x = x;
                 baseKf.points[ptIdx].y = y;
+                baseKf.points[ptIdx].enabled = true;
               } else {
                 baseKf.points.push({ pointId: id, enabled: true, x, y });
               }
             } else if (dragTarget.type === 'poly_vertex' && vertexIndex !== undefined) {
+              if (!baseKf.polygons) baseKf.polygons = [];
               const polyIdx = baseKf.polygons.findIndex((p: any) => p.polygonId === id);
               if (polyIdx >= 0) {
                 if (!baseKf.polygons[polyIdx].vertices) baseKf.polygons[polyIdx].vertices = [];
                 baseKf.polygons[polyIdx].vertices[vertexIndex] = { x, y };
+                baseKf.polygons[polyIdx].enabled = true;
               } else {
                 const origPoly = (c.polygons || []).find(p => p.id === id);
-                const verts = origPoly ? JSON.parse(JSON.stringify(origPoly.defaultVertices || [])) : [];
+                const currentVerts = origPoly ? getPolyVertsForActiveFrame(origPoly) : [];
+                const verts = JSON.parse(JSON.stringify(currentVerts));
                 verts[vertexIndex] = { x, y };
                 baseKf.polygons.push({ polygonId: id, enabled: true, vertices: verts });
               }
@@ -1459,7 +1822,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           if (dragTarget.type === 'point') {
             updatedPoints = (c.points || []).map(p => p.id === id ? { ...p, defaultOffsetX: x, defaultOffsetY: y } : p);
             updatedSockets = (c.sockets || []).map(s => {
-              const matchingPt = pointsList.find(p => p.id === id);
+              const matchingPt = (c.points || []).find(p => p.id === id);
               if (matchingPt && (s.tagId === matchingPt.id || s.label.toLowerCase().includes(matchingPt.name.toLowerCase()))) {
                 return { ...s, offsetX: x, offsetY: y };
               }
@@ -1759,13 +2122,24 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         {/* TAB 1: ANIMATION STUDIO & SENSORY SOCKET WORKSPACE */}
         {/* ========================================================================= */}
         {activeTab === 'animation_studio' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="flex flex-col xl:flex-row gap-5 items-start">
             
-            {/* LEFT SIDEBAR (Cols 3): Animation States & Capsule Config */}
-            <div className="lg:col-span-3 space-y-4">
+            {/* LEFT COLUMN: Animation States, Clip Setup, Resizable Sockets & Hitboxes */}
+            <div
+              style={{ width: `${animLeftColWidth}px` }}
+              className="w-full xl:w-auto shrink-0 space-y-4 relative"
+            >
+              {/* Vertical Resize Drag Handle for Left Column */}
+              <div
+                onMouseDown={handleLeftColResizeStart}
+                className="hidden xl:flex absolute -right-3 top-0 bottom-0 w-3 cursor-col-resize items-center justify-center group z-20"
+                title="Drag to resize left column"
+              >
+                <div className="w-1 h-24 rounded-full bg-neutral-800 group-hover:bg-cyan-500 transition-colors shadow-sm" />
+              </div>
               
               {/* Animation States List */}
-              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3">
+              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-lg">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Play size={14} />
@@ -1797,7 +2171,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                   </button>
                 </div>
 
-                <div className="space-y-1 max-h-44 overflow-y-auto">
+                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                   {animationsList.map(a => {
                     const isSelected = a.stateId === selectedAnimStateId;
                     const kfCount = a.keyframes?.length || 0;
@@ -1809,16 +2183,16 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           setCurrentFrameOffset(0);
                         }}
                         className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs cursor-pointer transition ${
-                          isSelected ? 'bg-cyan-950/70 border border-cyan-500/50 text-white font-bold' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+                          isSelected ? 'bg-cyan-950/70 border border-cyan-500/50 text-white font-bold shadow-md shadow-cyan-950/40' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
                           <span>{isSelected ? '▶' : '•'}</span>
                           <span className="truncate">{a.label || a.stateId}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           {kfCount > 0 && (
-                            <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30" title={`${kfCount} keyframed frame(s)`}>
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30" title={`${kfCount} keyframed frame(s)`}>
                               ◆ {kfCount}
                             </span>
                           )}
@@ -1832,9 +2206,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 </div>
               </div>
 
-              {/* Active Animation Parameters */}
+              {/* Active Animation Clip Parameters */}
               {currentAnimation && (
-                <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3">
+                <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-lg">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
                       <Sliders size={14} />
@@ -1860,7 +2234,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
                   <div className="space-y-2.5 text-xs">
                     <div>
-                      <label className="text-[10px] text-neutral-400 font-bold block">Label / Name</label>
+                      <label className="text-[10px] text-neutral-400 font-bold block">Action Label</label>
                       <input
                         type="text"
                         value={currentAnimation.label || ''}
@@ -1931,7 +2305,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] text-neutral-400 font-bold block">Frame Rate (FPS)</label>
+                        <label className="text-[10px] text-neutral-400 font-bold block">Speed (FPS)</label>
                         <input
                           type="number"
                           min={1}
@@ -1969,8 +2343,335 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 </div>
               )}
 
+              {/* RESIZABLE SENSORY SOCKETS SECTION */}
+              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl overflow-hidden shadow-lg flex flex-col">
+                <div className="p-3.5 border-b border-neutral-800 bg-neutral-900/50 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Circle size={13} />
+                      Sockets ({pointsList.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPoints(!showPoints)}
+                      className={`p-1 rounded transition ${showPoints ? 'text-sky-400 hover:text-sky-300' : 'text-neutral-600 hover:text-neutral-400'}`}
+                      title={showPoints ? 'Hide Sockets from Canvas' : 'Show Sockets on Canvas'}
+                    >
+                      {showPoints ? <Eye size={12} /> : <EyeOff size={12} />}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {/* Quick Preset Size Pills */}
+                    <div className="flex items-center gap-0.5 bg-neutral-950/80 p-0.5 rounded-lg border border-neutral-800 text-[9px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setSocketsHeight(140)}
+                        className={`px-1.5 py-0.5 rounded transition ${socketsHeight <= 150 ? 'bg-sky-950 text-sky-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Compact height (140px)"
+                      >
+                        S
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSocketsHeight(230)}
+                        className={`px-1.5 py-0.5 rounded transition ${socketsHeight > 150 && socketsHeight <= 280 ? 'bg-sky-950 text-sky-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Medium height (230px)"
+                      >
+                        M
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSocketsHeight(380)}
+                        className={`px-1.5 py-0.5 rounded transition ${socketsHeight > 280 ? 'bg-sky-950 text-sky-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Expanded height (380px)"
+                      >
+                        L
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPt: CharacterNamedPoint = {
+                          id: `pt_${Date.now().toString().slice(-4)}`,
+                          name: 'Custom Socket',
+                          color: '#38bdf8',
+                          defaultOffsetX: 0,
+                          defaultOffsetY: 0
+                        };
+                        updateCharacter(c => ({ ...c, points: [...(c.points || []), newPt] }));
+                      }}
+                      className="p-1 text-sky-400 hover:bg-neutral-800 rounded transition"
+                      title="Add Socket Point"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Resizable Sockets List Viewport */}
+                <div
+                  style={{ height: `${socketsHeight}px` }}
+                  className="overflow-y-auto p-3 space-y-1.5 transition-[height] duration-75"
+                >
+                  {pointsList.length === 0 && (
+                    <div className="text-center py-6 text-neutral-500 text-xs italic">
+                      No sensory sockets added yet. Click + to create one.
+                    </div>
+                  )}
+                  {pointsList.map(pt => {
+                    const isHidden = hiddenPointIds.has(pt.id);
+                    const isSelected = selectedPointId === pt.id;
+                    return (
+                      <div
+                        key={pt.id}
+                        onClick={() => {
+                          setSelectedPointId(pt.id);
+                          setSelectedPolygonId('');
+                        }}
+                        className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer border transition ${
+                          isSelected ? 'bg-sky-950/70 border-sky-500 text-white shadow-sm' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                        } ${isHidden ? 'opacity-40' : ''}`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: pt.color }} />
+                          <div className="truncate">
+                            <span className="font-medium truncate">{pt.name}</span>
+                            {pt.tagId && (
+                              <span className="ml-1.5 text-[9px] font-mono px-1 py-0.2 rounded bg-neutral-900 text-sky-300 border border-sky-500/20">
+                                {pt.tagId}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[10px] font-mono text-neutral-500 mr-1">
+                            {pt.defaultOffsetX},{pt.defaultOffsetY}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditingItem({
+                              type: 'point',
+                              id: pt.id,
+                              name: pt.name,
+                              color: pt.color,
+                              tagId: pt.tagId
+                            })}
+                            className="p-1 text-neutral-400 hover:text-sky-300 rounded transition"
+                            title="Edit Socket Details"
+                          >
+                            <Sliders size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setHiddenPointIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(pt.id)) next.delete(pt.id);
+                                else next.add(pt.id);
+                                return next;
+                              });
+                            }}
+                            className={`p-1 rounded transition ${isHidden ? 'text-neutral-600 hover:text-neutral-400' : 'text-neutral-400 hover:text-white'}`}
+                            title={isHidden ? 'Show Socket' : 'Hide Socket'}
+                          >
+                            {isHidden ? <EyeOff size={11} /> : <Eye size={11} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateCharacter(c => ({
+                                ...c,
+                                points: (c.points || []).filter(p => p.id !== pt.id)
+                              }));
+                              if (selectedPointId === pt.id) setSelectedPointId('');
+                            }}
+                            className="p-1 text-neutral-500 hover:text-red-400 rounded transition"
+                            title="Delete Socket"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Sockets Section Vertical Resize Drag Handle */}
+                <div
+                  onMouseDown={handleSocketsResizeStart}
+                  className="h-2.5 bg-neutral-950 hover:bg-sky-500/20 active:bg-sky-500/40 border-t border-neutral-800 cursor-row-resize flex items-center justify-center transition-colors group select-none"
+                  title="Drag down or up to resize Sockets section height"
+                >
+                  <div className="w-8 h-1 rounded-full bg-neutral-700 group-hover:bg-sky-400 transition-colors" />
+                </div>
+              </div>
+
+              {/* RESIZABLE HURTBOX / HITBOX POLYGONS SECTION */}
+              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl overflow-hidden shadow-lg flex flex-col">
+                <div className="p-3.5 border-b border-neutral-800 bg-neutral-900/50 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Pentagon size={13} />
+                      Hitboxes ({polygonsList.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPolygons(!showPolygons)}
+                      className={`p-1 rounded transition ${showPolygons ? 'text-emerald-400 hover:text-emerald-300' : 'text-neutral-600 hover:text-neutral-400'}`}
+                      title={showPolygons ? 'Hide Hitboxes from Canvas' : 'Show Hitboxes on Canvas'}
+                    >
+                      {showPolygons ? <Eye size={12} /> : <EyeOff size={12} />}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 bg-neutral-950/80 p-0.5 rounded-lg border border-neutral-800 text-[9px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setHitboxesHeight(120)}
+                        className={`px-1.5 py-0.5 rounded transition ${hitboxesHeight <= 140 ? 'bg-emerald-950 text-emerald-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Compact height (120px)"
+                      >
+                        S
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHitboxesHeight(200)}
+                        className={`px-1.5 py-0.5 rounded transition ${hitboxesHeight > 140 && hitboxesHeight <= 260 ? 'bg-emerald-950 text-emerald-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Medium height (200px)"
+                      >
+                        M
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHitboxesHeight(320)}
+                        className={`px-1.5 py-0.5 rounded transition ${hitboxesHeight > 260 ? 'bg-emerald-950 text-emerald-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Expanded height (320px)"
+                      >
+                        L
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPoly: CharacterNamedPolygon = {
+                          id: `poly_${Date.now().toString().slice(-4)}`,
+                          name: 'Attack Hitbox',
+                          type: 'hitbox',
+                          color: '#ef4444',
+                          defaultVertices: [
+                            { x: 10, y: -16 },
+                            { x: 38, y: -16 },
+                            { x: 38, y: 16 },
+                            { x: 10, y: 16 }
+                          ]
+                        };
+                        updateCharacter(c => ({ ...c, polygons: [...(c.polygons || []), newPoly] }));
+                      }}
+                      className="p-1 text-emerald-400 hover:bg-neutral-800 rounded transition"
+                      title="Add Hitbox Polygon"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Resizable Polygons List Viewport */}
+                <div
+                  style={{ height: `${hitboxesHeight}px` }}
+                  className="overflow-y-auto p-3 space-y-1.5 transition-[height] duration-75"
+                >
+                  {polygonsList.length === 0 && (
+                    <div className="text-center py-6 text-neutral-500 text-xs italic">
+                      No hitboxes added yet. Click + to create one.
+                    </div>
+                  )}
+                  {polygonsList.map(poly => {
+                    const isHidden = hiddenPolygonIds.has(poly.id);
+                    const isSelected = selectedPolygonId === poly.id;
+                    return (
+                      <div
+                        key={poly.id}
+                        onClick={() => {
+                          setSelectedPolygonId(poly.id);
+                          setSelectedPointId('');
+                        }}
+                        className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer border transition ${
+                          isSelected ? 'bg-emerald-950/70 border-emerald-500 text-white shadow-sm' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                        } ${isHidden ? 'opacity-40' : ''}`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2.5 h-2.5 rounded-sm shrink-0 shadow-sm" style={{ backgroundColor: poly.color }} />
+                          <span className="truncate font-medium">{poly.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-neutral-900 text-neutral-400">
+                            {poly.type}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditingItem({
+                              type: 'polygon',
+                              id: poly.id,
+                              name: poly.name,
+                              color: poly.color,
+                              polyType: poly.type
+                            })}
+                            className="p-1 text-neutral-400 hover:text-emerald-300 rounded transition"
+                            title="Edit Polygon Properties"
+                          >
+                            <Sliders size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setHiddenPolygonIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(poly.id)) next.delete(poly.id);
+                                else next.add(poly.id);
+                                return next;
+                              });
+                            }}
+                            className={`p-1 rounded transition ${isHidden ? 'text-neutral-600 hover:text-neutral-400' : 'text-neutral-400 hover:text-white'}`}
+                            title={isHidden ? 'Show Polygon' : 'Hide Polygon'}
+                          >
+                            {isHidden ? <EyeOff size={11} /> : <Eye size={11} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateCharacter(c => ({
+                                ...c,
+                                polygons: (c.polygons || []).filter(p => p.id !== poly.id)
+                              }));
+                              if (selectedPolygonId === poly.id) setSelectedPolygonId('');
+                            }}
+                            className="p-1 text-neutral-500 hover:text-red-400 rounded transition"
+                            title="Delete Polygon"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Hitboxes Section Vertical Resize Drag Handle */}
+                <div
+                  onMouseDown={handleHitboxesResizeStart}
+                  className="h-2.5 bg-neutral-950 hover:bg-emerald-500/20 active:bg-emerald-500/40 border-t border-neutral-800 cursor-row-resize flex items-center justify-center transition-colors group select-none"
+                  title="Drag down or up to resize Hitboxes section height"
+                >
+                  <div className="w-8 h-1 rounded-full bg-neutral-700 group-hover:bg-emerald-400 transition-colors" />
+                </div>
+              </div>
+
               {/* Capsule Collider Config */}
-              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3">
+              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -2049,146 +2750,33 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
             </div>
 
-            {/* CENTER (Cols 6): Interactive 2D Canvas Viewport & Frame-by-Frame Timeline */}
-            <div className="lg:col-span-6 space-y-4">
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 relative overflow-hidden flex flex-col items-center">
+            {/* MIDDLE COLUMN: Sockets/Hitboxes Keyframe Matrix Grid */}
+            <div className="flex-1 min-w-0 w-full space-y-4">
+              
+              {/* MATRIX GRID CARD */}
+              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3.5 shadow-xl flex flex-col">
                 
-                {/* Viewport Toolbar */}
-                <div className="w-full flex items-center justify-between pb-2 border-b border-neutral-800 text-xs text-neutral-400 flex-wrap gap-2">
-                  <div className="flex items-center gap-1.5">
-                    {/* Frame-by-Frame Quick Stepper */}
-                    <button
-                      type="button"
-                      onClick={handlePrevFrame}
-                      className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg transition"
-                      title="Previous Frame (Step Back)"
-                    >
-                      <StepBack size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsPlayingAnim(!isPlayingAnim)}
-                      className={`p-1.5 rounded-lg transition ${isPlayingAnim ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-neutral-800 hover:bg-neutral-700 text-white'}`}
-                      title={isPlayingAnim ? 'Pause Animation' : 'Play Animation'}
-                    >
-                      {isPlayingAnim ? <Pause size={13} /> : <Play size={13} />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleNextFrame}
-                      className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg transition"
-                      title="Next Frame (Step Forward)"
-                    >
-                      <StepForward size={13} />
-                    </button>
-
-                    <span className="font-mono text-[11px] text-cyan-400 font-bold px-1">
-                      Frame {currentFrameOffset + 1}/{frameCount} <span className="text-neutral-500 font-normal">(Cell #{activeGlobalFrameIndex})</span>
+                {/* Matrix Header & Playback Control Bar */}
+                <div className="flex items-center justify-between pb-3 border-b border-neutral-800 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Table size={14} className="text-cyan-400" />
+                      Keyframe Matrix
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold">
+                      {currentAnimation.label || currentAnimation.stateId}
                     </span>
                   </div>
 
-                  {/* Canvas Overlays Group Toggles */}
-                  <div className="flex items-center gap-1 bg-neutral-950/80 px-2 py-1 rounded-xl border border-neutral-800 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setShowSprite(!showSprite)}
-                      className={`px-1.5 py-0.5 rounded flex items-center gap-1 transition ${showSprite ? 'bg-cyan-950/80 text-cyan-400 font-bold' : 'text-neutral-500 hover:text-neutral-400'}`}
-                      title={showSprite ? 'Hide Sprite Layer' : 'Show Sprite Layer'}
-                    >
-                      {showSprite ? <Eye size={11} /> : <EyeOff size={11} />}
-                      <span>Sprite</span>
-                    </button>
-                    <span className="text-neutral-700">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowCapsule(!showCapsule)}
-                      className={`px-1.5 py-0.5 rounded flex items-center gap-1 transition ${showCapsule ? 'bg-sky-950/80 text-sky-400 font-bold' : 'text-neutral-500 hover:text-neutral-400'}`}
-                      title={showCapsule ? 'Hide Capsule Layer' : 'Show Capsule Layer'}
-                    >
-                      {showCapsule ? <Eye size={11} /> : <EyeOff size={11} />}
-                      <span>Capsule</span>
-                    </button>
-                    <span className="text-neutral-700">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPoints(!showPoints)}
-                      className={`px-1.5 py-0.5 rounded flex items-center gap-1 transition ${showPoints ? 'bg-indigo-950/80 text-indigo-400 font-bold' : 'text-neutral-500 hover:text-neutral-400'}`}
-                      title={showPoints ? 'Hide Sockets Layer' : 'Show Sockets Layer'}
-                    >
-                      {showPoints ? <Eye size={11} /> : <EyeOff size={11} />}
-                      <span>Sockets</span>
-                    </button>
-                    <span className="text-neutral-700">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPolygons(!showPolygons)}
-                      className={`px-1.5 py-0.5 rounded flex items-center gap-1 transition ${showPolygons ? 'bg-emerald-950/80 text-emerald-400 font-bold' : 'text-neutral-500 hover:text-neutral-400'}`}
-                      title={showPolygons ? 'Hide Hitboxes Layer' : 'Show Hitboxes Layer'}
-                    >
-                      {showPolygons ? <Eye size={11} /> : <EyeOff size={11} />}
-                      <span>Hitboxes</span>
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}
-                      className="p-1.5 hover:bg-neutral-800 rounded text-neutral-300"
-                      title="Zoom Out"
-                    >
-                      <ZoomOut size={14} />
-                    </button>
-                    <span className="font-mono text-[10px] px-1 text-neutral-400">{(zoom * 100).toFixed(0)}%</span>
-                    <button
-                      type="button"
-                      onClick={() => setZoom(z => Math.min(6, z + 0.25))}
-                      className="p-1.5 hover:bg-neutral-800 rounded text-neutral-300"
-                      title="Zoom In"
-                    >
-                      <ZoomIn size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setZoom(2.0); setPanX(0); setPanY(0); }}
-                      className="p-1.5 hover:bg-neutral-800 rounded text-neutral-300"
-                      title="Reset View"
-                    >
-                      <RotateCcw size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Canvas */}
-                <canvas
-                  ref={canvasRef}
-                  width={520}
-                  height={360}
-                  onMouseDown={handleCanvasMouseDown}
-                  onMouseMove={handleCanvasMouseMove}
-                  onMouseUp={handleCanvasMouseUp}
-                  className="cursor-crosshair rounded-xl shadow-inner mt-2 max-w-full"
-                />
-
-                <div className="w-full flex items-center justify-between pt-2 text-[10px] text-neutral-500 font-mono">
-                  <span>Drag sockets / polygon vertices to position keyframes for Frame #{activeGlobalFrameIndex}</span>
-                  <span>Middle-click or Shift+drag to pan</span>
-                </div>
-              </div>
-
-              {/* TIMELINE & KEYFRAME CONTROLS PANEL */}
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  
-                  {/* Playback Controls & Frame Navigation */}
+                  {/* Playback Controls & Frame Stepper */}
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={handleFirstFrame}
                       className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition"
-                      title="Go to First Frame (|<<)"
+                      title="First Frame (|<<)"
                     >
-                      <SkipBack size={14} />
+                      <SkipBack size={12} />
                     </button>
                     <button
                       type="button"
@@ -2196,16 +2784,16 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition"
                       title="Previous Frame (<)"
                     >
-                      <StepBack size={14} />
+                      <StepBack size={12} />
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsPlayingAnim(!isPlayingAnim)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                        isPlayingAnim ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-600/30' : 'bg-neutral-800 hover:bg-neutral-700 text-white'
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition ${
+                        isPlayingAnim ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/30' : 'bg-neutral-800 hover:bg-neutral-700 text-white'
                       }`}
                     >
-                      {isPlayingAnim ? <Pause size={14} /> : <Play size={14} />}
+                      {isPlayingAnim ? <Pause size={12} /> : <Play size={12} />}
                       <span>{isPlayingAnim ? 'Pause' : 'Play'}</span>
                     </button>
                     <button
@@ -2214,39 +2802,75 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition"
                       title="Next Frame (>)"
                     >
-                      <StepForward size={14} />
+                      <StepForward size={12} />
                     </button>
                     <button
                       type="button"
                       onClick={handleLastFrame}
                       className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition"
-                      title="Go to Last Frame (>>|)"
+                      title="Last Frame (>>|)"
                     >
-                      <SkipForward size={14} />
+                      <SkipForward size={12} />
                     </button>
                   </div>
+                </div>
 
-                  {/* Keyframe Management Actions */}
-                  <div className="flex items-center gap-2 flex-wrap">
+                {/* Keyframe Snapshot Quick Actions Toolbar */}
+                <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-white">
+                      Frame {currentFrameOffset + 1} / {frameCount}
+                    </span>
+                    <span className="font-mono text-[10px] text-neutral-500">
+                      (Cell #{activeGlobalFrameIndex})
+                    </span>
                     {isCurrentFrameKeyframed() ? (
-                      <span className="px-2 py-1 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-300 text-[11px] font-bold flex items-center gap-1">
-                        <span>◆</span>
-                        <span>Keyframe Saved</span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold">
+                        ◆ Saved
                       </span>
                     ) : (
-                      <span className="px-2 py-1 rounded-lg bg-neutral-950 border border-neutral-800 text-neutral-400 text-[11px] font-medium flex items-center gap-1">
-                        <span>○</span>
-                        <span>Base Anchors</span>
+                      <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-neutral-500 font-mono text-[10px]">
+                        ○ Default
                       </span>
                     )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {/* Quick Preset Matrix Size Pills */}
+                    <div className="flex items-center gap-0.5 bg-neutral-950/80 p-0.5 rounded-lg border border-neutral-800 text-[9px] font-mono mr-1">
+                      <button
+                        type="button"
+                        onClick={() => setAnimMatrixHeight(240)}
+                        className={`px-1.5 py-0.5 rounded transition ${animMatrixHeight <= 260 ? 'bg-cyan-950 text-cyan-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Compact height (240px)"
+                      >
+                        S
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAnimMatrixHeight(360)}
+                        className={`px-1.5 py-0.5 rounded transition ${animMatrixHeight > 260 && animMatrixHeight <= 440 ? 'bg-cyan-950 text-cyan-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Medium height (360px)"
+                      >
+                        M
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAnimMatrixHeight(520)}
+                        className={`px-1.5 py-0.5 rounded transition ${animMatrixHeight > 440 ? 'bg-cyan-950 text-cyan-300 font-bold' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        title="Expanded height (520px)"
+                      >
+                        L
+                      </button>
+                    </div>
 
                     <button
                       type="button"
                       onClick={handleSetKeyframeForCurrentFrame}
-                      className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                      className="px-2.5 py-1 bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm"
                       title="Snapshot socket & hitbox positions as keyframe for this frame"
                     >
-                      <Key size={12} />
+                      <Key size={11} />
                       <span>Set Keyframe</span>
                     </button>
 
@@ -2254,10 +2878,10 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       <button
                         type="button"
                         onClick={handleClearKeyframeForCurrentFrame}
-                        className="px-2.5 py-1 bg-red-950/60 hover:bg-red-900 border border-red-500/40 text-red-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                        className="px-2.5 py-1 bg-red-950/70 hover:bg-red-900 border border-red-500/40 text-red-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
                         title="Revert this frame to default base positions"
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={11} />
                         <span>Clear</span>
                       </button>
                     )}
@@ -2266,58 +2890,261 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       <button
                         type="button"
                         onClick={handleCopyKeyframeFromPrev}
-                        className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                        className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
                         title="Copy keyframe positions from the previous frame"
                       >
-                        <Copy size={12} />
+                        <Copy size={11} />
                         <span>Copy Prev</span>
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* Interactive Frame Strip Scrubber */}
-                <div className="pt-2 border-t border-neutral-800">
-                  <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                    <span>Frame Scrubber ({frameCount} frames)</span>
-                    <span className="text-neutral-500 font-mono text-[9px]">Click any frame to inspect & adjust</span>
+                {/* THE RESIZABLE MATRIX GRID: Sockets & Polygons per Animation Frame */}
+                <div className="border border-neutral-800 rounded-xl overflow-hidden bg-neutral-950 shadow-inner flex flex-col">
+                  <div
+                    style={{ height: `${animMatrixHeight}px` }}
+                    className="overflow-x-auto overflow-y-auto transition-[height] duration-75"
+                  >
+                    <table className="w-max text-left border-collapse text-xs table-fixed">
+                      <colgroup>
+                        <col style={{ width: '130px', minWidth: '130px', maxWidth: '130px' }} />
+                        {Array.from({ length: frameCount }).map((_, i) => (
+                          <col key={i} style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }} />
+                        ))}
+                      </colgroup>
+                      
+                      {/* Table Header: Item Name + Each Frame Column */}
+                      <thead className="sticky top-0 bg-neutral-900/95 backdrop-blur-sm z-20 border-b border-neutral-800 text-[10px] select-none">
+                        <tr className="h-7">
+                          <th className="px-2 py-0 font-bold text-neutral-300 sticky left-0 bg-neutral-900/95 z-30 w-[130px] min-w-[130px] max-w-[130px] border-r border-neutral-800 truncate align-middle">
+                            Element / Track
+                          </th>
+                          {Array.from({ length: frameCount }).map((_, offset) => {
+                            const gIdx = startIdx + offset;
+                            const isCurrent = offset === currentFrameOffset;
+                            const hasKf = hasKeyframeOnFrame(gIdx);
+                            return (
+                              <th
+                                key={offset}
+                                onClick={() => {
+                                  setIsPlayingAnim(false);
+                                  setCurrentFrameOffset(offset);
+                                }}
+                                style={{ width: '28px', minWidth: '28px', maxWidth: '28px', height: '28px' }}
+                                className={`p-0 text-center cursor-pointer font-mono border-r border-neutral-800/60 transition align-middle ${
+                                  isCurrent
+                                    ? 'bg-cyan-950/80 text-cyan-300 border-b-2 border-b-cyan-400 font-bold'
+                                    : 'text-neutral-400 hover:bg-neutral-800/80 hover:text-white'
+                                }`}
+                                title={`Jump to Frame #${offset + 1} (Cell #${gIdx})`}
+                              >
+                                <div className="w-[28px] h-[28px] flex flex-col items-center justify-center leading-none">
+                                  <span className="text-[10px] font-bold">{offset + 1}</span>
+                                  {hasKf ? (
+                                    <span className="text-amber-400 text-[8px] leading-none">◆</span>
+                                  ) : (
+                                    <span className="text-[7px] text-neutral-600 font-normal leading-none">{gIdx}</span>
+                                  )}
+                                </div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-neutral-900 font-mono text-[11px]">
+                        
+                        {/* 1. CAPSULE TRACK ROW */}
+                        <tr className="hover:bg-neutral-900/40 transition h-7">
+                          <td className="px-2 py-0 sticky left-0 bg-neutral-950 z-10 border-r border-neutral-800 font-sans truncate w-[130px] min-w-[130px] max-w-[130px] align-middle">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <Circle size={10} className="text-sky-400 shrink-0" />
+                              <span className="font-bold text-sky-300 text-xs truncate">Capsule</span>
+                            </div>
+                          </td>
+                          {Array.from({ length: frameCount }).map((_, offset) => {
+                            const isCurrent = offset === currentFrameOffset;
+                            const kfStatus = getItemFrameKeyframe('capsule', 'capsule', offset);
+                            return (
+                              <td
+                                key={offset}
+                                onClick={() => {
+                                  setCurrentFrameOffset(offset);
+                                }}
+                                onDoubleClick={() => handleToggleItemKeyframe('capsule', 'capsule', offset)}
+                                style={{ width: '28px', minWidth: '28px', maxWidth: '28px', height: '28px' }}
+                                className={`p-0 text-center border-r border-neutral-800/40 cursor-pointer transition select-none align-middle ${
+                                  isCurrent ? 'bg-cyan-950/40 ring-1 ring-inset ring-cyan-500/30' : 'hover:bg-neutral-900/60'
+                                }`}
+                                title={kfStatus.isKeyframed ? `Custom Capsule: R${kfStatus.data.radius} H${kfStatus.data.height}. Double-click to toggle.` : 'Default Capsule. Double-click to keyframe.'}
+                              >
+                                <div className="w-[28px] h-[28px] flex items-center justify-center">
+                                  {kfStatus.isKeyframed ? (
+                                    <div className="w-4 h-4 rounded bg-amber-950/90 text-amber-300 border border-amber-500/60 flex items-center justify-center font-bold text-[9px] shadow-sm">
+                                      ◆
+                                    </div>
+                                  ) : (
+                                    <div className="w-3.5 h-3.5 rounded text-neutral-700 flex items-center justify-center text-[9px]">
+                                      ○
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {/* 2. SENSORY SOCKETS CATEGORY HEADER */}
+                        <tr className="bg-neutral-900/60 font-sans h-5">
+                          <td
+                            colSpan={frameCount + 1}
+                            className="px-2 py-0 text-[8.5px] font-bold text-sky-400 uppercase tracking-wider border-y border-neutral-800/80 leading-5"
+                          >
+                            Sockets ({pointsList.length})
+                          </td>
+                        </tr>
+
+                        {/* SOCKET ROWS */}
+                        {pointsList.map(pt => {
+                          const isHidden = hiddenPointIds.has(pt.id);
+                          const isSelected = selectedPointId === pt.id;
+                          return (
+                            <tr
+                              key={pt.id}
+                              className={`transition h-7 ${isSelected ? 'bg-sky-950/30' : 'hover:bg-neutral-900/40'} ${isHidden ? 'opacity-40' : ''}`}
+                            >
+                              <td
+                                onClick={() => {
+                                  setSelectedPointId(pt.id);
+                                  setSelectedPolygonId('');
+                                }}
+                                className="px-2 py-0 sticky left-0 bg-neutral-950 z-10 border-r border-neutral-800 font-sans cursor-pointer truncate w-[130px] min-w-[130px] max-w-[130px] align-middle"
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: pt.color }} />
+                                  <span className={`text-xs truncate ${isSelected ? 'font-bold text-white' : 'text-neutral-300'}`}>
+                                    {pt.name}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {Array.from({ length: frameCount }).map((_, offset) => {
+                                const isCurrent = offset === currentFrameOffset;
+                                const kfStatus = getItemFrameKeyframe('point', pt.id, offset);
+                                return (
+                                  <td
+                                    key={offset}
+                                    onClick={() => {
+                                      setCurrentFrameOffset(offset);
+                                      setSelectedPointId(pt.id);
+                                      setSelectedPolygonId('');
+                                    }}
+                                    onDoubleClick={() => handleToggleItemKeyframe('point', pt.id, offset)}
+                                    style={{ width: '28px', minWidth: '28px', maxWidth: '28px', height: '28px' }}
+                                    className={`p-0 text-center border-r border-neutral-800/40 cursor-pointer transition select-none align-middle ${
+                                      isCurrent ? 'bg-cyan-950/40 ring-1 ring-inset ring-cyan-500/30' : 'hover:bg-neutral-900/60'
+                                    }`}
+                                    title={kfStatus.isKeyframed ? `Keyframe: (${kfStatus.data.x}, ${kfStatus.data.y}). Double-click to clear.` : `Holding/Default. Double-click to keyframe.`}
+                                  >
+                                    <div className="w-[28px] h-[28px] flex items-center justify-center">
+                                      {kfStatus.isKeyframed ? (
+                                        <div className="w-4 h-4 rounded bg-cyan-950/90 text-cyan-300 border border-cyan-500/60 flex items-center justify-center font-bold text-[9px] shadow-sm">
+                                          ◆
+                                        </div>
+                                      ) : (
+                                        <div className="w-3.5 h-3.5 rounded text-neutral-700 flex items-center justify-center text-[9px]">
+                                          ○
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+
+                        {/* 3. HITBOXES CATEGORY HEADER */}
+                        <tr className="bg-neutral-900/60 font-sans h-5">
+                          <td
+                            colSpan={frameCount + 1}
+                            className="px-2 py-0 text-[8.5px] font-bold text-emerald-400 uppercase tracking-wider border-y border-neutral-800/80 leading-5"
+                          >
+                            Hitboxes ({polygonsList.length})
+                          </td>
+                        </tr>
+
+                        {/* HITBOX ROWS */}
+                        {polygonsList.map(poly => {
+                          const isHidden = hiddenPolygonIds.has(poly.id);
+                          const isSelected = selectedPolygonId === poly.id;
+                          return (
+                            <tr
+                              key={poly.id}
+                              className={`transition h-7 ${isSelected ? 'bg-emerald-950/30' : 'hover:bg-neutral-900/40'} ${isHidden ? 'opacity-40' : ''}`}
+                            >
+                              <td
+                                onClick={() => {
+                                  setSelectedPolygonId(poly.id);
+                                  setSelectedPointId('');
+                                }}
+                                className="px-2 py-0 sticky left-0 bg-neutral-950 z-10 border-r border-neutral-800 font-sans cursor-pointer truncate w-[130px] min-w-[130px] max-w-[130px] align-middle"
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ backgroundColor: poly.color }} />
+                                  <span className={`text-xs truncate ${isSelected ? 'font-bold text-white' : 'text-neutral-300'}`}>
+                                    {poly.name}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {Array.from({ length: frameCount }).map((_, offset) => {
+                                const isCurrent = offset === currentFrameOffset;
+                                const kfStatus = getItemFrameKeyframe('polygon', poly.id, offset);
+                                return (
+                                  <td
+                                    key={offset}
+                                    onClick={() => {
+                                      setCurrentFrameOffset(offset);
+                                      setSelectedPolygonId(poly.id);
+                                      setSelectedPointId('');
+                                    }}
+                                    onDoubleClick={() => handleToggleItemKeyframe('polygon', poly.id, offset)}
+                                    style={{ width: '28px', minWidth: '28px', maxWidth: '28px', height: '28px' }}
+                                    className={`p-0 text-center border-r border-neutral-800/40 cursor-pointer transition select-none align-middle ${
+                                      isCurrent ? 'bg-cyan-950/40 ring-1 ring-inset ring-cyan-500/30' : 'hover:bg-neutral-900/60'
+                                    }`}
+                                    title={kfStatus.isKeyframed ? `Keyframe: ${kfStatus.data.vertices?.length || 0} vertices. Double-click to clear.` : `Holding/Default. Double-click to keyframe.`}
+                                  >
+                                    <div className="w-[28px] h-[28px] flex items-center justify-center">
+                                      {kfStatus.isKeyframed ? (
+                                        <div className="w-4 h-4 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 flex items-center justify-center font-bold text-[9px] shadow-sm">
+                                          ◆
+                                        </div>
+                                      ) : (
+                                        <div className="w-3.5 h-3.5 rounded text-neutral-700 flex items-center justify-center text-[9px]">
+                                          ○
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                    {Array.from({ length: frameCount }).map((_, offset) => {
-                      const gIdx = startIdx + offset;
-                      const isCurrent = offset === currentFrameOffset;
-                      const hasKf = hasKeyframeOnFrame(gIdx);
-
-                      return (
-                        <div
-                          key={offset}
-                          onClick={() => {
-                            setIsPlayingAnim(false);
-                            setCurrentFrameOffset(offset);
-                          }}
-                          className={`flex-1 min-w-[56px] py-2 px-1 rounded-xl border flex flex-col items-center justify-center cursor-pointer transition relative select-none ${
-                            isCurrent
-                              ? 'bg-cyan-950/80 border-cyan-400 text-white ring-2 ring-cyan-500/30'
-                              : hasKf
-                              ? 'bg-neutral-950 border-amber-500/40 text-neutral-300 hover:border-amber-400'
-                              : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-white'
-                          }`}
-                        >
-                          <span className="text-[11px] font-bold font-mono">
-                            #{offset + 1}
-                          </span>
-                          <span className="text-[9px] font-mono text-neutral-500">
-                            cell {gIdx}
-                          </span>
-                          {hasKf && (
-                            <span className="absolute top-1 right-1 text-amber-400 text-[10px]" title="Keyframed frame">
-                              ◆
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
+                  {/* Matrix Vertical Resize Drag Handle */}
+                  <div
+                    onMouseDown={handleMatrixResizeStart}
+                    className="h-2.5 bg-neutral-950 hover:bg-cyan-950/60 border-t border-neutral-800 flex items-center justify-center cursor-row-resize transition group select-none"
+                    title="Drag vertically to resize Matrix grid"
+                  >
+                    <div className="w-12 h-1 rounded-full bg-neutral-700 group-hover:bg-cyan-400 transition" />
                   </div>
                 </div>
 
@@ -2325,172 +3152,363 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
             </div>
 
-            {/* RIGHT SIDEBAR (Cols 3): Named Points & Polygons Manager */}
-            <div className="lg:col-span-3 space-y-4">
+            {/* RIGHT COLUMN: Shrunk Animation Canvas Viewport & Selected Element Inspector */}
+            <div className="w-full xl:w-[360px] 2xl:w-[380px] shrink-0 space-y-4">
               
-              {/* Named Points / Sensory Sockets */}
-              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Circle size={14} />
-                      Sockets ({pointsList.length})
+              {/* ANIMATION VIEWPORT CANVAS */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-3 relative overflow-hidden flex flex-col items-center shadow-xl">
+                
+                {/* Viewport Toolbar */}
+                <div className="w-full flex items-center justify-between pb-2 border-b border-neutral-800 text-xs text-neutral-400 flex-wrap gap-2">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handlePrevFrame}
+                      className="p-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-md transition"
+                      title="Previous Frame"
+                    >
+                      <StepBack size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayingAnim(!isPlayingAnim)}
+                      className={`p-1 rounded-md transition ${isPlayingAnim ? 'bg-cyan-600 text-white' : 'bg-neutral-800 text-white'}`}
+                      title={isPlayingAnim ? 'Pause' : 'Play'}
+                    >
+                      {isPlayingAnim ? <Pause size={12} /> : <Play size={12} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextFrame}
+                      className="p-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-md transition"
+                      title="Next Frame"
+                    >
+                      <StepForward size={12} />
+                    </button>
+                    <span className="font-mono text-[10px] text-cyan-400 font-bold pl-1">
+                      F#{currentFrameOffset + 1}
                     </span>
+                  </div>
+
+                  {/* Canvas Overlays Group Toggles */}
+                  <div className="flex items-center gap-0.5 bg-neutral-950/80 px-1.5 py-0.5 rounded-lg border border-neutral-800 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setShowSprite(!showSprite)}
+                      className={`px-1 py-0.5 rounded transition ${showSprite ? 'text-cyan-400 font-bold' : 'text-neutral-500'}`}
+                      title={showSprite ? 'Hide Sprite' : 'Show Sprite'}
+                    >
+                      Sprite
+                    </button>
+                    <span className="text-neutral-700">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowCapsule(!showCapsule)}
+                      className={`px-1 py-0.5 rounded transition ${showCapsule ? 'text-sky-400 font-bold' : 'text-neutral-500'}`}
+                      title={showCapsule ? 'Hide Capsule' : 'Show Capsule'}
+                    >
+                      Cap
+                    </button>
+                    <span className="text-neutral-700">|</span>
                     <button
                       type="button"
                       onClick={() => setShowPoints(!showPoints)}
-                      className={`p-1 rounded transition ${showPoints ? 'text-sky-400 hover:text-sky-300' : 'text-neutral-600 hover:text-neutral-400'}`}
-                      title={showPoints ? 'Hide All Sockets' : 'Show All Sockets'}
+                      className={`px-1 py-0.5 rounded transition ${showPoints ? 'text-indigo-400 font-bold' : 'text-neutral-500'}`}
+                      title={showPoints ? 'Hide Sockets' : 'Show Sockets'}
                     >
-                      {showPoints ? <Eye size={12} /> : <EyeOff size={12} />}
+                      Pts
                     </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newPt: CharacterNamedPoint = {
-                        id: `pt_${Date.now().toString().slice(-4)}`,
-                        name: 'Custom Socket',
-                        color: '#38bdf8',
-                        defaultOffsetX: 0,
-                        defaultOffsetY: 0
-                      };
-                      updateCharacter(c => ({ ...c, points: [...(c.points || []), newPt] }));
-                    }}
-                    className="p-1 text-sky-400 hover:bg-neutral-800 rounded transition"
-                    title="Add Socket"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {pointsList.map(pt => {
-                    const isHidden = hiddenPointIds.has(pt.id);
-                    return (
-                      <div
-                        key={pt.id}
-                        onClick={() => {
-                          setSelectedPointId(pt.id);
-                          setSelectedPolygonId('');
-                        }}
-                        className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer border transition ${
-                          selectedPointId === pt.id ? 'bg-sky-950/70 border-sky-500 text-white' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
-                        } ${isHidden ? 'opacity-40' : ''}`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: pt.color }} />
-                          <span className="truncate">{pt.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <span className="text-[10px] font-mono text-neutral-500">
-                            {pt.defaultOffsetX},{pt.defaultOffsetY}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setHiddenPointIds(prev => {
-                                const next = new Set(prev);
-                                if (next.has(pt.id)) next.delete(pt.id);
-                                else next.add(pt.id);
-                                return next;
-                              });
-                            }}
-                            className={`p-1 rounded transition ${isHidden ? 'text-neutral-600 hover:text-neutral-400' : 'text-neutral-400 hover:text-white'}`}
-                            title={isHidden ? 'Show Socket' : 'Hide Socket'}
-                          >
-                            {isHidden ? <EyeOff size={12} /> : <Eye size={12} />}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Hurtbox / Hitbox Polygons */}
-              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Pentagon size={14} />
-                      Hitboxes ({polygonsList.length})
-                    </span>
+                    <span className="text-neutral-700">|</span>
                     <button
                       type="button"
                       onClick={() => setShowPolygons(!showPolygons)}
-                      className={`p-1 rounded transition ${showPolygons ? 'text-emerald-400 hover:text-emerald-300' : 'text-neutral-600 hover:text-neutral-400'}`}
-                      title={showPolygons ? 'Hide All Hitboxes' : 'Show All Hitboxes'}
+                      className={`px-1 py-0.5 rounded transition ${showPolygons ? 'text-emerald-400 font-bold' : 'text-neutral-500'}`}
+                      title={showPolygons ? 'Hide Hitboxes' : 'Show Hitboxes'}
                     >
-                      {showPolygons ? <Eye size={12} /> : <EyeOff size={12} />}
+                      Box
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newPoly: CharacterNamedPolygon = {
-                        id: `poly_${Date.now().toString().slice(-4)}`,
-                        name: 'Attack Hitbox',
-                        type: 'hitbox',
-                        color: '#ef4444',
-                        defaultVertices: [
-                          { x: 10, y: -16 },
-                          { x: 38, y: -16 },
-                          { x: 38, y: 16 },
-                          { x: 10, y: 16 }
-                        ]
-                      };
-                      updateCharacter(c => ({ ...c, polygons: [...(c.polygons || []), newPoly] }));
-                    }}
-                    className="p-1 text-emerald-400 hover:bg-neutral-800 rounded transition"
-                    title="Add Hitbox Polygon"
-                  >
-                    <Plus size={14} />
-                  </button>
+
+                  {/* Zoom Controls */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}
+                      className="p-1 hover:bg-neutral-800 rounded text-neutral-300"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut size={12} />
+                    </button>
+                    <span className="font-mono text-[9px] text-neutral-400">{(zoom * 100).toFixed(0)}%</span>
+                    <button
+                      type="button"
+                      onClick={() => setZoom(z => Math.min(6, z + 0.25))}
+                      className="p-1 hover:bg-neutral-800 rounded text-neutral-300"
+                      title="Zoom In"
+                    >
+                      <ZoomIn size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setZoom(2.0); setPanX(0); setPanY(0); }}
+                      className="p-1 hover:bg-neutral-800 rounded text-neutral-300"
+                      title="Reset View"
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {polygonsList.map(poly => {
-                    const isHidden = hiddenPolygonIds.has(poly.id);
-                    return (
-                      <div
-                        key={poly.id}
-                        onClick={() => {
-                          setSelectedPolygonId(poly.id);
-                          setSelectedPointId('');
-                        }}
-                        className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer border transition ${
-                          selectedPolygonId === poly.id ? 'bg-emerald-950/70 border-emerald-500 text-white' : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700'
-                        } ${isHidden ? 'opacity-40' : ''}`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: poly.color }} />
-                          <span className="truncate">{poly.name}</span>
+                {/* Shrunk Canvas Viewport */}
+                <canvas
+                  ref={canvasRef}
+                  width={380}
+                  height={320}
+                  onMouseDown={handleCanvasMouseDown}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseUp={handleCanvasMouseUp}
+                  className="cursor-crosshair rounded-xl shadow-inner mt-2 w-full max-w-full aspect-[380/320] bg-neutral-950/60"
+                />
+
+                <div className="w-full flex items-center justify-between pt-2 text-[9px] text-neutral-500 font-mono">
+                  <span>Drag sockets / vertices to keyframe</span>
+                  <span>Shift+drag to pan</span>
+                </div>
+              </div>
+
+              {/* SELECTED ITEM QUICK PROPERTY INSPECTOR */}
+              <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
+                  <span className="text-xs font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sliders size={13} className="text-cyan-400" />
+                    Property Inspector
+                  </span>
+                  {selectedPointId ? (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-500/30">
+                      Socket Selected
+                    </span>
+                  ) : selectedPolygonId ? (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+                      Hitbox Selected
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-950 text-neutral-500 border border-neutral-800">
+                      Frame #{activeGlobalFrameIndex}
+                    </span>
+                  )}
+                </div>
+
+                {/* 1. Point / Socket Inspector */}
+                {selectedPointId && (() => {
+                  const pt = pointsList.find(p => p.id === selectedPointId);
+                  if (!pt) return null;
+                  const activePos = getPointPosForActiveFrame(pt);
+                  const isKf = isPointKeyframedOnActiveFrame(pt.id);
+
+                  return (
+                    <div className="space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full shadow" style={{ backgroundColor: pt.color }} />
+                          <span className="font-bold text-white text-sm">{pt.name}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-900 text-neutral-400">
-                            {poly.type}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setHiddenPolygonIds(prev => {
-                                const next = new Set(prev);
-                                if (next.has(poly.id)) next.delete(poly.id);
-                                else next.add(poly.id);
-                                return next;
-                              });
-                            }}
-                            className={`p-1 rounded transition ${isHidden ? 'text-neutral-600 hover:text-neutral-400' : 'text-neutral-400 hover:text-white'}`}
-                            title={isHidden ? 'Show Polygon' : 'Hide Polygon'}
-                          >
-                            {isHidden ? <EyeOff size={12} /> : <Eye size={12} />}
-                          </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem({
+                            type: 'point',
+                            id: pt.id,
+                            name: pt.name,
+                            color: pt.color,
+                            tagId: pt.tagId
+                          })}
+                          className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-sky-300 rounded text-[11px] font-medium transition"
+                        >
+                          Edit Details
+                        </button>
+                      </div>
+
+                      <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 space-y-2 font-mono">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-neutral-400">Current Frame Pos:</span>
+                          <span className="text-cyan-300 font-bold">({activePos.x}, {activePos.y})</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-neutral-400">Base Default Pos:</span>
+                          <span className="text-neutral-400">({pt.defaultOffsetX}, {pt.defaultOffsetY})</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-neutral-400">Keyframe Status:</span>
+                          {isKf ? (
+                            <span className="text-amber-300 font-bold">◆ Frame Keyframe</span>
+                          ) : (
+                            <span className="text-neutral-500">○ Using Base Default</span>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-neutral-400 font-bold block">X Offset</label>
+                          <input
+                            type="number"
+                            value={activePos.x}
+                            onChange={(e) => {
+                              const newX = Number(e.target.value);
+                              updateActiveFramePoint(pt.id, { x: newX, y: activePos.y });
+                            }}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-neutral-400 font-bold block">Y Offset</label>
+                          <input
+                            type="number"
+                            value={activePos.y}
+                            onChange={(e) => {
+                              const newY = Number(e.target.value);
+                              updateActiveFramePoint(pt.id, { x: activePos.x, y: newY });
+                            }}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleItemKeyframe('point', pt.id, currentFrameOffset)}
+                          className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 rounded-lg text-xs font-bold transition"
+                        >
+                          {isKf ? 'Clear Socket Keyframe' : 'Snapshot to Keyframe'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPointId('')}
+                          className="text-neutral-500 hover:text-neutral-300 text-xs"
+                        >
+                          Deselect
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 2. Polygon / Hitbox Inspector */}
+                {selectedPolygonId && (() => {
+                  const poly = polygonsList.find(p => p.id === selectedPolygonId);
+                  if (!poly) return null;
+                  const activeVerts = getPolyVertsForActiveFrame(poly);
+                  const isKf = isPolygonKeyframedOnActiveFrame(poly.id);
+
+                  return (
+                    <div className="space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-sm shadow" style={{ backgroundColor: poly.color }} />
+                          <span className="font-bold text-white text-sm">{poly.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEditingItem({
+                            type: 'polygon',
+                            id: poly.id,
+                            name: poly.name,
+                            color: poly.color,
+                            polyType: poly.type
+                          })}
+                          className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-emerald-300 rounded text-[11px] font-medium transition"
+                        >
+                          Edit Details
+                        </button>
+                      </div>
+
+                      <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 space-y-1.5 font-mono">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-neutral-400">Type:</span>
+                          <span className="text-emerald-400 font-bold uppercase">{poly.type}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-neutral-400">Vertices:</span>
+                          <span className="text-white font-bold">{activeVerts.length} points</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-neutral-400">Keyframe Status:</span>
+                          {isKf ? (
+                            <span className="text-amber-300 font-bold">◆ Frame Keyframe</span>
+                          ) : (
+                            <span className="text-neutral-500">○ Using Base Default</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Vertices List Stepper */}
+                      <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                        <span className="text-[10px] text-neutral-400 font-bold block">Vertices:</span>
+                        {activeVerts.map((v, vIdx) => (
+                          <div key={vIdx} className="flex items-center justify-between bg-neutral-950 p-1.5 rounded border border-neutral-800 font-mono text-[11px]">
+                            <span className="text-neutral-400">V#{vIdx + 1}:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-cyan-300">({v.x}, {v.y})</span>
+                              {activeVerts.length > 3 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextVerts = activeVerts.filter((_, i) => i !== vIdx);
+                                    updateActiveFramePolygon(poly.id, nextVerts);
+                                  }}
+                                  className="text-neutral-500 hover:text-red-400 p-0.5"
+                                  title="Delete Vertex"
+                                >
+                                  <X size={11} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const last = activeVerts[activeVerts.length - 1] || { x: 0, y: 0 };
+                            updateActiveFramePolygon(poly.id, [...activeVerts, { x: last.x + 10, y: last.y + 10 }]);
+                          }}
+                          className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded text-xs font-bold transition flex items-center gap-1"
+                        >
+                          <Plus size={11} />
+                          <span>Add Vertex</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPolygonId('')}
+                          className="text-neutral-500 hover:text-neutral-300 text-xs"
+                        >
+                          Deselect
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 3. Empty Selection Default: Quick Character / Capsule Glance */}
+                {!selectedPointId && !selectedPolygonId && (
+                  <div className="text-neutral-400 text-xs space-y-2 font-mono">
+                    <p className="text-neutral-500 italic font-sans text-xs">
+                      Click any socket, hitbox, or matrix cell to inspect and adjust properties live.
+                    </p>
+                    <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-neutral-400">Active Spritesheet:</span>
+                        <span className="text-cyan-300 font-bold">{activeSpritesheet.name}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-neutral-400">Total Keyframes:</span>
+                        <span className="text-amber-300 font-bold">{currentAnimation.keyframes?.length || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -5545,6 +6563,112 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-indigo-600/30"
               >
                 {transitionForm.isEditing ? 'Save Transition' : 'Create Transition'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: EDIT SOCKET OR HITBOX DETAILS MODAL */}
+      {/* ========================================================================= */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleSaveEditingItem} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+              <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                <Sliders size={15} className={editingItem.type === 'point' ? 'text-sky-400' : 'text-emerald-400'} />
+                {editingItem.type === 'point' ? 'Edit Socket Properties' : 'Edit Hitbox Properties'}
+              </h4>
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="p-1 text-neutral-400 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-neutral-400 font-bold block">Display Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editingItem.name}
+                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="text-neutral-400 font-bold block">Color Accent</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="color"
+                    value={editingItem.color}
+                    onChange={(e) => setEditingItem({ ...editingItem, color: e.target.value })}
+                    className="w-10 h-8 rounded bg-transparent border-0 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={editingItem.color}
+                    onChange={(e) => setEditingItem({ ...editingItem, color: e.target.value })}
+                    className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              {editingItem.type === 'point' && (
+                <div>
+                  <label className="text-neutral-400 font-bold block">Socket Tag / Role</label>
+                  <select
+                    value={editingItem.tagId || 'custom'}
+                    onChange={(e) => setEditingItem({ ...editingItem, tagId: e.target.value })}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                  >
+                    <option value="head">Head (Mount / Helmet)</option>
+                    <option value="weapon_r">Main Weapon (Right Hand)</option>
+                    <option value="weapon_l">Offhand / Shield (Left Hand)</option>
+                    <option value="eyes">Eye Sightline (Sensory)</option>
+                    <option value="feet">Feet (Footstep / Particles)</option>
+                    <option value="chest">Chest (Aura / Core)</option>
+                    <option value="projectile_spawn">Muzzle / Projectile Spawn</option>
+                    <option value="custom">Custom Tag</option>
+                  </select>
+                </div>
+              )}
+
+              {editingItem.type === 'polygon' && (
+                <div>
+                  <label className="text-neutral-400 font-bold block">Hitbox Type</label>
+                  <select
+                    value={editingItem.polyType || 'hitbox'}
+                    onChange={(e) => setEditingItem({ ...editingItem, polyType: e.target.value as any })}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                  >
+                    <option value="hitbox">Offensive Hitbox (Deals Damage)</option>
+                    <option value="hurtbox">Vulnerable Hurtbox (Receives Damage)</option>
+                    <option value="shield">Defensive Shield (Blocks/Parries)</option>
+                    <option value="trigger">Sensor Trigger (Zone/Proximity)</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="px-3.5 py-1.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30"
+              >
+                Save Properties
               </button>
             </div>
           </form>

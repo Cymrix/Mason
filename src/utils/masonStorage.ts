@@ -498,3 +498,124 @@ export const createNewGameStructureInProject = (
   saveActiveMasonProject(updatedProject);
   return { project: updatedProject, newFile: newStructureFile };
 };
+
+export const convertProjectDataToMasonProject = (projectData: any): MasonProject => {
+  const now = new Date().toISOString();
+  const projName = projectData.name || 'Imported Level Project';
+  const projId = projectData.id || `proj_${Date.now()}`;
+
+  const biomesData = Array.isArray(projectData.biomes) && projectData.biomes.length > 0 
+    ? projectData.biomes 
+    : [
+        {
+          id: 'mourne_ashen_steppes',
+          name: 'Ashen Steppes',
+          description: 'Wind-scoured volcanic basalt plains',
+          primaryTileTypeId: 'ashen_basalt',
+          tileTypes: [],
+          environmentalDetails: [],
+          wildlife: [],
+          parallaxLayers: []
+        }
+      ];
+
+  const mapData = projectData.map || { width: 24, height: 24, cells: [] };
+
+  const mapFile: MapFile = {
+    id: `map_${projId}_main`,
+    name: projName,
+    fileName: 'world_main.map',
+    description: 'Imported Metroidvania Level Map',
+    defaultBiomeId: biomesData[0]?.id || 'mourne_ashen_steppes',
+    playerSpawns: [],
+    exits: [],
+    width: mapData.width || 24,
+    height: mapData.height || 24,
+    createdAt: projectData.createdAt || now,
+    updatedAt: projectData.updatedAt || now,
+    chunks: mapData.chunks || {},
+    cells: mapData.cells || [],
+    data: mapData
+  };
+
+  const biomeFiles: BiomeFile[] = biomesData.map((b: any, idx: number) => ({
+    id: b.id || `biome_${idx}`,
+    name: b.name || `Biome ${idx + 1}`,
+    fileName: `${(b.name || 'biome').toLowerCase().replace(/[^a-z0-9]/g, '_')}.biome`,
+    createdAt: now,
+    updatedAt: now,
+    biomeData: b
+  }));
+
+  const masonProj: MasonProject = {
+    id: projId,
+    name: projName,
+    description: projectData.description || 'Cloud Synced Metroidvania level',
+    author: 'Mason Architect',
+    engineVersion: '2.0.0',
+    activeModule: 'maps',
+    createdAt: projectData.createdAt || now,
+    updatedAt: now,
+    activeFiles: {
+      mapFileName: mapFile.fileName,
+      biomeFileName: biomeFiles[0]?.fileName || 'ashen_steppes.biome',
+      characterFileName: 'hero_adventurer.character',
+      uiFileName: 'standard_dark.ui',
+      gameStructureFileName: 'main_metroidvania.gamestructure'
+    },
+    fileSystem: {
+      maps: [mapFile],
+      biomes: biomeFiles,
+      characters: [
+        {
+          id: 'char_hero',
+          name: 'Hero Adventurer',
+          fileName: 'hero_adventurer.character',
+          createdAt: now,
+          updatedAt: now,
+          characterData: {
+            id: 'char_hero',
+            name: 'Hero Adventurer',
+            characterType: 'player_hero',
+            avatarIcon: '🛡️',
+            spriteWidth: 64,
+            spriteHeight: 64,
+            tintColor: '#06b6d4',
+            baseSpeed: 4.8,
+            canJump: true,
+            maxAirJumps: 1,
+            hasDash: true,
+            hasWallCling: true,
+            hasAttack: true,
+            hasSpecial: true
+          } as any
+        }
+      ],
+      ui: [
+        {
+          id: 'ui_dark',
+          name: 'Standard Dark UI',
+          fileName: 'standard_dark.ui',
+          createdAt: now,
+          updatedAt: now,
+          uiConfig: DEFAULT_UI_THEMES[0]
+        }
+      ],
+      game: [
+        {
+          id: 'game_main',
+          name: 'Main Game Flow',
+          fileName: 'main_metroidvania.gamestructure',
+          createdAt: now,
+          updatedAt: now,
+          structureData: createDefaultGameStructure()
+        }
+      ],
+      behaviors: []
+    }
+  };
+
+  saveActiveMasonProject(masonProj);
+  return masonProj;
+};
+

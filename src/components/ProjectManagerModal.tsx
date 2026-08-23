@@ -34,7 +34,7 @@ import {
   deleteProjectFromStorage, 
   duplicateProjectInStorage, 
   exportProjectAsJson, 
-  importProjectFromFile, 
+  importProjectFromFile,
   createStarterProject 
 } from '../utils/projectStorage';
 

@@ -22,7 +22,8 @@ import {
   exportBiomeFile,
   createNewMapInProject,
   ProjectIndexItem,
-  idbGetProject
+  idbGetProject,
+  convertProjectDataToMasonProject
 } from '../utils/masonStorage';
 import { HamburgerMenu } from './HamburgerMenu';
 import { ModulesModal } from './ModulesModal';
@@ -38,6 +39,7 @@ import { RefinedBiomeEditor } from './RefinedBiomeEditor';
 import { UIThemeModule } from './UIThemeModule';
 import { GameStructureModule } from './GameStructureModule';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
+import { CloudSyncModal } from './CloudSyncModal';
 import {
   Paintbrush,
   Eraser,
@@ -67,7 +69,10 @@ import {
   LayoutDashboard,
   Map,
   Sliders,
-  Network
+  Network,
+  Cloud,
+  RotateCcw,
+  RotateCw
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
@@ -142,6 +147,7 @@ export const EditorLayout: React.FC = () => {
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
   const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+  const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -961,6 +967,18 @@ export const EditorLayout: React.FC = () => {
                 aria-label="Files"
               >
                 <FolderOpen size={16} className="text-amber-400" />
+              </button>
+
+              {/* Cloud Sync & Backups Button */}
+              <button
+                type="button"
+                onClick={() => setIsCloudSyncModalOpen(true)}
+                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-blue-400 hover:text-blue-300 rounded-xl transition shadow-sm relative group"
+                title="Google Drive & OneDrive Cloud Storage & Backups"
+                aria-label="Cloud Sync"
+              >
+                <Cloud size={16} />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-neutral-950 animate-pulse" />
               </button>
 
               {/* Theme Settings Button (Icon Only) */}
@@ -2005,6 +2023,45 @@ export const EditorLayout: React.FC = () => {
           }}
         />
       )}
+
+      {/* Cloud Storage & Backups Sync Modal */}
+      <CloudSyncModal
+        isOpen={isCloudSyncModalOpen}
+        onClose={() => setIsCloudSyncModalOpen(false)}
+        currentProject={project ? {
+          id: project.id,
+          name: project.name,
+          description: project.description,
+          engine_version: project.engineVersion || '2.0.0',
+          tile_size_px: 64,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+          map: (project.fileSystem.maps?.[0]?.data || {
+            width: project.fileSystem.maps?.[0]?.width || 24,
+            height: project.fileSystem.maps?.[0]?.height || 24,
+            chunks: project.fileSystem.maps?.[0]?.chunks || {},
+            cells: project.fileSystem.maps?.[0]?.cells || []
+          }) as any,
+          biomes: project.fileSystem.biomes?.map(b => b.biomeData) || [],
+          activeBiomeId: project.fileSystem.biomes?.[0]?.id || 'mourne_ashen_steppes'
+        } : {
+          id: 'temp_proj',
+          name: 'New Mason Level',
+          engine_version: '2.0.0',
+          tile_size_px: 64,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          map: { width: 24, height: 24, cells: [] },
+          biomes: [],
+          activeBiomeId: 'mourne_ashen_steppes'
+        }}
+        onLoadProject={(loadedProjectData) => {
+          const masonProj = convertProjectDataToMasonProject(loadedProjectData);
+          setProject(masonProj);
+          refreshSavedProjects();
+          showToast(`Loaded "${masonProj.name}" from Cloud!`, 'success');
+        }}
+      />
 
       {/* PWA Direct Installation & Guidance Modal */}
       <PWAInstallModal

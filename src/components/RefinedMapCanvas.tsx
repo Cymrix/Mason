@@ -1414,8 +1414,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const capOx = charConfig.offsetX;
       const capOy = charConfig.offsetY;
 
-      // The Character Editor defines (0,0) as the center of the sprite cell (tileW/2, tileH/2)
-      // On the map, the ground contact is at spawnY, so the sprite center is at (spawnX, spawnY - tileH/2)
+      // Character Editor defines (0,0) as the center of the sprite cell (tileW/2, tileH/2)
+      // On the map, ground contact is at spawnY, so the sprite center is at (spawnX, spawnY - spriteTileH / 2)
       const spriteTileH = spriteInfo?.tileH || testCharacter?.spriteHeight || 64;
       const spriteTileW = spriteInfo?.tileW || testCharacter?.spriteWidth || 64;
       const charCenterY = spawnY - spriteTileH / 2;
@@ -1457,10 +1457,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         );
         ctx.restore();
       } else {
-        // Fallback Capsule Silhouette
+        // Fallback Capsule Silhouette aligned with sprite center
         ctx.fillStyle = charColor;
         ctx.beginPath();
-        ctx.roundRect(spawnX - 7, spawnY - 28, 14, 26, 6);
+        ctx.roundRect(spawnX - 10, charCenterY - 14, 20, 28, 6);
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1 / scale;
@@ -1469,7 +1469,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(testCharacter?.avatarIcon || '🛡️', spawnX, spawnY - 14);
+        ctx.fillText(testCharacter?.avatarIcon || '🛡️', spawnX, charCenterY);
       }
 
       // 5. Facing Arrow

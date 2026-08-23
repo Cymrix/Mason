@@ -5,6 +5,7 @@ import { RefinedMapData, ToolType, ModeType, PaintCategory } from '../types';
 import { getCell, setCell, calculateMapBounds } from '../engine/mapChunkHelper';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { INITIAL_REFINED_BIOMES } from '../engine/refinedBiomes';
+import { useUndoHistory, HistoryState } from './useUndoHistory';
 import { 
   ProjectData, 
   generateProjectId, 
@@ -65,21 +66,94 @@ export const useRefinedMapEditor = () => {
     createEmptyRefinedMap(INITIAL_WIDTH, INITIAL_HEIGHT, activeBiome.id, activeBiome.primaryTileTypeId || 'ashen_basalt')
   );
 
+  // Undo / Redo History Hook
+  const {
+    pushSnapshot,
+    startStroke,
+    commitStroke,
+    undo,
+    redo,
+    clearHistory,
+    canUndo,
+    canRedo,
+    undoCount,
+    redoCount
+  } = useUndoHistory({ mapData, biomes, activeBiomeId });
+
   // Editor modes & tools
   const [mode, setMode] = useState<ModeType>('paint');
   const [paintCategory, setPaintCategory] = useState<PaintCategory>('tile_type');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('ashen_basalt'); // '' represents Blank / Open Air
   const [activeTool, setActiveTool] = useState<ToolType>('brush');
   const [brushSize, setBrushSize] = useState<number>(1);
-  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [isDrawingState, setIsDrawingState] = useState<boolean>(false);
   const [autoScatterEnvironmental, setAutoScatterEnvironmental] = useState<boolean>(true);
   const [autoScatterWildlife, setAutoScatterWildlife] = useState<boolean>(true);
 
-  // Setter wrappers to mark unsaved changes
+  // Drawing state wrapper to bundle undo strokes
+  const setIsDrawing = useCallback((drawing: boolean) => {
+    setIsDrawingState(prev => {
+      if (!prev && drawing) {
+        // Start drawing stroke - snapshot starting state
+        startStroke({ mapData, biomes, activeBiomeId });
+      } else if (prev && !drawing) {
+        // Finish drawing stroke - commit to history
+        commitStroke({ mapData, biomes, activeBiomeId });
+      }
+      return drawing;
+    });
+  }, [startStroke, commitStroke, mapData, biomes, activeBiomeId]);
+
+  // Handle Undo execution
+  const handleUndo = useCallback(() => {
+    const prev = undo({ mapData, biomes, activeBiomeId });
+    if (prev) {
+      setMapDataState(prev.mapData);
+      setBiomesState(prev.biomes);
+      setActiveBiomeId(prev.activeBiomeId);
+      setHasUnsavedChanges(true);
+    }
+  }, [undo, mapData, biomes, activeBiomeId]);
+
+  // Handle Redo execution
+  const handleRedo = useCallback(() => {
+    const next = redo({ mapData, biomes, activeBiomeId });
+    if (next) {
+      setMapDataState(next.mapData);
+      setBiomesState(next.biomes);
+      setActiveBiomeId(next.activeBiomeId);
+      setHasUnsavedChanges(true);
+    }
+  }, [redo, mapData, biomes, activeBiomeId]);
+
+  // Global Keyboard Shortcuts (Ctrl+Z / Cmd+Z, Ctrl+Y / Cmd+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName);
+      if (isInput) return;
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      if (cmdOrCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+      } else if ((cmdOrCtrl && e.key.toLowerCase() === 'y') || (cmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Setter wrappers to mark unsaved changes and push history
   const setBiomes = useCallback((newBiomes: RefinedBiome[] | ((prev: RefinedBiome[]) => RefinedBiome[])) => {
+    pushSnapshot({ mapData, biomes, activeBiomeId });
     setBiomesState(newBiomes);
     setHasUnsavedChanges(true);
-  }, []);
+  }, [pushSnapshot, mapData, biomes, activeBiomeId]);
 
   const setMapData = useCallback((newMap: RefinedMapData | ((prev: RefinedMapData) => RefinedMapData)) => {
     setMapDataState(newMap);
@@ -335,6 +409,8 @@ export const useRefinedMapEditor = () => {
         const originTileId = originCell.tile_type_id;
         if (originTileId === selectedAssetId) return prev;
 
+        pushSnapshot({ mapData: prev, biomes, activeBiomeId });
+
         const stack = [[centerX, centerY]];
         const visited = new Set<string>();
 
@@ -378,19 +454,21 @@ export const useRefinedMapEditor = () => {
     matrix: BiomeAllocationMatrix, 
     layoutStyle: MetroidvaniaLayoutStyle = 'blank_air'
   ) => {
+    pushSnapshot({ mapData, biomes, activeBiomeId });
     const generated = buildMapFromBiomeMatrix(matrix, biomes, layoutStyle);
     setMapData(generated);
-  }, [biomes, setMapData]);
+  }, [biomes, mapData, activeBiomeId, pushSnapshot, setMapData]);
 
   // Quick procedural generator
   const generateBiomeWorld = useCallback((layoutStyle: MetroidvaniaLayoutStyle = 'sidescroller_platforms') => {
+    pushSnapshot({ mapData, biomes, activeBiomeId });
     const matrix: BiomeAllocationMatrix = {
       width: mapData.width,
       height: mapData.height,
       biomeIds: Array(mapData.height).fill(null).map(() => Array(mapData.width).fill(activeBiome.id))
     };
     applyBiomeMatrix(matrix, layoutStyle);
-  }, [mapData.width, mapData.height, activeBiome.id, applyBiomeMatrix]);
+  }, [mapData, biomes, activeBiomeId, pushSnapshot, applyBiomeMatrix]);
 
   return {
     projectId,
@@ -419,7 +497,7 @@ export const useRefinedMapEditor = () => {
     setActiveTool,
     brushSize,
     setBrushSize,
-    isDrawing,
+    isDrawing: isDrawingState,
     setIsDrawing,
     applyTool,
     applyBiomeMatrix,
@@ -427,6 +505,13 @@ export const useRefinedMapEditor = () => {
     setAutoScatterEnvironmental,
     autoScatterWildlife,
     setAutoScatterWildlife,
-    generateBiomeWorld
+    generateBiomeWorld,
+    undo: handleUndo,
+    redo: handleRedo,
+    canUndo,
+    canRedo,
+    undoCount,
+    redoCount,
+    clearHistory
   };
 };

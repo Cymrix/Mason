@@ -465,7 +465,7 @@ export const EditorLayout: React.FC = () => {
     ];
   }, [project?.fileSystem?.characters]);
 
-  // Synchronize active character file in Character Studio with Map Editor selected test hero
+  // Synchronize active character file in Character Studio with Map Editor selected test character
   useEffect(() => {
     if (currentCharacterFile?.characterData?.id) {
       setSelectedTestCharacterId(currentCharacterFile.characterData.id);
@@ -1388,7 +1388,7 @@ export const EditorLayout: React.FC = () => {
                       <>
                         {/* Test Character Selector */}
                         <div className="flex items-center gap-1.5 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
-                          <span className="text-neutral-400 text-xs font-semibold">Test Hero:</span>
+                          <span className="text-neutral-400 text-xs font-semibold">Test Character:</span>
                           <select
                             value={selectedTestCharacterId}
                             onChange={(e) => handleSelectTestCharacter(e.target.value)}

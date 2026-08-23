@@ -177,49 +177,90 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const maxMp = testCharacter?.baseStats?.energy ?? 100;
     const maxSp = testCharacter?.baseStats?.stamina ?? 100;
 
-    // 3. Movement & Kinematics — Strictly driven by Behavior Module configuration
-    const behMov = linkedBehavior?.movement;
+    // 3. Movement & Kinematics — Strictly driven by Character Kinematics / Behavior Rules
+    const behMov = linkedBehavior?.movement || testCharacter?.movement;
     const heroInp = linkedBehavior?.heroInput;
 
-    // Movement speed: strictly from Character Base Stats. If no stats, defaults to 5.
-    const baseSpeed = testCharacter?.baseStats?.speed ?? 5;
-    const accel = baseSpeed * 0.8; // Derived from speed
-    const gravScale = behMov?.gravityScale !== undefined ? behMov.gravityScale : 1.0;
+    // Inspect Character and Behavior rules for actions / impulses / triggers
+    const allRules = [
+      ...(testCharacter?.rules || []),
+      ...(linkedBehavior?.rules || [])
+    ];
+
+    const hasRuleJump = allRules.some(r => {
+      const acts = r.actions || [];
+      const hasAct = acts.some(a => (a.actionType === 'hero_impulse' && a.impulseType === 'jump') || (a.actionType === 'move' && a.moveMode === 'jump'));
+      if (hasAct) return true;
+      const trigs: any[] = r.triggers || (r.trigger ? [r.trigger] : []);
+      return trigs.some(t => 
+        (t.type === 'input_press' && (t.button === 'jump' || ['Space', 'KeyW', 'ArrowUp', 'jump', 'space', 'w', 'up'].includes(t.key))) ||
+        (t.type === 'mapped_input' && t.inputId === 'jump')
+      );
+    });
+
+    const hasRuleMove = allRules.some(r => {
+      const acts = r.actions || [];
+      const hasAct = acts.some(a => a.actionType === 'move' && (a.speed ?? 0) > 0);
+      if (hasAct) return true;
+      const trigs: any[] = r.triggers || (r.trigger ? [r.trigger] : []);
+      return trigs.some(t => 
+        (t.type === 'input_press' && (['move_left', 'move_right', 'move'].includes(t.button) || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'move_left', 'move_right', 'a', 'd', 'left', 'right'].includes(t.key))) ||
+        (t.type === 'mapped_input' && ['move_left', 'move_right'].includes(t.inputId))
+      );
+    });
+
+    // Movement speed: strictly from Character / Behavior configuration. If not configured, 0.
+    const rawMoveSpeed = testCharacter?.movement?.moveSpeed ?? linkedBehavior?.movement?.moveSpeed ?? testCharacter?.baseStats?.speed;
+    const baseSpeed = (rawMoveSpeed !== undefined && rawMoveSpeed > 0) ? rawMoveSpeed : (hasRuleMove ? 4.5 : 0);
+    const accel = baseSpeed > 0 ? baseSpeed * 0.8 : 0;
+    const gravScale = behMov?.gravityScale !== undefined ? behMov.gravityScale : (testCharacter?.movement?.gravityScale ?? 1.0);
     const airCtrl = heroInp?.airControlPercent !== undefined 
       ? heroInp.airControlPercent / 100 
-      : (behMov?.airControl !== undefined ? behMov.airControl : 0.85);
+      : (behMov?.airControl !== undefined ? behMov.airControl : (testCharacter?.movement?.airControl ?? 0.85));
 
-    // 4. Jump & Air Jumps — Strictly from behavior. If jumpForce is not configured (>0), jump is disabled.
-    const jumpForce = behMov?.jumpForce !== undefined ? behMov.jumpForce : 0;
-    const canJump = jumpForce > 0;
+    // 4. Jump & Air Jumps — Strictly from behavior/movement/rules. If not configured, disabled.
+    const rawJumpForce = testCharacter?.movement?.jumpForce ?? linkedBehavior?.movement?.jumpForce;
+    const jumpForce = (rawJumpForce !== undefined && rawJumpForce > 0) ? rawJumpForce : (hasRuleJump ? 12 : 0);
+    const canJump = jumpForce > 0 || (testCharacter as any)?.canJump === true;
     const maxAirJumps = heroInp?.maxAirJumps ?? 0;
     const totalJumps = canJump ? (1 + maxAirJumps) : 0;
 
-    // 5. Dash — Strictly from behavior hero input or charge_dash movement type
-    const hasDash = !!(heroInp?.dashCooldownMs !== undefined || behMov?.movementType === 'charge_dash');
+    // 5. Dash — Strictly from behavior hero input, charge_dash movement type, or dash rules
+    const hasDash = !!(
+      heroInp?.dashCooldownMs !== undefined || 
+      behMov?.movementType === 'charge_dash' || 
+      (testCharacter as any)?.hasDash === true ||
+      allRules.some(r => r.actions?.some(a => a.actionType === 'hero_impulse' && a.impulseType === 'dash'))
+    );
     const allowAirDash = !!(heroInp?.allowAirDash);
     const dashCooldownFrames = heroInp?.dashCooldownMs ? Math.round(heroInp.dashCooldownMs / 16.66) : 36;
     const dashSpeed = (heroInp?.dashSpeedMultiplier ?? 2.2) * (baseSpeed > 0 ? baseSpeed * 1.5 : 8);
     const dashDurationFrames = heroInp?.dashIFrameMs ? Math.max(4, Math.round(heroInp.dashIFrameMs / 25)) : 8;
 
     // 6. Wall Cling & Wall Jump — Strictly from behavior hero input / wall_clinger movement type
-    const hasWallCling = !!((heroInp?.wallClingFriction !== undefined && heroInp.wallClingFriction > 0) || behMov?.movementType === 'wall_clinger');
+    const hasWallCling = !!(
+      (heroInp?.wallClingFriction !== undefined && heroInp.wallClingFriction > 0) || 
+      behMov?.movementType === 'wall_clinger' ||
+      (testCharacter as any)?.hasWallCling === true
+    );
     const wallFriction = heroInp?.wallClingFriction ?? 0.6;
-    const wallJumpForceX = heroInp?.wallJumpForceX ?? (baseSpeed * 1.8);
+    const wallJumpForceX = heroInp?.wallJumpForceX ?? (baseSpeed > 0 ? baseSpeed * 1.8 : 6);
     const wallJumpForceY = heroInp?.wallJumpForceY ?? (jumpForce > 0 ? jumpForce * 0.95 : 0);
 
     // 7. Combat Attacks — Driven by character hitboxes/animations and behavior attack rules/actions/skills
     const hasAttack = !!(
       testCharacter?.polygons?.some(poly => poly.type === 'hitbox') ||
       testCharacter?.animations?.some(anim => anim.stateId === 'attack') ||
-      linkedBehavior?.rules?.some(r => r.actions.some(a => a.actionType === 'attack')) ||
-      linkedBehavior?.skills?.some(s => s.actionType === 'primary_attack')
+      allRules.some(r => r.actions?.some(a => a.actionType === 'attack')) ||
+      linkedBehavior?.skills?.some(s => s.actionType === 'primary_attack') ||
+      (testCharacter as any)?.hasAttack === true
     );
 
     // 8. Special Skills — Driven by behavior projectile rules or behavior skills
     const hasSpecial = !!(
-      linkedBehavior?.rules?.some(r => r.actions.some(a => a.attackType === 'fire_projectile' || a.actionType === 'hero_impulse')) ||
-      linkedBehavior?.skills?.some(s => s.actionType === 'special_ability')
+      allRules.some(r => r.actions?.some(a => a.attackType === 'fire_projectile' || (a.actionType === 'hero_impulse' && a.impulseType !== 'jump' && a.impulseType !== 'dash'))) ||
+      linkedBehavior?.skills?.some(s => s.actionType === 'special_ability') ||
+      (testCharacter as any)?.hasSpecial === true
     );
 
     return {
@@ -1199,6 +1240,29 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               return false;
             case 'state':
               return p.activeBehaviorState === trig.stateId || trig.stateId === 'any';
+            case 'input_press': {
+              const k = trig.key;
+              if (!k) return false;
+              if (keys[k]) return true;
+              if (keys[`Key${k.toUpperCase()}`]) return true;
+              if (k === 'Space' || k === 'space' || k === 'jump') return !!(keys['Space'] || keys['KeyW'] || keys['ArrowUp']);
+              if (k === 'move_left' || k === 'left' || k === 'a' || k === 'KeyA') return !!(keys['KeyA'] || keys['ArrowLeft']);
+              if (k === 'move_right' || k === 'right' || k === 'd' || k === 'KeyD') return !!(keys['KeyD'] || keys['ArrowRight']);
+              if (k === 'dash') return !!(keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyC']);
+              if (k === 'attack') return !!(keys['KeyJ'] || keys['KeyZ']);
+              if (k === 'special') return !!(keys['KeyK'] || keys['KeyX']);
+              return false;
+            }
+            case 'mapped_input': {
+              const inp = trig.inputId;
+              if (inp === 'jump') return !!(keys['Space'] || keys['KeyW'] || keys['ArrowUp']);
+              if (inp === 'move_left') return !!(keys['KeyA'] || keys['ArrowLeft']);
+              if (inp === 'move_right') return !!(keys['KeyD'] || keys['ArrowRight']);
+              if (inp === 'dash') return !!(keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyC']);
+              if (inp === 'attack') return !!(keys['KeyJ'] || keys['KeyZ']);
+              if (inp === 'special') return !!(keys['KeyK'] || keys['KeyX']);
+              return false;
+            }
             case 'keyboard_key':
               return !!keys[trig.key] || !!keys[`Key${trig.key?.toUpperCase()}`];
             case 'collision':
@@ -1809,14 +1873,18 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const capOx = charConfig.offsetX;
       const capOy = charConfig.offsetY;
 
-      // Character Editor defines (0,0) as the center of the sprite cell (tileW/2, tileH/2)
-      // On the map, ground contact is at spawnY, so the sprite center is at (spawnX, spawnY - spriteTileH / 2)
+      // In Character Studio, the capsule center is at (capOx, capOy) relative to sprite center (0,0).
+      // On the map, the bottom of the capsule rests on the ground at spawnY (or p.y).
+      // Therefore, the capsule center is at (spawnX, spawnY - capH / 2).
+      // And the sprite center is at (spawnX - capOx, spawnY - (capOy + capH / 2)).
       const spriteTileH = spriteInfo?.tileH || testCharacter?.spriteHeight || 64;
       const spriteTileW = spriteInfo?.tileW || testCharacter?.spriteWidth || 64;
-      const charCenterY = spawnY - spriteTileH / 2;
+      const spriteCenterX = spawnX - capOx;
+      const spriteCenterY = spawnY - (capOy + capH / 2);
+      const capsuleCenterY = spawnY - capH / 2;
 
       ctx.save();
-      ctx.translate(spawnX + capOx, charCenterY + capOy);
+      ctx.translate(spawnX, capsuleCenterY);
       ctx.strokeStyle = `${charColor}ee`;
       ctx.fillStyle = `${charColor}22`;
       ctx.setLineDash([3 / scale, 3 / scale]);
@@ -1840,7 +1908,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         const srcY = row * tileH;
 
         ctx.save();
-        ctx.translate(spawnX, spawnY - tileH / 2);
+        ctx.translate(spriteCenterX, spriteCenterY);
         if (facing === 'left') {
           ctx.scale(-1, 1);
         }
@@ -1855,7 +1923,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         // Fallback Capsule Silhouette aligned with sprite center
         ctx.fillStyle = charColor;
         ctx.beginPath();
-        ctx.roundRect(spawnX - 10, charCenterY - 14, 20, 28, 6);
+        ctx.roundRect(spriteCenterX - 10, spriteCenterY - 14, 20, 28, 6);
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1 / scale;
@@ -1864,7 +1932,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(testCharacter?.avatarIcon || '🛡️', spawnX, charCenterY);
+        ctx.fillText(testCharacter?.avatarIcon || '🛡️', spriteCenterX, spriteCenterY);
       }
 
       // 5. Facing Arrow
@@ -1899,6 +1967,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       if (activeTool === 'spawn_place' && hoverTile) {
         const hX = hoverTile.x * TILE_SIZE + TILE_SIZE / 2;
         const hY = hoverTile.y * TILE_SIZE + TILE_SIZE;
+        const hSpriteCenterX = hX - capOx;
+        const hSpriteCenterY = hY - (capOy + capH / 2);
 
         ctx.save();
         ctx.globalAlpha = 0.75;
@@ -1919,7 +1989,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           const srcY = row * tileH;
 
           ctx.save();
-          ctx.translate(hX, hY - tileH / 2);
+          ctx.translate(hSpriteCenterX, hSpriteCenterY);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(
             img,
@@ -1930,14 +2000,14 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         } else {
           ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
           ctx.beginPath();
-          ctx.roundRect(hX - 7, hY - 28, 14, 26, 6);
+          ctx.roundRect(hSpriteCenterX - 10, hSpriteCenterY - 14, 20, 28, 6);
           ctx.fill();
           ctx.stroke();
 
           ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(testCharacter?.avatarIcon || '📍', hX, hY - 14);
+          ctx.fillText(testCharacter?.avatarIcon || '📍', hSpriteCenterX, hSpriteCenterY);
         }
 
         const placeLabel = `CLICK TO PLACE SPAWN • ${testCharacter?.name || 'Player'}`;
@@ -1995,10 +2065,15 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       // 4. Animated Character Body (with Squash & Stretch and Real Spritesheet Frame)
       const spriteTileH = spriteInfo?.tileH || testCharacter?.spriteHeight || 64;
       const spriteTileW = spriteInfo?.tileW || testCharacter?.spriteWidth || 64;
+      const capOx = charConfig.offsetX;
+      const capOy = charConfig.offsetY;
+      const capH = charConfig.height;
+      const pSpriteCenterX = p.x - capOx;
+      const pSpriteCenterY = p.y - (capOy + capH / 2);
 
       ctx.save();
       // Translate to character sprite center
-      ctx.translate(p.x, p.y - spriteTileH / 2);
+      ctx.translate(pSpriteCenterX, pSpriteCenterY);
 
       // Run animation bounce / tilt
       const runBounce = p.isWalking && p.isGrounded ? Math.sin(p.animTime * 10) * 1.5 : 0;
@@ -2097,11 +2172,11 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       });
 
       // 6. Floating Name & Mini Health Pip
-      const nameText = testCharacter?.name || 'Player Hero';
+      const nameText = testCharacter?.name || 'Player Character';
       ctx.font = `bold ${Math.max(8 / scale, 7.5)}px monospace`;
       const nW = ctx.measureText(nameText).width;
       const nX = p.x - nW / 2 - 3 / scale;
-      const nY = p.y - 38 / scale;
+      const nY = p.y - (capH + 12 / scale);
 
       ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
       ctx.fillRect(nX, nY, nW + 6 / scale, 10 / scale);
@@ -2417,10 +2492,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             <div className="flex flex-col gap-1.5 min-w-[220px]">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-black text-white tracking-wide truncate max-w-[120px]">
-                  {testCharacter?.name || 'Player Hero'}
+                  {testCharacter?.name || 'Player Character'}
                 </span>
                 <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-neutral-900 border border-neutral-700 text-cyan-300 font-bold shrink-0">
-                  {testCharacter?.characterType?.replace('_', ' ') || 'Hero'}
+                  {testCharacter?.characterType?.replace('_', ' ') || 'Character'}
                 </span>
               </div>
 
@@ -2561,6 +2636,15 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
                 <>
                   <span className="font-medium">
                     <strong className="text-white font-mono">K / R-Click</strong> Skill
+                  </span>
+                  <span className="text-neutral-600">•</span>
+                </>
+              )}
+
+              {charConfig.baseSpeed === 0 && !charConfig.canJump && !charConfig.hasDash && !charConfig.hasAttack && !charConfig.hasSpecial && (
+                <>
+                  <span className="text-amber-400 font-medium flex items-center gap-1">
+                    <span>⚠️</span> No movement or jump configured for this character
                   </span>
                   <span className="text-neutral-600">•</span>
                 </>

@@ -28,6 +28,17 @@ export interface PlayerSpawnPoint {
   isDefault: boolean;
 }
 
+export interface MapParticleEmitter {
+  id: string;
+  particleSystemId: string;
+  x: number; // tile coordinate x
+  y: number; // tile coordinate y
+  name?: string;
+  enabled?: boolean;
+  scale?: number;
+  tintOverride?: string;
+}
+
 export interface MapFile {
   id: string;
   name: string;
@@ -42,6 +53,7 @@ export interface MapFile {
   ambientLightOverride?: string;
   playerSpawns: PlayerSpawnPoint[];
   exits: MapExit[];
+  particleEmitters?: MapParticleEmitter[];
   cells?: RefinedCellState[][];
   chunks?: Record<string, RefinedCellState[]>;
   data?: any;
@@ -221,7 +233,20 @@ export type BehaviorTrigger =
   | SolidDetectionTrigger
   | PhysicsStateTrigger;
 
-export type ActionType = 'none' | 'move' | 'attack' | 'state_change' | 'emit_signal' | 'animation' | 'camera' | 'hero_impulse' | 'variable_modify' | 'set_gravity' | 'audio' | 'dialogue';
+export type ActionType = 
+  | 'none' 
+  | 'move' 
+  | 'attack' 
+  | 'state_change' 
+  | 'emit_signal' 
+  | 'animation' 
+  | 'camera' 
+  | 'hero_impulse' 
+  | 'variable_modify' 
+  | 'set_gravity' 
+  | 'audio' 
+  | 'dialogue'
+  | 'spawn_particles';
 
 export interface BehaviorAction {
   id: string;
@@ -258,6 +283,14 @@ export interface BehaviorAction {
   volume?: number;
   dialogueText?: string;
   speakerName?: string;
+  // Particle Systems Spawning
+  particleSystemId?: string;
+  particleCount?: number;
+  particleSpawnLocation?: 'self' | 'target' | 'ground' | 'socket' | 'custom_offset';
+  particleSocketId?: string;
+  particleOffsetX?: number;
+  particleOffsetY?: number;
+  delayMs?: number; // Delay in milliseconds before executing this action
 }
 
 export interface BehaviorRule {
@@ -267,6 +300,8 @@ export interface BehaviorRule {
   trigger: BehaviorTrigger;
   triggers?: BehaviorTrigger[];
   triggerLogic?: 'AND' | 'OR';
+  executionMode?: 'simultaneous' | 'sequential'; // 'simultaneous' (default: all at once) or 'sequential' (in order)
+  stepDelayMs?: number; // Delay in milliseconds between consecutive actions when in sequential mode
   actions: BehaviorAction[];
 }
 
@@ -969,9 +1004,183 @@ export interface GameStructureFile {
 }
 
 // ==========================================
+// 5.5 PARTICLE SYSTEMS (.particle)
+// ==========================================
+export type ParticleEmitterShape = 'point' | 'box' | 'circle' | 'cone' | 'line' | 'ring';
+export type ParticleShape = 'glow_circle' | 'spark_line' | 'ember' | 'smoke_puff' | 'star' | 'diamond' | 'ring' | 'square' | 'pixel_square' | 'bubble' | 'custom_glyph' | 'svg_path' | 'spritesheet';
+export type ParticleBlendMode = 'source-over' | 'lighter' | 'screen' | 'multiply';
+export type ParticleCurveMode = 'balanced' | 'linear' | 'quick_in_long_out' | 'long_in_quick_out' | 'bell_arch' | 'burst_decay' | 'constant' | 'grow' | 'shrink' | 'bell' | 'burst_shrink';
+export type ParticleSizeCurve = ParticleCurveMode;
+export type ParticleFxStyle = 'default' | 'pulse_oscillate' | 'flicker_shimmer' | 'orbit_swirl' | 'spark_crackle';
+export type ParticleEmissiveMode = 'glow_only' | 'light_up_area';
+export type ParticleAnimStyle = 'one_shot' | 'oscillate' | 'repeat';
+
+export interface ParticleEmitterConfig {
+  shape: ParticleEmitterShape;
+  width: number;       // For box / line (px)
+  height: number;      // For box (px)
+  radius: number;      // For circle / ring / cone (px)
+  emissionRate: number;// particles per second (e.g. 20-200)
+  emissionRateMin?: number;
+  emissionRateMax?: number;
+  maxParticles: number;// e.g. 50-1000
+  duration: number;    // emitter lifetime in seconds (0 = infinite / looping)
+  loop: boolean;
+  burstCount: number;  // Particles spawned on burst trigger
+  burstCountMin?: number;
+  burstCountMax?: number;
+  burstInterval: number; // Seconds between periodic bursts (0 = disabled)
+  burstIntervalMin?: number;
+  burstIntervalMax?: number;
+  isContinuous: boolean; // Continuous stream vs trigger-only
+  burstEnabled?: boolean;
+}
+
+export interface ParticleKinematicsConfig {
+  minSpeed: number;
+  maxSpeed: number;
+  angleDeg: number;       // 0 to 360 (0 = right, 90 = down, 180 = left, 270 = up)
+  spreadDeg: number;      // 0 to 360
+  gravityScale?: number;  // Standardized Gravity Scale matching Biomes & Characters (1.0 = Standard 1.0G Earth Gravity, 0.0 = Zero-G, -0.05 = Thermal Buoyancy)
+  gravityScaleX?: number; // Optional horizontal gravity/drift scale (-1.0 to 1.0G)
+  gravityX: number;       // legacy/computed acceleration X (px/s^2)
+  gravityY: number;       // legacy/computed acceleration Y (px/s^2, positive = down)
+  windSensitivity?: number; // 0.0 to 2.0 (Sensitivity to Biome Environmental Wind, 1.0 = 100%)
+  drag: number;           // air resistance 0.0 to 1.0 (e.g. 0.98)
+  startDrag?: number;     // 3-keyframe air drag setup (e.g. 0.98)
+  startDragMax?: number;  // Optional max range for random start drag
+  midDrag?: number;       // Optional 50% keyframe air drag
+  midDragMax?: number;    // Optional max range for random mid drag
+  endDrag?: number;       // 3-keyframe end air drag
+  endDragMax?: number;    // Optional max range for random end drag
+  dragCurve?: ParticleCurveMode; // Drag lifecycle curve
+  windForce: number;      // legacy horizontal wind drift
+  turbulenceJitter: number;// random velocity noise jitter
+  minAngularVelocity: number; // deg/s
+  maxAngularVelocity: number; // deg/s
+  angularDrag: number;
+}
+
+export interface ParticleVisualsConfig {
+  shape: ParticleShape;
+  customGlyph?: string;   // Single character / emoji / icon symbol (e.g. ✦, ❄, 💧, ⚔️, 💀)
+  customSvgPath?: string; // Custom vector SVG Path d="..." string
+  minLifetime: number;    // seconds (e.g. 0.5)
+  maxLifetime: number;    // seconds (e.g. 1.8)
+  startSize: number;      // px
+  startSizeMax?: number;   // Optional max range for random start size (px)
+  midSize?: number;       // Optional mid lifecycle particle size (px)
+  midSizeMax?: number;    // Optional max range for random mid size (px)
+  endSize: number;        // px
+  endSizeMax?: number;     // Optional max range for random end size (px)
+  sizeCurve: ParticleSizeCurve;
+  alphaCurve?: ParticleCurveMode;
+  startColor: string;     // Hex color e.g. #f59e0b
+  startAlpha: number;     // 0.0 to 1.0
+  startAlphaMax?: number; // Optional max range for random start alpha
+  midColor?: string;      // Optional mid gradient color
+  midAlpha?: number;
+  midAlphaMax?: number;   // Optional max range for random mid alpha
+  endColor: string;       // Hex color e.g. #ef4444
+  endAlpha: number;       // 0.0 to 1.0
+  endAlphaMax?: number;   // Optional max range for random end alpha
+  blendMode: ParticleBlendMode; // 'lighter' = Additive glow, 'source-over' = Standard
+  glowBlurRadius: number; // px blur / bloom (0 = crisp, 4-20 = glowing)
+  fxStyle?: ParticleFxStyle; // Behavioral modulation style preset
+  isEmissive?: boolean; // Toggles emissive light casting & glow
+  emissiveMode?: ParticleEmissiveMode; // 'glow_only' vs 'light_up_area'
+  emissiveStartColor?: string;
+  emissiveStartStrength?: number; // 0 to 100 / radius px
+  emissiveStartStrengthMax?: number;
+  emissiveMidColor?: string;
+  emissiveMidStrength?: number;
+  emissiveMidStrengthMax?: number;
+  emissiveEndColor?: string;
+  emissiveEndStrength?: number;
+  emissiveEndStrengthMax?: number;
+  emissiveCurve?: ParticleCurveMode;
+  startRotationDeg?: number; // Start lifecycle orientation angle (deg)
+  startRotationDegMax?: number;
+  midRotationDeg?: number; // Optional 50% keyframe orientation angle (deg)
+  midRotationDegMax?: number;
+  endRotationDeg?: number; // End lifecycle orientation angle (deg)
+  endRotationDegMax?: number;
+  rotationCurve?: ParticleCurveMode;
+  sizeAnimStyle?: ParticleAnimStyle;
+  colorAnimStyle?: ParticleAnimStyle;
+  emissiveAnimStyle?: ParticleAnimStyle;
+  rotationAnimStyle?: ParticleAnimStyle;
+  animateSize?: boolean;
+  animateColor?: boolean;
+  animateAlpha?: boolean;
+  animateEmissive?: boolean;
+  animateRotation?: boolean;
+  renderResolutionScale?: number; // 0.25, 0.35, 0.5, 0.75, 1.0 (Offscreen buffer resolution scale for speed)
+  metaballThreshold?: number; // 20 to 180 (Gooiness connection reach cutoff)
+  metaballRimThickness?: number; // 0 to 50 (Surface tension contour rim)
+  metaballResolutionScale?: number; // 0.25, 0.35, 0.5 (Offscreen buffer resolution scale)
+  spritesheet?: ParticleSpritesheetConfig;
+  frameAnimStyle?: 'loop' | 'keyframe';
+  startFrameIndex?: number;
+  midFrameIndex?: number;
+  endFrameIndex?: number;
+  frameRateFps?: number;
+  frameLoop?: boolean;
+  trackNodes?: Record<string, any>;
+  trackRepeats?: Record<string, number>;
+}
+
+export interface ParticleSpritesheetConfig {
+  id: string;
+  name: string;
+  imageUrl?: string;
+  dataUrl?: string;
+  tileWidth: number;
+  tileHeight: number;
+  cols: number;
+  rows: number;
+  totalFrames?: number;
+  splitMode?: 'columns' | 'pixels';
+}
+
+export interface ParticlePhysicsConfig {
+  collideWithMapSolids: boolean; // Bounce / destroy on floor & walls
+  collisionRestitution: number;  // Bounciness / Elasticity 0.0 to 1.0 (e.g. 0.5, 0.0 = sticky)
+  maxBounces?: number;           // Max allowed bounces before sticking (undefined or 0 = unlimited)
+  destroyOnCollision: boolean;
+  spawnCollisionSparks: boolean;
+  collisionShape?: 'circle' | 'box' | 'triangle' | 'hexagon' | 'diamond' | 'custom_polygon';
+  collisionOffset?: { x: number; y: number }; // Offset position (px) relative to particle center
+  collisionScale?: number; // Scale factor for physics size vs visual particle size (0.1 to 3.0)
+  customPolygon?: Array<{ x: number; y: number }>; // Normalized 2D polygon vertices relative to center
+}
+
+export interface ParticleSystemData {
+  id: string;
+  name: string;
+  category: 'environmental' | 'combat' | 'magic' | 'weather' | 'ui_effects' | 'custom';
+  description: string;
+  icon: string;
+  tintColor: string;
+  emitter: ParticleEmitterConfig;
+  kinematics: ParticleKinematicsConfig;
+  visuals: ParticleVisualsConfig;
+  physics: ParticlePhysicsConfig;
+}
+
+export interface ParticleSystemFile {
+  id: string;
+  name: string;
+  fileName: string; // e.g. "torch_flame.particle"
+  createdAt: string;
+  updatedAt: string;
+  particleData: ParticleSystemData;
+}
+
+// ==========================================
 // 6. MASON MASTER PROJECT CONTAINER
 // ==========================================
-export type MasonModuleId = 'maps' | 'biomes' | 'characters' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer';
+export type MasonModuleId = 'maps' | 'biomes' | 'characters' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles';
 
 export interface MasonFileSystem {
   maps: MapFile[];
@@ -980,6 +1189,7 @@ export interface MasonFileSystem {
   ui: UIThemeFile[];
   game: GameStructureFile[];
   behaviors: BehaviorFile[];
+  particles?: ParticleSystemFile[];
 }
 
 export interface MasonProject {
@@ -1001,6 +1211,7 @@ export interface MasonProject {
     uiFileName: string;
     gameStructureFileName: string;
     behaviorFileName?: string;
+    particleFileName?: string;
   };
   
   fileSystem: MasonFileSystem;
@@ -3056,6 +3267,753 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
   }
 ];
 
+export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
+  {
+    id: 'particles_fire_embers',
+    name: 'Infernal Campfire & Embers',
+    category: 'environmental',
+    description: 'Vibrant rising fiery sparks and molten embers with soft heat turbulence and atmospheric orange glow.',
+    icon: '🔥',
+    tintColor: '#f97316',
+    emitter: {
+      shape: 'box',
+      width: 48,
+      height: 8,
+      radius: 24,
+      emissionRate: 45,
+      maxParticles: 200,
+      duration: 0,
+      loop: true,
+      burstCount: 15,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.3,
+      maxSpeed: 0.85,
+      angleDeg: 270,
+      spreadDeg: 40,
+      gravityX: 4,
+      gravityY: -25,
+      drag: 0.985,
+      windForce: 6,
+      turbulenceJitter: 12,
+      minAngularVelocity: -90,
+      maxAngularVelocity: 90,
+      angularDrag: 0.99
+    },
+    visuals: {
+      shape: 'ember',
+      minLifetime: 0.8,
+      maxLifetime: 2.2,
+      startSize: 6,
+      endSize: 1.5,
+      sizeCurve: 'shrink',
+      startColor: '#fde047',
+      startAlpha: 1.0,
+      midColor: '#f97316',
+      midAlpha: 0.85,
+      endColor: '#dc2626',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 10
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.3,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_torch_flame',
+    name: 'Torch Sconce Flame',
+    category: 'environmental',
+    description: 'Compact rising flame core with flickering yellow/orange sparks for dungeon wall braziers and torches.',
+    icon: '🕯️',
+    tintColor: '#eab308',
+    emitter: {
+      shape: 'point',
+      width: 8,
+      height: 8,
+      radius: 10,
+      emissionRate: 60,
+      maxParticles: 150,
+      duration: 0,
+      loop: true,
+      burstCount: 10,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.2,
+      maxSpeed: 0.6,
+      angleDeg: 270,
+      spreadDeg: 25,
+      gravityX: 0,
+      gravityY: -45,
+      drag: 0.97,
+      windForce: 2,
+      turbulenceJitter: 8,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'glow_circle',
+      minLifetime: 0.4,
+      maxLifetime: 1.0,
+      startSize: 12,
+      endSize: 3,
+      sizeCurve: 'shrink',
+      startColor: '#fef08a',
+      startAlpha: 0.95,
+      midColor: '#f97316',
+      midAlpha: 0.8,
+      endColor: '#b91c1c',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 14
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.2,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_magic_sparkles',
+    name: 'Arcane Celestial Sparkles',
+    category: 'magic',
+    description: 'Mystical glittering arcane stars floating outwards with ethereal purple, magenta, and cyan hues.',
+    icon: '✨',
+    tintColor: '#c084fc',
+    emitter: {
+      shape: 'circle',
+      width: 32,
+      height: 32,
+      radius: 20,
+      emissionRate: 35,
+      maxParticles: 180,
+      duration: 0,
+      loop: true,
+      burstCount: 25,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.15,
+      maxSpeed: 0.55,
+      angleDeg: 0,
+      spreadDeg: 360,
+      gravityX: 0,
+      gravityY: -8,
+      drag: 0.96,
+      windForce: 0,
+      turbulenceJitter: 14,
+      minAngularVelocity: -120,
+      maxAngularVelocity: 120,
+      angularDrag: 0.98
+    },
+    visuals: {
+      shape: 'star',
+      customGlyph: '✦',
+      minLifetime: 0.9,
+      maxLifetime: 2.0,
+      startSize: 9,
+      endSize: 2,
+      sizeCurve: 'bell',
+      startColor: '#e879f9',
+      startAlpha: 0.95,
+      midColor: '#a855f7',
+      midAlpha: 0.9,
+      endColor: '#38bdf8',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 12
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.5,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_soul_motes',
+    name: 'Ethereal Spirit Motes',
+    category: 'magic',
+    description: 'Haunting turquoise spirits and glowing soul orbs lazily drifting in ancient crypts and sanctums.',
+    icon: '👻',
+    tintColor: '#2dd4bf',
+    emitter: {
+      shape: 'box',
+      width: 120,
+      height: 40,
+      radius: 30,
+      emissionRate: 20,
+      maxParticles: 100,
+      duration: 0,
+      loop: true,
+      burstCount: 8,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.1,
+      maxSpeed: 0.3,
+      angleDeg: 270,
+      spreadDeg: 70,
+      gravityX: 0,
+      gravityY: -12,
+      drag: 0.99,
+      windForce: 4,
+      turbulenceJitter: 18,
+      minAngularVelocity: -40,
+      maxAngularVelocity: 40,
+      angularDrag: 0.99
+    },
+    visuals: {
+      shape: 'glow_circle',
+      minLifetime: 1.5,
+      maxLifetime: 3.5,
+      startSize: 8,
+      endSize: 14,
+      sizeCurve: 'bell',
+      startColor: '#a7f3d0',
+      startAlpha: 0.0,
+      midColor: '#2dd4bf',
+      midAlpha: 0.85,
+      endColor: '#0284c7',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 16
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.3,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_toxic_spores',
+    name: 'Bioluminescent Spores',
+    category: 'environmental',
+    description: 'Floating fungal spores and toxic haze particles wafting gently from overgrown flora.',
+    icon: '🍄',
+    tintColor: '#22c55e',
+    emitter: {
+      shape: 'box',
+      width: 160,
+      height: 30,
+      radius: 40,
+      emissionRate: 25,
+      maxParticles: 120,
+      duration: 0,
+      loop: true,
+      burstCount: 12,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.08,
+      maxSpeed: 0.25,
+      angleDeg: 270,
+      spreadDeg: 90,
+      gravityX: 2,
+      gravityY: -6,
+      drag: 0.99,
+      windForce: 5,
+      turbulenceJitter: 15,
+      minAngularVelocity: -30,
+      maxAngularVelocity: 30,
+      angularDrag: 0.99
+    },
+    visuals: {
+      shape: 'smoke_puff',
+      minLifetime: 1.8,
+      maxLifetime: 4.0,
+      startSize: 7,
+      endSize: 16,
+      sizeCurve: 'bell',
+      startColor: '#86efac',
+      startAlpha: 0.7,
+      midColor: '#22c55e',
+      midAlpha: 0.6,
+      endColor: '#14532d',
+      endAlpha: 0.0,
+      blendMode: 'source-over',
+      glowBlurRadius: 8
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.2,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_rain_storm',
+    name: 'Heavy Downpour & Splashes',
+    category: 'weather',
+    description: 'High-speed vertical rain streaks with ground collision impacts and water droplet splashes.',
+    icon: '🌧️',
+    tintColor: '#38bdf8',
+    emitter: {
+      shape: 'box',
+      width: 400,
+      height: 10,
+      radius: 100,
+      emissionRate: 140,
+      maxParticles: 400,
+      duration: 0,
+      loop: true,
+      burstCount: 40,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 2.6,
+      maxSpeed: 3.8,
+      angleDeg: 85,
+      spreadDeg: 6,
+      gravityX: 15,
+      gravityY: 150,
+      drag: 0.995,
+      windForce: 20,
+      turbulenceJitter: 4,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'spark_line',
+      minLifetime: 0.6,
+      maxLifetime: 1.2,
+      startSize: 3,
+      endSize: 2,
+      sizeCurve: 'constant',
+      startColor: '#e0f2fe',
+      startAlpha: 0.8,
+      midColor: '#7dd3fc',
+      midAlpha: 0.6,
+      endColor: '#0284c7',
+      endAlpha: 0.2,
+      blendMode: 'lighter',
+      glowBlurRadius: 4
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.4,
+      destroyOnCollision: true,
+      spawnCollisionSparks: true
+    }
+  },
+  {
+    id: 'particles_snow_blizzard',
+    name: 'Glacial Blizzard Flurries',
+    category: 'weather',
+    description: 'Swirling crystalline snowflakes and frost particles drifting softly across cold mountain peaks.',
+    icon: '❄️',
+    tintColor: '#bae6fd',
+    emitter: {
+      shape: 'box',
+      width: 400,
+      height: 10,
+      radius: 100,
+      emissionRate: 50,
+      maxParticles: 250,
+      duration: 0,
+      loop: true,
+      burstCount: 20,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.25,
+      maxSpeed: 0.65,
+      angleDeg: 110,
+      spreadDeg: 35,
+      gravityX: -30,
+      gravityY: 35,
+      drag: 0.98,
+      windForce: -25,
+      turbulenceJitter: 22,
+      minAngularVelocity: -80,
+      maxAngularVelocity: 80,
+      angularDrag: 0.98
+    },
+    visuals: {
+      shape: 'glow_circle',
+      customGlyph: '❄',
+      minLifetime: 2.0,
+      maxLifetime: 4.5,
+      startSize: 5,
+      endSize: 3,
+      sizeCurve: 'shrink',
+      startColor: '#ffffff',
+      startAlpha: 0.9,
+      midColor: '#e0f2fe',
+      midAlpha: 0.75,
+      endColor: '#7dd3fc',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 6
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.1,
+      destroyOnCollision: true,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_waterfall_mist',
+    name: 'Waterfall Foam & Mist',
+    category: 'environmental',
+    description: 'Rapid downward water cascade bursting into soft rising spray and mist foam on water basins.',
+    icon: '🌊',
+    tintColor: '#06b6d4',
+    emitter: {
+      shape: 'line',
+      width: 64,
+      height: 4,
+      radius: 20,
+      emissionRate: 90,
+      maxParticles: 300,
+      duration: 0,
+      loop: true,
+      burstCount: 25,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 1.4,
+      maxSpeed: 2.2,
+      angleDeg: 90,
+      spreadDeg: 15,
+      gravityX: 0,
+      gravityY: 180,
+      drag: 0.99,
+      windForce: 2,
+      turbulenceJitter: 8,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'bubble',
+      minLifetime: 0.5,
+      maxLifetime: 1.4,
+      startSize: 5,
+      endSize: 12,
+      sizeCurve: 'grow',
+      startColor: '#ecfeff',
+      startAlpha: 0.9,
+      midColor: '#67e8f9',
+      midAlpha: 0.7,
+      endColor: '#0891b2',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 8
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.3,
+      destroyOnCollision: true,
+      spawnCollisionSparks: true
+    }
+  },
+  {
+    id: 'particles_void_portal',
+    name: 'Void Singularity Vortex',
+    category: 'magic',
+    description: 'Swirling dark magenta and purple vortex particles collapsing inward toward an interdimensional rift.',
+    icon: '🌀',
+    tintColor: '#d946ef',
+    emitter: {
+      shape: 'ring',
+      width: 48,
+      height: 48,
+      radius: 40,
+      emissionRate: 60,
+      maxParticles: 200,
+      duration: 0,
+      loop: true,
+      burstCount: 30,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.4,
+      maxSpeed: 0.9,
+      angleDeg: 0,
+      spreadDeg: 360,
+      gravityX: 0,
+      gravityY: 0,
+      drag: 0.97,
+      windForce: 0,
+      turbulenceJitter: 16,
+      minAngularVelocity: 180,
+      maxAngularVelocity: 360,
+      angularDrag: 0.99
+    },
+    visuals: {
+      shape: 'diamond',
+      minLifetime: 0.8,
+      maxLifetime: 1.8,
+      startSize: 10,
+      endSize: 1,
+      sizeCurve: 'shrink',
+      startColor: '#f472b6',
+      startAlpha: 1.0,
+      midColor: '#c026d3',
+      midAlpha: 0.9,
+      endColor: '#4c1d95',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 16
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.5,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_explosion_nova',
+    name: 'Shockwave Impact Blast',
+    category: 'combat',
+    description: 'Violent high-velocity radial detonation of sparks, fireball flash, and expanding smoke puff clouds.',
+    icon: '💥',
+    tintColor: '#ef4444',
+    emitter: {
+      shape: 'point',
+      width: 8,
+      height: 8,
+      radius: 12,
+      emissionRate: 0,
+      maxParticles: 250,
+      duration: 0.3,
+      loop: false,
+      burstCount: 80,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.8,
+      maxSpeed: 2.8,
+      angleDeg: 0,
+      spreadDeg: 360,
+      gravityX: 0,
+      gravityY: 60,
+      drag: 0.92,
+      windForce: 0,
+      turbulenceJitter: 20,
+      minAngularVelocity: -180,
+      maxAngularVelocity: 180,
+      angularDrag: 0.95
+    },
+    visuals: {
+      shape: 'spark_line',
+      minLifetime: 0.3,
+      maxLifetime: 1.0,
+      startSize: 14,
+      endSize: 2,
+      sizeCurve: 'burst_shrink',
+      startColor: '#fef08a',
+      startAlpha: 1.0,
+      midColor: '#f97316',
+      midAlpha: 0.85,
+      endColor: '#7f1d1d',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 18
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.6,
+      destroyOnCollision: false,
+      spawnCollisionSparks: true
+    }
+  },
+  {
+    id: 'particles_dash_smoke',
+    name: 'Dash & Jump Dust Puff',
+    category: 'combat',
+    description: 'Ground impact dust clouds and speed streak lines kicked up during rapid dashes and high jumps.',
+    icon: '💨',
+    tintColor: '#94a3b8',
+    emitter: {
+      shape: 'box',
+      width: 20,
+      height: 6,
+      radius: 12,
+      emissionRate: 0,
+      maxParticles: 80,
+      duration: 0.2,
+      loop: false,
+      burstCount: 20,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.2,
+      maxSpeed: 0.7,
+      angleDeg: 270,
+      spreadDeg: 120,
+      gravityX: 0,
+      gravityY: -5,
+      drag: 0.92,
+      windForce: 0,
+      turbulenceJitter: 10,
+      minAngularVelocity: -60,
+      maxAngularVelocity: 60,
+      angularDrag: 0.95
+    },
+    visuals: {
+      shape: 'smoke_puff',
+      minLifetime: 0.4,
+      maxLifetime: 0.8,
+      startSize: 6,
+      endSize: 18,
+      sizeCurve: 'grow',
+      startColor: '#e2e8f0',
+      startAlpha: 0.7,
+      midColor: '#94a3b8',
+      midAlpha: 0.4,
+      endColor: '#475569',
+      endAlpha: 0.0,
+      blendMode: 'source-over',
+      glowBlurRadius: 4
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.2,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_celestial_nova',
+    name: 'Celestial Radiance Nova',
+    category: 'magic',
+    description: 'Ascending golden light beams, holy radiance halos, and sparkling diamond stars for level-ups and relics.',
+    icon: '🌟',
+    tintColor: '#fbbf24',
+    emitter: {
+      shape: 'circle',
+      width: 32,
+      height: 32,
+      radius: 24,
+      emissionRate: 50,
+      maxParticles: 200,
+      duration: 0,
+      loop: true,
+      burstCount: 30,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.4,
+      maxSpeed: 1.1,
+      angleDeg: 270,
+      spreadDeg: 60,
+      gravityX: 0,
+      gravityY: -30,
+      drag: 0.97,
+      windForce: 0,
+      turbulenceJitter: 12,
+      minAngularVelocity: -90,
+      maxAngularVelocity: 90,
+      angularDrag: 0.98
+    },
+    visuals: {
+      shape: 'star',
+      customGlyph: '✦',
+      minLifetime: 0.8,
+      maxLifetime: 2.2,
+      startSize: 12,
+      endSize: 3,
+      sizeCurve: 'bell',
+      startColor: '#ffffff',
+      startAlpha: 1.0,
+      midColor: '#fde047',
+      midAlpha: 0.9,
+      endColor: '#d97706',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 16
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.3,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'particles_acid_goo',
+    name: 'Toxic Slime Dripper',
+    category: 'environmental',
+    description: 'Viscous, glowing liquid slime droplets dripping and bouncing with toxic green aura.',
+    icon: '🧪',
+    tintColor: '#22c55e',
+    emitter: {
+      shape: 'circle',
+      width: 32,
+      height: 32,
+      radius: 28,
+      emissionRate: 45,
+      maxParticles: 150,
+      duration: 0,
+      loop: true,
+      burstCount: 20,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.3,
+      maxSpeed: 0.85,
+      angleDeg: 90,
+      spreadDeg: 40,
+      gravityX: 0,
+      gravityY: 120,
+      drag: 0.98,
+      windForce: 0,
+      turbulenceJitter: 12,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'glow_circle',
+      minLifetime: 1.0,
+      maxLifetime: 2.5,
+      startSize: 18,
+      endSize: 28,
+      sizeCurve: 'bell',
+      startColor: '#86efac',
+      startAlpha: 0.9,
+      midColor: '#22c55e',
+      midAlpha: 0.85,
+      endColor: '#15803d',
+      endAlpha: 0.0,
+      blendMode: 'source-over',
+      glowBlurRadius: 18
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.5,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  }
+];
+
 export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey'): MasonProject => {
   // Biome files
   const biomes: BiomeFile[] = INITIAL_REFINED_BIOMES.map(b => ({
@@ -3114,10 +4072,20 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
     }
   ];
 
+  // Particle System files
+  const particles: ParticleSystemFile[] = DEFAULT_PARTICLE_SYSTEMS.map(p => ({
+    id: p.id,
+    name: p.name,
+    fileName: `${p.id.replace('particles_', '')}.particle`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    particleData: p
+  }));
+
   return {
     id: `proj_${Date.now()}`,
     name,
-    description: '2D Metroidvania world with modular maps, biomes, characters, behaviors, UI themes, and game structure framework.',
+    description: '2D Metroidvania world with modular maps, biomes, characters, behaviors, particles, UI themes, and game structure framework.',
     author: 'Mason Architect',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -3129,7 +4097,8 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
       characterFileName: 'korrath.character',
       uiFileName: 'classic_gothic_hud.ui',
       gameStructureFileName: 'main_campaign.gamestructure',
-      behaviorFileName: 'ashen_hunter.behavior'
+      behaviorFileName: 'ashen_hunter.behavior',
+      particleFileName: 'fire_embers.particle'
     },
     fileSystem: {
       maps: [map1, map2, map3],
@@ -3137,7 +4106,8 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
       characters,
       ui: uiThemes,
       game: gameStructures,
-      behaviors
+      behaviors,
+      particles
     }
   };
 };

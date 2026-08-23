@@ -387,7 +387,8 @@ export type BiomeActionType =
   | 'environmental_effect'
   | 'audio_cue'
   | 'unlock_progression_flag'
-  | 'broadcast_interbiome_signal';
+  | 'broadcast_interbiome_signal'
+  | 'spawn_particles';
 
 export interface BiomeBehaviorAction {
   id: string;
@@ -420,6 +421,10 @@ export interface BiomeBehaviorAction {
   // broadcast_interbiome_signal
   signalName?: string;
   signalPayload?: string;
+  // spawn_particles
+  particleSystemId?: string;
+  particleCount?: number;
+  delayMs?: number;
 }
 
 export interface BiomeBehaviorRule {
@@ -429,6 +434,8 @@ export interface BiomeBehaviorRule {
   scope: 'local_biome' | 'global_interbiome'; // interbiome rule
   description?: string;
   trigger: BiomeBehaviorTrigger;
+  executionMode?: 'simultaneous' | 'sequential'; // 'simultaneous' (default: all at once) or 'sequential' (in order)
+  stepDelayMs?: number; // Delay between sequential steps (ms)
   actions: BiomeBehaviorAction[];
 }
 

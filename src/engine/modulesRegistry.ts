@@ -5,12 +5,12 @@ export interface MasonModuleDefinition {
   id: string;
   name: string;
   tagline: string;
-  category: 'World & Levels' | 'Biomes & Environment' | 'Actors & Combat' | 'Interface & HUD' | 'Game Architecture' | 'Generative Tools';
+  category: 'World & Levels' | 'Biomes & Environment' | 'Actors & Combat' | 'Interface & HUD' | 'Game Architecture' | 'Generative Tools' | 'VFX & Particles';
   subfolder: string; // e.g. "modules/maps"
   entryHtml: string; // e.g. "/modules/maps/index.html"
   associatedFolder: string; // e.g. "maps"
   associatedExtension: string; // e.g. ".map"
-  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard';
+  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard' | 'Sparkles';
   accentColor: string; // cyan, emerald, purple, amber, blue, etc.
   description: string;
   features: string[];
@@ -77,6 +77,27 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Base Attributes & Variables: Manage stats, proficiencies, and custom variables with auto-generated IDs',
       'Bespoke IFTTT Rule Engine: Author sensory sight, sound hearing, proximity, player input, and camera tracking rules',
       'Rule Inheritance & Cloning: 1-click duplicate character or copy behavior rules from another character'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
+    id: 'particles',
+    name: 'Particles',
+    tagline: 'Physics-based GPU particle systems, fire, sparks, weather, magic & map emitter placement',
+    category: 'VFX & Particles',
+    subfolder: 'modules/particles',
+    entryHtml: '/modules/particles/index.html',
+    associatedFolder: 'particles',
+    associatedExtension: '.particle',
+    iconName: 'Sparkles',
+    accentColor: 'amber',
+    description: 'Author stunning 2D particle systems: torches, embers, magic sparkles, rain, snow, toxic spores, and explosions. Place ambient emitters in the Map Editor or spawn FX dynamically via Behavior Rules and character sockets.',
+    features: [
+      'Interactive 60fps Real-Time Physics Preview with live cursor burst & drag emitter',
+      'Kinematics: Velocity, spread angle dial, gravity X/Y, drag, wind drift & turbulence jitter',
+      'Visuals: 10 shapes (embers, sparkles, smoke puffs, stars, glyphs), size curves & color gradients',
+      'Map Placement: Paint ambient emitters directly onto room tiles in Map Editor',
+      'Behavior Triggering: Spawn bursts dynamically on hit, jump, dash, or spell cast'
     ],
     version: MASON_VERSION_DISPLAY
   },

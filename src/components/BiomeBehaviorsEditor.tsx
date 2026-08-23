@@ -34,12 +34,14 @@ interface BiomeBehaviorsEditorProps {
   biome: RefinedBiome;
   onUpdateBiome: (updater: (prev: RefinedBiome) => RefinedBiome) => void;
   availableMaps?: { fileName: string; name: string }[];
+  availableParticles?: { particleData: { id: string; name: string; icon?: string } }[];
 }
 
 export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
   biome,
   onUpdateBiome,
-  availableMaps = []
+  availableMaps = [],
+  availableParticles = []
 }) => {
   const rulesList: BiomeBehaviorRule[] = biome.behaviorRules || [];
   const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(
@@ -304,7 +306,7 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                   <div className="p-5 space-y-5 bg-neutral-950/40">
                     
                     {/* Top Row: Description & Scope Switch */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div className="md:col-span-2 space-y-1">
                         <label className="text-[10px] font-bold text-neutral-400 uppercase">Rule Description</label>
                         <input
@@ -325,6 +327,18 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                         >
                           <option value="local_biome">📍 Local Biome Logic</option>
                           <option value="global_interbiome">🌐 Interbiome Global (Affects all maps)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-emerald-400 uppercase">Action Execution Mode</label>
+                        <select
+                          value={rule.executionMode || 'simultaneous'}
+                          onChange={(e) => handleUpdateRule(rule.id, r => ({ ...r, executionMode: e.target.value as any }))}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-300 font-bold"
+                        >
+                          <option value="simultaneous">⚡ All at the same time (Simultaneous)</option>
+                          <option value="sequential">➡️ Perform sequentially (In order)</option>
                         </select>
                       </div>
                     </div>
@@ -614,6 +628,7 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                                     <option value="audio_cue">🎵 Play Audio Cue / Soundtrack</option>
                                     <option value="unlock_progression_flag">🔓 Unlock Progression Flag</option>
                                     <option value="broadcast_interbiome_signal">📡 Broadcast Interbiome Signal</option>
+                                    <option value="spawn_particles">✨ Spawn VFX Particle Burst</option>
                                   </select>
                                 </div>
 
@@ -880,6 +895,51 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                                     className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-white"
                                     placeholder="Signal Payload String"
                                   />
+                                </div>
+                              )}
+
+                              {/* 9. SPAWN PARTICLES */}
+                              {action.actionType === 'spawn_particles' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                                  <div>
+                                    <label className="text-[10px] text-neutral-400 font-bold block mb-1">Particle Emitter Preset</label>
+                                    <select
+                                      value={action.particleSystemId || ''}
+                                      onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, particleSystemId: e.target.value }))}
+                                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-amber-300 font-bold"
+                                    >
+                                      <option value="">-- Choose Particle System --</option>
+                                      {availableParticles.map(p => (
+                                        <option key={p.particleData.id} value={p.particleData.id}>
+                                          {p.particleData.icon || '✨'} {p.particleData.name} ({p.particleData.id})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-neutral-400 font-bold block mb-1">Burst Particle Count</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="1000"
+                                      value={action.particleCount ?? 50}
+                                      onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, particleCount: parseInt(e.target.value) || 20 }))}
+                                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
+                                      placeholder="50"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-neutral-400 font-bold block mb-1">Action Delay (ms)</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="50"
+                                      value={action.delayMs ?? 0}
+                                      onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, delayMs: parseInt(e.target.value) || 0 }))}
+                                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
+                                      placeholder="0"
+                                    />
+                                  </div>
                                 </div>
                               )}
                             </div>

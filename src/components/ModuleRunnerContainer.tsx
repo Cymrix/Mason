@@ -8,6 +8,7 @@ import { RefinedBiomeEditor } from './RefinedBiomeEditor';
 import { GameStructureModule } from './GameStructureModule';
 import { BiomeMacroMapModal } from './BiomeMacroMapModal';
 import { CharacterEditor } from './CharacterEditor';
+import { ParticlesEditor } from './ParticlesEditor';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle } from '../engine/metroidvaniaGenerator';
 
@@ -103,6 +104,14 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
           <CharacterEditor
             project={project}
             onUpdateProject={onUpdateProject}
+            onOpenFiles={onOpenExplorer}
+            onBackToDashboard={onBackToProjectInfo}
+          />
+        )}
+        {moduleId === 'particles' && (
+          <ParticlesEditor
+            project={project}
+            onUpdateProject={(updater) => onUpdateProject(updater(project))}
             onOpenFiles={onOpenExplorer}
             onBackToDashboard={onBackToProjectInfo}
           />

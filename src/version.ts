@@ -1,14 +1,14 @@
 /**
  * Mason Core Version Configuration
- * Current Release: v0.96
+ * Current Release: v1.00
  * 
  * HARD RULE:
- * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers (e.g., v0.74 -> v0.75 -> v0.76 -> v0.77 -> v0.78 -> v0.79 -> v0.80 -> v0.81 -> v0.82 -> v0.83 -> v0.84 -> v0.85 -> v0.86 -> v0.87 -> v0.88 -> v0.89 -> v0.90 -> v0.91 -> v0.92 -> v0.93 -> v0.94 -> v0.95 -> v0.96).
+ * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.96';
-export const MASON_VERSION_DISPLAY = 'v0.96';
-export const MASON_FULL_VERSION = 'v0.96';
+export const MASON_VERSION = '0.107';
+export const MASON_VERSION_DISPLAY = 'v0.107';
+export const MASON_FULL_VERSION = 'v0.107';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -24,12 +24,89 @@ export const getMasonVersionString = (revision?: number): string => {
     return `${MASON_VERSION_DISPLAY}-rev${revision}`;
   }
   return MASON_FULL_VERSION;
-};
+}
 
 /**
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.107',
+    date: '2026-08-23',
+    changes: [
+      'Particle Emitter Initialize Ranges: Updated continuous rate, lifespan (min/max age), periodic burst count, and burst interval properties in the Emitter configuration card to be configurable as dynamic range parameters.',
+      'Periodic Burst Control Checkbox: Added checkbox to easily enable or disable periodic burst emitters in the particle simulation, with visual disabling of corresponding fields.',
+      'Interactive Visual Graph Dragging Fix: Hardened world map node panning & drag mechanics to completely prevent node stutter, jitter, or snapping issues.'
+    ]
+  },
+  {
+    version: 'v0.104',
+    date: '2026-08-23',
+    changes: [
+      'Visuals tab FX Animation Styles: Implemented customizable "One-Shot", "Oscillate" (bouncing triangle wave), and "Repeat" loop modes for particle Size, Color/Alpha, Emissive Light/Glow, and Rotation properties.',
+      'Inverted Drag Controls: Reversed motion drag sliders and randomized ranges so that 0 represents no air drag (100% velocity retention) and 1 represents maximum drag (velocity stops immediately).'
+    ]
+  },
+  {
+    version: 'v0.103',
+    date: '2026-08-23',
+    changes: [
+      '3-Keyframe Air Drag Lifecycle: Integrated multi-stage air drag kinematics curves with customizable Start, Mid, and End air resistance values, random ranges, and motion curve profiles.',
+      'Fixed ReferenceError: Added missing RotateCw icon import from lucide-react.'
+    ]
+  },
+  {
+    version: 'v0.102',
+    date: '2026-08-23',
+    changes: [
+      'Emissive Lighting & Glow: Added Emissive toggle with 3-keyframe color & radius controls, curve animation, and "Glow Only" vs "Light Up Area" dynamic scene casting.',
+      'Particle FX Animation Styles: Integrated 5 behavioral FX presets (Default 3-Keyframe, Pulse & Oscillate, Flicker & Shimmer, Orbit & Swirl, Spark & Crackle).',
+      '3-Keyframe Rotation Lifecycle: Added Start, Mid (with Mid keyframe checkbox), and End rotation ranges (°), with customizable rotation lifecycle curves.',
+      'Interactive Viewport Test Scenes: Enhanced viewport theme backgrounds with interactive geometry (Dungeon Wall & Pillars, 3D Wooden Box Crate Obstacles & Shelves, Dark Forest & Moon, Crystal Cave) and obstacle collision logic.'
+    ]
+  },
+  {
+    version: 'v0.101',
+    date: '2026-08-23',
+    changes: [
+      'Mid Size Keyframe Checkbox: Added a matching "Mid keyframe" checkbox in the Size Lifecycle header.',
+      'Auto-Calculated Midpoint: When Mid Size Keyframe is unchecked, size lifecycle curves smoothly evaluate with auto-calculated midpoint values.'
+    ]
+  },
+  {
+    version: 'v0.100',
+    date: '2026-08-23',
+    changes: [
+      'Streamlined Alpha Controls UI: Replaced button toggles with clean "Mid keyframe" and "Range" checkboxes.',
+      'Cleaner Slider Layout: Removed redundant color/range bar indicators so opacity range is cleanly read directly from min/max dual range sliders.'
+    ]
+  },
+  {
+    version: 'v0.99',
+    date: '2026-08-23',
+    changes: [
+      'Full 3-Point Lifecycle Animation Curves: Refactored particle size and alpha evaluation engines to support 6 custom curve modes (Balanced Smooth, Straight Linear, Fast Attack/Long Fade Out, Slow Build/Short Ease Out, Bell Arch Swell, Burst Peak Decay) operating across full particle lifetimes.',
+      'Dual-Thumb Alpha Opacity Sliders: Replaced confusing text inputs with interactive dual-thumb sliders featuring real-time visual range tracks, fixed opacity vs random range toggles, and optional mid-keyframe alpha controls.'
+    ]
+  },
+  {
+    version: 'v0.98',
+    date: '2026-08-23',
+    changes: [
+      'Pixel-Perfect Nearest-Neighbor Buffer Scaling: Offscreen rendering and buffer scaling in the Particle Module now strictly enforce nearest-neighbor interpolation (`imageSmoothingEnabled = false`), delivering pixel-perfect retro aesthetics across all resolution scales.',
+      'Size Lifecycle (Start, Mid, End): Added keyframed 3-stage size lifecycle evaluation (`startSize` → `midSize` → `endSize`), matching the existing color gradient lifecycle.',
+      'Randomized Size & Alpha Ranges: Added min/max range controls for start size, mid size, end size, start alpha, mid alpha, and end alpha, giving every individual particle randomized lifecycle variation.'
+    ]
+  },
+  {
+    version: 'v0.97',
+    date: '2026-08-23',
+    changes: [
+      'Top Navigation Bar Particle Icon: Fixed icon mapping so the particles module icon in the top bar uses Sparkles, matching the project dashboard card.',
+      'Particle Surface Restitution & Energy Damping: Particles resting on collision surfaces now settle smoothly when bounce restitution energy drops below threshold, eliminating jitter while remaining fully reactive to wind and gravity forces.',
+      'Version Synchronization: Bumped Mason release version to v0.97 across package manifest, engine constants, and release history.'
+    ]
+  },
   {
     version: 'v0.96',
     date: '2026-08-23',

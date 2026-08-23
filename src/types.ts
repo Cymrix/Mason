@@ -8,6 +8,7 @@ export interface RefinedCellState {
   environmental_detail_id?: string | null;
   interactive_detail_id?: string | null;
   wildlife_id?: string | null;
+  particle_emitter_id?: string | null; // Placed ambient particle system ID (e.g. torch flame, mist, embers)
   shape?: TileShape; // 'full', 45° slopes, gentle slopes, or half-slabs
   fullness?: number; // 0.0 to 1.0 (defaults to 1.0; fractional for sand dunes / soft settling)
   persists_across_reset?: boolean; // For delta save persistence
@@ -27,7 +28,7 @@ export interface RefinedMapData {
 
 export type ToolType = 'brush' | 'bucket' | 'eraser' | 'chunk_add' | 'chunk_delete' | 'spawn_place';
 export type ModeType = 'paint' | 'play';
-export type PaintCategory = 'tile_type' | 'environmental' | 'interactive' | 'wildlife';
+export type PaintCategory = 'tile_type' | 'environmental' | 'interactive' | 'wildlife' | 'particles';
 
 // Legacy compatibility types
 export interface TileType {

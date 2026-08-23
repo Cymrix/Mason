@@ -71,6 +71,7 @@ import {
   Sliders,
   Network,
   Cloud,
+  Sparkles,
   RotateCcw,
   RotateCw,
   Undo2,
@@ -717,6 +718,7 @@ export const EditorLayout: React.FC = () => {
                     target.environmental_detail_id = null;
                     target.interactive_detail_id = null;
                     target.wildlife_id = null;
+                    target.particle_emitter_id = null;
                     target.shape = 'full';
                     target.fullness = 1.0;
                   } else {
@@ -732,6 +734,8 @@ export const EditorLayout: React.FC = () => {
                       target.interactive_detail_id = selectedAssetId || null;
                     } else if (paintCategory === 'wildlife') {
                       target.wildlife_id = selectedAssetId || null;
+                    } else if (paintCategory === 'particles') {
+                      target.particle_emitter_id = selectedAssetId || null;
                     }
                   }
                   globalChunkCache.invalidateCell(cx, cy, m.id);
@@ -759,6 +763,7 @@ export const EditorLayout: React.FC = () => {
                   currentCell.environmental_detail_id = null;
                   currentCell.interactive_detail_id = null;
                   currentCell.wildlife_id = null;
+                  currentCell.particle_emitter_id = null;
                   currentCell.shape = 'full';
                   currentCell.fullness = 1.0;
                 } else {
@@ -774,6 +779,8 @@ export const EditorLayout: React.FC = () => {
                     currentCell.interactive_detail_id = selectedAssetId || null;
                   } else if (paintCategory === 'wildlife') {
                     currentCell.wildlife_id = selectedAssetId || null;
+                  } else if (paintCategory === 'particles') {
+                    currentCell.particle_emitter_id = selectedAssetId || null;
                   }
                 }
                 chunk[localIdx] = currentCell;
@@ -1023,6 +1030,7 @@ export const EditorLayout: React.FC = () => {
                       case 'Users': return <Users size={16} />;
                       case 'Sliders': return <Sliders size={16} />;
                       case 'Network': return <Network size={16} />;
+                      case 'Sparkles': return <Sparkles size={16} />;
                       default: return <Map size={16} />;
                     }
                   };
@@ -1761,12 +1769,13 @@ export const EditorLayout: React.FC = () => {
                     </div>
                     <div className="p-4 overflow-y-auto flex-1 space-y-4">
                       {/* Category Picker */}
-                      <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-950 rounded-xl border border-neutral-800">
+                      <div className="grid grid-cols-5 gap-1 p-1 bg-neutral-950 rounded-xl border border-neutral-800">
                         {[
                           { id: 'tile_type', label: 'Terrain', icon: Layers },
                           { id: 'environmental', label: 'Flora', icon: TreePine },
                           { id: 'interactive', label: 'Props', icon: Box },
                           { id: 'wildlife', label: 'Entities', icon: Users },
+                          { id: 'particles', label: 'VFX', icon: Sparkles },
                         ].map(cat => {
                           const Icon = cat.icon;
                           const active = paintCategory === cat.id;
@@ -1778,12 +1787,12 @@ export const EditorLayout: React.FC = () => {
                                 setPaintCategory(cat.id as PaintCategory);
                                 setSelectedAssetId('');
                               }}
-                              className={`py-1.5 px-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 transition ${
+                              className={`py-1.5 px-1 rounded-lg text-[9px] font-bold flex flex-col items-center gap-1 transition ${
                                 active ? 'bg-cyan-600 text-white shadow' : 'text-neutral-400 hover:text-white'
                               }`}
                             >
                               <Icon size={13} />
-                              <span>{cat.label}</span>
+                              <span className="truncate">{cat.label}</span>
                             </button>
                           );
                         })}
@@ -2077,6 +2086,73 @@ export const EditorLayout: React.FC = () => {
                               No wildlife defined in {activeBiome?.name}
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {/* Particle Emitters */}
+                      {paintCategory === 'particles' && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssetId('')}
+                            className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                              selectedAssetId === '' 
+                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-850'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-cyan-400 text-xs">
+                                ∅
+                              </div>
+                              <div className="text-xs font-bold">Clear Particle Emitter</div>
+                            </div>
+                          </button>
+
+                          {(project.fileSystem.particles && project.fileSystem.particles.length > 0 
+                            ? project.fileSystem.particles 
+                            : []
+                          ).map(ps => {
+                            const isSelected = selectedAssetId === ps.particleData.id;
+                            return (
+                              <button
+                                key={ps.particleData.id}
+                                type="button"
+                                onClick={() => setSelectedAssetId(ps.particleData.id)}
+                                className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                                  isSelected 
+                                    ? 'bg-amber-950/80 border-amber-500 text-amber-200 shadow-md' 
+                                    : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:bg-neutral-850'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div 
+                                    className="w-6 h-6 rounded border border-neutral-700 flex items-center justify-center text-xs font-bold"
+                                    style={{ backgroundColor: `${ps.particleData.tintColor || '#f59e0b'}30` }}
+                                  >
+                                    {ps.particleData.icon || '✨'}
+                                  </div>
+                                  <div>
+                                    <div className="text-xs font-bold">{ps.particleData.name}</div>
+                                    <div className="text-[10px] text-neutral-500 font-mono">
+                                      {ps.particleData.category || 'VFX'} • {ps.particleData.emitter.isContinuous ? `${ps.particleData.emitter.emissionRate} p/s` : 'Burst'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleLaunchModule('particles')}
+                              className="w-full py-2 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-amber-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                            >
+                              <Sparkles size={13} />
+                              <span>Open Particle Systems Studio</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

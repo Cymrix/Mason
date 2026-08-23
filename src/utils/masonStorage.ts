@@ -4,9 +4,12 @@ import {
   BiomeFile, 
   UIThemeFile, 
   GameStructureFile,
+  ParticleSystemFile,
+  ParticleSystemData,
   createInitialMasonProject,
   createDefaultMapFile,
   DEFAULT_UI_THEMES,
+  DEFAULT_PARTICLE_SYSTEMS,
   createDefaultGameStructure
 } from '../engine/masonProjectSchema';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
@@ -136,6 +139,19 @@ export const getActiveMasonProject = (): MasonProject | null => {
     if (raw) {
       const parsed = JSON.parse(raw) as MasonProject;
       if (parsed && parsed.fileSystem && parsed.id) {
+        if (!parsed.fileSystem.particles || parsed.fileSystem.particles.length === 0) {
+          parsed.fileSystem.particles = DEFAULT_PARTICLE_SYSTEMS.map(p => ({
+            id: p.id,
+            name: p.name,
+            fileName: `${p.id.replace('particles_', '')}.particle`,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            particleData: p
+          }));
+        }
+        if (!parsed.activeFiles.particleFileName) {
+          parsed.activeFiles.particleFileName = parsed.fileSystem.particles[0]?.fileName || 'fire_embers.particle';
+        }
         inMemoryActiveProject = parsed;
         inMemoryProjectsCache.set(parsed.id, parsed);
         idbSaveProject(parsed);
@@ -353,6 +369,10 @@ export const exportGameStructureFile = (file: GameStructureFile) => {
   downloadJsonFile(file.fileName.endsWith('.gamestructure') ? file.fileName : `${file.fileName}.gamestructure`, file);
 };
 
+export const exportParticleFile = (file: ParticleSystemFile) => {
+  downloadJsonFile(file.fileName.endsWith('.particle') ? file.fileName : `${file.fileName}.particle`, file);
+};
+
 export const exportFullProjectBundle = (project: MasonProject) => {
   const safeName = project.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
   downloadJsonFile(`${safeName}_project_bundle.mason`, project);
@@ -499,6 +519,45 @@ export const createNewGameStructureInProject = (
   return { project: updatedProject, newFile: newStructureFile };
 };
 
+export const createNewParticleInProject = (
+  project: MasonProject,
+  name: string,
+  templateParticle?: ParticleSystemData
+): { project: MasonProject; newFile: ParticleSystemFile } => {
+  const safeFileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.particle`;
+  const baseData = templateParticle || DEFAULT_PARTICLE_SYSTEMS[0];
+  const newParticleData: ParticleSystemData = {
+    ...JSON.parse(JSON.stringify(baseData)),
+    id: `particles_${Date.now()}`,
+    name,
+    description: `Custom particle system: ${name}`
+  };
+
+  const newParticleFile: ParticleSystemFile = {
+    id: newParticleData.id,
+    name,
+    fileName: safeFileName,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    particleData: newParticleData
+  };
+
+  const updatedProject: MasonProject = {
+    ...project,
+    activeFiles: {
+      ...project.activeFiles,
+      particleFileName: safeFileName
+    },
+    fileSystem: {
+      ...project.fileSystem,
+      particles: [...(project.fileSystem.particles || []), newParticleFile]
+    }
+  };
+
+  saveActiveMasonProject(updatedProject);
+  return { project: updatedProject, newFile: newParticleFile };
+};
+
 export const convertProjectDataToMasonProject = (projectData: any): MasonProject => {
   const now = new Date().toISOString();
   const projName = projectData.name || 'Imported Level Project';
@@ -561,7 +620,8 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
       biomeFileName: biomeFiles[0]?.fileName || 'ashen_steppes.biome',
       characterFileName: 'hero_adventurer.character',
       uiFileName: 'standard_dark.ui',
-      gameStructureFileName: 'main_metroidvania.gamestructure'
+      gameStructureFileName: 'main_metroidvania.gamestructure',
+      particleFileName: 'fire_embers.particle'
     },
     fileSystem: {
       maps: [mapFile],
@@ -611,7 +671,15 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
           structureData: createDefaultGameStructure()
         }
       ],
-      behaviors: []
+      behaviors: [],
+      particles: DEFAULT_PARTICLE_SYSTEMS.map(p => ({
+        id: p.id,
+        name: p.name,
+        fileName: `${p.id.replace('particles_', '')}.particle`,
+        createdAt: now,
+        updatedAt: now,
+        particleData: p
+      }))
     }
   };
 

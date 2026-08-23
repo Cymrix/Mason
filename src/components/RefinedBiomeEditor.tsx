@@ -2044,6 +2044,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
               biome={selectedBiome}
               onUpdateBiome={handleUpdateCurrentBiome}
               availableMaps={availableMaps}
+              availableParticles={project?.fileSystem?.particles}
             />
           )}
 

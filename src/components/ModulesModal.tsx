@@ -13,7 +13,8 @@ import {
   TreePine,
   Users,
   Sliders,
-  Network
+  Network,
+  Sparkles
 } from 'lucide-react';
 
 interface ModulesModalProps {
@@ -90,6 +91,8 @@ export const ModulesModal: React.FC<ModulesModalProps> = ({
                   return <Sliders size={22} />;
                 case 'Network':
                   return <Network size={22} />;
+                case 'Sparkles':
+                  return <Sparkles size={22} />;
                 default:
                   return <Map size={22} />;
               }

@@ -60,15 +60,17 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   const mapCount = project.fileSystem?.maps?.length || 0;
   const biomeCount = project.fileSystem?.biomes?.length || 0;
   const characterCount = project.fileSystem?.characters?.length || 0;
+  const particleCount = project.fileSystem?.particles?.length || 0;
   const uiCount = project.fileSystem?.ui?.length || 0;
   const gameCount = project.fileSystem?.game?.length || 0;
 
-  const totalFiles = mapCount + biomeCount + characterCount + uiCount + gameCount;
+  const totalFiles = mapCount + biomeCount + characterCount + particleCount + uiCount + gameCount;
 
   // Module color definitions
   const mapsColor = getModuleColorDef('maps');
   const biomesColor = getModuleColorDef('biomes');
   const charactersColor = getModuleColorDef('characters');
+  const particlesColor = getModuleColorDef('particles');
   const uiColor = getModuleColorDef('ui');
   const gameColor = getModuleColorDef('gamestructure');
 
@@ -385,6 +387,45 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           <div className="mt-2.5">
             <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{characterCount}</div>
             <div className="text-[11px] font-bold text-neutral-300 truncate">Characters & AI</div>
+          </div>
+        </div>
+
+        {/* Particles */}
+        <div 
+          onClick={() => onLaunchModule('particles')}
+          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          style={{
+            backgroundColor: bgDef.cardHex,
+            borderColor: bgDef.borderHex
+          }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = particlesColor.hex)}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+        >
+          <div className="flex items-center justify-between">
+            <div 
+              className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
+              style={{
+                backgroundColor: `rgba(${particlesColor.rgb}, 0.2)`,
+                borderColor: `rgba(${particlesColor.rgb}, 0.4)`,
+                color: particlesColor.hex
+              }}
+            >
+              <Sparkles size={16} />
+            </div>
+            <span 
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
+              style={{
+                backgroundColor: `rgba(${particlesColor.rgb}, 0.15)`,
+                borderColor: `rgba(${particlesColor.rgb}, 0.3)`,
+                color: particlesColor.hex
+              }}
+            >
+              .particle
+            </span>
+          </div>
+          <div className="mt-2.5">
+            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{particleCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300 truncate">Particles</div>
           </div>
         </div>
 

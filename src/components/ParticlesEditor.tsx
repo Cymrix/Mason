@@ -32,7 +32,8 @@ import {
   Grid,
   ShieldAlert,
   Layers,
-  Navigation
+  Navigation,
+  Search
 } from 'lucide-react';
 import { 
   MasonProject, 
@@ -50,7 +51,10 @@ import {
 } from '../engine/masonProjectSchema';
 import { ParticleEngine, evaluateTrackValue } from '../engine/ParticleEngine';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
+import { useAppTheme } from '../theme/ThemeContext';
 import { exportParticleFile, createNewParticleInProject } from '../utils/masonStorage';
+import { SpritesheetSliceModal, SpritesheetSliceResult } from './shared/spritesheet';
+import { ViewportHUD } from './shared/viewport';
 
 interface ParticlesEditorProps {
   project: MasonProject;
@@ -306,77 +310,107 @@ const AVAILABLE_INITIALIZE_PROPS = [
   {
     id: 'size_curve',
     label: '📏 Size Curve',
+    category: 'visuals' as const,
+    badge: 'Scale Envelope',
     desc: 'Configure and animate particle size over its lifetime.'
   },
   {
     id: 'color_flow',
     label: '🎨 Color Flow',
+    category: 'visuals' as const,
+    badge: 'Palette Gradient',
     desc: 'Set up starting colors and transition flows.'
   },
   {
     id: 'alpha_opac',
     label: '🏁 Alpha Opacity',
+    category: 'visuals' as const,
+    badge: 'Transparency',
     desc: 'Control alpha transparency and fading curves.'
   },
   {
     id: 'rotation',
     label: '🔄 Rotation & Spin',
+    category: 'visuals' as const,
+    badge: 'Orientation',
     desc: 'Configure starting rotation angles and spin velocity.'
+  },
+  {
+    id: 'bloom',
+    label: '🔆 Glow Bloom',
+    category: 'visuals' as const,
+    badge: 'Emissive Aura',
+    desc: 'Render glowing neon aura shadows and light emission.'
+  },
+  {
+    id: 'motionBlur',
+    label: '☄️ Motion Blur',
+    category: 'visuals' as const,
+    badge: 'Velocity Streak',
+    desc: 'Streak particles across their velocity vector.'
+  },
+  {
+    id: 'trails',
+    label: '✨ Trails Ribbon',
+    category: 'visuals' as const,
+    badge: 'History Tail',
+    desc: 'Draw a trailing history behind particles.'
   },
   {
     id: 'launch_speed',
     label: '🚀 Launch Speed',
+    category: 'forces' as const,
+    badge: 'Velocity',
     desc: 'Adjust min/max speeds of emitted particles.'
   },
   {
     id: 'gravity',
     label: '🪐 Gravity Forces',
+    category: 'forces' as const,
+    badge: 'Gravity Pull',
     desc: 'Apply horizontal or vertical directional gravity.'
   },
   {
     id: 'drag',
     label: '💧 Fluid Drag',
+    category: 'forces' as const,
+    badge: 'Air Resistance',
     desc: 'Settle or slow down movement over time.'
   },
   {
     id: 'wind',
     label: '💨 Wind Forces',
+    category: 'forces' as const,
+    badge: 'Ambient Drift',
     desc: 'Continuous environmental drift sideways.'
   },
   {
     id: 'angle',
     label: '📐 Angle & Spread',
+    category: 'forces' as const,
+    badge: 'Directional Cone',
     desc: 'Launch angle range and turbulence noise.'
   },
   {
-    id: 'bloom',
-    label: '🔆 Glow Bloom',
-    desc: 'Render glowing neon aura shadows.'
-  },
-  {
-    id: 'motionBlur',
-    label: '☄️ Motion Blur',
-    desc: 'Streak particles across their velocity vector.'
-  },
-  {
-    id: 'trails',
-    label: '☄️ Trails',
-    desc: 'Draw a trailing history behind particles.'
+    id: 'pull',
+    label: '🧲 Emitter Pull',
+    category: 'forces' as const,
+    badge: 'Vortex Drag',
+    desc: 'Drag particles along when the emitter moves.'
   },
   {
     id: 'physics',
     label: '🧱 Solid Map Collision',
+    category: 'physics' as const,
+    badge: 'Surface Bounce',
     desc: 'Bounce off room borders or platforms.'
   },
   {
     id: 'destroy_on_hit',
     label: '💥 Destroy on Hit',
-    desc: 'Despawn instantly when hitting a surface.'
-  },
-  {
-    id: 'pull',
-    label: '🧲 Emitter Pull',
-    desc: 'Drag particles along when the emitter moves.'
+    category: 'physics' as const,
+    badge: 'Instant Despawn',
+    desc: 'Despawn instantly when hitting a solid surface.'
   }
 ];
 
@@ -386,6 +420,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   onOpenFiles,
   onBackToDashboard
 }) => {
+  const { theme } = useAppTheme();
   // Ensure particles files array exists
   const particleFiles: ParticleSystemFile[] = useMemo(() => {
     if (project.fileSystem.particles && project.fileSystem.particles.length > 0) {
@@ -407,24 +442,44 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
   // UI State
   const [activeTab, setActiveTab] = useState<'initialize' | 'animation' | 'spritesheets' | 'presets'>('initialize');
-  const [selectedTrack, setSelectedTrack] = useState<'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur'>('size');
+  const [selectedTrack, setSelectedTrack] = useState<string>('size');
   const [addedProps, setAddedProps] = useState<string[]>([]);
+  const [paramSearch, setParamSearch] = useState<string>('');
+  const [paramCategory, setParamCategory] = useState<'all' | 'forces' | 'visuals' | 'physics'>('all');
   const [draggedNodeIndex, setDraggedNodeIndex] = useState<number | null>(null);
   const dragStateRef = useRef<{track: string, nodes: any[]} | null>(null);
   const [dragTick, setDragTick] = useState(0);
 
   const visibleTracks = useMemo(() => {
-    const list: ('size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur')[] = [];
-    if (addedProps.includes('size_curve')) list.push('size');
-    if (addedProps.includes('color_flow')) list.push('color');
-    if (addedProps.includes('alpha_opac')) list.push('alpha');
-    if (addedProps.includes('bloom')) list.push('emissive');
-    if (addedProps.includes('rotation')) list.push('rotation');
-    if (addedProps.includes('launch_speed')) list.push('speed');
-    if (addedProps.includes('drag')) list.push('drag');
-    if (addedProps.includes('motionBlur')) list.push('motionBlur');
-    return list;
-  }, [addedProps]);
+    const list: string[] = [];
+    const em = activeParticleData.emitter;
+    const v = activeParticleData.visuals;
+    const k = activeParticleData.kinematics;
+
+    // Emitter tracks
+    if (em.animateEmitterWidth) list.push('emitter_width');
+    if (em.animateEmitterHeight) list.push('emitter_height');
+    if (em.animateEmitterRotation) list.push('emitter_rotation');
+    if (em.animateEmissionRate) list.push('emission_rate');
+    if (em.animateBurstCount) list.push('burst_count');
+    if (em.animateBurstInterval) list.push('burst_interval');
+
+    // Particle property tracks
+    if (addedProps.includes('size_curve') || v.animateSize !== false) list.push('size');
+    if (addedProps.includes('color_flow') || v.animateColor !== false) list.push('color');
+    if (addedProps.includes('alpha_opac') || v.animateAlpha !== false) list.push('alpha');
+    if (addedProps.includes('bloom') || v.animateEmissive) list.push('emissive');
+    if (addedProps.includes('rotation') || v.animateRotation) list.push('rotation');
+    if (addedProps.includes('launch_speed') || v.animateSpeed) list.push('speed');
+    if (addedProps.includes('drag') || v.animateDrag) list.push('drag');
+    if (addedProps.includes('motionBlur') || v.animateMotionBlur) list.push('motionBlur');
+    if (addedProps.includes('gravity') || (v as any).animateGravity) list.push('gravity');
+    if (addedProps.includes('wind') || (v as any).animateWind) list.push('wind');
+    if (addedProps.includes('angle') || (v as any).animateAngle) list.push('angle');
+    if (addedProps.includes('trails') || (v as any).animateTrails) list.push('trails');
+
+    return Array.from(new Set(list));
+  }, [addedProps, activeParticleData.emitter, activeParticleData.visuals, activeParticleData.kinematics]);
 
   useEffect(() => {
     if (visibleTracks.length > 0 && !visibleTracks.includes(selectedTrack)) {
@@ -457,6 +512,20 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
     setAddedProps(props);
   }, [activeParticleData.id]);
+
+  // Reset engine particles and timing refs whenever switching active particle file or system
+  useEffect(() => {
+    if (engineRef.current) {
+      engineRef.current.clear();
+    }
+    const now = performance.now();
+    lastFrameTimeRef.current = now;
+    lastEmitTimeRef.current = now;
+    lastBurstTimeRef.current = now;
+    emitAccumulatorRef.current = 0;
+    nextBurstIntervalRef.current = null;
+    isFirstFrameRef.current = true;
+  }, [activeParticleData.id, activeFile.fileName]);
 
   const [scrubberProgress, setScrubberProgress] = useState<number>(0.5);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -832,8 +901,10 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<ParticleEngine>(new ParticleEngine());
-  const lastEmitTimeRef = useRef<number>(0);
-  const lastBurstTimeRef = useRef<number>(0);
+  const isFirstFrameRef = useRef<boolean>(true);
+  const lastEmitTimeRef = useRef<number>(performance.now());
+  const lastBurstTimeRef = useRef<number>(performance.now());
+  const emitAccumulatorRef = useRef<number>(0);
   const nextBurstIntervalRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(performance.now());
   const frameCountRef = useRef<number>(0);
@@ -971,6 +1042,44 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2500);
+  };
+
+  // Spritesheet Slicer & Pre-Configuration Modal State
+  const [particleSliceModalConfig, setParticleSliceModalConfig] = useState<{
+    isOpen: boolean;
+    initialImage?: {
+      url: string;
+      name?: string;
+      tileWidth?: number;
+      tileHeight?: number;
+      cols?: number;
+      rows?: number;
+      splitMode?: 'pixels' | 'columns';
+    };
+    sheetLabel?: string;
+  }>({ isOpen: false });
+
+  const handleParticleSliceConfirm = (res: SpritesheetSliceResult) => {
+    updateActiveParticle(p => ({
+      ...p,
+      visuals: {
+        ...p.visuals,
+        shape: 'spritesheet',
+        spritesheet: {
+          id: p.visuals.spritesheet?.id || `spritesheet_${Date.now()}`,
+          name: res.name || 'Particle Spritesheet',
+          imageUrl: res.imageUrl,
+          dataUrl: res.dataUrl || res.imageUrl,
+          tileWidth: res.tileWidth,
+          tileHeight: res.tileHeight,
+          cols: res.cols,
+          rows: res.rows,
+          totalFrames: res.totalFrames,
+          splitMode: res.splitMode
+        }
+      }
+    }));
+    showToast('Particle spritesheet configured and sliced successfully!');
   };
 
   // Keyboard listeners for spacebar pan toggle
@@ -1197,7 +1306,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   };
 
-  const getTrackBounds = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur'): { min: number; max: number } => {
+  const getTrackBounds = (track: string): { min: number; max: number } => {
     switch (track) {
       case 'size':
         return { min: 0, max: 80 };
@@ -1208,16 +1317,81 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       case 'rotation':
         return { min: 0, max: 360 };
       case 'speed':
-        return { min: -500, max: 500 };
+        return { min: 0, max: 400 };
       case 'drag':
-        return { min: 0.8, max: 1.1 };
+        return { min: 0.8, max: 1.05 };
+      case 'motionBlur':
+        return { min: 0, max: 10 };
+      case 'gravity':
+        return { min: -400, max: 600 };
+      case 'wind':
+        return { min: -100, max: 100 };
+      case 'angle':
+        return { min: 0, max: 360 };
+      case 'trails':
+        return { min: 0, max: 40 };
+      case 'emitter_width':
+        return { min: 2, max: 500 };
+      case 'emitter_height':
+        return { min: 2, max: 400 };
+      case 'emitter_rotation':
+        return { min: 0, max: 360 };
+      case 'emission_rate':
+        return { min: 0, max: 300 };
+      case 'burst_count':
+        return { min: 0, max: 150 };
+      case 'burst_interval':
+        return { min: 0.1, max: 8 };
       case 'color':
       default:
         return { min: 0, max: 1 };
     }
   };
 
-  const valToY = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', val: any, height: number): number => {
+  const getTrackInfo = (track: string) => {
+    switch (track) {
+      case 'emitter_width':
+        return { label: 'Emitter Width', icon: '↔️', colorClass: 'text-amber-400', stroke: '#f59e0b', badge: 'Emitter', desc: 'Emitter width zone in pixels', unit: 'px' };
+      case 'emitter_height':
+        return { label: 'Emitter Height', icon: '↕️', colorClass: 'text-amber-400', stroke: '#f59e0b', badge: 'Emitter', desc: 'Emitter height zone in pixels', unit: 'px' };
+      case 'emitter_rotation':
+        return { label: 'Emitter Rotation', icon: '🔄', colorClass: 'text-emerald-400', stroke: '#10b981', badge: 'Emitter', desc: 'Emitter zone angle in degrees', unit: '°' };
+      case 'emission_rate':
+        return { label: 'Emission Rate', icon: '⚡', colorClass: 'text-cyan-400', stroke: '#06b6d4', badge: 'Rate', desc: 'Spawn rate in particles per second', unit: 'p/s' };
+      case 'burst_count':
+        return { label: 'Burst Count', icon: '💥', colorClass: 'text-orange-400', stroke: '#f97316', badge: 'Burst', desc: 'Particles spawned per burst', unit: 'p' };
+      case 'burst_interval':
+        return { label: 'Burst Interval', icon: '⏱️', colorClass: 'text-indigo-400', stroke: '#818cf8', badge: 'Burst', desc: 'Delay between periodic bursts', unit: 's' };
+      case 'size':
+        return { label: 'Size Curve', icon: '📏', colorClass: 'text-amber-400', stroke: '#f59e0b', badge: 'Visuals', desc: 'Particle diameter scale over lifetime', unit: 'px' };
+      case 'color':
+        return { label: 'Color Flow', icon: '🎨', colorClass: 'text-rose-400', stroke: '#f43f5e', badge: 'Visuals', desc: 'Particle palette gradient over lifetime', unit: '' };
+      case 'alpha':
+        return { label: 'Alpha Opacity', icon: '🏁', colorClass: 'text-sky-300', stroke: '#38bdf8', badge: 'Visuals', desc: 'Transparency & fading curve', unit: '' };
+      case 'emissive':
+        return { label: 'Emissive Bloom', icon: '💡', colorClass: 'text-purple-400', stroke: '#c084fc', badge: 'Visuals', desc: 'Glow bloom light emission intensity', unit: '%' };
+      case 'rotation':
+        return { label: 'Particle Spin', icon: '🔄', colorClass: 'text-emerald-400', stroke: '#10b981', badge: 'Visuals', desc: 'Particle angular spin over lifetime', unit: '°' };
+      case 'speed':
+        return { label: 'Launch Speed', icon: '🚀', colorClass: 'text-cyan-400', stroke: '#06b6d4', badge: 'Forces', desc: 'Speed modifier over lifetime', unit: 'px/s' };
+      case 'drag':
+        return { label: 'Fluid Drag', icon: '💧', colorClass: 'text-blue-400', stroke: '#60a5fa', badge: 'Forces', desc: 'Deceleration and air resistance', unit: '' };
+      case 'motionBlur':
+        return { label: 'Motion Blur', icon: '☄️', colorClass: 'text-pink-400', stroke: '#f472b6', badge: 'Visuals', desc: 'Velocity streak stretch', unit: 'px' };
+      case 'gravity':
+        return { label: 'Gravity Pull', icon: '🪐', colorClass: 'text-yellow-400', stroke: '#eab308', badge: 'Forces', desc: 'Gravitational acceleration', unit: 'px/s²' };
+      case 'wind':
+        return { label: 'Wind Drift', icon: '💨', colorClass: 'text-teal-400', stroke: '#14b8a6', badge: 'Forces', desc: 'Sideways wind drift velocity', unit: 'px/s' };
+      case 'angle':
+        return { label: 'Angle & Spread', icon: '📐', colorClass: 'text-violet-400', stroke: '#a78bfa', badge: 'Forces', desc: 'Launch direction angle', unit: '°' };
+      case 'trails':
+        return { label: 'Trails Ribbon', icon: '✨', colorClass: 'text-fuchsia-400', stroke: '#d946ef', badge: 'Visuals', desc: 'Trail history points', unit: 'pts' };
+      default:
+        return { label: track, icon: '📈', colorClass: 'text-amber-400', stroke: '#f59e0b', badge: 'Track', desc: 'Configurable property track', unit: '' };
+    }
+  };
+
+  const valToY = (track: string, val: any, height: number): number => {
     const { min, max } = getTrackBounds(track);
     let numericVal = 0;
     if (track === 'color') {
@@ -1230,7 +1404,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return height - (clamped * (height - 24) + 12);
   };
 
-  const yToVal = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', y: number, height: number): any => {
+  const yToVal = (track: string, y: number, height: number): any => {
     const { min, max } = getTrackBounds(track);
     if (track === 'color') {
       return '#ffa500';
@@ -1238,13 +1412,13 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     const ratio = (height - y - 12) / (height - 24);
     const clamped = Math.max(0, Math.min(1, ratio));
     const rawVal = min + clamped * (max - min);
-    if (track === 'alpha' || track === 'drag') {
-      return Number(clamped.toFixed(2));
+    if (track === 'alpha' || track === 'drag' || track === 'burst_interval') {
+      return Number(rawVal.toFixed(2));
     }
     return Math.round(rawVal);
   };
 
-  const getSparklinePath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', width: number = 100, height: number = 100, margin: number = 6) => {
+  const getSparklinePath = (track: string, width: number = 100, height: number = 100, margin: number = 6) => {
     const points: string[] = [];
     const steps = 40;
     const { min, max } = getTrackBounds(track);
@@ -1273,25 +1447,25 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const getSelectedTrackConfig = () => {
     const v = activeParticleData.visuals as any;
     const track = selectedTrack;
-    let curve = 'linear';
-    let animStyle: ParticleAnimStyle = 'one_shot';
+    let curve = v.trackCurves?.[track] || 'linear';
+    let animStyle: ParticleAnimStyle = v.trackAnimStyles?.[track] || 'one_shot';
     let repeats = v.trackRepeats?.[track] ?? 1;
 
     if (track === 'size') {
-      curve = v.sizeCurve || 'linear';
-      animStyle = v.sizeAnimStyle || 'one_shot';
+      curve = v.sizeCurve || curve;
+      animStyle = v.sizeAnimStyle || animStyle;
     } else if (track === 'color') {
-      curve = v.colorCurve || 'linear';
-      animStyle = v.colorAnimStyle || 'one_shot';
+      curve = v.colorCurve || curve;
+      animStyle = v.colorAnimStyle || animStyle;
     } else if (track === 'alpha') {
-      curve = v.alphaCurve || 'linear';
-      animStyle = v.alphaAnimStyle || 'one_shot';
+      curve = v.alphaCurve || curve;
+      animStyle = v.alphaAnimStyle || animStyle;
     } else if (track === 'emissive') {
-      curve = v.emissiveCurve || 'linear';
-      animStyle = v.emissiveAnimStyle || 'one_shot';
+      curve = v.emissiveCurve || curve;
+      animStyle = v.emissiveAnimStyle || animStyle;
     } else if (track === 'rotation') {
-      curve = v.rotationCurve || 'linear';
-      animStyle = v.rotationAnimStyle || 'one_shot';
+      curve = v.rotationCurve || curve;
+      animStyle = v.rotationAnimStyle || animStyle;
     }
 
     return { curve, animStyle, repeats };
@@ -1303,12 +1477,14 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       const track = selectedTrack;
 
       if (field === 'curve') {
+        v.trackCurves = { ...(v.trackCurves || {}), [track]: value };
         if (track === 'size') v.sizeCurve = value;
         else if (track === 'color') v.colorCurve = value;
         else if (track === 'alpha') v.alphaCurve = value;
         else if (track === 'emissive') v.emissiveCurve = value;
         else if (track === 'rotation') v.rotationCurve = value;
       } else if (field === 'animStyle') {
+        v.trackAnimStyles = { ...(v.trackAnimStyles || {}), [track]: value };
         if (track === 'size') v.sizeAnimStyle = value;
         else if (track === 'color') v.colorAnimStyle = value;
         else if (track === 'alpha') v.alphaAnimStyle = value;
@@ -1414,6 +1590,37 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       return visuals.trackNodes[track];
     }
 
+    const em = activeParticleData.emitter;
+    const k = activeParticleData.kinematics;
+
+    if (track === 'emitter_width') {
+      const w = em.width ?? 32;
+      return [{ time: 0, value: w }, { time: 1, value: w }];
+    }
+    if (track === 'emitter_height') {
+      const h = em.height ?? 32;
+      return [{ time: 0, value: h }, { time: 1, value: h }];
+    }
+    if (track === 'emitter_rotation') {
+      const r = em.rotationDeg ?? 0;
+      return [{ time: 0, value: r }, { time: 1, value: r }];
+    }
+    if (track === 'emission_rate') {
+      const minR = em.emissionRateMin ?? em.emissionRate ?? 20;
+      const maxR = em.emissionRateMax ?? em.emissionRate ?? 20;
+      return [{ time: 0, value: minR }, { time: 1, value: maxR }];
+    }
+    if (track === 'burst_count') {
+      const minB = em.burstCountMin ?? em.burstCount ?? 20;
+      const maxB = em.burstCountMax ?? em.burstCount ?? 20;
+      return [{ time: 0, value: minB }, { time: 1, value: maxB }];
+    }
+    if (track === 'burst_interval') {
+      const minI = em.burstIntervalMin ?? em.burstInterval ?? 1.0;
+      const maxI = em.burstIntervalMax ?? em.burstInterval ?? 1.0;
+      return [{ time: 0, value: minI }, { time: 1, value: maxI }];
+    }
+
     if (track === 'size') {
       const start = visuals?.startSize ?? 8;
       const end = visuals?.endSize ?? 2;
@@ -1455,10 +1662,13 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
     if (track === 'speed') {
-      return [{ time: 0, value: 0 }, { time: 1, value: 0 }];
+      const minS = k?.minSpeed ?? 60;
+      const maxS = k?.maxSpeed ?? 140;
+      return [{ time: 0, value: minS }, { time: 1, value: maxS }];
     }
     if (track === 'drag') {
-      return [{ time: 0, value: 0.98 }, { time: 1, value: 0.98 }];
+      const d = k?.drag ?? 0.98;
+      return [{ time: 0, value: d }, { time: 1, value: d }];
     }
     if (track === 'motionBlur') {
       const start = visuals?.startMotionBlur ?? 0;
@@ -1468,38 +1678,54 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
+    if (track === 'gravity') {
+      const g = k?.gravityY ?? 180;
+      return [{ time: 0, value: g }, { time: 1, value: g }];
+    }
+    if (track === 'wind') {
+      const w = k?.windForce ?? 30;
+      return [{ time: 0, value: w }, { time: 1, value: w }];
+    }
+    if (track === 'angle') {
+      const a = k?.angleDeg ?? 270;
+      return [{ time: 0, value: a }, { time: 1, value: a }];
+    }
+    if (track === 'trails') {
+      const tl = visuals?.trailLength ?? 10;
+      return [{ time: 0, value: tl }, { time: 1, value: tl }];
+    }
     return [{ time: 0, value: 0 }, { time: 1, value: 1 }];
   };
   
   const evaluateTrackValue = (
     progress: number,
-    track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur',
+    track: string,
     visuals: any
   ): any => {
-    let animStyle: ParticleAnimStyle = 'one_shot';
-    let repeatCount = 1;
-    let curve: ParticleCurveMode = 'linear';
+    let animStyle: ParticleAnimStyle = visuals.trackAnimStyles?.[track] || 'one_shot';
+    let repeatCount = visuals.trackRepeats?.[track] ?? 1;
+    let curve: ParticleCurveMode = visuals.trackCurves?.[track] || 'linear';
 
     if (track === 'size') {
-      animStyle = visuals.sizeAnimStyle || 'one_shot';
-      repeatCount = visuals.trackRepeats?.size ?? visuals.sizeLoops ?? 1;
-      curve = visuals.sizeCurve || 'linear';
+      animStyle = visuals.sizeAnimStyle || animStyle;
+      repeatCount = visuals.trackRepeats?.size ?? visuals.sizeLoops ?? repeatCount;
+      curve = visuals.sizeCurve || curve;
     } else if (track === 'color') {
-      animStyle = visuals.colorAnimStyle || 'one_shot';
-      repeatCount = visuals.trackRepeats?.color ?? visuals.colorLoops ?? 1;
-      curve = visuals.colorCurve || 'linear';
+      animStyle = visuals.colorAnimStyle || animStyle;
+      repeatCount = visuals.trackRepeats?.color ?? visuals.colorLoops ?? repeatCount;
+      curve = visuals.colorCurve || curve;
     } else if (track === 'alpha') {
-      animStyle = visuals.alphaAnimStyle || 'one_shot';
-      repeatCount = visuals.trackRepeats?.alpha ?? visuals.alphaLoops ?? 1;
-      curve = visuals.alphaCurve || 'linear';
+      animStyle = visuals.alphaAnimStyle || animStyle;
+      repeatCount = visuals.trackRepeats?.alpha ?? visuals.alphaLoops ?? repeatCount;
+      curve = visuals.alphaCurve || curve;
     } else if (track === 'emissive') {
-      animStyle = visuals.emissiveAnimStyle || 'one_shot';
-      repeatCount = visuals.trackRepeats?.emissive ?? visuals.emissiveLoops ?? 1;
-      curve = visuals.emissiveCurve || 'linear';
+      animStyle = visuals.emissiveAnimStyle || animStyle;
+      repeatCount = visuals.trackRepeats?.emissive ?? visuals.emissiveLoops ?? repeatCount;
+      curve = visuals.emissiveCurve || curve;
     } else if (track === 'rotation') {
-      animStyle = visuals.rotationAnimStyle || 'one_shot';
-      repeatCount = visuals.trackRepeats?.rotation ?? visuals.rotationLoops ?? 1;
-      curve = visuals.rotationCurve || 'linear';
+      animStyle = visuals.rotationAnimStyle || animStyle;
+      repeatCount = visuals.trackRepeats?.rotation ?? visuals.rotationLoops ?? repeatCount;
+      curve = visuals.rotationCurve || curve;
     }
 
     let localProgress = progress;
@@ -1716,6 +1942,17 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     let animId: number;
 
     const renderLoop = (now: number) => {
+      // First frame initialization or reset calibration
+      if (isFirstFrameRef.current || lastFrameTimeRef.current === 0 || now < lastFrameTimeRef.current) {
+        lastFrameTimeRef.current = now;
+        lastEmitTimeRef.current = now;
+        lastBurstTimeRef.current = now;
+        emitAccumulatorRef.current = 0;
+        isFirstFrameRef.current = false;
+        animId = requestAnimationFrame(renderLoop);
+        return;
+      }
+
       const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.1);
       lastFrameTimeRef.current = now;
 
@@ -1743,39 +1980,54 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       const height = canvas.height;
       const floorY = height - 50;
 
-      // Handle continuous stream emission
+      // Handle continuous stream emission with accumulator to avoid initial burst catch-up
       if (isPlaying && activeParticleData.emitter.isContinuous) {
         const rateMin = activeParticleData.emitter.emissionRateMin ?? activeParticleData.emitter.emissionRate ?? 20;
         const rateMax = activeParticleData.emitter.emissionRateMax ?? activeParticleData.emitter.emissionRate ?? 20;
         const currentRate = rateMin + Math.random() * (rateMax - rateMin);
         
         if (currentRate > 0) {
-          const emitInterval = 1 / currentRate;
-          if (now - lastEmitTimeRef.current >= emitInterval * 1000) {
-            const particlesToSpawn = Math.max(1, Math.floor(((now - lastEmitTimeRef.current) / 1000) * currentRate));
-            spawnParticles(particlesToSpawn);
-            lastEmitTimeRef.current = now;
+          emitAccumulatorRef.current += dt * currentRate;
+          const particlesToSpawn = Math.floor(emitAccumulatorRef.current);
+          if (particlesToSpawn > 0) {
+            // Cap per-frame spawn count so tab backgrounding or lag spike doesn't emit massive bursts
+            const maxPerFrame = Math.max(1, Math.ceil(currentRate * 0.1));
+            const count = Math.min(particlesToSpawn, maxPerFrame);
+            spawnParticles(count);
+            emitAccumulatorRef.current = Math.max(0, emitAccumulatorRef.current - particlesToSpawn);
           }
         }
+      } else {
+        emitAccumulatorRef.current = 0;
       }
 
       // Handle periodic bursts
-      const burstEnabled = activeParticleData.emitter.burstEnabled !== false;
+      // Only burst periodically if explicitly enabled, or if not continuous and has a positive burst interval and count
+      const burstEnabled = activeParticleData.emitter.burstEnabled === true ||
+        (activeParticleData.emitter.burstEnabled === undefined &&
+          (activeParticleData.emitter.burstInterval ?? 0) > 0 &&
+          (activeParticleData.emitter.burstCount ?? 0) > 0 &&
+          !activeParticleData.emitter.isContinuous);
+
       if (isPlaying && burstEnabled) {
         const intervalMin = activeParticleData.emitter.burstIntervalMin ?? activeParticleData.emitter.burstInterval ?? 1.0;
         const intervalMax = activeParticleData.emitter.burstIntervalMax ?? activeParticleData.emitter.burstInterval ?? 1.0;
         
-        if (nextBurstIntervalRef.current === null) {
-           nextBurstIntervalRef.current = intervalMin + Math.random() * (intervalMax - intervalMin);
-        }
+        if (intervalMin > 0 || intervalMax > 0) {
+          if (nextBurstIntervalRef.current === null) {
+            nextBurstIntervalRef.current = Math.max(0.05, intervalMin + Math.random() * Math.max(0, intervalMax - intervalMin));
+          }
 
-        if (now - lastBurstTimeRef.current >= nextBurstIntervalRef.current * 1000) {
-          const countMin = activeParticleData.emitter.burstCountMin ?? activeParticleData.emitter.burstCount ?? 30;
-          const countMax = activeParticleData.emitter.burstCountMax ?? activeParticleData.emitter.burstCount ?? 30;
-          const count = Math.floor(countMin + Math.random() * (countMax - countMin));
-          spawnParticles(count);
-          lastBurstTimeRef.current = now;
-          nextBurstIntervalRef.current = intervalMin + Math.random() * (intervalMax - intervalMin);
+          if (now - lastBurstTimeRef.current >= nextBurstIntervalRef.current * 1000) {
+            const countMin = activeParticleData.emitter.burstCountMin ?? activeParticleData.emitter.burstCount ?? 30;
+            const countMax = activeParticleData.emitter.burstCountMax ?? activeParticleData.emitter.burstCount ?? 30;
+            const count = Math.floor(countMin + Math.random() * Math.max(0, countMax - countMin));
+            if (count > 0) {
+              spawnParticles(count);
+            }
+            lastBurstTimeRef.current = now;
+            nextBurstIntervalRef.current = Math.max(0.05, intervalMin + Math.random() * Math.max(0, intervalMax - intervalMin));
+          }
         }
       }
 
@@ -2239,7 +2491,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       <FileSubfolderHeader
         subfolderName="particles"
         extension=".particle"
-        accentColor="amber"
+        accentColor={theme.moduleColors.particles || 'amber'}
         files={particleFiles.map(f => ({
           id: f.id,
           name: f.particleData?.name || f.name || f.fileName,
@@ -2455,62 +2707,36 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
             />
 
             {/* Floating Viewport Zoom & Pan Controls Bar */}
-            <div className="absolute top-6 right-6 z-20 flex items-center gap-1 bg-neutral-950/80 backdrop-blur-md border border-neutral-800 p-1 rounded-xl shadow-xl">
-              <button
-                type="button"
-                onClick={() => setZoom(z => Math.max(0.25, parseFloat((z - 0.15).toFixed(2))))}
-                className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
-                title="Zoom Out"
-              >
-                <ZoomOut size={14} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setZoom(1.0);
-                  setPanOffset({ x: 0, y: 0 });
-                }}
-                className="px-2 py-0.5 rounded text-[11px] font-mono font-bold text-amber-400 hover:bg-neutral-800 transition"
-                title="Reset Zoom & Pan (100%)"
-              >
-                {Math.round(zoom * 100)}%
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setZoom(z => Math.min(4.0, parseFloat((z + 0.15).toFixed(2))))}
-                className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
-                title="Zoom In"
-              >
-                <ZoomIn size={14} />
-              </button>
-
-              <div className="w-px h-4 bg-neutral-800 my-auto" />
-
-              <button
-                type="button"
-                onClick={() => setCanvasTool(t => t === 'pan' ? 'select' : 'pan')}
-                className={`p-1.5 rounded-lg transition ${
-                  canvasTool === 'pan' ? 'bg-amber-600 text-white' : 'hover:bg-neutral-800 text-neutral-400 hover:text-white'
-                }`}
-                title="Pan Tool (or Right-click / Middle-click / Space drag)"
-              >
-                <Hand size={14} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmitterPos({ x: 320, y: 220 });
-                  setPanOffset({ x: 0, y: 0 });
-                }}
-                className="p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition"
-                title="Center Emitter Anchor"
-              >
-                <Target size={14} />
-              </button>
-            </div>
+            <ViewportHUD
+              scale={zoom}
+              onZoomIn={() => setZoom(z => Math.min(4.0, parseFloat((z + 0.15).toFixed(2))))}
+              onZoomOut={() => setZoom(z => Math.max(0.25, parseFloat((z - 0.15).toFixed(2))))}
+              onResetZoom={() => {
+                setZoom(1.0);
+                setPanOffset({ x: 0, y: 0 });
+              }}
+              onCenterContent={() => {
+                setEmitterPos({ x: 320, y: 220 });
+                setPanOffset({ x: 0, y: 0 });
+              }}
+              position="top-right"
+              themeColor="amber"
+              showHelperHint={true}
+              leadingSlot={
+                <button
+                  type="button"
+                  onClick={() => setCanvasTool(t => t === 'pan' ? 'select' : 'pan')}
+                  className={`p-1.5 rounded-lg border transition ${
+                    canvasTool === 'pan'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'border-transparent text-neutral-400 hover:text-white hover:bg-neutral-800'
+                  }`}
+                  title="Pan Tool (or Right-click / Middle-click / Space drag)"
+                >
+                  <Hand size={14} />
+                </button>
+              }
+            />
 
             {/* Real-time Telemetry Overlay */}
             <div className="absolute bottom-6 left-6 pointer-events-none flex items-center gap-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-neutral-800 text-[11px] font-mono text-neutral-400 z-20">
@@ -2661,50 +2887,198 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                     </div>
 
-                    {/* Emitter Dimensions */}
-                    {(activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'line') && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Width (px)</label>
-                          <input
-                            type="number"
-                            min="2"
-                            max="600"
-                            value={activeParticleData.emitter.width || 32}
-                            onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, width: Number(e.target.value) } }))}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                          />
-                        </div>
-                        {activeParticleData.emitter.shape === 'box' && (
+                    {/* Emitter Dimensions & Size (Box, Line, Circle, Ring, Cone) */}
+                    {activeParticleData.emitter.shape !== 'point' && (
+                      <div className="space-y-2 pt-1 border-t border-neutral-800/40">
+                        {/* Box, Circle, Ring: Width & Height */}
+                        {(activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'circle' || activeParticleData.emitter.shape === 'ring') && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-neutral-400 block mb-1">
+                                {activeParticleData.emitter.shape === 'box' ? 'Width (px)' : 'Width / Dia X (px)'}
+                              </label>
+                              <input
+                                type="number"
+                                min="2"
+                                max="600"
+                                value={activeParticleData.emitter.width || activeParticleData.emitter.radius || 32}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, width: val, radius: val / 2 } }));
+                                }}
+                                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-neutral-400 block mb-1">
+                                {activeParticleData.emitter.shape === 'box' ? 'Height (px)' : 'Height / Dia Y (px)'}
+                              </label>
+                              <input
+                                type="number"
+                                min="2"
+                                max="600"
+                                value={activeParticleData.emitter.height || activeParticleData.emitter.radius || 32}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, height: val } }));
+                                }}
+                                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Cone: Width (Spread) & Height (Reach) */}
+                        {activeParticleData.emitter.shape === 'cone' && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-neutral-400 block mb-1">Spread Width (px)</label>
+                              <input
+                                type="number"
+                                min="2"
+                                max="600"
+                                value={activeParticleData.emitter.width || 48}
+                                onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, width: Number(e.target.value) } }))}
+                                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-neutral-400 block mb-1">Cone Length (px)</label>
+                              <input
+                                type="number"
+                                min="2"
+                                max="600"
+                                value={activeParticleData.emitter.height || 64}
+                                onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, height: Number(e.target.value) } }))}
+                                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Line: Width (Length) */}
+                        {activeParticleData.emitter.shape === 'line' && (
                           <div>
-                            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Height (px)</label>
+                            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Line Length / Width (px)</label>
                             <input
                               type="number"
                               min="2"
-                              max="400"
-                              value={activeParticleData.emitter.height || 32}
-                              onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, height: Number(e.target.value) } }))}
+                              max="600"
+                              value={activeParticleData.emitter.width || 64}
+                              onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, width: Number(e.target.value) } }))}
                               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
                             />
                           </div>
                         )}
+
+                        {/* Emitter Rotation / Angle (For all except Point) */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-neutral-400">Emitter Rotation / Angle</label>
+                            <span className="text-emerald-400 font-mono text-[10px]">{activeParticleData.emitter.rotationDeg || 0}°</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="360"
+                              step="1"
+                              value={activeParticleData.emitter.rotationDeg || 0}
+                              onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, rotationDeg: Number(e.target.value) } }))}
+                              className="flex-1 accent-emerald-500"
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              max="360"
+                              value={activeParticleData.emitter.rotationDeg || 0}
+                              onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, rotationDeg: Number(e.target.value) % 360 } }))}
+                              className="w-14 bg-neutral-950 border border-neutral-800 rounded p-1 text-center font-mono text-xs text-white"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 gap-1 pt-0.5">
+                            {[0, 90, 180, 270].map(deg => (
+                              <button
+                                key={deg}
+                                type="button"
+                                onClick={() => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, rotationDeg: deg } }))}
+                                className={`py-0.5 px-1 rounded text-[9px] font-mono font-bold transition border ${
+                                  (activeParticleData.emitter.rotationDeg || 0) === deg 
+                                    ? 'bg-emerald-900/60 border-emerald-500/80 text-emerald-300' 
+                                    : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+                                }`}
+                              >
+                                {deg}°
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
 
-                    {/* Circle Radius */}
-                    {activeParticleData.emitter.shape === 'circle' && (
-                      <div>
-                        <label className="text-[10px] font-bold text-neutral-400 block mb-1">Circle Radius (px)</label>
-                        <input
-                          type="number"
-                          min="2"
-                          max="300"
-                          value={activeParticleData.emitter.radius || 40}
-                          onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, radius: Number(e.target.value) } }))}
-                          className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                        />
+                    {/* Emitter Animation Track Toggles */}
+                    <div className="pt-2 border-t border-neutral-800/40 space-y-1.5">
+                      <label className="text-[10px] uppercase font-bold text-neutral-400 flex items-center justify-between">
+                        <span>Animate Emitter Properties on Timeline</span>
+                        <span className="text-[9px] text-neutral-500 lowercase">tracks toggle</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 bg-neutral-950/70 p-2 rounded-lg border border-neutral-800/80">
+                        <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 font-medium cursor-pointer hover:text-white">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.emitter.animateEmitterWidth || false}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, animateEmitterWidth: e.target.checked } }))}
+                            className="rounded accent-amber-500 w-3.5 h-3.5"
+                          />
+                          <span>↔️ Width Track</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 font-medium cursor-pointer hover:text-white">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.emitter.animateEmitterHeight || false}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, animateEmitterHeight: e.target.checked } }))}
+                            className="rounded accent-amber-500 w-3.5 h-3.5"
+                          />
+                          <span>↕️ Height Track</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 font-medium cursor-pointer hover:text-white">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.emitter.animateEmitterRotation || false}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, animateEmitterRotation: e.target.checked } }))}
+                            className="rounded accent-emerald-500 w-3.5 h-3.5"
+                          />
+                          <span>🔄 Rotation Track</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 font-medium cursor-pointer hover:text-white">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.emitter.animateEmissionRate || false}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, animateEmissionRate: e.target.checked } }))}
+                            className="rounded accent-cyan-500 w-3.5 h-3.5"
+                          />
+                          <span>⚡ Rate Track</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 font-medium cursor-pointer hover:text-white">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.emitter.animateBurstCount || false}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, animateBurstCount: e.target.checked } }))}
+                            className="rounded accent-orange-500 w-3.5 h-3.5"
+                          />
+                          <span>💥 Burst Qty Track</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[10px] text-neutral-300 font-medium cursor-pointer hover:text-white">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.emitter.animateBurstInterval || false}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, animateBurstInterval: e.target.checked } }))}
+                            className="rounded accent-indigo-500 w-3.5 h-3.5"
+                          />
+                          <span>⏱️ Interval Track</span>
+                        </label>
                       </div>
-                    )}
+                    </div>
 
                     {/* Emission Rates (Range) */}
                     <div className="grid grid-cols-2 gap-2">
@@ -3792,114 +4166,146 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   </div>
                 )}
 
-                {/* 4. Dropdown list to add new parameters */}
-                <div className="pt-2">
-                  <span className="text-[10px] uppercase font-bold text-neutral-500 block mb-2 tracking-wider">Add Customizable Parameters</span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {AVAILABLE_INITIALIZE_PROPS.map(p => {
-                      const alreadyAdded = addedProps.includes(p.id);
-                      return (
+                {/* 4. Enhanced Customizable Parameters Catalog */}
+                <div className="pt-2 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">Customizable Parameters Library</span>
+                      <span className="text-[9px] text-neutral-500">
+                        {addedProps.length} active / {AVAILABLE_INITIALIZE_PROPS.length} total parameters
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Search and Category Filter Bar */}
+                  <div className="space-y-1.5 bg-neutral-950 p-2 rounded-xl border border-neutral-800">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={paramSearch}
+                        onChange={(e) => setParamSearch(e.target.value)}
+                        placeholder="Search parameters (e.g. gravity, wind, trails)..."
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-lg pl-7 pr-2 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+                      />
+                      <Search size={12} className="absolute left-2.5 top-2.5 text-neutral-500 pointer-events-none" />
+                      {paramSearch && (
                         <button
-                          key={p.id}
                           type="button"
-                          disabled={alreadyAdded}
-                          onClick={() => {
-                            setAddedProps(prev => [...prev, p.id]);
-                            if (p.id === 'size_curve') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                visuals: { ...pr.visuals, animateSize: true }
-                              }));
-                            } else if (p.id === 'color_flow') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                visuals: { ...pr.visuals, animateColor: true }
-                              }));
-                            } else if (p.id === 'alpha_opac') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                visuals: { ...pr.visuals, animateAlpha: true }
-                              }));
-                            } else if (p.id === 'rotation') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                visuals: { ...pr.visuals, animateRotation: true },
-                                kinematics: { ...pr.kinematics, minAngularVelocity: -90, maxAngularVelocity: 90 }
-                              }));
-                            } else if (p.id === 'launch_speed') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                kinematics: { ...pr.kinematics, minSpeed: 60, maxSpeed: 140 }
-                              }));
-                            } else if (p.id === 'gravity') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                kinematics: { ...pr.kinematics, gravityY: 180, gravityX: 0 }
-                              }));
-                            } else if (p.id === 'drag') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                kinematics: { ...pr.kinematics, drag: 0.98 }
-                              }));
-                            } else if (p.id === 'wind') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                kinematics: { ...pr.kinematics, windForce: 30 }
-                              }));
-                            } else if (p.id === 'angle') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                kinematics: { ...pr.kinematics, angleDeg: 270, spreadDeg: 45, turbulenceJitter: 0 }
-                              }));
-                            } else if (p.id === 'bloom') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                visuals: { ...pr.visuals, glowBlurRadius: 8 }
-                              }));
-                            } else if (p.id === 'motionBlur') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                visuals: { ...pr.visuals, startMotionBlur: 1, endMotionBlur: 1, animateMotionBlur: true }
-                              }));
-                            } else if (p.id === 'trails') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                visuals: { ...pr.visuals, hasTrails: true, trailLength: 10, trailWidthScale: 1.0, trailTaper: true, trailTaperLength: 10 }
-                              }));
-                            } else if (p.id === 'pull') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                kinematics: { 
-                                  ...pr.kinematics, 
-                                  emitterPull: true, 
-                                  emitterPullRadius: 150, 
-                                  emitterPullStrength: 1.0, 
-                                  emitterPullFalloff: 1.0 
-                                }
-                              }));
-                            } else if (p.id === 'physics') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                physics: { ...pr.physics, collideWithMapSolids: true, collisionRestitution: 0.4 }
-                              }));
-                            } else if (p.id === 'destroy_on_hit') {
-                              updateActiveParticle(pr => ({
-                                ...pr,
-                                physics: { ...pr.physics, destroyOnCollision: true }
-                              }));
-                            }
-                          }}
-                          className={`p-2 rounded-lg text-left border text-[10px] flex flex-col font-bold transition duration-150 ${
-                            alreadyAdded
-                              ? 'bg-neutral-950/20 border-neutral-900 text-neutral-600 cursor-not-allowed'
-                              : 'bg-neutral-950 border-neutral-800/80 text-neutral-300 hover:border-amber-500/50 hover:bg-neutral-900'
+                          onClick={() => setParamSearch('')}
+                          className="absolute right-2 top-2 text-[10px] text-neutral-400 hover:text-white"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 pt-1">
+                      {[
+                        { id: 'all', label: 'All' },
+                        { id: 'forces', label: '⚡ Forces & Motion' },
+                        { id: 'visuals', label: '🎨 Visual FX' },
+                        { id: 'physics', label: '🧱 Physics' }
+                      ].map(cat => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setParamCategory(cat.id as any)}
+                          className={`px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap transition border ${
+                            paramCategory === cat.id
+                              ? 'bg-amber-600 border-amber-500 text-white shadow-sm'
+                              : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-neutral-200'
                           }`}
                         >
-                          <span className="text-white font-extrabold">{p.label}</span>
-                          <span className="text-[8.5px] font-normal text-neutral-500 mt-0.5 leading-snug">{p.desc}</span>
+                          {cat.label}
                         </button>
-                      );
-                    })}
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Parameters Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {AVAILABLE_INITIALIZE_PROPS
+                      .filter(p => {
+                        const matchesSearch = p.label.toLowerCase().includes(paramSearch.toLowerCase()) ||
+                                              p.desc.toLowerCase().includes(paramSearch.toLowerCase());
+                        const matchesCategory = paramCategory === 'all' || p.category === paramCategory;
+                        return matchesSearch && matchesCategory;
+                      })
+                      .map(p => {
+                        const alreadyAdded = addedProps.includes(p.id);
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-2.5 rounded-xl border flex flex-col justify-between transition duration-150 ${
+                              alreadyAdded
+                                ? 'bg-amber-950/20 border-amber-500/40 text-neutral-200'
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-900/80'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                                  {p.label}
+                                </span>
+                                <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                                  alreadyAdded 
+                                    ? 'bg-emerald-950 border border-emerald-500/50 text-emerald-400' 
+                                    : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                                }`}>
+                                  {alreadyAdded ? '✓ Added' : p.badge}
+                                </span>
+                              </div>
+                              <p className="text-[9px] text-neutral-400 leading-snug mb-2">
+                                {p.desc}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (alreadyAdded) {
+                                  // Remove property
+                                  setAddedProps(prev => prev.filter(x => x !== p.id));
+                                  if (p.id === 'size_curve') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateSize: false } }));
+                                  else if (p.id === 'color_flow') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateColor: false } }));
+                                  else if (p.id === 'alpha_opac') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateAlpha: false } }));
+                                  else if (p.id === 'rotation') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateRotation: false } }));
+                                  else if (p.id === 'bloom') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, glowBlurRadius: 0 } }));
+                                  else if (p.id === 'motionBlur') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateMotionBlur: false } }));
+                                  else if (p.id === 'trails') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, hasTrails: false } }));
+                                  else if (p.id === 'physics') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, collideWithMapSolids: false } }));
+                                  else if (p.id === 'destroy_on_hit') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, destroyOnCollision: false } }));
+                                } else {
+                                  // Add property
+                                  setAddedProps(prev => [...prev, p.id]);
+                                  if (p.id === 'size_curve') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateSize: true } }));
+                                  else if (p.id === 'color_flow') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateColor: true } }));
+                                  else if (p.id === 'alpha_opac') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateAlpha: true } }));
+                                  else if (p.id === 'rotation') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateRotation: true }, kinematics: { ...pr.kinematics, minAngularVelocity: -90, maxAngularVelocity: 90 } }));
+                                  else if (p.id === 'launch_speed') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, minSpeed: 60, maxSpeed: 140 } }));
+                                  else if (p.id === 'gravity') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, gravityY: 180, gravityX: 0 } }));
+                                  else if (p.id === 'drag') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, drag: 0.98 } }));
+                                  else if (p.id === 'wind') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, windForce: 30 } }));
+                                  else if (p.id === 'angle') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, angleDeg: 270, spreadDeg: 45, turbulenceJitter: 0 } }));
+                                  else if (p.id === 'bloom') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, glowBlurRadius: 8 } }));
+                                  else if (p.id === 'motionBlur') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, startMotionBlur: 1, endMotionBlur: 1, animateMotionBlur: true } }));
+                                  else if (p.id === 'trails') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, hasTrails: true, trailLength: 10, trailWidthScale: 1.0, trailTaper: true, trailTaperLength: 10 } }));
+                                  else if (p.id === 'pull') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, emitterPull: true, emitterPullRadius: 150, emitterPullStrength: 1.0, emitterPullFalloff: 1.0 } }));
+                                  else if (p.id === 'physics') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, collideWithMapSolids: true, collisionRestitution: 0.4 } }));
+                                  else if (p.id === 'destroy_on_hit') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, destroyOnCollision: true } }));
+                                }
+                              }}
+                              className={`w-full py-1 px-2 rounded-lg text-[9.5px] font-bold transition flex items-center justify-center gap-1 ${
+                                alreadyAdded
+                                  ? 'bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40'
+                                  : 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm'
+                              }`}
+                            >
+                              {alreadyAdded ? '✕ Remove Parameter' : '+ Add Parameter'}
+                            </button>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
 
@@ -4918,12 +5324,12 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   <div className="border border-dashed border-neutral-800 rounded-lg p-4 bg-neutral-900/30 flex flex-col items-center justify-center text-center space-y-2 relative">
                     <Upload size={24} className="text-neutral-500" />
                     <div>
-                      <div className="text-xs font-bold text-neutral-300">Upload Atlas PNG</div>
-                      <p className="text-[9px] text-neutral-500">Supports transparent pixel sheets</p>
+                      <div className="text-xs font-bold text-neutral-300">Upload & Configure Atlas</div>
+                      <p className="text-[9px] text-neutral-500">Supports transparent pixel sheets & custom slicing</p>
                     </div>
                     <input
                       type="file"
-                      accept="image/png"
+                      accept="image/*"
                       className="absolute inset-0 opacity-0 cursor-pointer"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
@@ -4932,26 +5338,19 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           reader.onload = (evt) => {
                             const dataUrl = evt.target?.result as string;
                             if (dataUrl) {
-                              updateActiveParticle(p => ({
-                                ...p,
-                                visuals: {
-                                  ...p.visuals,
-                                  shape: 'spritesheet',
-                                  spritesheet: {
-                                    id: `spritesheet_${Date.now()}`,
-                                    name: file.name,
-                                    imageUrl: dataUrl,
-                                    dataUrl: dataUrl,
-                                    tileWidth: 64,
-                                    tileHeight: 64,
-                                    cols: 8,
-                                    rows: 1,
-                                    totalFrames: 8,
-                                    splitMode: 'columns'
-                                  }
+                              setParticleSliceModalConfig({
+                                isOpen: true,
+                                sheetLabel: file.name.replace(/\.[^/.]+$/, ''),
+                                initialImage: {
+                                  url: dataUrl,
+                                  name: file.name.replace(/\.[^/.]+$/, ''),
+                                  tileWidth: activeParticleData.visuals.spritesheet?.tileWidth || 64,
+                                  tileHeight: activeParticleData.visuals.spritesheet?.tileHeight || 64,
+                                  cols: activeParticleData.visuals.spritesheet?.cols || 8,
+                                  rows: activeParticleData.visuals.spritesheet?.rows || 1,
+                                  splitMode: activeParticleData.visuals.spritesheet?.splitMode || 'columns'
                                 }
-                              }));
-                              showToast('Uploaded particle spritesheet successfully!');
+                              });
                             }
                           };
                           reader.readAsDataURL(file);
@@ -4959,6 +5358,34 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       }}
                     />
                   </div>
+
+                  {/* Slicer Trigger for Active Atlas */}
+                  {activeParticleData.visuals.spritesheet && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const s = activeParticleData.visuals.spritesheet;
+                        if (!s) return;
+                        setParticleSliceModalConfig({
+                          isOpen: true,
+                          sheetLabel: s.name,
+                          initialImage: {
+                            url: s.imageUrl || s.dataUrl || '',
+                            name: s.name,
+                            tileWidth: s.tileWidth,
+                            tileHeight: s.tileHeight,
+                            cols: s.cols,
+                            rows: s.rows,
+                            splitMode: s.splitMode
+                          }
+                        });
+                      }}
+                      className="w-full py-2 px-3 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                    >
+                      <Grid size={13} className="text-purple-400" />
+                      <span>✂️ Configure & Slice Atlas Grid</span>
+                    </button>
+                  )}
 
                   {/* Procedural Atlas Sample Generators */}
                   <div className="space-y-1.5">
@@ -5350,6 +5777,18 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Spritesheet Slicer & Pre-Configuration Interactive Modal */}
+      {particleSliceModalConfig.isOpen && (
+        <SpritesheetSliceModal
+          isOpen={particleSliceModalConfig.isOpen}
+          onClose={() => setParticleSliceModalConfig({ isOpen: false })}
+          onConfirm={handleParticleSliceConfirm}
+          initialImage={particleSliceModalConfig.initialImage}
+          sheetLabel={particleSliceModalConfig.sheetLabel}
+          title="Particle Spritesheet Slicing & Pre-Configuration"
+        />
+      )}
     </div>
   );
 };

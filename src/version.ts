@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.121';
-export const MASON_VERSION_DISPLAY = 'v0.121';
-export const MASON_FULL_VERSION = 'v0.121';
+export const MASON_VERSION = '0.135';
+export const MASON_VERSION_DISPLAY = 'v0.135';
+export const MASON_FULL_VERSION = 'v0.135';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -31,7 +31,120 @@ export const getMasonVersionString = (revision?: number): string => {
  */
 export const MASON_RELEASE_HISTORY = [
   {
-    version: 'v0.121',
+    version: 'v0.135',
+    date: '2026-08-24',
+    changes: [
+      'Refactored Palette Spray Studio into a streamlined, embedded Mason module and React modal component.',
+      'Stripped standalone cloud storage overhead, Google Drive / OneDrive credentials, and PWA manifest links.',
+      'Integrated SpriteEditorModal component allowing direct pixel art painting & spritesheet creation inside Prefab Editor.',
+      'Added top-level Palette Spray Studio module entry to Mason Modules Registry.'
+    ]
+  },
+  {
+    version: 'v0.134',
+    date: '2026-08-24',
+    changes: [
+      'Removed all sub-description flavor text from App Background Tone cards in the Theme modal.',
+      'Background tone cards now display strictly the clean color name.',
+      'Added hover tooltips (`title` attribute) on all background tone buttons to display the color name on hover.'
+    ]
+  },
+  {
+    version: 'v0.133',
+    date: '2026-08-24',
+    changes: [
+      'Refocused the chromatic color spectrum to 36 clean 10° hue steps around the 360° color wheel.',
+      'All 36 chromatic hues maintain 100% saturation and 50% lightness for vibrant, high-contrast theme selection.',
+      'Preserved clear descriptive color titles (e.g. Pure Red, Scarlet Red, Deep Orange, Pure Yellow, Solar Lime, Pure Lime, Hyper Mint, Pure Cyan, Sky Blue, Pure Blue, Cosmic Violet, Pure Magenta).'
+    ]
+  },
+  {
+    version: 'v0.132',
+    date: '2026-08-24',
+    changes: [
+      'Expanded the chromatic color spectrum to 72 precise 5° hue steps around the 360° color wheel, all tuned to 100% saturation and 50% lightness for strong, vivid contrast.',
+      'Removed degree text from all color swatches in favor of clean, descriptive color names.',
+      'Removed hex code text from the app background tone cards for a cleaner, streamlined theme selector.'
+    ]
+  },
+  {
+    version: 'v0.131',
+    date: '2026-08-24',
+    changes: [
+      'Engineered a methodical 24-color palette divided into 19 vivid 20° chromatic hue steps around the 360° color wheel plus 5 distinct grayscale contrast values.',
+      'Eliminated visually redundant overlapping swatches while maximizing dark-mode theme contrast across all app components.'
+    ]
+  },
+  {
+    version: 'v0.130',
+    date: '2026-08-24',
+    changes: [
+      'Disbanded standalone Scientific CUD group and seamlessly integrated all Okabe-Ito colors directly into their matching chromatic hue spectrum positions.'
+    ]
+  },
+  {
+    version: 'v0.129',
+    date: '2026-08-24',
+    changes: [
+      'Organized Custom Palette Mixer colors linearly by chromatic hue across all accent selectors.',
+      'Removed user-facing color family labels, score badges, group headers, and dividers for a clean, seamless UI experience.'
+    ]
+  },
+  {
+    version: 'v0.128',
+    date: '2026-08-24',
+    changes: [
+      'Organized Custom Palette Mixer colors chromatically by Hue spectrum (Reds & Roses, Oranges & Ambers, Golds & Yellows, Limes & Emeralds, Teals & Cyans, Blues & Indigos, Purples & Fuchsias, Neutrals, and Scientific CUD).',
+      'Added explicit Hue Group sub-headers and badges to the Main App Accent selector.',
+      'Added chromatic hue dividers and group hover labels across all module swatch selection rows.'
+    ]
+  },
+  {
+    version: 'v0.127',
+    date: '2026-08-24',
+    changes: [
+      'Added Color Family classification (Red, Orange, Yellow, Green, Blue/Cyan, Purple, Neutral) to prevent blue variants from being treated as distinct hues.',
+      'Refined all standard theme presets to maximize true color family diversity across 6-7 distinct families.',
+      'Added Live Palette Family Distinction Score and Family Coverage badges to Theme Modal preset cards & Custom Palette Mixer.',
+      'Added Color Family names to swatch button tooltips in custom theme mixer.'
+    ]
+  },
+  {
+    version: 'v0.126',
+    date: '2026-08-24',
+    changes: [
+      'Updated Theme Modal & Theme Engine to support all 6 installed modules including Particles & VFX (.particle).',
+      'Added Particles module accent color customization to Theme Modal custom palette mixer and preset spectrum strips.',
+      'Connected Particles Editor subfolder header to dynamic theme module colors.'
+    ]
+  },
+  {
+    version: 'v0.125',
+    date: '2026-08-24',
+    changes: [
+      'Fixed hurtbox and hitbox collider visibility toggling in Prefab Composition Studio to sync with the Colliders toolbar button.'
+    ]
+  },
+  {
+    version: 'v0.124',
+    date: '2026-08-24',
+    changes: [
+      'Migrated Prefab Composition Viewport to the shared useMasonViewport and ViewportCanvasContainer sub-modules.',
+      'Added originMode support to useMasonViewport for exact cursor-anchored zoom in center-origin viewports.',
+      'Configured default paused animation state and clean default sockets/colliders for new prefabs.'
+    ]
+  },
+  {
+    version: 'v0.123',
+    date: '2026-08-24',
+    changes: [
+      'Fixed spritesheet slicing mathematics, preserving user column count and row boundaries without auto-overwrites.',
+      'Eliminated preview canvas stretching using dynamic ResizeObserver viewport sizing for true 1:1 pixel rendering.',
+      'Added single-row strip auto-detection and quick selectors for 1-click column & row adjustments.'
+    ]
+  },
+  {
+    version: 'v0.122',
     date: '2026-08-23',
     changes: [
       'Added full motion blur support to both Particle and Prefab animation timelines.',
@@ -40,7 +153,7 @@ export const MASON_RELEASE_HISTORY = [
     ]
   },
   {
-    version: 'v0.121',
+    version: 'v0.122',
     date: '2026-08-23',
     changes: [
       'Fixed React state mutation bug in bi-directional sync which caused animation settings to stop rendering.'
@@ -61,7 +174,7 @@ export const MASON_RELEASE_HISTORY = [
     ]
   },
   {
-    version: 'v0.121',
+    version: 'v0.122',
     date: '2026-08-23',
     changes: [
       'Rule & Version Enforcement: Established strict project rules requiring sequential integer version bumping across package.json, version.ts, and service worker cache on every code update.'

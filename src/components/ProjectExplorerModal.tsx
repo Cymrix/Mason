@@ -135,11 +135,8 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
               ]
             }
           ],
-          sockets: [
-            { tagId: 'head_eyes' as const, label: 'Sight Locus (Eyes)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
-            { tagId: 'head_ears' as const, label: 'Acoustic Ears', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
-            { tagId: 'torso_center' as const, label: 'Torso Hurtbox', offsetX: 0, offsetY: 0, visualMarkerColor: '#22c55e' }
-          ],
+          sockets: [],
+          polygons: [],
           animations: [
             { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_main', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
           ]

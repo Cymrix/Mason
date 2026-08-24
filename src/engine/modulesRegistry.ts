@@ -10,7 +10,7 @@ export interface MasonModuleDefinition {
   entryHtml: string; // e.g. "/modules/maps/index.html"
   associatedFolder: string; // e.g. "maps"
   associatedExtension: string; // e.g. ".map"
-  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard' | 'Sparkles';
+  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard' | 'Sparkles' | 'Paintbrush';
   accentColor: string; // cyan, emerald, purple, amber, blue, etc.
   description: string;
   features: string[];
@@ -18,6 +18,27 @@ export interface MasonModuleDefinition {
 }
 
 export const MASON_MODULES: MasonModuleDefinition[] = [
+  {
+    id: 'sprites',
+    name: 'Image Editor',
+    tagline: 'Layered pixel-art painter with palette gradient-driven spray brush & animation timeline',
+    category: 'Actors & Combat',
+    subfolder: 'modules/sprites',
+    entryHtml: '/modules/sprites/index.html',
+    associatedFolder: 'sprites',
+    associatedExtension: '.png',
+    iconName: 'Paintbrush',
+    accentColor: 'emerald',
+    description: 'A powerful embedded pixel studio for drawing hero sprites, monster animations, tilesets, and height/normal maps with gradient spray brushes, palette swatches, and multi-frame animation timelines.',
+    features: [
+      'Gradient & Palette-Driven Spray Brushes with custom scatter jitter',
+      'Multi-Layer Canvas: Opacity, blend layers, flip, rotate, and sharpening FX',
+      'Animation Timeline: Frame sequencing, onion skinning, live preview & FPS controls',
+      'Spritesheet & Heightmap Export: Direct grid export or instant application to Mason Prefabs',
+      'Seamless Pattern & Tileset Authoring tools'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
   {
     id: 'maps',
     name: 'Maps',
@@ -124,7 +145,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
   },
   {
     id: 'gamestructure',
-    name: 'World Graph',
+    name: 'Game Architecture',
     tagline: 'World map graph linker, main menu builder, loading wipes & progression flags',
     category: 'Game Architecture',
     subfolder: 'modules/gamestructure',

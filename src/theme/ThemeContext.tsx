@@ -92,7 +92,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getModuleColorDef = (moduleId: string): ColorDef => {
     const modKey = moduleId as keyof AppThemeConfig['moduleColors'];
-    const accentKey = theme.moduleColors[modKey] || 'cyan';
+    const accentKey = theme.moduleColors[modKey] || (moduleId === 'sprites' ? 'emerald' : 'cyan');
     return COLOR_DEFINITIONS[accentKey] || COLOR_DEFINITIONS.cyan;
   };
 

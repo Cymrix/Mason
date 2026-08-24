@@ -14,7 +14,8 @@ import {
   Users,
   Sliders,
   Network,
-  Sparkles
+  Sparkles,
+  Paintbrush
 } from 'lucide-react';
 
 interface ModulesModalProps {
@@ -81,6 +82,8 @@ export const ModulesModal: React.FC<ModulesModalProps> = ({
 
             const renderModalModuleIcon = () => {
               switch (mod.iconName) {
+                case 'Paintbrush':
+                  return <Paintbrush size={22} />;
                 case 'Map':
                   return <Map size={22} />;
                 case 'TreePine':

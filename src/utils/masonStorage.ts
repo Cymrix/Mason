@@ -10,7 +10,8 @@ import {
   createDefaultMapFile,
   DEFAULT_UI_THEMES,
   DEFAULT_PARTICLE_SYSTEMS,
-  createDefaultGameStructure
+  createDefaultGameStructure,
+  createDefaultTaskBoard
 } from '../engine/masonProjectSchema';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { MASON_VERSION_DISPLAY } from '../version';
@@ -151,6 +152,9 @@ export const getActiveMasonProject = (): MasonProject | null => {
         }
         if (!parsed.activeFiles.particleFileName) {
           parsed.activeFiles.particleFileName = parsed.fileSystem.particles[0]?.fileName || 'fire_embers.particle';
+        }
+        if (!parsed.taskBoard) {
+          parsed.taskBoard = createDefaultTaskBoard();
         }
         inMemoryActiveProject = parsed;
         inMemoryProjectsCache.set(parsed.id, parsed);

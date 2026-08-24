@@ -157,7 +157,7 @@ export function getTrackNodesForData(visuals: any, track: string): { time: numbe
     return [{ time: 0, value: start }, { time: 1, value: end }];
   }
   if (track === "speed") {
-    return [{ time: 0, value: 0 }, { time: 1, value: 0 }];
+    return [{ time: 0, value: 100 }, { time: 1, value: 50 }];
   }
   if (track === "drag") {
     return [{ time: 0, value: 0.98 }, { time: 1, value: 0.98 }];
@@ -170,12 +170,43 @@ export function getTrackNodesForData(visuals: any, track: string): { time: numbe
     }
     return [{ time: 0, value: start }, { time: 1, value: end }];
   }
+  if (track === "gravity") {
+    return [{ time: 0, value: 180 }, { time: 1, value: 180 }];
+  }
+  if (track === "wind") {
+    return [{ time: 0, value: 30 }, { time: 1, value: 30 }];
+  }
+  if (track === "angle") {
+    return [{ time: 0, value: 270 }, { time: 1, value: 270 }];
+  }
+  if (track === "trails") {
+    return [{ time: 0, value: 10 }, { time: 1, value: 10 }];
+  }
+  // Emitter Tracks
+  if (track === "emitter_width") {
+    return [{ time: 0, value: 40 }, { time: 1, value: 40 }];
+  }
+  if (track === "emitter_height") {
+    return [{ time: 0, value: 40 }, { time: 1, value: 40 }];
+  }
+  if (track === "emitter_rotation") {
+    return [{ time: 0, value: 0 }, { time: 1, value: 360 }];
+  }
+  if (track === "emission_rate") {
+    return [{ time: 0, value: 25 }, { time: 1, value: 25 }];
+  }
+  if (track === "burst_count") {
+    return [{ time: 0, value: 30 }, { time: 1, value: 30 }];
+  }
+  if (track === "burst_interval") {
+    return [{ time: 0, value: 1.0 }, { time: 1, value: 1.0 }];
+  }
   return [{ time: 0, value: 0 }, { time: 1, value: 1 }];
 }
 
 export function evaluateTrackValue(
   progress: number,
-  track: "size" | "color" | "alpha" | "emissive" | "rotation" | "speed" | "drag" | "motionBlur",
+  track: string,
   visuals: any
 ): any {
   let animStyle: ParticleAnimStyle = "one_shot";
@@ -205,6 +236,8 @@ export function evaluateTrackValue(
     animStyle = visuals.motionBlurAnimStyle || "one_shot";
     repeatCount = visuals.trackRepeats?.motionBlur ?? visuals.motionBlurLoops ?? 1;
     curve = visuals.motionBlurCurve || "linear";
+  } else if (visuals.trackRepeats?.[track]) {
+    repeatCount = visuals.trackRepeats[track];
   }
   let localProgress = progress;
   if (animStyle === "repeat") {
@@ -331,6 +364,10 @@ export class ParticleEngine {
     this.activeEmitters = [];
   }
 
+  public clear() {
+    this.particles = [];
+  }
+
   public spawnParticles(
     count: number,
     data: ParticleSystemData,
@@ -348,26 +385,55 @@ export class ParticleEngine {
       let spawnX = origin.x;
       let spawnY = origin.y;
 
+      let localX = 0;
+      let localY = 0;
+
+      const emW = emitter.width ?? (emitter.radius ? emitter.radius * 2 : 40);
+      const emH = emitter.height ?? (emitter.radius ? emitter.radius * 2 : (emitter.shape === 'cone' ? 60 : 40));
+
       if (emitter.shape === "box") {
-        spawnX += (Math.random() - 0.5) * (emitter.width || 32);
-        spawnY += (Math.random() - 0.5) * (emitter.height || 32);
+        localX = (Math.random() - 0.5) * (emitter.width || 32);
+        localY = (Math.random() - 0.5) * (emitter.height || 32);
       } else if (emitter.shape === "circle") {
-        const r = Math.sqrt(Math.random()) * (emitter.radius || 20);
+        const rx = emW / 2;
+        const ry = emH / 2;
+        const sqrtR = Math.sqrt(Math.random());
         const theta = Math.random() * Math.PI * 2;
-        spawnX += Math.cos(theta) * r;
-        spawnY += Math.sin(theta) * r;
+        localX = Math.cos(theta) * rx * sqrtR;
+        localY = Math.sin(theta) * ry * sqrtR;
       } else if (emitter.shape === "ring") {
+        const rx = emW / 2;
+        const ry = emH / 2;
         const theta = Math.random() * Math.PI * 2;
-        const r = emitter.radius || 25;
-        spawnX += Math.cos(theta) * r;
-        spawnY += Math.sin(theta) * r;
+        const innerRatio = 0.6;
+        const rFrac = innerRatio + Math.random() * (1.0 - innerRatio);
+        localX = Math.cos(theta) * rx * rFrac;
+        localY = Math.sin(theta) * ry * rFrac;
       } else if (emitter.shape === "line") {
-        spawnX += (Math.random() - 0.5) * (emitter.width || 48);
+        localX = (Math.random() - 0.5) * (emitter.width || 48);
+        localY = 0;
+      } else if (emitter.shape === "cone") {
+        const t = Math.random();
+        localX = (Math.random() - 0.5) * emW * t;
+        localY = -emH * t;
+      }
+
+      // Apply Emitter Rotation for non-point shapes
+      const emRotDeg = emitter.rotationDeg || 0;
+      if (emRotDeg !== 0 && emitter.shape !== "point") {
+        const emRotRad = emRotDeg * (Math.PI / 180);
+        const cosR = Math.cos(emRotRad);
+        const sinR = Math.sin(emRotRad);
+        spawnX += localX * cosR - localY * sinR;
+        spawnY += localX * sinR + localY * cosR;
+      } else {
+        spawnX += localX;
+        spawnY += localY;
       }
 
       const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : 270;
       const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : 30;
-      const baseAngleRad = angleDeg * (Math.PI / 180);
+      const baseAngleRad = (angleDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
       const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
       const launchAngle = baseAngleRad + spreadRad;
 
@@ -376,12 +442,6 @@ export class ParticleEngine {
       const effMinSpd = (rawMinSpd > 15 ? rawMinSpd / 100 : rawMinSpd) * 100;
       const effMaxSpd = (rawMaxSpd > 15 ? rawMaxSpd / 100 : rawMaxSpd) * 100;
       const speed = effMinSpd + Math.random() * Math.max(0, effMaxSpd - effMinSpd);
-
-      if (emitter.shape === "cone") {
-        const coneRadius = Math.random() * (emitter.radius || 30);
-        spawnX += Math.cos(launchAngle) * coneRadius;
-        spawnY += Math.sin(launchAngle) * coneRadius;
-      }
 
       const vx = Math.cos(launchAngle) * speed;
       const vy = Math.sin(launchAngle) * speed;
@@ -902,36 +962,40 @@ export class ParticleEngine {
         ctx.save();
         ctx.translate(emitterPos.x, emitterPos.y);
 
+        const emRotDeg = em.rotationDeg || 0;
+        if (emRotDeg !== 0 && em.shape !== "point") {
+          ctx.rotate(emRotDeg * (Math.PI / 180));
+        }
+
+        const emW = em.width ?? (em.radius ? em.radius * 2 : 40);
+        const emH = em.height ?? (em.radius ? em.radius * 2 : (em.shape === "cone" ? 60 : 40));
+
         if (em.shape === "box") {
-          const w = em.width || 80;
-          const h = em.height || 40;
-          ctx.fillRect(-w / 2, -h / 2, w, h);
-          ctx.strokeRect(-w / 2, -h / 2, w, h);
+          ctx.fillRect(-emW / 2, -emH / 2, emW, emH);
+          ctx.strokeRect(-emW / 2, -emH / 2, emW, emH);
         } else if (em.shape === "circle" || em.shape === "ring") {
-          const r = em.radius || 40;
+          const rx = emW / 2;
+          const ry = emH / 2;
           ctx.beginPath();
-          ctx.arc(0, 0, r, 0, Math.PI * 2);
+          ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           if (em.shape === "ring") {
-            const innerR = r * 0.5;
+            const innerRatio = 0.6;
             ctx.beginPath();
-            ctx.arc(0, 0, innerR, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, rx * innerRatio, ry * innerRatio, 0, 0, Math.PI * 2);
             ctx.stroke();
           }
         } else if (em.shape === "line") {
-          const len = em.length || 100;
           ctx.beginPath();
-          ctx.moveTo(-len / 2, 0);
-          ctx.lineTo(len / 2, 0);
+          ctx.moveTo(-emW / 2, 0);
+          ctx.lineTo(emW / 2, 0);
           ctx.stroke();
         } else if (em.shape === "cone") {
-          const angle = (em.angle || 45) * (Math.PI / 180);
-          const range = em.speedMax || 150;
           ctx.beginPath();
           ctx.moveTo(0, 0);
-          ctx.lineTo(Math.sin(angle / 2) * range, -Math.cos(angle / 2) * range);
-          ctx.lineTo(-Math.sin(angle / 2) * range, -Math.cos(angle / 2) * range);
+          ctx.lineTo(-emW / 2, -emH);
+          ctx.lineTo(emW / 2, -emH);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();

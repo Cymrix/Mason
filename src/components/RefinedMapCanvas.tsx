@@ -184,13 +184,31 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             // Check prefab_id
             if (cell.prefab_id) {
               const prefab = prefabs.find(c => c.id === cell.prefab_id);
-              if (prefab && prefab.attachedParticles) {
-                for (const attachment of prefab.attachedParticles) {
-                  const system = particleSystems.find(ps => ps.id === attachment.particleSystemId);
-                  if (system) {
-                    const originX = x * 64 + 32 + (attachment.offsetX || 0);
-                    const originY = y * 64 + 32 + (attachment.offsetY || 0);
-                    particleEngineRef.current.addEmitter(system, originX, originY);
+              if (prefab) {
+                // 1. Composite Prefab Parts (New Hierarchy)
+                if (prefab.parts && Array.isArray(prefab.parts)) {
+                  for (const part of prefab.parts) {
+                    if (part.visible !== false && part.type === 'particle') {
+                      const particlePart = part as any;
+                      const system = particleSystems.find(ps => ps.id === particlePart.particleSystemId || ps.id === particlePart.particleFile);
+                      if (system) {
+                        const originX = x * 64 + 32 + (particlePart.offsetX || 0);
+                        const originY = y * 64 + 32 + (particlePart.offsetY || 0);
+                        particleEngineRef.current.addEmitter(system, originX, originY);
+                      }
+                    }
+                  }
+                }
+
+                // 2. Legacy attachedParticles (Backward Compatibility)
+                if (prefab.attachedParticles) {
+                  for (const attachment of prefab.attachedParticles) {
+                    const system = particleSystems.find(ps => ps.id === attachment.particleSystemId);
+                    if (system) {
+                      const originX = x * 64 + 32 + (attachment.offsetX || 0);
+                      const originY = y * 64 + 32 + (attachment.offsetY || 0);
+                      particleEngineRef.current.addEmitter(system, originX, originY);
+                    }
                   }
                 }
               }

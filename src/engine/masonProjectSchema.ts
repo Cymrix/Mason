@@ -440,6 +440,91 @@ export interface BehaviorFile {
 // ==========================================
 // 3.6 PREFAB CREATOR & ANIMATION FILE (.prefab)
 // ==========================================
+export type PrefabPartType = 'sprite' | 'particle' | 'light' | 'collider';
+export type PrefabLayerTarget = 'background' | 'ground' | 'objects' | 'overlay' | 'foreground' | 'custom';
+
+export interface PrefabPartBase {
+  id: string;
+  name: string;
+  type: PrefabPartType;
+  offsetX: number;
+  offsetY: number;
+  rotationDeg?: number;
+  scale?: number;
+  targetLayer: PrefabLayerTarget;
+  zOrder: number; // e.g. -5 (behind base), 0 (base level), +5 (in front of base)
+  visible: boolean;
+  opacity?: number; // 0.0 - 1.0
+  flipX?: boolean;
+  flipY?: boolean;
+  socketTagId?: string; // If bound to a named socket anchor (e.g. 'hand_weapon', 'head_eyes')
+}
+
+export interface PrefabSpritePart extends PrefabPartBase {
+  type: 'sprite';
+  spritesheetId?: string;
+  frameIndex?: number;
+  isAnimated?: boolean; // false if static frame or non-animated sprite
+  spawnFrameMode?: 'first' | 'random' | 'fixed' | 'sequential'; // How to pick frame on spawn
+  fixedFrameIndex?: number;
+  animationStateId?: string;
+  syncWithBaseAnimation?: boolean; // When true, matches current base animation state & frame
+  tintColor?: string;
+  blendMode?: 'source-over' | 'screen' | 'multiply' | 'additive' | 'overlay';
+  ySorting?: boolean; // Dynamic top-down Y-depth sorting
+}
+
+export interface PrefabParticlePart extends PrefabPartBase {
+  type: 'particle';
+  particleFile?: string; // e.g. "campfire_flames.particle"
+  particleSystemId?: string;
+  rateMultiplier?: number;
+  scaleMultiplier?: number;
+  autoPlay?: boolean;
+  isBehind?: boolean;
+}
+
+export interface PrefabLightPart extends PrefabPartBase {
+  type: 'light';
+  color: string; // e.g. '#ff9922'
+  radius: number; // in pixels, e.g. 120
+  intensity: number; // 0.0 - 2.0
+  pulseSpeed?: number; // Hz, e.g. 1.5
+  pulseAmount?: number; // 0.0 - 0.5
+  castShadows?: boolean;
+}
+
+export interface PrefabColliderPart extends PrefabPartBase {
+  type: 'collider';
+  shape: 'box' | 'circle' | 'capsule' | 'polygon';
+  isSolid: boolean; // Blocks hero / mob physics
+  isTrigger: boolean; // Triggers interaction / damage zones
+  width?: number;
+  height?: number;
+  radius?: number;
+  vertices?: PolygonHitboxVertex[];
+}
+
+export type PrefabPart = PrefabSpritePart | PrefabParticlePart | PrefabLightPart | PrefabColliderPart;
+
+export interface PrefabEquipmentSlot {
+  id: string;
+  name: string;
+  socketTagId: SensoryTagID | string; // e.g. 'hand_weapon', 'torso_center'
+  allowedPartTypes: PrefabPartType[];
+  defaultPartId?: string;
+  icon?: string;
+}
+
+export interface PrefabVariant {
+  id: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  activePartIds: string[]; // List of enabled part IDs for this variant
+  partOverrides?: Record<string, Partial<PrefabPart>>; // Overrides for specific parts
+}
+
 export interface PrefabSocket {
   tagId: SensoryTagID; // e.g. 'head_eyes', 'head_ears', 'torso_center', 'feet_ground', 'hand_weapon'
   label: string;
@@ -514,6 +599,9 @@ export interface PrefabAnimationConfig {
   endFrameIndex: number;
   frameRateFps: number;
   loop: boolean;
+  isAnimated?: boolean; // false if static single frame or non-animated prop
+  spawnFrameMode?: 'first' | 'random' | 'fixed' | 'sequential'; // How to determine frame on spawn
+  fixedFrameIndex?: number;
   soundCue?: string;
   keyframes?: FrameKeyframeData[];
 }
@@ -598,6 +686,12 @@ export interface PrefabData {
   points?: PrefabNamedPoint[];
   polygons?: PrefabNamedPolygon[];
   animations: PrefabAnimationConfig[];
+
+  // Composite Parts, Sockets, Equipment & Variants
+  parts?: PrefabPart[];
+  equipmentSlots?: PrefabEquipmentSlot[];
+  variants?: PrefabVariant[];
+  activeVariantId?: string;
 
   // Sensory Sockets & Dialogue
   sockets: PrefabSocket[];
@@ -1026,9 +1120,10 @@ export type ParticleAnimStyle = 'one_shot' | 'oscillate' | 'repeat';
 
 export interface ParticleEmitterConfig {
   shape: ParticleEmitterShape;
-  width: number;       // For box / line (px)
-  height: number;      // For box (px)
-  radius: number;      // For circle / ring / cone (px)
+  width: number;       // For box / line / circle / ring / cone (px)
+  height: number;      // For box / circle / ring / cone (px)
+  radius: number;      // Legacy / fallback for circle / ring / cone (px)
+  rotationDeg?: number;// Rotation angle for emitter shapes except point (0-360 deg)
   emissionRate: number;// particles per second (e.g. 20-200)
   emissionRateMin?: number;
   emissionRateMax?: number;
@@ -1043,6 +1138,12 @@ export interface ParticleEmitterConfig {
   burstIntervalMax?: number;
   isContinuous: boolean; // Continuous stream vs trigger-only
   burstEnabled?: boolean;
+  animateEmitterWidth?: boolean;
+  animateEmitterHeight?: boolean;
+  animateEmitterRotation?: boolean;
+  animateEmissionRate?: boolean;
+  animateBurstCount?: boolean;
+  animateBurstInterval?: boolean;
 }
 
 export interface ParticleKinematicsConfig {
@@ -1245,7 +1346,141 @@ export interface MasonProject {
   };
   
   fileSystem: MasonFileSystem;
+  taskBoard?: ProjectTaskBoardData;
 }
+
+// ==========================================
+// 7. PROJECT TASK BOARD & KANBAN SCHEMA
+// ==========================================
+export interface ProjectTaskCategory {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface ProjectTaskSubtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+export interface ProjectTaskCard {
+  id: string;
+  title: string;
+  description?: string;
+  categoryId?: string;
+  assigneeId?: string; // Column/person ID ('unassigned' or undefined for Project Tasks column)
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate?: string;
+  subtasks?: ProjectTaskSubtask[];
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectTeamMemberColumn {
+  id: string;
+  name: string;
+  role?: string;
+  avatarColor?: string;
+}
+
+export interface ProjectTaskBoardData {
+  categories: ProjectTaskCategory[];
+  members: ProjectTeamMemberColumn[];
+  tasks: ProjectTaskCard[];
+}
+
+export const DEFAULT_TASK_CATEGORIES: ProjectTaskCategory[] = [
+  { id: 'cat_art', name: 'Art & Sprites', color: '#ec4899' },
+  { id: 'cat_level', name: 'Level Design', color: '#06b6d4' },
+  { id: 'cat_code', name: 'Code & Mechanics', color: '#3b82f6' },
+  { id: 'cat_audio', name: 'Audio & Music', color: '#f59e0b' },
+  { id: 'cat_qa', name: 'QA & Polish', color: '#10b981' },
+  { id: 'cat_story', name: 'World & Story', color: '#8b5cf6' }
+];
+
+export const DEFAULT_TASK_BOARD_MEMBERS: ProjectTeamMemberColumn[] = [
+  { id: 'member_1', name: 'Alex Vance', role: 'Lead Programmer', avatarColor: '#3b82f6' },
+  { id: 'member_2', name: 'Maya Lin', role: 'Pixel Artist', avatarColor: '#ec4899' },
+  { id: 'member_3', name: 'Leo Kai', role: 'Level Designer', avatarColor: '#06b6d4' }
+];
+
+export const createDefaultTaskBoard = (): ProjectTaskBoardData => ({
+  categories: DEFAULT_TASK_CATEGORIES,
+  members: DEFAULT_TASK_BOARD_MEMBERS,
+  tasks: [
+    {
+      id: 'task_1',
+      title: 'Design Boss Arena Environment & Colliders',
+      description: 'Sculpt the central chasm platforms, place hazard spikes, and test wall jump spacing for the caldera archon fight.',
+      categoryId: 'cat_level',
+      assigneeId: 'member_3',
+      priority: 'high',
+      dueDate: '2026-09-01',
+      subtasks: [
+        { id: 'sub_1', title: 'Carve primary floor & ceiling tiles', completed: true },
+        { id: 'sub_2', title: 'Add hazard trigger zones & particle vents', completed: false },
+        { id: 'sub_3', title: 'Verify camera lookahead bounds', completed: false }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'task_2',
+      title: 'Animate Korrath Flame Surge Attack',
+      description: 'Draw 6 frame sprite animation for hero flame surge with glow emissive layer.',
+      categoryId: 'cat_art',
+      assigneeId: 'member_2',
+      priority: 'urgent',
+      dueDate: '2026-08-28',
+      subtasks: [
+        { id: 'sub_4', title: 'Draft keyframe silhouettes', completed: true },
+        { id: 'sub_5', title: 'Add particle emission points', completed: true },
+        { id: 'sub_6', title: 'Export .png spritesheet', completed: false }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'task_3',
+      title: 'Implement IFTTT Sight Sensor Trigger',
+      description: 'Connect line-of-sight cone check to mob behavior state transitions for alerted & chase modes.',
+      categoryId: 'cat_code',
+      assigneeId: 'member_1',
+      priority: 'medium',
+      subtasks: [
+        { id: 'sub_7', title: 'Add vision angle parameter', completed: true },
+        { id: 'sub_8', title: 'Test obstacle raycast collision', completed: false }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'task_4',
+      title: 'Compose Crystal Chasm Ambient Track',
+      description: 'Produce atmospheric synth bass pad track with crystalline percussion for sub-cavern exploration.',
+      categoryId: 'cat_audio',
+      assigneeId: undefined,
+      priority: 'medium',
+      subtasks: [
+        { id: 'sub_9', title: 'Draft 2-minute looping theme', completed: false }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'task_5',
+      title: 'Audit Biome Parallax Layer Speed Scaling',
+      description: 'Verify all 7 parallax layers move smoothly at 60fps across wide map transition bounds.',
+      categoryId: 'cat_qa',
+      assigneeId: undefined,
+      priority: 'low',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+  ]
+});
 
 // ==========================================
 // DEFAULT STARTER TEMPLATES & PRESETS
@@ -4138,6 +4373,7 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
       game: gameStructures,
       behaviors,
       particles
-    }
+    },
+    taskBoard: createDefaultTaskBoard()
   };
 };

@@ -12,7 +12,8 @@ import {
   TreePine, 
   Users, 
   Network,
-  ShieldCheck
+  ShieldCheck,
+  Paintbrush
 } from 'lucide-react';
 import { MasonBrandIcon } from './MasonBrandIcon';
 import { 
@@ -20,11 +21,16 @@ import {
 } from '../theme/ThemeContext';
 import { 
   COLOR_DEFINITIONS, 
+  COLOR_FAMILIES,
+  HUE_GROUPS,
+  HUE_ORDERED_COLOR_KEYS,
   BACKGROUND_TONES, 
   PRESET_APP_THEMES, 
   AccentColorKey, 
   BackgroundToneKey,
-  ThemeCategory
+  ThemeCategory,
+  analyzeThemeFamilies,
+  getColorFamilyKey
 } from '../theme/appTheme';
 
 interface ThemeModalProps {
@@ -53,7 +59,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
 
   if (!isOpen) return null;
 
-  const colorKeys = Object.keys(COLOR_DEFINITIONS) as AccentColorKey[];
+  const colorKeys = HUE_ORDERED_COLOR_KEYS;
   const toneKeys = Object.keys(BACKGROUND_TONES) as BackgroundToneKey[];
 
   const filteredPresets = PRESET_APP_THEMES.filter(p => {
@@ -202,11 +208,15 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                 const pColor = COLOR_DEFINITIONS[preset.primary] || COLOR_DEFINITIONS.indigo;
                 const pBg = BACKGROUND_TONES[preset.backgroundTone] || BACKGROUND_TONES.void;
 
+                const spritesDef = COLOR_DEFINITIONS[preset.moduleColors.sprites];
                 const mapsDef = COLOR_DEFINITIONS[preset.moduleColors.maps];
                 const biomesDef = COLOR_DEFINITIONS[preset.moduleColors.biomes];
                 const charDef = COLOR_DEFINITIONS[preset.moduleColors.prefabs];
+                const particlesDef = COLOR_DEFINITIONS[preset.moduleColors.particles];
                 const uiDef = COLOR_DEFINITIONS[preset.moduleColors.ui];
                 const gameDef = COLOR_DEFINITIONS[preset.moduleColors.gamestructure];
+
+                const familyAnalysis = analyzeThemeFamilies(preset);
 
                 return (
                   <div
@@ -263,14 +273,14 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                       </p>
                     </div>
 
-                    {/* 6-Color Distinction Spectrum Strip */}
+                    {/* 7-Module Spectrum Strip */}
                     <div className="pt-2.5 border-t border-neutral-800/80 flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-neutral-400 font-mono">Palette Distinction (6 Unique Hues):</span>
-                        <span className="text-[10px] font-mono text-neutral-500">{pBg.name}</span>
+                      <div className="flex items-center justify-between text-[10px] font-mono">
+                        <span className="text-neutral-400">Palette Spectrum:</span>
+                        <span className="text-neutral-500">{pBg.name}</span>
                       </div>
 
-                      <div className="grid grid-cols-6 gap-1 bg-neutral-900/90 p-1.5 rounded-xl border border-neutral-800/80 text-[9px] font-mono font-bold text-center">
+                      <div className="grid grid-cols-8 gap-1 bg-neutral-900/90 p-1 rounded-xl border border-neutral-800/80 text-[9px] font-mono font-bold text-center">
                         {/* App Primary */}
                         <div 
                           className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
@@ -283,6 +293,20 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         >
                           <span className="text-[8px] opacity-70">APP</span>
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: pColor.hex }} />
+                        </div>
+
+                        {/* Image Editor */}
+                        <div 
+                          className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                          style={{
+                            backgroundColor: `rgba(${spritesDef?.rgb || '0,0,0'}, 0.2)`,
+                            borderColor: spritesDef?.hex,
+                            color: spritesDef?.hex
+                          }}
+                          title={`Image Editor (.png): ${spritesDef?.name}`}
+                        >
+                          <span className="text-[8px] opacity-70">IMG</span>
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: spritesDef?.hex }} />
                         </div>
 
                         {/* Maps */}
@@ -327,6 +351,20 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: charDef?.hex }} />
                         </div>
 
+                        {/* Particles */}
+                        <div 
+                          className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                          style={{
+                            backgroundColor: `rgba(${particlesDef?.rgb || '0,0,0'}, 0.2)`,
+                            borderColor: particlesDef?.hex,
+                            color: particlesDef?.hex
+                          }}
+                          title={`Particles (.particle): ${particlesDef?.name}`}
+                        >
+                          <span className="text-[8px] opacity-70">PAR</span>
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: particlesDef?.hex }} />
+                        </div>
+
                         {/* UI */}
                         <div 
                           className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
@@ -365,7 +403,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
           {/* TAB 2: CUSTOM COLOR MIXER */}
           {activeTab === 'custom' && (
             <div className="space-y-6">
-              
+
               {/* 1. Main App Accent */}
               <div className="p-4 rounded-2xl bg-neutral-950/70 border border-neutral-800 space-y-3">
                 <div>
@@ -377,7 +415,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                     Main App & Dashboard Accent
                   </h3>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    Primary theme color for header highlights, project banners, action buttons, and active indicators.
+                    Primary theme color ordered linearly by chromatic hue.
                   </p>
                 </div>
 
@@ -407,8 +445,8 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         >
                           {isSelected && <Check size={10} />}
                         </div>
-                        <span className="text-xs font-semibold text-neutral-200 truncate">
-                          {cDef.name.split(' ')[1] || cDef.name}
+                        <span className="text-xs font-semibold text-neutral-200 truncate" title={cDef.name}>
+                          {cDef.name}
                         </span>
                       </button>
                     );
@@ -424,12 +462,49 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                     Individual Module Accent Colors
                   </h3>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    Configure custom colors for each mini-app module across header icons, dashboard cards, and subfolder headers.
+                    Configure custom colors for each mini-app module (ordered linearly by chromatic hue).
                   </p>
                 </div>
 
                 <div className="space-y-3 divide-y divide-neutral-850">
                   
+                  {/* Image Editor Module */}
+                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div 
+                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
+                        style={{ 
+                          backgroundColor: `rgba(${getModuleColorDef('sprites').rgb}, 0.2)`,
+                          borderColor: getModuleColorDef('sprites').hex,
+                          color: getModuleColorDef('sprites').hex
+                        }}
+                      >
+                        <Paintbrush size={15} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-neutral-200">Image Editor Module (.png)</div>
+                        <div className="text-[10px] text-neutral-400">Pixel art studio, spray brush & sprite frame editing</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
+                      {colorKeys.map(k => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setModuleColor('sprites', k)}
+                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
+                            theme.moduleColors.sprites === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
+                          title={COLOR_DEFINITIONS[k].name}
+                        >
+                          {theme.moduleColors.sprites === k && <Check size={12} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Maps Module */}
                   <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
@@ -541,6 +616,43 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Particles Module */}
+                  <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div 
+                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
+                        style={{ 
+                          backgroundColor: `rgba(${getModuleColorDef('particles').rgb}, 0.2)`,
+                          borderColor: getModuleColorDef('particles').hex,
+                          color: getModuleColorDef('particles').hex
+                        }}
+                      >
+                        <Sparkles size={15} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-neutral-200">Particles & VFX Module (.particle)</div>
+                        <div className="text-[10px] text-neutral-400">GPU physics particles, weather & spell FX</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
+                      {colorKeys.map(k => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setModuleColor('particles', k)}
+                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
+                            theme.moduleColors.particles === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
+                          title={COLOR_DEFINITIONS[k].name}
+                        >
+                          {theme.moduleColors.particles === k && <Check size={12} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* UI Module */}
                   <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
@@ -644,6 +756,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         key={t}
                         type="button"
                         onClick={() => setBackgroundTone(t)}
+                        title={bgOption.name}
                         className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 relative group ${
                           isSelected
                             ? 'ring-2 shadow-lg'
@@ -665,18 +778,12 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                           <div className="text-xs font-bold text-neutral-100 truncate group-hover:text-white transition">
                             {bgOption.name}
                           </div>
-                          <div className="text-[10px] font-mono text-neutral-400 truncate">
-                            {bgOption.hex}
-                          </div>
                         </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
-
-            </div>
-          )}
 
           {/* 3. LIVE INTERACTIVE THEME PREVIEW */}
           <div className="p-4 rounded-2xl border border-neutral-800 bg-neutral-950/90 space-y-3">
@@ -686,7 +793,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                 Live Theme Preview
               </span>
               <span className="text-[10px] font-mono text-neutral-500">
-                Primary: {primaryDef.name} ({primaryDef.hex}) • Background: {bgDef.name} ({bgDef.hex})
+                Primary: {primaryDef.name} • Background: {bgDef.name}
               </span>
             </div>
 
@@ -789,6 +896,17 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         <div 
                           className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
                           style={{
+                            backgroundColor: `rgba(${getModuleColorDef('sprites').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('sprites').hex,
+                            color: getModuleColorDef('sprites').hex
+                          }}
+                          title="Image Editor"
+                        >
+                          <Paintbrush size={13} />
+                        </div>
+                        <div 
+                          className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
+                          style={{
                             backgroundColor: `rgba(${getModuleColorDef('maps').rgb}, 0.2)`,
                             borderColor: getModuleColorDef('maps').hex,
                             color: getModuleColorDef('maps').hex
@@ -819,16 +937,50 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         >
                           <Users size={13} />
                         </div>
+                        <div 
+                          className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
+                          style={{
+                            backgroundColor: `rgba(${getModuleColorDef('particles').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('particles').hex,
+                            color: getModuleColorDef('particles').hex
+                          }}
+                          title="Particles"
+                        >
+                          <Sparkles size={13} />
+                        </div>
+                        <div 
+                          className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
+                          style={{
+                            backgroundColor: `rgba(${getModuleColorDef('ui').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('ui').hex,
+                            color: getModuleColorDef('ui').hex
+                          }}
+                          title="UI & HUD"
+                        >
+                          <Sliders size={13} />
+                        </div>
+                        <div 
+                          className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
+                          style={{
+                            backgroundColor: `rgba(${getModuleColorDef('gamestructure').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('gamestructure').hex,
+                            color: getModuleColorDef('gamestructure').hex
+                          }}
+                          title="Game Architecture"
+                        >
+                          <Network size={13} />
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
           </div>
-
         </div>
+      )}
+
+      </div>
 
         {/* Footer */}
         <div className="h-14 border-t border-neutral-800 px-6 flex items-center justify-between bg-neutral-950/90 shrink-0">

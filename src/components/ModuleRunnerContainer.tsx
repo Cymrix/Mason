@@ -100,6 +100,27 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
     <div className="flex-1 flex flex-col overflow-hidden bg-neutral-950 select-none">
       {/* Interactive Full-Engine Direct View */}
       <div className="w-full h-full flex flex-col overflow-hidden">
+        {moduleId === 'sprites' && (
+          <div className="flex-1 flex flex-col overflow-hidden relative">
+            <div className="h-10 px-4 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between z-10 select-none">
+              <span className="text-xs font-bold text-emerald-400 flex items-center gap-2">
+                🎨 Image Editor
+              </span>
+              <button
+                type="button"
+                onClick={onBackToProjectInfo}
+                className="px-3 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg text-xs font-semibold transition"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+            <iframe
+              src="/modules/sprites/index.html"
+              className="flex-1 w-full h-full min-h-0 border-none bg-neutral-950"
+              title="Image Editor"
+            />
+          </div>
+        )}
         {moduleId === 'prefabs' && (
           <PrefabEditor
             project={project}

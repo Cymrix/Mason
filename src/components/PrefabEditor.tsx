@@ -23,7 +23,12 @@ import {
   PrefabStateMachine
 } from '../engine/masonProjectSchema';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
+import { SpritesheetSliceModal, SpritesheetSliceResult } from './shared/spritesheet';
+import { ViewportHUD } from './shared/viewport';
+import { PrefabCompositionStudio } from './shared/PrefabCompositionStudio';
+import { SpriteEditorModal, SpriteSaveResult } from './SpriteEditorModal';
 import { 
+  Paintbrush,
   Play, 
   Pause, 
   Plus, 
@@ -226,6 +231,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Palette Spray Studio Modal State
+  const [isSpriteStudioOpen, setIsSpriteStudioOpen] = useState<boolean>(false);
+  const [editingSheetIdForStudio, setEditingSheetIdForStudio] = useState<string | null>(null);
+
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ text, type });
@@ -234,8 +243,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     }, 3200);
   };
 
-  // Primary Studio View Tabs: 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'
-  const [activeTab, setActiveTab] = useState<'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'>('animation_studio');
+  // Primary Studio View Tabs: 'composition' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'
+  const [activeTab, setActiveTab] = useState<'composition' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'>('composition');
 
   // Behavior Rules Accordion State (Collapsed by default!)
   const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(new Set());
@@ -434,6 +443,91 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   // Copy Behavior Modal State
   const [isCopyModalOpen, setIsCopyModalOpen] = useState<boolean>(false);
   const [sourceCharIdToCopy, setSourceCharIdToCopy] = useState<string>('');
+
+  // Spritesheet Slicer & Pre-Configuration Modal State
+  const [sliceModalConfig, setSliceModalConfig] = useState<{
+    isOpen: boolean;
+    sheetId: string;
+    initialImage?: {
+      url: string;
+      name?: string;
+      tileWidth?: number;
+      tileHeight?: number;
+      cols?: number;
+      rows?: number;
+      splitMode?: 'pixels' | 'columns';
+      marginX?: number;
+      marginY?: number;
+      spacingX?: number;
+      spacingY?: number;
+    };
+    sheetLabel?: string;
+  }>({ isOpen: false, sheetId: '' });
+
+  const handleSliceModalConfirm = (res: SpritesheetSliceResult) => {
+    if (!sliceModalConfig.sheetId) return;
+    updateCharacter(c => ({
+      ...c,
+      spritesheets: (c.spritesheets || []).map(s => s.id === sliceModalConfig.sheetId ? {
+        ...s,
+        name: res.name || s.name,
+        imageUrl: res.imageUrl,
+        dataUrl: res.dataUrl || res.imageUrl,
+        imageWidth: res.imageWidth,
+        imageHeight: res.imageHeight,
+        tileWidth: res.tileWidth,
+        tileHeight: res.tileHeight,
+        cols: res.cols,
+        rows: res.rows,
+        totalFrames: res.totalFrames,
+        splitMode: res.splitMode
+      } : s)
+    }));
+    showToast('Spritesheet sliced and configured successfully!');
+  };
+
+  const handleSpriteStudioSave = (result: SpriteSaveResult) => {
+    const imageUrl = result.spritesheetUrl || result.dataUrl;
+
+    if (editingSheetIdForStudio) {
+      updateCharacter(c => ({
+        ...c,
+        spritesheets: (c.spritesheets || []).map(s => {
+          if (s.id === editingSheetIdForStudio) {
+            return {
+              ...s,
+              imageUrl: imageUrl,
+              tileWidth: result.width,
+              tileHeight: result.height,
+              totalFrames: result.frameCount,
+              cols: result.frameCount,
+              rows: 1
+            };
+          }
+          return s;
+        })
+      }));
+      showToast(`Updated spritesheet from Palette Spray Studio!`, 'success');
+    } else {
+      const newSheet: PrefabSpritesheet = {
+        id: `sheet_${Date.now().toString().slice(-4)}`,
+        name: result.projectName || `Painted Sprite #${(currentFile?.prefabData?.spritesheets?.length || 0) + 1}`,
+        imageUrl: imageUrl,
+        tileWidth: result.width,
+        tileHeight: result.height,
+        cols: result.frameCount,
+        rows: 1,
+        totalFrames: result.frameCount
+      };
+      updateCharacter(c => ({
+        ...c,
+        spritesheets: [...(c.spritesheets || []), newSheet]
+      }));
+      setSelectedSheetId(newSheet.id);
+      showToast(`Added new sprite from Palette Spray Studio!`, 'success');
+    }
+    setEditingSheetIdForStudio(null);
+  };
 
   // Spritesheet Viewer & Image Cache States
   const [selectedSheetId, setSelectedSheetId] = useState<string>('');
@@ -1729,6 +1823,20 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     forceCanvasRedraw
   ]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      setZoom(z => Math.min(Math.max(Number((z * factor).toFixed(2)), 0.25), 8.0));
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, []);
+
   // Pointer drag helpers for interactive canvas
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -1739,8 +1847,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
 
-    // Pan with Middle Click or Alt / Space
-    if (e.button === 1 || e.altKey || e.shiftKey) {
+    // Pan with Right Click, Middle Click, Space, Alt, or Shift
+    if (e.button === 2 || e.button === 1 || e.altKey || e.shiftKey || (window as any).__isSpaceDown) {
       setIsPanning(true);
       setPanStart({ x: mouseX - panX, y: mouseY - panY });
       return;
@@ -2045,30 +2153,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
               rules: [],
               capsule: { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
               spritesheets: [{ id: 'sheet_default', name: 'Default Spritesheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }],
-              points: [
-                { id: 'pt_eyes', name: 'Sight Locus (Eyes)', color: '#38bdf8', defaultOffsetX: 10, defaultOffsetY: -18 },
-                { id: 'pt_ears', name: 'Acoustic Hearing (Ears)', color: '#a855f7', defaultOffsetX: 0, defaultOffsetY: -20 },
-                { id: 'pt_torso', name: 'Torso Hurtbox Center', color: '#22c55e', defaultOffsetX: 0, defaultOffsetY: 0 }
-              ],
-              polygons: [
-                {
-                  id: 'poly_body',
-                  name: 'Main Body Hurtbox',
-                  type: 'hurtbox',
-                  color: '#22c55e',
-                  defaultVertices: [
-                    { x: -14, y: -24 },
-                    { x: 14, y: -24 },
-                    { x: 14, y: 24 },
-                    { x: -14, y: 24 }
-                  ]
-                }
-              ],
-              sockets: [
-                { tagId: 'head_eyes', label: 'Sight Locus (Eyes)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
-                { tagId: 'head_ears', label: 'Acoustic Hearing (Ears)', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
-                { tagId: 'torso_center', label: 'Torso Hurtbox Center', offsetX: 0, offsetY: 0, visualMarkerColor: '#22c55e' }
-              ],
+              points: [],
+              polygons: [],
+              sockets: [],
               animations: [
                 { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_default', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
               ]
@@ -2135,6 +2222,17 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
       <div className="bg-neutral-950/95 border-b border-neutral-800 px-3 md:px-4 py-1.5 flex items-center gap-1.5 overflow-x-auto shrink-0 z-10">
         <button
           type="button"
+          onClick={() => setActiveTab('composition')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${
+            activeTab === 'composition' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30' : 'bg-neutral-900 text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Layers size={13} className={activeTab === 'composition' ? 'text-white' : 'text-emerald-400'} />
+          <span>Composite Parts ({(char.parts || []).length})</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('animation_studio')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${
             activeTab === 'animation_studio' ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30' : 'bg-neutral-900 text-neutral-400 hover:text-white'
@@ -2193,24 +2291,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
       <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4">
 
         {/* ========================================================================= */}
-        {/* TAB 1: ANIMATION STUDIO & SENSORY SOCKET WORKSPACE */}
+        {/* TAB 1: ANIMATION STUDIO (SPRITESHEET ANIMATION & TIMELINE) */}
         {/* ========================================================================= */}
         {activeTab === 'animation_studio' && (
           <div className="flex flex-col xl:flex-row gap-5 items-start">
             
-            {/* LEFT COLUMN: Animation States, Clip Setup, Resizable Sockets & Hitboxes */}
-            <div
-              style={{ width: `${animLeftColWidth}px` }}
-              className="w-full xl:w-auto shrink-0 space-y-4 relative"
-            >
-              {/* Vertical Resize Drag Handle for Left Column */}
-              <div
-                onMouseDown={handleLeftColResizeStart}
-                className="hidden xl:flex absolute -right-3 top-0 bottom-0 w-3 cursor-col-resize items-center justify-center group z-20"
-                title="Drag to resize left column"
-              >
-                <div className="w-1 h-24 rounded-full bg-neutral-800 group-hover:bg-cyan-500 transition-colors shadow-sm" />
-              </div>
+            {/* LEFT COLUMN: Animation States & Clip Setup */}
+            <div className="w-full xl:w-80 shrink-0 space-y-4">
               
               {/* Animation States List */}
               <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-lg">
@@ -3340,33 +3427,17 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                   </div>
 
                   {/* Zoom Controls */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}
-                      className="p-1 hover:bg-neutral-800 rounded text-neutral-300"
-                      title="Zoom Out"
-                    >
-                      <ZoomOut size={12} />
-                    </button>
-                    <span className="font-mono text-[9px] text-neutral-400">{(zoom * 100).toFixed(0)}%</span>
-                    <button
-                      type="button"
-                      onClick={() => setZoom(z => Math.min(6, z + 0.25))}
-                      className="p-1 hover:bg-neutral-800 rounded text-neutral-300"
-                      title="Zoom In"
-                    >
-                      <ZoomIn size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setZoom(2.0); setPanX(0); setPanY(0); }}
-                      className="p-1 hover:bg-neutral-800 rounded text-neutral-300"
-                      title="Reset View"
-                    >
-                      <RotateCcw size={12} />
-                    </button>
-                  </div>
+                  <ViewportHUD
+                    scale={zoom}
+                    onZoomIn={() => setZoom(z => Math.min(6, Number((z + 0.25).toFixed(2))))}
+                    onZoomOut={() => setZoom(z => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                    onResetZoom={() => { setZoom(2.0); setPanX(0); setPanY(0); }}
+                    onCenterContent={() => { setZoom(2.0); setPanX(0); setPanY(0); }}
+                    themeColor="cyan"
+                    position="relative"
+                    showHelperHint={false}
+                    className="py-0.5 px-1 bg-transparent border-0 shadow-none"
+                  />
                 </div>
 
                 {/* Shrunk Canvas Viewport */}
@@ -3377,12 +3448,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                   onMouseDown={handleCanvasMouseDown}
                   onMouseMove={handleCanvasMouseMove}
                   onMouseUp={handleCanvasMouseUp}
+                  onContextMenu={(e) => e.preventDefault()}
                   className="cursor-crosshair rounded-xl shadow-inner mt-2 w-full max-w-full aspect-[380/320] bg-neutral-950/60"
                 />
 
                 <div className="w-full flex items-center justify-between pt-2 text-[9px] text-neutral-500 font-mono">
                   <span>Drag sockets / vertices to keyframe</span>
-                  <span>Shift+drag to pan</span>
+                  <span className="text-cyan-400 font-bold">RMB / Space+Drag to pan • Wheel to zoom</span>
                 </div>
               </div>
 
@@ -3627,6 +3699,19 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         )}
 
         {/* ========================================================================= */}
+        {/* TAB 1.5: COMPOSITE PARTS & LAYER HIERARCHY STUDIO */}
+        {/* ========================================================================= */}
+        {activeTab === 'composition' && (
+          <PrefabCompositionStudio
+            project={project}
+            char={char}
+            onUpdateCharacter={updateCharacter}
+            onUpdateProject={onUpdateProject}
+            showToast={showToast}
+          />
+        )}
+
+        {/* ========================================================================= */}
         {/* TAB 2: SPRITESHEET MANAGER */}
         {/* ========================================================================= */}
         {activeTab === 'spritesheet_manager' && (
@@ -3643,6 +3728,17 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSheetIdForStudio(null);
+                    setIsSpriteStudioOpen(true);
+                  }}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/30"
+                >
+                  <Paintbrush size={14} />
+                  <span>Paint Sprite in Studio</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -3686,45 +3782,21 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     const dataUrl = evt.target?.result as string;
                     if (!dataUrl) return;
 
-                    const img = new Image();
-                    img.onload = () => {
-                      const totalW = img.naturalWidth || 512;
-                      const totalH = img.naturalHeight || 256;
-                      let tw = sheet.tileWidth || 64;
-                      let th = sheet.tileHeight || 64;
-                      let detectedCols = sheet.cols || 8;
-                      let detectedRows = sheet.rows || 4;
-
-                      if (sheet.splitMode === 'columns') {
-                        detectedCols = Math.max(1, sheet.cols || 8);
-                        detectedRows = Math.max(1, sheet.rows || 4);
-                        tw = Math.max(1, Math.floor(totalW / detectedCols));
-                        th = Math.max(1, Math.floor(totalH / detectedRows));
-                      } else {
-                        tw = Math.max(1, sheet.tileWidth || 64);
-                        th = Math.max(1, sheet.tileHeight || 64);
-                        detectedCols = Math.max(1, Math.floor(totalW / tw));
-                        detectedRows = Math.max(1, Math.floor(totalH / th));
+                    // Open Slicing Pre-Configuration Modal so sizes/columns can be previewed & set before committing
+                    setSliceModalConfig({
+                      isOpen: true,
+                      sheetId: sheet.id,
+                      sheetLabel: sheet.name || file.name.replace(/\.[^/.]+$/, ''),
+                      initialImage: {
+                        url: dataUrl,
+                        name: sheet.name || file.name.replace(/\.[^/.]+$/, ''),
+                        tileWidth: sheet.tileWidth || 64,
+                        tileHeight: sheet.tileHeight || 64,
+                        cols: sheet.cols || 8,
+                        rows: sheet.rows || 4,
+                        splitMode: sheet.splitMode || 'pixels'
                       }
-                      const total = detectedCols * detectedRows;
-
-                      updateCharacter(c => ({
-                        ...c,
-                        spritesheets: (c.spritesheets || []).map(s => s.id === sheet.id ? {
-                          ...s,
-                          imageUrl: dataUrl,
-                          dataUrl: dataUrl,
-                          imageWidth: totalW,
-                          imageHeight: totalH,
-                          tileWidth: tw,
-                          tileHeight: th,
-                          cols: detectedCols,
-                          rows: detectedRows,
-                          totalFrames: total
-                        } : s)
-                      }));
-                    };
-                    img.src = dataUrl;
+                    });
                   };
                   reader.readAsDataURL(file);
                 };
@@ -3861,8 +3933,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                       ) : (
                         <div className="text-center space-y-1">
                           <Upload size={24} className="mx-auto text-neutral-600 group-hover:text-purple-400 transition" />
-                          <p className="text-xs font-bold text-neutral-300">Upload Spritesheet Image</p>
-                          <p className="text-[10px] text-neutral-500">PNG, WEBP or Data URL</p>
+                          <p className="text-xs font-bold text-neutral-300">Upload & Configure Slicing</p>
+                          <p className="text-[10px] text-neutral-500">Select PNG, WEBP or atlas sheet</p>
                         </div>
                       )}
 
@@ -3876,6 +3948,34 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         />
                       </label>
                     </div>
+
+                    {/* Slicer & Configurator Action Trigger */}
+                    {sheet.imageUrl || sheet.dataUrl ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSliceModalConfig({
+                            isOpen: true,
+                            sheetId: sheet.id,
+                            sheetLabel: sheet.name,
+                            initialImage: {
+                              url: sheet.imageUrl || sheet.dataUrl || '',
+                              name: sheet.name,
+                              tileWidth: sheet.tileWidth,
+                              tileHeight: sheet.tileHeight,
+                              cols: sheet.cols,
+                              rows: sheet.rows,
+                              splitMode: sheet.splitMode
+                            }
+                          });
+                        }}
+                        className="w-full py-2 px-3 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                      >
+                        <Grid size={13} className="text-purple-400" />
+                        <span>✂️ Configure & Slice Grid</span>
+                      </button>
+                    ) : null}
 
                     {/* Quick Sample Presets */}
                     <div className="flex items-center justify-between text-[10px] text-neutral-400">
@@ -4096,6 +4196,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
               const tw = activeSheet.tileWidth || 64;
               const th = activeSheet.tileHeight || 64;
               const total = cols * rows;
+              const renderLimit = 1024;
+              const renderTotal = Math.min(total, renderLimit);
               const scale = sheetViewerZoom;
               const cellW = Math.round(tw * scale);
               const cellH = Math.round(th * scale);
@@ -4134,14 +4236,21 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
                   {/* Interactive Tile Grid Matrix */}
                   <div className="overflow-auto max-h-[520px] p-3 bg-neutral-950 border border-neutral-800 rounded-xl">
+                    {total > renderLimit && (
+                      <div className="mb-3 p-2 bg-amber-500/20 border border-amber-500/50 rounded text-amber-200 text-xs flex items-center gap-2">
+                        <AlertTriangle size={14} />
+                        <span>This spritesheet has {total} frames, which is too large to render safely. Only the first {renderLimit} frames are displayed.</span>
+                      </div>
+                    )}
                     <div 
                       className="grid gap-1.5 relative"
                       style={{
+                        '--sheet-url': (activeSheet.imageUrl || activeSheet.dataUrl) ? `url(${activeSheet.imageUrl || activeSheet.dataUrl})` : 'none',
                         gridTemplateColumns: `repeat(${cols}, ${cellW}px)`,
                         width: 'max-content'
-                      }}
+                      } as React.CSSProperties}
                     >
-                      {Array.from({ length: total }).map((_, fIdx) => {
+                      {Array.from({ length: renderTotal }).map((_, fIdx) => {
                         const col = fIdx % cols;
                         const row = Math.floor(fIdx / cols);
                         const isInspected = inspectedFrameIdx === fIdx;
@@ -4171,7 +4280,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                               <div
                                 className="w-full h-full bg-no-repeat image-rendering-pixelated pointer-events-none"
                                 style={{
-                                  backgroundImage: `url(${activeSheet.imageUrl || activeSheet.dataUrl})`,
+                                  backgroundImage: 'var(--sheet-url)',
                                   backgroundPosition: `-${col * cellW}px -${row * cellH}px`,
                                   backgroundSize: `${sheetW}px ${sheetH}px`
                                 }}
@@ -7540,6 +7649,48 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           </form>
         </div>
       )}
+
+      {/* Spritesheet Slicer & Pre-Configuration Interactive Modal */}
+      {sliceModalConfig.isOpen && (
+        <SpritesheetSliceModal
+          isOpen={sliceModalConfig.isOpen}
+          onClose={() => setSliceModalConfig({ isOpen: false, sheetId: '' })}
+          onConfirm={handleSliceModalConfirm}
+          initialImage={sliceModalConfig.initialImage}
+          sheetLabel={sliceModalConfig.sheetLabel}
+          title="Spritesheet Slicing & Pre-Configuration"
+        />
+      )}
+
+      {/* Palette Spray Studio Modal */}
+      <SpriteEditorModal
+        isOpen={isSpriteStudioOpen}
+        onClose={() => {
+          setIsSpriteStudioOpen(false);
+          setEditingSheetIdForStudio(null);
+        }}
+        onSave={handleSpriteStudioSave}
+        initialImageDataUrl={
+          editingSheetIdForStudio
+            ? (currentFile?.prefabData?.spritesheets?.find(s => s.id === editingSheetIdForStudio)?.imageUrl || '')
+            : ''
+        }
+        initialWidth={
+          editingSheetIdForStudio
+            ? (currentFile?.prefabData?.spritesheets?.find(s => s.id === editingSheetIdForStudio)?.tileWidth || 32)
+            : 32
+        }
+        initialHeight={
+          editingSheetIdForStudio
+            ? (currentFile?.prefabData?.spritesheets?.find(s => s.id === editingSheetIdForStudio)?.tileHeight || 32)
+            : 32
+        }
+        title={
+          editingSheetIdForStudio
+            ? `Palette Spray Studio — Edit Sprite Slot #${editingSheetIdForStudio}`
+            : 'Palette Spray Studio — Paint Sprite for Prefab'
+        }
+      />
 
       {/* Toast Notification Alert for Prefab Module */}
       {toast && (

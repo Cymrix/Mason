@@ -1,4 +1,16 @@
 export type AccentColorKey = 
+  | 'hue_0'   | 'hue_10'  | 'hue_20'  | 'hue_30'  | 'hue_40'  | 'hue_50'
+  | 'hue_60'  | 'hue_70'  | 'hue_80'  | 'hue_90'  | 'hue_100' | 'hue_110'
+  | 'hue_120' | 'hue_130' | 'hue_140' | 'hue_150' | 'hue_160' | 'hue_170'
+  | 'hue_180' | 'hue_190' | 'hue_200' | 'hue_210' | 'hue_220' | 'hue_230'
+  | 'hue_240' | 'hue_250' | 'hue_260' | 'hue_270' | 'hue_280' | 'hue_290'
+  | 'hue_300' | 'hue_310' | 'hue_320' | 'hue_330' | 'hue_340' | 'hue_350'
+  | 'gray_white'
+  | 'gray_silver'
+  | 'gray_slate'
+  | 'gray_charcoal'
+  | 'gray_obsidian'
+  // Legacy aliases
   | 'indigo'
   | 'cyan'
   | 'emerald'
@@ -41,9 +53,11 @@ export type BackgroundToneKey =
 export type ThemeCategory = 'standard' | 'accessibility';
 
 export interface ModuleColorMap {
+  sprites: AccentColorKey;
   maps: AccentColorKey;
   biomes: AccentColorKey;
   prefabs: AccentColorKey;
+  particles: AccentColorKey;
   ui: AccentColorKey;
   gamestructure: AccentColorKey;
 }
@@ -73,272 +87,239 @@ export interface ColorDef {
 }
 
 export const COLOR_DEFINITIONS: Record<AccentColorKey, ColorDef> = {
-  indigo: {
-    name: 'Citadel Indigo',
-    hex: '#6366f1',
-    rgb: '99, 102, 241',
-    bgClass: 'bg-indigo-600 hover:bg-indigo-500',
-    textClass: 'text-indigo-400',
-    borderClass: 'border-indigo-500/50',
-    badgeClass: 'bg-indigo-950/80 border-indigo-500/40 text-indigo-300',
-    ringClass: 'ring-indigo-500/40',
-    gradientFromClass: 'from-indigo-600'
-  },
-  cyan: {
-    name: 'Neon Cyan',
-    hex: '#06b6d4',
-    rgb: '6, 182, 212',
-    bgClass: 'bg-cyan-600 hover:bg-cyan-500',
-    textClass: 'text-cyan-400',
-    borderClass: 'border-cyan-500/50',
-    badgeClass: 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300',
-    ringClass: 'ring-cyan-500/40',
-    gradientFromClass: 'from-cyan-600'
-  },
-  emerald: {
-    name: 'Verdant Emerald',
-    hex: '#10b981',
-    rgb: '16, 185, 129',
-    bgClass: 'bg-emerald-600 hover:bg-emerald-500',
-    textClass: 'text-emerald-400',
-    borderClass: 'border-emerald-500/50',
-    badgeClass: 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300',
-    ringClass: 'ring-emerald-500/40',
-    gradientFromClass: 'from-emerald-600'
-  },
-  rose: {
-    name: 'Crimson Rose',
-    hex: '#f43f5e',
-    rgb: '244, 63, 94',
-    bgClass: 'bg-rose-600 hover:bg-rose-500',
-    textClass: 'text-rose-400',
-    borderClass: 'border-rose-500/50',
-    badgeClass: 'bg-rose-950/80 border-rose-500/40 text-rose-300',
-    ringClass: 'ring-rose-500/40',
-    gradientFromClass: 'from-rose-600'
-  },
-  amber: {
-    name: 'Solar Amber',
-    hex: '#f59e0b',
-    rgb: '245, 158, 11',
-    bgClass: 'bg-amber-600 hover:bg-amber-500',
-    textClass: 'text-amber-400',
-    borderClass: 'border-amber-500/50',
-    badgeClass: 'bg-amber-950/80 border-amber-500/40 text-amber-300',
-    ringClass: 'ring-amber-500/40',
-    gradientFromClass: 'from-amber-600'
-  },
-  purple: {
-    name: 'Astral Purple',
-    hex: '#a855f7',
-    rgb: '168, 85, 247',
-    bgClass: 'bg-purple-600 hover:bg-purple-500',
-    textClass: 'text-purple-400',
-    borderClass: 'border-purple-500/50',
-    badgeClass: 'bg-purple-950/80 border-purple-500/40 text-purple-300',
-    ringClass: 'ring-purple-500/40',
-    gradientFromClass: 'from-purple-600'
-  },
-  blue: {
-    name: 'Cobalt Blue',
-    hex: '#3b82f6',
-    rgb: '59, 130, 246',
-    bgClass: 'bg-blue-600 hover:bg-blue-500',
-    textClass: 'text-blue-400',
-    borderClass: 'border-blue-500/50',
-    badgeClass: 'bg-blue-950/80 border-blue-500/40 text-blue-300',
-    ringClass: 'ring-blue-500/40',
-    gradientFromClass: 'from-blue-600'
-  },
-  crimson: {
-    name: 'Obsidian Crimson',
-    hex: '#ef4444',
-    rgb: '239, 68, 68',
-    bgClass: 'bg-red-600 hover:bg-red-500',
-    textClass: 'text-red-400',
-    borderClass: 'border-red-500/50',
-    badgeClass: 'bg-red-950/80 border-red-500/40 text-red-300',
-    ringClass: 'ring-red-500/40',
-    gradientFromClass: 'from-red-600'
-  },
-  teal: {
-    name: 'Abyssal Teal',
-    hex: '#14b8a6',
-    rgb: '20, 184, 166',
-    bgClass: 'bg-teal-600 hover:bg-teal-500',
-    textClass: 'text-teal-400',
-    borderClass: 'border-teal-500/50',
-    badgeClass: 'bg-teal-950/80 border-teal-500/40 text-teal-300',
-    ringClass: 'ring-teal-500/40',
-    gradientFromClass: 'from-teal-600'
-  },
-  fuchsia: {
-    name: 'Vapor Fuchsia',
-    hex: '#d946ef',
-    rgb: '217, 70, 239',
-    bgClass: 'bg-fuchsia-600 hover:bg-fuchsia-500',
-    textClass: 'text-fuchsia-400',
-    borderClass: 'border-fuchsia-500/50',
-    badgeClass: 'bg-fuchsia-950/80 border-fuchsia-500/40 text-fuchsia-300',
-    ringClass: 'ring-fuchsia-500/40',
-    gradientFromClass: 'from-fuchsia-600'
-  },
-  lime: {
-    name: 'Electric Lime',
-    hex: '#84cc16',
-    rgb: '132, 204, 22',
-    bgClass: 'bg-lime-600 hover:bg-lime-500',
-    textClass: 'text-lime-400',
-    borderClass: 'border-lime-500/50',
-    badgeClass: 'bg-lime-950/80 border-lime-500/40 text-lime-300',
-    ringClass: 'ring-lime-500/40',
-    gradientFromClass: 'from-lime-600'
-  },
-  orange: {
-    name: 'Blaze Orange',
-    hex: '#ea580c',
-    rgb: '234, 88, 12',
-    bgClass: 'bg-orange-600 hover:bg-orange-500',
-    textClass: 'text-orange-400',
-    borderClass: 'border-orange-500/50',
-    badgeClass: 'bg-orange-950/80 border-orange-500/40 text-orange-300',
-    ringClass: 'ring-orange-500/40',
-    gradientFromClass: 'from-orange-600'
-  },
-  gold: {
-    name: 'Solar Gold',
-    hex: '#eab308',
-    rgb: '234, 179, 8',
-    bgClass: 'bg-yellow-600 hover:bg-yellow-500',
-    textClass: 'text-yellow-400',
-    borderClass: 'border-yellow-500/50',
-    badgeClass: 'bg-yellow-950/80 border-yellow-500/40 text-yellow-300',
-    ringClass: 'ring-yellow-500/40',
-    gradientFromClass: 'from-yellow-600'
-  },
-  sky: {
-    name: 'Sky Blue',
-    hex: '#0ea5e9',
-    rgb: '14, 165, 233',
-    bgClass: 'bg-sky-600 hover:bg-sky-500',
-    textClass: 'text-sky-400',
-    borderClass: 'border-sky-500/50',
-    badgeClass: 'bg-sky-950/80 border-sky-500/40 text-sky-300',
-    ringClass: 'ring-sky-500/40',
-    gradientFromClass: 'from-sky-600'
-  },
-  coral: {
-    name: 'Sunset Coral',
-    hex: '#fb7185',
-    rgb: '251, 113, 133',
-    bgClass: 'bg-rose-500 hover:bg-rose-400',
-    textClass: 'text-rose-300',
-    borderClass: 'border-rose-400/50',
-    badgeClass: 'bg-rose-950/80 border-rose-400/40 text-rose-200',
-    ringClass: 'ring-rose-400/40',
-    gradientFromClass: 'from-rose-500'
-  },
-  monochrome: {
-    name: 'Carbon Slate',
-    hex: '#94a3b8',
-    rgb: '148, 163, 184',
-    bgClass: 'bg-slate-600 hover:bg-slate-500',
-    textClass: 'text-slate-300',
-    borderClass: 'border-slate-500/50',
-    badgeClass: 'bg-slate-900 border-slate-700 text-slate-300',
-    ringClass: 'ring-slate-500/40',
-    gradientFromClass: 'from-slate-600'
-  },
-  white: {
+  // ── 36 CHROMATIC HUES (10° Intervals around 360° Color Wheel at 100% Saturation & 50% Lightness) ──
+  hue_0:   { name: 'Pure Red', hex: '#ff0000', rgb: '255, 0, 0', bgClass: 'bg-[#ff0000] hover:opacity-90', textClass: 'text-[#ff0000]', borderClass: 'border-[#ff0000]/50', badgeClass: 'bg-[#ff0000]/20 border-[#ff0000]/40 text-[#ff0000]', ringClass: 'ring-[#ff0000]/40', gradientFromClass: 'from-[#ff0000]' },
+  hue_10:  { name: 'Scarlet Red', hex: '#ff2b00', rgb: '255, 43, 0', bgClass: 'bg-[#ff2b00] hover:opacity-90', textClass: 'text-[#ff2b00]', borderClass: 'border-[#ff2b00]/50', badgeClass: 'bg-[#ff2b00]/20 border-[#ff2b00]/40 text-[#ff2b00]', ringClass: 'ring-[#ff2b00]/40', gradientFromClass: 'from-[#ff2b00]' },
+  hue_20:  { name: 'Coral Red', hex: '#ff5500', rgb: '255, 85, 0', bgClass: 'bg-[#ff5500] hover:opacity-90', textClass: 'text-[#ff5500]', borderClass: 'border-[#ff5500]/50', badgeClass: 'bg-[#ff5500]/20 border-[#ff5500]/40 text-[#ff5500]', ringClass: 'ring-[#ff5500]/40', gradientFromClass: 'from-[#ff5500]' },
+  hue_30:  { name: 'Deep Orange', hex: '#ff8000', rgb: '255, 128, 0', bgClass: 'bg-[#ff8000] hover:opacity-90', textClass: 'text-[#ff8000]', borderClass: 'border-[#ff8000]/50', badgeClass: 'bg-[#ff8000]/20 border-[#ff8000]/40 text-[#ff8000]', ringClass: 'ring-[#ff8000]/40', gradientFromClass: 'from-[#ff8000]' },
+  hue_40:  { name: 'Blaze Orange', hex: '#ffaa00', rgb: '255, 170, 0', bgClass: 'bg-[#ffaa00] hover:opacity-90 text-neutral-950', textClass: 'text-[#ffaa00]', borderClass: 'border-[#ffaa00]/50', badgeClass: 'bg-[#ffaa00]/20 border-[#ffaa00]/40 text-[#ffaa00]', ringClass: 'ring-[#ffaa00]/40', gradientFromClass: 'from-[#ffaa00]' },
+  hue_50:  { name: 'Golden Amber', hex: '#ffd500', rgb: '255, 213, 0', bgClass: 'bg-[#ffd500] hover:opacity-90 text-neutral-950', textClass: 'text-[#ffd500]', borderClass: 'border-[#ffd500]/50', badgeClass: 'bg-[#ffd500]/20 border-[#ffd500]/40 text-[#ffd500]', ringClass: 'ring-[#ffd500]/40', gradientFromClass: 'from-[#ffd500]' },
+  hue_60:  { name: 'Pure Yellow', hex: '#ffff00', rgb: '255, 255, 0', bgClass: 'bg-[#ffff00] hover:opacity-90 text-neutral-950', textClass: 'text-[#ffff00]', borderClass: 'border-[#ffff00]/50', badgeClass: 'bg-[#ffff00]/20 border-[#ffff00]/40 text-[#ffff00]', ringClass: 'ring-[#ffff00]/40', gradientFromClass: 'from-[#ffff00]' },
+  hue_70:  { name: 'Lime Yellow', hex: '#d5ff00', rgb: '213, 255, 0', bgClass: 'bg-[#d5ff00] hover:opacity-90 text-neutral-950', textClass: 'text-[#d5ff00]', borderClass: 'border-[#d5ff00]/50', badgeClass: 'bg-[#d5ff00]/20 border-[#d5ff00]/40 text-[#d5ff00]', ringClass: 'ring-[#d5ff00]/40', gradientFromClass: 'from-[#d5ff00]' },
+  hue_80:  { name: 'Solar Lime', hex: '#aaff00', rgb: '170, 255, 0', bgClass: 'bg-[#aaff00] hover:opacity-90 text-neutral-950', textClass: 'text-[#aaff00]', borderClass: 'border-[#aaff00]/50', badgeClass: 'bg-[#aaff00]/20 border-[#aaff00]/40 text-[#aaff00]', ringClass: 'ring-[#aaff00]/40', gradientFromClass: 'from-[#aaff00]' },
+  hue_90:  { name: 'Pure Lime', hex: '#80ff00', rgb: '128, 255, 0', bgClass: 'bg-[#80ff00] hover:opacity-90 text-neutral-950', textClass: 'text-[#80ff00]', borderClass: 'border-[#80ff00]/50', badgeClass: 'bg-[#80ff00]/20 border-[#80ff00]/40 text-[#80ff00]', ringClass: 'ring-[#80ff00]/40', gradientFromClass: 'from-[#80ff00]' },
+  hue_100: { name: 'Electric Green', hex: '#55ff00', rgb: '85, 255, 0', bgClass: 'bg-[#55ff00] hover:opacity-90 text-neutral-950', textClass: 'text-[#55ff00]', borderClass: 'border-[#55ff00]/50', badgeClass: 'bg-[#55ff00]/20 border-[#55ff00]/40 text-[#55ff00]', ringClass: 'ring-[#55ff00]/40', gradientFromClass: 'from-[#55ff00]' },
+  hue_110: { name: 'Bright Green', hex: '#2bff00', rgb: '43, 255, 0', bgClass: 'bg-[#2bff00] hover:opacity-90 text-neutral-950', textClass: 'text-[#2bff00]', borderClass: 'border-[#2bff00]/50', badgeClass: 'bg-[#2bff00]/20 border-[#2bff00]/40 text-[#2bff00]', ringClass: 'ring-[#2bff00]/40', gradientFromClass: 'from-[#2bff00]' },
+  hue_120: { name: 'Pure Green', hex: '#00ff00', rgb: '0, 255, 0', bgClass: 'bg-[#00ff00] hover:opacity-90 text-neutral-950', textClass: 'text-[#00ff00]', borderClass: 'border-[#00ff00]/50', badgeClass: 'bg-[#00ff00]/20 border-[#00ff00]/40 text-[#00ff00]', ringClass: 'ring-[#00ff00]/40', gradientFromClass: 'from-[#00ff00]' },
+  hue_130: { name: 'Emerald Mint', hex: '#00ff2b', rgb: '0, 255, 43', bgClass: 'bg-[#00ff2b] hover:opacity-90 text-neutral-950', textClass: 'text-[#00ff2b]', borderClass: 'border-[#00ff2b]/50', badgeClass: 'bg-[#00ff2b]/20 border-[#00ff2b]/40 text-[#00ff2b]', ringClass: 'ring-[#00ff2b]/40', gradientFromClass: 'from-[#00ff2b]' },
+  hue_140: { name: 'Hyper Mint', hex: '#00ff55', rgb: '0, 255, 85', bgClass: 'bg-[#00ff55] hover:opacity-90 text-neutral-950', textClass: 'text-[#00ff55]', borderClass: 'border-[#00ff55]/50', badgeClass: 'bg-[#00ff55]/20 border-[#00ff55]/40 text-[#00ff55]', ringClass: 'ring-[#00ff55]/40', gradientFromClass: 'from-[#00ff55]' },
+  hue_150: { name: 'Pure Jade', hex: '#00ff80', rgb: '0, 255, 128', bgClass: 'bg-[#00ff80] hover:opacity-90 text-neutral-950', textClass: 'text-[#00ff80]', borderClass: 'border-[#00ff80]/50', badgeClass: 'bg-[#00ff80]/20 border-[#00ff80]/40 text-[#00ff80]', ringClass: 'ring-[#00ff80]/40', gradientFromClass: 'from-[#00ff80]' },
+  hue_160: { name: 'Abyssal Teal', hex: '#00ffaa', rgb: '0, 255, 170', bgClass: 'bg-[#00ffaa] hover:opacity-90 text-neutral-950', textClass: 'text-[#00ffaa]', borderClass: 'border-[#00ffaa]/50', badgeClass: 'bg-[#00ffaa]/20 border-[#00ffaa]/40 text-[#00ffaa]', ringClass: 'ring-[#00ffaa]/40', gradientFromClass: 'from-[#00ffaa]' },
+  hue_170: { name: 'Ocean Teal', hex: '#00ffd5', rgb: '0, 255, 213', bgClass: 'bg-[#00ffd5] hover:opacity-90 text-neutral-950', textClass: 'text-[#00ffd5]', borderClass: 'border-[#00ffd5]/50', badgeClass: 'bg-[#00ffd5]/20 border-[#00ffd5]/40 text-[#00ffd5]', ringClass: 'ring-[#00ffd5]/40', gradientFromClass: 'from-[#00ffd5]' },
+  hue_180: { name: 'Pure Cyan', hex: '#00ffff', rgb: '0, 255, 255', bgClass: 'bg-[#00ffff] hover:opacity-90 text-neutral-950', textClass: 'text-[#00ffff]', borderClass: 'border-[#00ffff]/50', badgeClass: 'bg-[#00ffff]/20 border-[#00ffff]/40 text-[#00ffff]', ringClass: 'ring-[#00ffff]/40', gradientFromClass: 'from-[#00ffff]' },
+  hue_190: { name: 'Sky Cyan', hex: '#00d5ff', rgb: '0, 213, 255', bgClass: 'bg-[#00d5ff] hover:opacity-90 text-neutral-950', textClass: 'text-[#00d5ff]', borderClass: 'border-[#00d5ff]/50', badgeClass: 'bg-[#00d5ff]/20 border-[#00d5ff]/40 text-[#00d5ff]', ringClass: 'ring-[#00d5ff]/40', gradientFromClass: 'from-[#00d5ff]' },
+  hue_200: { name: 'Sky Blue', hex: '#00aaff', rgb: '0, 170, 255', bgClass: 'bg-[#00aaff] hover:opacity-90 text-neutral-950', textClass: 'text-[#00aaff]', borderClass: 'border-[#00aaff]/50', badgeClass: 'bg-[#00aaff]/20 border-[#00aaff]/40 text-[#00aaff]', ringClass: 'ring-[#00aaff]/40', gradientFromClass: 'from-[#00aaff]' },
+  hue_210: { name: 'Pure Azure', hex: '#0080ff', rgb: '0, 128, 255', bgClass: 'bg-[#0080ff] hover:opacity-90', textClass: 'text-[#0080ff]', borderClass: 'border-[#0080ff]/50', badgeClass: 'bg-[#0080ff]/20 border-[#0080ff]/40 text-[#0080ff]', ringClass: 'ring-[#0080ff]/40', gradientFromClass: 'from-[#0080ff]' },
+  hue_220: { name: 'Royal Cobalt', hex: '#0055ff', rgb: '0, 85, 255', bgClass: 'bg-[#0055ff] hover:opacity-90', textClass: 'text-[#0055ff]', borderClass: 'border-[#0055ff]/50', badgeClass: 'bg-[#0055ff]/20 border-[#0055ff]/40 text-[#0055ff]', ringClass: 'ring-[#0055ff]/40', gradientFromClass: 'from-[#0055ff]' },
+  hue_230: { name: 'Royal Blue', hex: '#002bff', rgb: '0, 43, 255', bgClass: 'bg-[#002bff] hover:opacity-90', textClass: 'text-[#002bff]', borderClass: 'border-[#002bff]/50', badgeClass: 'bg-[#002bff]/20 border-[#002bff]/40 text-[#002bff]', ringClass: 'ring-[#002bff]/40', gradientFromClass: 'from-[#002bff]' },
+  hue_240: { name: 'Pure Blue', hex: '#0000ff', rgb: '0, 0, 255', bgClass: 'bg-[#0000ff] hover:opacity-90', textClass: 'text-[#0000ff]', borderClass: 'border-[#0000ff]/50', badgeClass: 'bg-[#0000ff]/20 border-[#0000ff]/40 text-[#0000ff]', ringClass: 'ring-[#0000ff]/40', gradientFromClass: 'from-[#0000ff]' },
+  hue_250: { name: 'Electric Indigo', hex: '#2b00ff', rgb: '43, 0, 255', bgClass: 'bg-[#2b00ff] hover:opacity-90', textClass: 'text-[#2b00ff]', borderClass: 'border-[#2b00ff]/50', badgeClass: 'bg-[#2b00ff]/20 border-[#2b00ff]/40 text-[#2b00ff]', ringClass: 'ring-[#2b00ff]/40', gradientFromClass: 'from-[#2b00ff]' },
+  hue_260: { name: 'Cosmic Violet', hex: '#5500ff', rgb: '85, 0, 255', bgClass: 'bg-[#5500ff] hover:opacity-90', textClass: 'text-[#5500ff]', borderClass: 'border-[#5500ff]/50', badgeClass: 'bg-[#5500ff]/20 border-[#5500ff]/40 text-[#5500ff]', ringClass: 'ring-[#5500ff]/40', gradientFromClass: 'from-[#5500ff]' },
+  hue_270: { name: 'Pure Violet', hex: '#8000ff', rgb: '128, 0, 255', bgClass: 'bg-[#8000ff] hover:opacity-90', textClass: 'text-[#8000ff]', borderClass: 'border-[#8000ff]/50', badgeClass: 'bg-[#8000ff]/20 border-[#8000ff]/40 text-[#8000ff]', ringClass: 'ring-[#8000ff]/40', gradientFromClass: 'from-[#8000ff]' },
+  hue_280: { name: 'Astral Purple', hex: '#aa00ff', rgb: '170, 0, 255', bgClass: 'bg-[#aa00ff] hover:opacity-90', textClass: 'text-[#aa00ff]', borderClass: 'border-[#aa00ff]/50', badgeClass: 'bg-[#aa00ff]/20 border-[#aa00ff]/40 text-[#aa00ff]', ringClass: 'ring-[#aa00ff]/40', gradientFromClass: 'from-[#aa00ff]' },
+  hue_290: { name: 'Deep Magenta', hex: '#d500ff', rgb: '213, 0, 255', bgClass: 'bg-[#d500ff] hover:opacity-90', textClass: 'text-[#d500ff]', borderClass: 'border-[#d500ff]/50', badgeClass: 'bg-[#d500ff]/20 border-[#d500ff]/40 text-[#d500ff]', ringClass: 'ring-[#d500ff]/40', gradientFromClass: 'from-[#d500ff]' },
+  hue_300: { name: 'Pure Magenta', hex: '#ff00ff', rgb: '255, 0, 255', bgClass: 'bg-[#ff00ff] hover:opacity-90', textClass: 'text-[#ff00ff]', borderClass: 'border-[#ff00ff]/50', badgeClass: 'bg-[#ff00ff]/20 border-[#ff00ff]/40 text-[#ff00ff]', ringClass: 'ring-[#ff00ff]/40', gradientFromClass: 'from-[#ff00ff]' },
+  hue_310: { name: 'Bright Fuchsia', hex: '#ff00d5', rgb: '255, 0, 213', bgClass: 'bg-[#ff00d5] hover:opacity-90', textClass: 'text-[#ff00d5]', borderClass: 'border-[#ff00d5]/50', badgeClass: 'bg-[#ff00d5]/20 border-[#ff00d5]/40 text-[#ff00d5]', ringClass: 'ring-[#ff00d5]/40', gradientFromClass: 'from-[#ff00d5]' },
+  hue_320: { name: 'Neon Pink', hex: '#ff00aa', rgb: '255, 0, 170', bgClass: 'bg-[#ff00aa] hover:opacity-90', textClass: 'text-[#ff00aa]', borderClass: 'border-[#ff00aa]/50', badgeClass: 'bg-[#ff00aa]/20 border-[#ff00aa]/40 text-[#ff00aa]', ringClass: 'ring-[#ff00aa]/40', gradientFromClass: 'from-[#ff00aa]' },
+  hue_330: { name: 'Deep Rose', hex: '#ff0080', rgb: '255, 0, 128', bgClass: 'bg-[#ff0080] hover:opacity-90', textClass: 'text-[#ff0080]', borderClass: 'border-[#ff0080]/50', badgeClass: 'bg-[#ff0080]/20 border-[#ff0080]/40 text-[#ff0080]', ringClass: 'ring-[#ff0080]/40', gradientFromClass: 'from-[#ff0080]' },
+  hue_340: { name: 'Deep Carmine', hex: '#ff0055', rgb: '255, 0, 85', bgClass: 'bg-[#ff0055] hover:opacity-90', textClass: 'text-[#ff0055]', borderClass: 'border-[#ff0055]/50', badgeClass: 'bg-[#ff0055]/20 border-[#ff0055]/40 text-[#ff0055]', ringClass: 'ring-[#ff0055]/40', gradientFromClass: 'from-[#ff0055]' },
+  hue_350: { name: 'Ruby Red', hex: '#ff002b', rgb: '255, 0, 43', bgClass: 'bg-[#ff002b] hover:opacity-90', textClass: 'text-[#ff002b]', borderClass: 'border-[#ff002b]/50', badgeClass: 'bg-[#ff002b]/20 border-[#ff002b]/40 text-[#ff002b]', ringClass: 'ring-[#ff002b]/40', gradientFromClass: 'from-[#ff002b]' },
+
+  // ── 5 GRAYSCALE CONTRAST STEPS ──
+  gray_white: {
     name: 'Platinum White',
-    hex: '#f8fafc',
-    rgb: '248, 250, 252',
-    bgClass: 'bg-white hover:bg-neutral-100 text-neutral-900',
-    textClass: 'text-neutral-100',
-    borderClass: 'border-neutral-200/60',
-    badgeClass: 'bg-neutral-800 border-neutral-600 text-white',
-    ringClass: 'ring-white/50',
-    gradientFromClass: 'from-white'
+    hex: '#ffffff',
+    rgb: '255, 255, 255',
+    bgClass: 'bg-[#ffffff] hover:bg-[#e6e6e6] text-neutral-950',
+    textClass: 'text-[#ffffff]',
+    borderClass: 'border-[#ffffff]/50',
+    badgeClass: 'bg-[#ffffff]/20 border-[#ffffff]/40 text-[#ffffff]',
+    ringClass: 'ring-[#ffffff]/40',
+    gradientFromClass: 'from-[#ffffff]'
   },
-  // Okabe-Ito Scientific Color Universal Design (CUD) Palette
-  okabe_blue: {
-    name: 'CUD Deep Blue',
-    hex: '#0072b2',
-    rgb: '0, 114, 178',
-    bgClass: 'bg-[#0072b2] hover:bg-[#005a8e]',
-    textClass: 'text-[#56b4e9]',
-    borderClass: 'border-[#0072b2]/50',
-    badgeClass: 'bg-[#002844] border-[#0072b2]/40 text-[#56b4e9]',
-    ringClass: 'ring-[#0072b2]/40',
-    gradientFromClass: 'from-[#0072b2]'
+  gray_silver: {
+    name: 'Bright Silver',
+    hex: '#cccccc',
+    rgb: '204, 204, 204',
+    bgClass: 'bg-[#cccccc] hover:bg-[#b3b3b3] text-neutral-950',
+    textClass: 'text-[#cccccc]',
+    borderClass: 'border-[#cccccc]/50',
+    badgeClass: 'bg-[#cccccc]/20 border-[#cccccc]/40 text-[#cccccc]',
+    ringClass: 'ring-[#cccccc]/40',
+    gradientFromClass: 'from-[#cccccc]'
   },
-  okabe_orange: {
-    name: 'CUD Orange',
-    hex: '#e69f00',
-    rgb: '230, 159, 0',
-    bgClass: 'bg-[#e69f00] hover:bg-[#c48700]',
-    textClass: 'text-[#e69f00]',
-    borderClass: 'border-[#e69f00]/50',
-    badgeClass: 'bg-[#402c00] border-[#e69f00]/40 text-[#e69f00]',
-    ringClass: 'ring-[#e69f00]/40',
-    gradientFromClass: 'from-[#e69f00]'
+  gray_slate: {
+    name: 'Steel Slate',
+    hex: '#888888',
+    rgb: '136, 136, 136',
+    bgClass: 'bg-[#888888] hover:bg-[#777777]',
+    textClass: 'text-[#888888]',
+    borderClass: 'border-[#888888]/50',
+    badgeClass: 'bg-[#888888]/20 border-[#888888]/40 text-[#888888]',
+    ringClass: 'ring-[#888888]/40',
+    gradientFromClass: 'from-[#888888]'
   },
-  okabe_skyblue: {
-    name: 'CUD Sky Blue',
-    hex: '#56b4e9',
-    rgb: '86, 180, 233',
-    bgClass: 'bg-[#56b4e9] hover:bg-[#3ca0db]',
-    textClass: 'text-[#56b4e9]',
-    borderClass: 'border-[#56b4e9]/50',
-    badgeClass: 'bg-[#0b2838] border-[#56b4e9]/40 text-[#56b4e9]',
-    ringClass: 'ring-[#56b4e9]/40',
-    gradientFromClass: 'from-[#56b4e9]'
+  gray_charcoal: {
+    name: 'Dark Charcoal',
+    hex: '#444444',
+    rgb: '68, 68, 68',
+    bgClass: 'bg-[#444444] hover:bg-[#333333]',
+    textClass: 'text-[#aaaaaa]',
+    borderClass: 'border-[#444444]/50',
+    badgeClass: 'bg-[#444444]/20 border-[#444444]/40 text-[#aaaaaa]',
+    ringClass: 'ring-[#444444]/40',
+    gradientFromClass: 'from-[#444444]'
   },
-  okabe_bluishgreen: {
-    name: 'CUD Bluish Green',
-    hex: '#009e73',
-    rgb: '0, 158, 115',
-    bgClass: 'bg-[#009e73] hover:bg-[#007f5d]',
-    textClass: 'text-[#009e73]',
-    borderClass: 'border-[#009e73]/50',
-    badgeClass: 'bg-[#002a1f] border-[#009e73]/40 text-[#009e73]',
-    ringClass: 'ring-[#009e73]/40',
-    gradientFromClass: 'from-[#009e73]'
+  gray_obsidian: {
+    name: 'Carbon Graphite',
+    hex: '#111111',
+    rgb: '17, 17, 17',
+    bgClass: 'bg-[#111111] hover:bg-[#000000]',
+    textClass: 'text-[#888888]',
+    borderClass: 'border-[#333333]',
+    badgeClass: 'bg-[#111111]/80 border-[#333333] text-[#888888]',
+    ringClass: 'ring-[#333333]',
+    gradientFromClass: 'from-[#111111]'
   },
-  okabe_yellow: {
-    name: 'CUD Yellow',
-    hex: '#f0e442',
-    rgb: '240, 228, 66',
-    bgClass: 'bg-[#f0e442] hover:bg-[#ded12e] text-neutral-950',
-    textClass: 'text-[#f0e442]',
-    borderClass: 'border-[#f0e442]/50',
-    badgeClass: 'bg-[#3b380b] border-[#f0e442]/40 text-[#f0e442]',
-    ringClass: 'ring-[#f0e442]/40',
-    gradientFromClass: 'from-[#f0e442]'
-  },
-  okabe_vermillion: {
-    name: 'CUD Vermillion',
-    hex: '#d55e00',
-    rgb: '213, 94, 0',
-    bgClass: 'bg-[#d55e00] hover:bg-[#af4d00]',
-    textClass: 'text-[#d55e00]',
-    borderClass: 'border-[#d55e00]/50',
-    badgeClass: 'bg-[#381900] border-[#d55e00]/40 text-[#d55e00]',
-    ringClass: 'ring-[#d55e00]/40',
-    gradientFromClass: 'from-[#d55e00]'
-  },
-  okabe_redpurple: {
-    name: 'CUD Red-Purple',
-    hex: '#cc79a7',
-    rgb: '204, 121, 167',
-    bgClass: 'bg-[#cc79a7] hover:bg-[#b86191]',
-    textClass: 'text-[#cc79a7]',
-    borderClass: 'border-[#cc79a7]/50',
-    badgeClass: 'bg-[#3b172a] border-[#cc79a7]/40 text-[#cc79a7]',
-    ringClass: 'ring-[#cc79a7]/40',
-    gradientFromClass: 'from-[#cc79a7]'
-  }
+
+  // ── LEGACY ALIASES (Backwards compatibility) ──
+  indigo: { name: 'Citadel Indigo', hex: '#4000ff', rgb: '64, 0, 255', bgClass: 'bg-[#4000ff]', textClass: 'text-[#4000ff]', borderClass: 'border-[#4000ff]/50', badgeClass: 'bg-[#4000ff]/20 text-[#4000ff]', ringClass: 'ring-[#4000ff]/40', gradientFromClass: 'from-[#4000ff]' },
+  cyan: { name: 'Pure Cyan', hex: '#00ffff', rgb: '0, 255, 255', bgClass: 'bg-[#00ffff] text-neutral-950', textClass: 'text-[#00ffff]', borderClass: 'border-[#00ffff]/50', badgeClass: 'bg-[#00ffff]/20 text-[#00ffff]', ringClass: 'ring-[#00ffff]/40', gradientFromClass: 'from-[#00ffff]' },
+  emerald: { name: 'Pure Green', hex: '#00ff00', rgb: '0, 255, 0', bgClass: 'bg-[#00ff00] text-neutral-950', textClass: 'text-[#00ff00]', borderClass: 'border-[#00ff00]/50', badgeClass: 'bg-[#00ff00]/20 text-[#00ff00]', ringClass: 'ring-[#00ff00]/40', gradientFromClass: 'from-[#00ff00]' },
+  rose: { name: 'Crimson Rose', hex: '#ff006a', rgb: '255, 0, 106', bgClass: 'bg-[#ff006a]', textClass: 'text-[#ff006a]', borderClass: 'border-[#ff006a]/50', badgeClass: 'bg-[#ff006a]/20 text-[#ff006a]', ringClass: 'ring-[#ff006a]/40', gradientFromClass: 'from-[#ff006a]' },
+  amber: { name: 'Warm Amber', hex: '#ffea00', rgb: '255, 234, 0', bgClass: 'bg-[#ffea00] text-neutral-950', textClass: 'text-[#ffea00]', borderClass: 'border-[#ffea00]/50', badgeClass: 'bg-[#ffea00]/20 text-[#ffea00]', ringClass: 'ring-[#ffea00]/40', gradientFromClass: 'from-[#ffea00]' },
+  purple: { name: 'Astral Purple', hex: '#aa00ff', rgb: '170, 0, 255', bgClass: 'bg-[#aa00ff]', textClass: 'text-[#aa00ff]', borderClass: 'border-[#aa00ff]/50', badgeClass: 'bg-[#aa00ff]/20 text-[#aa00ff]', ringClass: 'ring-[#aa00ff]/40', gradientFromClass: 'from-[#aa00ff]' },
+  blue: { name: 'Royal Cobalt', hex: '#0055ff', rgb: '0, 85, 255', bgClass: 'bg-[#0055ff]', textClass: 'text-[#0055ff]', borderClass: 'border-[#0055ff]/50', badgeClass: 'bg-[#0055ff]/20 text-[#0055ff]', ringClass: 'ring-[#0055ff]/40', gradientFromClass: 'from-[#0055ff]' },
+  crimson: { name: 'Pure Red', hex: '#ff0000', rgb: '255, 0, 0', bgClass: 'bg-[#ff0000]', textClass: 'text-[#ff0000]', borderClass: 'border-[#ff0000]/50', badgeClass: 'bg-[#ff0000]/20 text-[#ff0000]', ringClass: 'ring-[#ff0000]/40', gradientFromClass: 'from-[#ff0000]' },
+  teal: { name: 'Abyssal Teal', hex: '#00ffaa', rgb: '0, 255, 170', bgClass: 'bg-[#00ffaa] text-neutral-950', textClass: 'text-[#00ffaa]', borderClass: 'border-[#00ffaa]/50', badgeClass: 'bg-[#00ffaa]/20 text-[#00ffaa]', ringClass: 'ring-[#00ffaa]/40', gradientFromClass: 'from-[#00ffaa]' },
+  fuchsia: { name: 'Vapor Fuchsia', hex: '#ff00ea', rgb: '255, 0, 234', bgClass: 'bg-[#ff00ea]', textClass: 'text-[#ff00ea]', borderClass: 'border-[#ff00ea]/50', badgeClass: 'bg-[#ff00ea]/20 text-[#ff00ea]', ringClass: 'ring-[#ff00ea]/40', gradientFromClass: 'from-[#ff00ea]' },
+  lime: { name: 'Pure Lime', hex: '#80ff00', rgb: '128, 255, 0', bgClass: 'bg-[#80ff00] text-neutral-950', textClass: 'text-[#80ff00]', borderClass: 'border-[#80ff00]/50', badgeClass: 'bg-[#80ff00]/20 text-[#80ff00]', ringClass: 'ring-[#80ff00]/40', gradientFromClass: 'from-[#80ff00]' },
+  orange: { name: 'Blaze Orange', hex: '#ffaa00', rgb: '255, 170, 0', bgClass: 'bg-[#ffaa00] text-neutral-950', textClass: 'text-[#ffaa00]', borderClass: 'border-[#ffaa00]/50', badgeClass: 'bg-[#ffaa00]/20 text-[#ffaa00]', ringClass: 'ring-[#ffaa00]/40', gradientFromClass: 'from-[#ffaa00]' },
+  gold: { name: 'Pure Yellow', hex: '#ffff00', rgb: '255, 255, 0', bgClass: 'bg-[#ffff00] text-neutral-950', textClass: 'text-[#ffff00]', borderClass: 'border-[#ffff00]/50', badgeClass: 'bg-[#ffff00]/20 text-[#ffff00]', ringClass: 'ring-[#ffff00]/40', gradientFromClass: 'from-[#ffff00]' },
+  sky: { name: 'Sky Blue', hex: '#00aaff', rgb: '0, 170, 255', bgClass: 'bg-[#00aaff] text-neutral-950', textClass: 'text-[#00aaff]', borderClass: 'border-[#00aaff]/50', badgeClass: 'bg-[#00aaff]/20 text-[#00aaff]', ringClass: 'ring-[#00aaff]/40', gradientFromClass: 'from-[#00aaff]' },
+  coral: { name: 'Coral Red', hex: '#ff5500', rgb: '255, 85, 0', bgClass: 'bg-[#ff5500]', textClass: 'text-[#ff5500]', borderClass: 'border-[#ff5500]/50', badgeClass: 'bg-[#ff5500]/20 text-[#ff5500]', ringClass: 'ring-[#ff5500]/40', gradientFromClass: 'from-[#ff5500]' },
+  monochrome: { name: 'Steel Slate', hex: '#888888', rgb: '136, 136, 136', bgClass: 'bg-[#888888]', textClass: 'text-[#888888]', borderClass: 'border-[#888888]/50', badgeClass: 'bg-[#888888]/20 text-[#888888]', ringClass: 'ring-[#888888]/40', gradientFromClass: 'from-[#888888]' },
+  white: { name: 'Platinum White', hex: '#ffffff', rgb: '255, 255, 255', bgClass: 'bg-[#ffffff] text-neutral-950', textClass: 'text-[#ffffff]', borderClass: 'border-[#ffffff]/50', badgeClass: 'bg-[#ffffff]/20 text-[#ffffff]', ringClass: 'ring-[#ffffff]/40', gradientFromClass: 'from-[#ffffff]' },
+  okabe_blue: { name: 'Deep Blue', hex: '#0015ff', rgb: '0, 21, 255', bgClass: 'bg-[#0015ff]', textClass: 'text-[#0015ff]', borderClass: 'border-[#0015ff]/50', badgeClass: 'bg-[#0015ff]/20 text-[#0015ff]', ringClass: 'ring-[#0015ff]/40', gradientFromClass: 'from-[#0015ff]' },
+  okabe_orange: { name: 'Pure Orange', hex: '#ff9500', rgb: '255, 149, 0', bgClass: 'bg-[#ff9500]', textClass: 'text-[#ff9500]', borderClass: 'border-[#ff9500]/50', badgeClass: 'bg-[#ff9500]/20 text-[#ff9500]', ringClass: 'ring-[#ff9500]/40', gradientFromClass: 'from-[#ff9500]' },
+  okabe_skyblue: { name: 'Sky Cyan', hex: '#00d5ff', rgb: '0, 213, 255', bgClass: 'bg-[#00d5ff]', textClass: 'text-[#00d5ff]', borderClass: 'border-[#00d5ff]/50', badgeClass: 'bg-[#00d5ff]/20 text-[#00d5ff]', ringClass: 'ring-[#00d5ff]/40', gradientFromClass: 'from-[#00d5ff]' },
+  okabe_bluishgreen: { name: 'Teal Green', hex: '#00ff95', rgb: '0, 255, 149', bgClass: 'bg-[#00ff95]', textClass: 'text-[#00ff95]', borderClass: 'border-[#00ff95]/50', badgeClass: 'bg-[#00ff95]/20 text-[#00ff95]', ringClass: 'ring-[#00ff95]/40', gradientFromClass: 'from-[#00ff95]' },
+  okabe_yellow: { name: 'Pure Yellow', hex: '#ffff00', rgb: '255, 255, 0', bgClass: 'bg-[#ffff00] text-neutral-950', textClass: 'text-[#ffff00]', borderClass: 'border-[#ffff00]/50', badgeClass: 'bg-[#ffff00]/20 text-[#ffff00]', ringClass: 'ring-[#ffff00]/40', gradientFromClass: 'from-[#ffff00]' },
+  okabe_vermillion: { name: 'Vermillion', hex: '#ff6a00', rgb: '255, 106, 0', bgClass: 'bg-[#ff6a00]', textClass: 'text-[#ff6a00]', borderClass: 'border-[#ff6a00]/50', badgeClass: 'bg-[#ff6a00]/20 text-[#ff6a00]', ringClass: 'ring-[#ff6a00]/40', gradientFromClass: 'from-[#ff6a00]' },
+  okabe_redpurple: { name: 'Vapor Fuchsia', hex: '#ff00ea', rgb: '255, 0, 234', bgClass: 'bg-[#ff00ea]', textClass: 'text-[#ff00ea]', borderClass: 'border-[#ff00ea]/50', badgeClass: 'bg-[#ff00ea]/20 text-[#ff00ea]', ringClass: 'ring-[#ff00ea]/40', gradientFromClass: 'from-[#ff00ea]' }
 };
+
+export type ColorFamilyKey = 'red' | 'orange' | 'yellow' | 'green' | 'cyan' | 'blue' | 'purple' | 'pink' | 'neutral';
+
+export interface ColorFamilyDef {
+  key: ColorFamilyKey;
+  name: string;
+  badgeHex: string;
+  keys: AccentColorKey[];
+}
+
+export const COLOR_FAMILIES: Record<ColorFamilyKey, ColorFamilyDef> = {
+  red: { key: 'red', name: 'Reds', badgeHex: '#ff0000', keys: ['hue_0', 'hue_10', 'hue_340', 'hue_350', 'crimson', 'rose', 'coral', 'okabe_vermillion'] },
+  orange: { key: 'orange', name: 'Oranges', badgeHex: '#ff8000', keys: ['hue_20', 'hue_30', 'hue_40', 'hue_50', 'orange', 'amber', 'okabe_orange'] },
+  yellow: { key: 'yellow', name: 'Yellows', badgeHex: '#ffff00', keys: ['hue_60', 'hue_70', 'gold', 'okabe_yellow'] },
+  green: { key: 'green', name: 'Greens & Limes', badgeHex: '#00ff00', keys: ['hue_80', 'hue_90', 'hue_100', 'hue_110', 'hue_120', 'hue_130', 'hue_140', 'hue_150', 'emerald', 'lime', 'okabe_bluishgreen'] },
+  cyan: { key: 'cyan', name: 'Teals & Cyans', badgeHex: '#00ffff', keys: ['hue_160', 'hue_170', 'hue_180', 'hue_190', 'cyan', 'teal'] },
+  blue: { key: 'blue', name: 'Blues', badgeHex: '#0055ff', keys: ['hue_200', 'hue_210', 'hue_220', 'hue_230', 'hue_240', 'blue', 'sky', 'indigo', 'okabe_blue', 'okabe_skyblue'] },
+  purple: { key: 'purple', name: 'Purples & Violets', badgeHex: '#aa00ff', keys: ['hue_250', 'hue_260', 'hue_270', 'hue_280', 'hue_290', 'purple', 'fuchsia', 'okabe_redpurple'] },
+  pink: { key: 'pink', name: 'Pinks', badgeHex: '#ff00aa', keys: ['hue_300', 'hue_310', 'hue_320', 'hue_330'] },
+  neutral: { key: 'neutral', name: 'Grayscales', badgeHex: '#888888', keys: ['gray_white', 'gray_silver', 'gray_slate', 'gray_charcoal', 'gray_obsidian', 'monochrome', 'white'] }
+};
+
+export interface HueGroup {
+  id: string;
+  name: string;
+  badgeHex: string;
+  keys: AccentColorKey[];
+}
+
+export const HUE_GROUPS: HueGroup[] = [
+  { id: 'chromatic', name: '10° Chromatic Spectrum (100% Saturation, 50% Lightness)', badgeHex: '#ff0000', keys: [
+    'hue_0',   'hue_10',  'hue_20',  'hue_30',  'hue_40',  'hue_50',
+    'hue_60',  'hue_70',  'hue_80',  'hue_90',  'hue_100', 'hue_110',
+    'hue_120', 'hue_130', 'hue_140', 'hue_150', 'hue_160', 'hue_170',
+    'hue_180', 'hue_190', 'hue_200', 'hue_210', 'hue_220', 'hue_230',
+    'hue_240', 'hue_250', 'hue_260', 'hue_270', 'hue_280', 'hue_290',
+    'hue_300', 'hue_310', 'hue_320', 'hue_330', 'hue_340', 'hue_350'
+  ] },
+  { id: 'grayscales', name: 'Grayscale Contrast Steps', badgeHex: '#888888', keys: [
+    'gray_white', 'gray_silver', 'gray_slate', 'gray_charcoal', 'gray_obsidian'
+  ] }
+];
+
+export const HUE_ORDERED_COLOR_KEYS: AccentColorKey[] = [
+  'hue_0',   'hue_10',  'hue_20',  'hue_30',  'hue_40',  'hue_50',
+  'hue_60',  'hue_70',  'hue_80',  'hue_90',  'hue_100', 'hue_110',
+  'hue_120', 'hue_130', 'hue_140', 'hue_150', 'hue_160', 'hue_170',
+  'hue_180', 'hue_190', 'hue_200', 'hue_210', 'hue_220', 'hue_230',
+  'hue_240', 'hue_250', 'hue_260', 'hue_270', 'hue_280', 'hue_290',
+  'hue_300', 'hue_310', 'hue_320', 'hue_330', 'hue_340', 'hue_350',
+  'gray_white',
+  'gray_silver',
+  'gray_slate',
+  'gray_charcoal',
+  'gray_obsidian'
+];
+
+export function getColorFamilyKey(colorKey: AccentColorKey): ColorFamilyKey {
+  for (const [famKey, famDef] of Object.entries(COLOR_FAMILIES)) {
+    if (famDef.keys.includes(colorKey)) {
+      return famKey as ColorFamilyKey;
+    }
+  }
+  return 'neutral';
+}
+
+export interface ThemeFamilyAnalysis {
+  uniqueKeysCount: number;
+  familyCount: number;
+  familiesUsed: { familyKey: ColorFamilyKey; familyName: string; badgeHex: string; count: number; colors: AccentColorKey[] }[];
+  duplicateFamilies: { familyKey: ColorFamilyKey; familyName: string; count: number; colors: AccentColorKey[] }[];
+}
+
+export function analyzeThemeFamilies(theme: AppThemeConfig): ThemeFamilyAnalysis {
+  const slots: { slotName: string; colorKey: AccentColorKey }[] = [
+    { slotName: 'Primary Header', colorKey: theme.primary },
+    { slotName: 'Image Editor Module', colorKey: theme.moduleColors.sprites },
+    { slotName: 'Maps Module', colorKey: theme.moduleColors.maps },
+    { slotName: 'Biomes Module', colorKey: theme.moduleColors.biomes },
+    { slotName: 'Prefabs Module', colorKey: theme.moduleColors.prefabs },
+    { slotName: 'Particles Module', colorKey: theme.moduleColors.particles },
+    { slotName: 'UI Module', colorKey: theme.moduleColors.ui },
+    { slotName: 'Game Architecture Module', colorKey: theme.moduleColors.gamestructure }
+  ];
+
+  const uniqueKeys = new Set(slots.map(s => s.colorKey));
+  const familyMap = new Map<ColorFamilyKey, AccentColorKey[]>();
+
+  for (const slot of slots) {
+    const famKey = getColorFamilyKey(slot.colorKey);
+    const existing = familyMap.get(famKey) || [];
+    existing.push(slot.colorKey);
+    familyMap.set(famKey, existing);
+  }
+
+  const familiesUsed = Array.from(familyMap.entries()).map(([famKey, colors]) => ({
+    familyKey: famKey,
+    familyName: COLOR_FAMILIES[famKey]?.name || famKey,
+    badgeHex: COLOR_FAMILIES[famKey]?.badgeHex || '#888',
+    count: colors.length,
+    colors
+  }));
+
+  const duplicateFamilies = familiesUsed.filter(f => f.count > 1);
+
+  return {
+    uniqueKeysCount: uniqueKeys.size,
+    familyCount: familiesUsed.length,
+    familiesUsed,
+    duplicateFamilies
+  };
+}
 
 export interface BackgroundToneDef {
   name: string;
@@ -475,110 +456,141 @@ export const BACKGROUND_TONES: Record<BackgroundToneKey, BackgroundToneDef> = {
 };
 
 export const PRESET_APP_THEMES: AppThemeConfig[] = [
-  // ── STANDARD PRESETS (Guaranteed 6 mutually-exclusive distinct colors) ──
+  // ── STANDARD PRESETS (Guaranteed 7 Color Family Distinction) ──
   {
     id: 'indigo_citadel',
     name: 'Citadel Indigo (Default)',
-    description: 'The standard Mason blueprint theme. 6 fully distinct hues across primary header and all modules.',
+    description: 'Standard Mason blueprint theme. Spans all 7 color families with Citadel Indigo header, Emerald Image Editor & Cyan cartography.',
     category: 'standard',
     primary: 'indigo',
     backgroundTone: 'void',
     moduleColors: {
+      sprites: 'emerald',
       maps: 'cyan',
-      biomes: 'emerald',
+      biomes: 'teal',
       prefabs: 'rose',
-      ui: 'amber',
+      particles: 'orange',
+      ui: 'gold',
       gamestructure: 'purple'
     }
   },
   {
     id: 'cyberpunk_neon',
     name: 'Cyberpunk Neon 2088',
-    description: 'High-contrast glowing cyan primary with lime strata, teal biomes, hot fuchsia avatars, and amber HUD.',
+    description: 'High-contrast 7-family spectrum: Neon Cyan primary, Emerald Image Editor, Electric Lime maps, Platinum biomes, Vapor Fuchsia prefabs, Blaze particles, Solar Gold HUD, Crimson logic.',
     category: 'standard',
     primary: 'cyan',
     backgroundTone: 'void',
     moduleColors: {
+      sprites: 'emerald',
       maps: 'lime',
-      biomes: 'teal',
+      biomes: 'white',
       prefabs: 'fuchsia',
-      ui: 'amber',
-      gamestructure: 'purple'
+      particles: 'orange',
+      ui: 'gold',
+      gamestructure: 'crimson'
     }
   },
   {
     id: 'emerald_deepwood',
     name: 'Emerald Deepwood',
-    description: 'Lush forest tones with radiant emerald primary, sky blue maps, chartreuse biomes, and gold interface.',
+    description: 'Lush forest theme: Emerald primary, Solar Lime Image Editor, Sky maps, Emerald biomes, Crimson Rose prefabs, Orange particles, Gold HUD, Astral Purple logic.',
     category: 'standard',
     primary: 'emerald',
     backgroundTone: 'slate',
     moduleColors: {
+      sprites: 'lime',
       maps: 'sky',
-      biomes: 'lime',
+      biomes: 'emerald',
       prefabs: 'rose',
+      particles: 'orange',
       ui: 'gold',
-      gamestructure: 'indigo'
+      gamestructure: 'purple'
     }
   },
   {
     id: 'obsidian_crimson',
     name: 'Obsidian Crimson',
-    description: 'Dramatic blood-ruby crimson primary with neon cyan maps, verdant biomes, fuchsia avatars, and solar HUD.',
+    description: 'Full 7-family spectrum: Blood-ruby Crimson primary, Pure Green Image Editor, Neon Cyan maps, Abyssal Teal biomes, Blaze Orange prefabs, Solar Gold particles, Slate HUD, Astral Purple logic.',
     category: 'standard',
     primary: 'crimson',
     backgroundTone: 'void',
     moduleColors: {
+      sprites: 'emerald',
       maps: 'cyan',
-      biomes: 'emerald',
-      prefabs: 'fuchsia',
-      ui: 'amber',
+      biomes: 'teal',
+      prefabs: 'orange',
+      particles: 'gold',
+      ui: 'monochrome',
       gamestructure: 'purple'
     }
   },
   {
     id: 'solar_amber',
-    name: 'Solar Flare & Gold',
-    description: 'Warm energetic amber primary paired with cyan maps, electric lime biomes, and deep astral graph.',
+    name: 'Solar Flare & Amber',
+    description: 'Warm energetic 7-family spectrum: Solar Amber primary, Pure Jade Image Editor, Cobalt Blue maps, Electric Lime biomes, Crimson Rose prefabs, Blaze Orange particles, Platinum HUD, Astral Purple logic.',
     category: 'standard',
     primary: 'amber',
     backgroundTone: 'espresso',
     moduleColors: {
-      maps: 'cyan',
+      sprites: 'emerald',
+      maps: 'blue',
       biomes: 'lime',
       prefabs: 'rose',
-      ui: 'teal',
+      particles: 'orange',
+      ui: 'white',
       gamestructure: 'purple'
     }
   },
   {
     id: 'astral_violet',
     name: 'Astral Void & Amethyst',
-    description: 'Cosmic purple primary with cyan cartography, chartreuse flora, rose avatars, and cobalt logic graph.',
+    description: 'Cosmic 7-family spectrum: Astral Purple primary, Abyssal Teal Image Editor, Neon Cyan maps, Emerald biomes, Sunset Coral prefabs, Blaze Orange particles, Solar Gold HUD, Carbon Slate logic.',
     category: 'standard',
     primary: 'purple',
     backgroundTone: 'navy',
     moduleColors: {
+      sprites: 'teal',
       maps: 'cyan',
-      biomes: 'lime',
-      prefabs: 'rose',
-      ui: 'amber',
-      gamestructure: 'blue'
+      biomes: 'emerald',
+      prefabs: 'coral',
+      particles: 'orange',
+      ui: 'gold',
+      gamestructure: 'monochrome'
     }
   },
   {
     id: 'vaporwave_sunset',
     name: 'Vaporwave Sunset',
-    description: 'Retro synthwave fuchsia with cyan wireframes, electric lime, blaze orange avatars, and golden horizon HUD.',
+    description: 'Retro synthwave 7-family spectrum: Vapor Fuchsia primary, Emerald Mint Image Editor, Sky Blue maps, Electric Lime biomes, Crimson Rose prefabs, Blaze Orange particles, Solar Amber HUD, Carbon Slate logic.',
     category: 'standard',
     primary: 'fuchsia',
     backgroundTone: 'void',
     moduleColors: {
-      maps: 'cyan',
+      sprites: 'emerald',
+      maps: 'sky',
       biomes: 'lime',
-      prefabs: 'orange',
-      ui: 'gold',
-      gamestructure: 'indigo'
+      prefabs: 'rose',
+      particles: 'orange',
+      ui: 'amber',
+      gamestructure: 'monochrome'
+    }
+  },
+  {
+    id: 'monochrome_precision',
+    name: 'Monochrome Slate Studio',
+    description: 'Tactical graphite neutral primary paired with 7 distinct colorful module accents for minimal header distraction & maximum workspace clarity.',
+    category: 'standard',
+    primary: 'monochrome',
+    backgroundTone: 'carbon',
+    moduleColors: {
+      sprites: 'emerald',
+      maps: 'cyan',
+      biomes: 'teal',
+      prefabs: 'rose',
+      particles: 'amber',
+      ui: 'orange',
+      gamestructure: 'purple'
     }
   },
 
@@ -592,11 +604,13 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     primary: 'okabe_blue',
     backgroundTone: 'void',
     moduleColors: {
+      sprites: 'okabe_bluishgreen',
       maps: 'okabe_skyblue',
-      biomes: 'okabe_bluishgreen',
+      biomes: 'okabe_orange',
       prefabs: 'okabe_vermillion',
-      ui: 'okabe_yellow',
-      gamestructure: 'okabe_redpurple'
+      particles: 'okabe_yellow',
+      ui: 'okabe_redpurple',
+      gamestructure: 'white'
     }
   },
   {
@@ -608,9 +622,11 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     primary: 'blue',
     backgroundTone: 'slate',
     moduleColors: {
+      sprites: 'teal',
       maps: 'sky',
-      biomes: 'teal',
+      biomes: 'blue',
       prefabs: 'orange',
+      particles: 'amber',
       ui: 'gold',
       gamestructure: 'purple'
     }
@@ -624,10 +640,12 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     primary: 'crimson',
     backgroundTone: 'void',
     moduleColors: {
-      maps: 'emerald',
-      biomes: 'lime',
+      sprites: 'emerald',
+      maps: 'lime',
+      biomes: 'teal',
       prefabs: 'fuchsia',
-      ui: 'coral',
+      particles: 'coral',
+      ui: 'amber',
       gamestructure: 'white'
     }
   },
@@ -640,10 +658,12 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     primary: 'white',
     backgroundTone: 'void',
     moduleColors: {
+      sprites: 'emerald',
       maps: 'cyan',
       biomes: 'lime',
       prefabs: 'coral',
-      ui: 'gold',
+      particles: 'gold',
+      ui: 'amber',
       gamestructure: 'monochrome'
     }
   }
@@ -657,6 +677,12 @@ export function loadSavedAppTheme(): AppThemeConfig {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.primary && parsed.moduleColors) {
+        if (!parsed.moduleColors.sprites) {
+          parsed.moduleColors.sprites = 'emerald';
+        }
+        if (!parsed.moduleColors.particles) {
+          parsed.moduleColors.particles = 'amber';
+        }
         return parsed;
       }
     }
@@ -684,9 +710,11 @@ export function applyThemeCSSVariables(theme: AppThemeConfig): void {
     root.style.setProperty('--mason-primary', primaryDef.hex);
     root.style.setProperty('--mason-primary-rgb', primaryDef.rgb);
 
+    root.style.setProperty('--mason-sprites-color', COLOR_DEFINITIONS[theme.moduleColors.sprites]?.hex || '#10b981');
     root.style.setProperty('--mason-maps-color', COLOR_DEFINITIONS[theme.moduleColors.maps]?.hex || '#06b6d4');
     root.style.setProperty('--mason-biomes-color', COLOR_DEFINITIONS[theme.moduleColors.biomes]?.hex || '#10b981');
     root.style.setProperty('--mason-prefabs-color', COLOR_DEFINITIONS[theme.moduleColors.prefabs]?.hex || '#f43f5e');
+    root.style.setProperty('--mason-particles-color', COLOR_DEFINITIONS[theme.moduleColors.particles]?.hex || '#f59e0b');
     root.style.setProperty('--mason-ui-color', COLOR_DEFINITIONS[theme.moduleColors.ui]?.hex || '#f59e0b');
     root.style.setProperty('--mason-gamestructure-color', COLOR_DEFINITIONS[theme.moduleColors.gamestructure]?.hex || '#a855f7');
     root.style.setProperty('--mason-bg-base', bgDef.hex);

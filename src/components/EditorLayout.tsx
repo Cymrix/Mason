@@ -1027,6 +1027,7 @@ export const EditorLayout: React.FC = () => {
 
                   const renderModIcon = () => {
                     switch (mod.iconName) {
+                      case 'Paintbrush': return <Paintbrush size={16} />;
                       case 'Map': return <Map size={16} />;
                       case 'TreePine': return <TreePine size={16} />;
                       case 'Users': return <Users size={16} />;

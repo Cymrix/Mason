@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
+import { ProjectTaskBoard } from './dashboard/ProjectTaskBoard';
 import { 
   Folder, 
   FileCode, 
@@ -18,7 +19,8 @@ import {
   Users,
   Sliders,
   Network,
-  Palette
+  Palette,
+  Paintbrush
 } from 'lucide-react';
 
 interface ProjectDashboardProps {
@@ -63,10 +65,15 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   const particleCount = project.fileSystem?.particles?.length || 0;
   const uiCount = project.fileSystem?.ui?.length || 0;
   const gameCount = project.fileSystem?.game?.length || 0;
+  const spriteCount = project.fileSystem?.prefabs?.reduce((acc, p) => acc + (p.prefabData?.spritesheets?.length || 0), 0) || 1;
+
+  const currentMapFile = project.fileSystem?.maps?.find(m => m.fileName === project.activeFiles?.mapFileName) || project.fileSystem?.maps?.[0];
+  const activeMapName = currentMapFile?.name || 'World Level Map';
 
   const totalFiles = mapCount + biomeCount + prefabCount + particleCount + uiCount + gameCount;
 
   // Module color definitions
+  const spritesColor = getModuleColorDef('sprites');
   const mapsColor = getModuleColorDef('maps');
   const biomesColor = getModuleColorDef('biomes');
   const prefabsColor = getModuleColorDef('prefabs');
@@ -267,246 +274,349 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
         )}
       </div>
 
-      {/* Subfolder Stats Overview Cards - Dynamically colored and centered */}
-      <div className="flex flex-wrap justify-center items-stretch gap-3.5 w-full mx-auto">
+      {/* Module Overview Cards - Vertical stack: Upper Right Number, Icon -> Extension -> Module Name */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3.5 w-full mx-auto">
+        {/* Image Editor */}
+        <div 
+          onClick={() => onLaunchModule('sprites')}
+          className="relative p-4 rounded-2xl border transition cursor-pointer group flex flex-col items-start text-left shadow-lg hover:scale-[1.02]"
+          style={{
+            backgroundColor: bgDef.cardHex,
+            borderColor: bgDef.borderHex
+          }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = spritesColor.hex)}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+          title="Image Editor (.png)"
+        >
+          {/* Upper Right Number */}
+          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
+            {spriteCount}
+          </div>
+
+          {/* 1. Module Icon */}
+          <div 
+            className="w-10 h-10 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition-transform mb-2 shadow-inner"
+            style={{
+              backgroundColor: `rgba(${spritesColor.rgb}, 0.2)`,
+              borderColor: `rgba(${spritesColor.rgb}, 0.4)`,
+              color: spritesColor.hex
+            }}
+          >
+            <Paintbrush size={20} />
+          </div>
+
+          {/* 2. Extension */}
+          <span 
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border mb-2"
+            style={{
+              backgroundColor: `rgba(${spritesColor.rgb}, 0.15)`,
+              borderColor: `rgba(${spritesColor.rgb}, 0.3)`,
+              color: spritesColor.hex
+            }}
+          >
+            .png
+          </span>
+
+          {/* 3. Module Name */}
+          <div className="text-[11px] font-bold text-neutral-400 group-hover:text-neutral-200 truncate mt-1 w-full transition-colors">
+            Image Editor
+          </div>
+        </div>
+
         {/* Maps */}
         <div 
           onClick={() => onLaunchModule('maps')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          className="relative p-4 rounded-2xl border transition cursor-pointer group flex flex-col items-start text-left shadow-lg hover:scale-[1.02]"
           style={{
             backgroundColor: bgDef.cardHex,
             borderColor: bgDef.borderHex
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = mapsColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+          title="Maps (.map)"
         >
-          <div className="flex items-center justify-between">
-            <div 
-              className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
-              style={{
-                backgroundColor: `rgba(${mapsColor.rgb}, 0.2)`,
-                borderColor: `rgba(${mapsColor.rgb}, 0.4)`,
-                color: mapsColor.hex
-              }}
-            >
-              <Map size={16} />
-            </div>
-            <span 
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
-              style={{
-                backgroundColor: `rgba(${mapsColor.rgb}, 0.15)`,
-                borderColor: `rgba(${mapsColor.rgb}, 0.3)`,
-                color: mapsColor.hex
-              }}
-            >
-              .map
-            </span>
+          {/* Upper Right Number */}
+          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
+            {mapCount}
           </div>
-          <div className="mt-2.5">
-            <div 
-              className="text-xl font-black text-white group-hover:opacity-90 transition font-mono"
-            >
-              {mapCount}
-            </div>
-            <div className="text-[11px] font-bold text-neutral-300 truncate">Maps</div>
+
+          {/* 1. Module Icon */}
+          <div 
+            className="w-10 h-10 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition-transform mb-2 shadow-inner"
+            style={{
+              backgroundColor: `rgba(${mapsColor.rgb}, 0.2)`,
+              borderColor: `rgba(${mapsColor.rgb}, 0.4)`,
+              color: mapsColor.hex
+            }}
+          >
+            <Map size={20} />
+          </div>
+
+          {/* 2. Extension */}
+          <span 
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border mb-2"
+            style={{
+              backgroundColor: `rgba(${mapsColor.rgb}, 0.15)`,
+              borderColor: `rgba(${mapsColor.rgb}, 0.3)`,
+              color: mapsColor.hex
+            }}
+          >
+            .map
+          </span>
+
+          {/* 3. Module Name */}
+          <div className="text-[11px] font-bold text-neutral-400 group-hover:text-neutral-200 truncate mt-1 w-full transition-colors">
+            Maps
           </div>
         </div>
 
         {/* Biomes */}
         <div 
           onClick={() => onLaunchModule('biomes')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          className="relative p-4 rounded-2xl border transition cursor-pointer group flex flex-col items-start text-left shadow-lg hover:scale-[1.02]"
           style={{
             backgroundColor: bgDef.cardHex,
             borderColor: bgDef.borderHex
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = biomesColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+          title="Biomes (.biome)"
         >
-          <div className="flex items-center justify-between">
-            <div 
-              className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
-              style={{
-                backgroundColor: `rgba(${biomesColor.rgb}, 0.2)`,
-                borderColor: `rgba(${biomesColor.rgb}, 0.4)`,
-                color: biomesColor.hex
-              }}
-            >
-              <TreePine size={16} />
-            </div>
-            <span 
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
-              style={{
-                backgroundColor: `rgba(${biomesColor.rgb}, 0.15)`,
-                borderColor: `rgba(${biomesColor.rgb}, 0.3)`,
-                color: biomesColor.hex
-              }}
-            >
-              .biome
-            </span>
+          {/* Upper Right Number */}
+          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
+            {biomeCount}
           </div>
-          <div className="mt-2.5">
-            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{biomeCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300 truncate">Biomes</div>
+
+          {/* 1. Module Icon */}
+          <div 
+            className="w-10 h-10 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition-transform mb-2 shadow-inner"
+            style={{
+              backgroundColor: `rgba(${biomesColor.rgb}, 0.2)`,
+              borderColor: `rgba(${biomesColor.rgb}, 0.4)`,
+              color: biomesColor.hex
+            }}
+          >
+            <TreePine size={20} />
+          </div>
+
+          {/* 2. Extension */}
+          <span 
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border mb-2"
+            style={{
+              backgroundColor: `rgba(${biomesColor.rgb}, 0.15)`,
+              borderColor: `rgba(${biomesColor.rgb}, 0.3)`,
+              color: biomesColor.hex
+            }}
+          >
+            .biome
+          </span>
+
+          {/* 3. Module Name */}
+          <div className="text-[11px] font-bold text-neutral-400 group-hover:text-neutral-200 truncate mt-1 w-full transition-colors">
+            Biomes
           </div>
         </div>
 
-        {/* Prefabs & Bespoke AI */}
+        {/* Prefabs */}
         <div 
           onClick={() => onLaunchModule('prefabs')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          className="relative p-4 rounded-2xl border transition cursor-pointer group flex flex-col items-start text-left shadow-lg hover:scale-[1.02]"
           style={{
             backgroundColor: bgDef.cardHex,
             borderColor: bgDef.borderHex
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = prefabsColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+          title="Prefabs (.prefab)"
         >
-          <div className="flex items-center justify-between">
-            <div 
-              className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
-              style={{
-                backgroundColor: `rgba(${prefabsColor.rgb}, 0.2)`,
-                borderColor: `rgba(${prefabsColor.rgb}, 0.4)`,
-                color: prefabsColor.hex
-              }}
-            >
-              <Users size={16} />
-            </div>
-            <span 
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
-              style={{
-                backgroundColor: `rgba(${prefabsColor.rgb}, 0.15)`,
-                borderColor: `rgba(${prefabsColor.rgb}, 0.3)`,
-                color: prefabsColor.hex
-              }}
-            >
-              .prefab
-            </span>
+          {/* Upper Right Number */}
+          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
+            {prefabCount}
           </div>
-          <div className="mt-2.5">
-            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{prefabCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300 truncate">Prefabs & AI</div>
+
+          {/* 1. Module Icon */}
+          <div 
+            className="w-10 h-10 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition-transform mb-2 shadow-inner"
+            style={{
+              backgroundColor: `rgba(${prefabsColor.rgb}, 0.2)`,
+              borderColor: `rgba(${prefabsColor.rgb}, 0.4)`,
+              color: prefabsColor.hex
+            }}
+          >
+            <Users size={20} />
+          </div>
+
+          {/* 2. Extension */}
+          <span 
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border mb-2"
+            style={{
+              backgroundColor: `rgba(${prefabsColor.rgb}, 0.15)`,
+              borderColor: `rgba(${prefabsColor.rgb}, 0.3)`,
+              color: prefabsColor.hex
+            }}
+          >
+            .prefab
+          </span>
+
+          {/* 3. Module Name */}
+          <div className="text-[11px] font-bold text-neutral-400 group-hover:text-neutral-200 truncate mt-1 w-full transition-colors">
+            Prefabs
           </div>
         </div>
 
         {/* Particles */}
         <div 
           onClick={() => onLaunchModule('particles')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          className="relative p-4 rounded-2xl border transition cursor-pointer group flex flex-col items-start text-left shadow-lg hover:scale-[1.02]"
           style={{
             backgroundColor: bgDef.cardHex,
             borderColor: bgDef.borderHex
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = particlesColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+          title="Particles (.particle)"
         >
-          <div className="flex items-center justify-between">
-            <div 
-              className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
-              style={{
-                backgroundColor: `rgba(${particlesColor.rgb}, 0.2)`,
-                borderColor: `rgba(${particlesColor.rgb}, 0.4)`,
-                color: particlesColor.hex
-              }}
-            >
-              <Sparkles size={16} />
-            </div>
-            <span 
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
-              style={{
-                backgroundColor: `rgba(${particlesColor.rgb}, 0.15)`,
-                borderColor: `rgba(${particlesColor.rgb}, 0.3)`,
-                color: particlesColor.hex
-              }}
-            >
-              .particle
-            </span>
+          {/* Upper Right Number */}
+          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
+            {particleCount}
           </div>
-          <div className="mt-2.5">
-            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{particleCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300 truncate">Particles</div>
+
+          {/* 1. Module Icon */}
+          <div 
+            className="w-10 h-10 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition-transform mb-2 shadow-inner"
+            style={{
+              backgroundColor: `rgba(${particlesColor.rgb}, 0.2)`,
+              borderColor: `rgba(${particlesColor.rgb}, 0.4)`,
+              color: particlesColor.hex
+            }}
+          >
+            <Sparkles size={20} />
+          </div>
+
+          {/* 2. Extension */}
+          <span 
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border mb-2"
+            style={{
+              backgroundColor: `rgba(${particlesColor.rgb}, 0.15)`,
+              borderColor: `rgba(${particlesColor.rgb}, 0.3)`,
+              color: particlesColor.hex
+            }}
+          >
+            .particle
+          </span>
+
+          {/* 3. Module Name */}
+          <div className="text-[11px] font-bold text-neutral-400 group-hover:text-neutral-200 truncate mt-1 w-full transition-colors">
+            Particles
           </div>
         </div>
 
         {/* UI & HUD */}
         <div 
           onClick={() => onLaunchModule('ui')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          className="relative p-4 rounded-2xl border transition cursor-pointer group flex flex-col items-start text-left shadow-lg hover:scale-[1.02]"
           style={{
             backgroundColor: bgDef.cardHex,
             borderColor: bgDef.borderHex
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = uiColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+          title="UI & HUD (.ui)"
         >
-          <div className="flex items-center justify-between">
-            <div 
-              className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
-              style={{
-                backgroundColor: `rgba(${uiColor.rgb}, 0.2)`,
-                borderColor: `rgba(${uiColor.rgb}, 0.4)`,
-                color: uiColor.hex
-              }}
-            >
-              <Sliders size={16} />
-            </div>
-            <span 
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
-              style={{
-                backgroundColor: `rgba(${uiColor.rgb}, 0.15)`,
-                borderColor: `rgba(${uiColor.rgb}, 0.3)`,
-                color: uiColor.hex
-              }}
-            >
-              .ui
-            </span>
+          {/* Upper Right Number */}
+          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
+            {uiCount}
           </div>
-          <div className="mt-2.5">
-            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{uiCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300 truncate">UI & HUD</div>
+
+          {/* 1. Module Icon */}
+          <div 
+            className="w-10 h-10 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition-transform mb-2 shadow-inner"
+            style={{
+              backgroundColor: `rgba(${uiColor.rgb}, 0.2)`,
+              borderColor: `rgba(${uiColor.rgb}, 0.4)`,
+              color: uiColor.hex
+            }}
+          >
+            <Sliders size={20} />
+          </div>
+
+          {/* 2. Extension */}
+          <span 
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border mb-2"
+            style={{
+              backgroundColor: `rgba(${uiColor.rgb}, 0.15)`,
+              borderColor: `rgba(${uiColor.rgb}, 0.3)`,
+              color: uiColor.hex
+            }}
+          >
+            .ui
+          </span>
+
+          {/* 3. Module Name */}
+          <div className="text-[11px] font-bold text-neutral-400 group-hover:text-neutral-200 truncate mt-1 w-full transition-colors">
+            UI & HUD
           </div>
         </div>
 
-        {/* Game Structure */}
+        {/* Game Architecture */}
         <div 
           onClick={() => onLaunchModule('gamestructure')}
-          className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
+          className="relative p-4 rounded-2xl border transition cursor-pointer group flex flex-col items-start text-left shadow-lg hover:scale-[1.02]"
           style={{
             backgroundColor: bgDef.cardHex,
             borderColor: bgDef.borderHex
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = gameColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
+          title="Game Architecture (.gamestructure)"
         >
-          <div className="flex items-center justify-between">
-            <div 
-              className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
-              style={{
-                backgroundColor: `rgba(${gameColor.rgb}, 0.2)`,
-                borderColor: `rgba(${gameColor.rgb}, 0.4)`,
-                color: gameColor.hex
-              }}
-            >
-              <Network size={16} />
-            </div>
-            <span 
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
-              style={{
-                backgroundColor: `rgba(${gameColor.rgb}, 0.15)`,
-                borderColor: `rgba(${gameColor.rgb}, 0.3)`,
-                color: gameColor.hex
-              }}
-            >
-              .gamestructure
-            </span>
+          {/* Upper Right Number */}
+          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
+            {gameCount}
           </div>
-          <div className="mt-2.5">
-            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{gameCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300 truncate">Game Graph</div>
+
+          {/* 1. Module Icon */}
+          <div 
+            className="w-10 h-10 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition-transform mb-2 shadow-inner"
+            style={{
+              backgroundColor: `rgba(${gameColor.rgb}, 0.2)`,
+              borderColor: `rgba(${gameColor.rgb}, 0.4)`,
+              color: gameColor.hex
+            }}
+          >
+            <Network size={20} />
+          </div>
+
+          {/* 2. Extension */}
+          <span 
+            className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border mb-2"
+            style={{
+              backgroundColor: `rgba(${gameColor.rgb}, 0.15)`,
+              borderColor: `rgba(${gameColor.rgb}, 0.3)`,
+              color: gameColor.hex
+            }}
+          >
+            .gamestructure
+          </span>
+
+          {/* 3. Module Name */}
+          <div className="text-[11px] font-bold text-neutral-400 group-hover:text-neutral-200 truncate mt-1 w-full transition-colors">
+            Game Architecture
           </div>
         </div>
       </div>
+
+      {/* Project Kanban & Task Board Section */}
+      <ProjectTaskBoard
+        taskBoard={project.taskBoard}
+        onUpdateTaskBoard={updatedBoard => {
+          onUpdateProject({
+            ...project,
+            taskBoard: updatedBoard,
+            updatedAt: new Date().toISOString()
+          });
+        }}
+      />
 
     </div>
   );

@@ -1962,17 +1962,26 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         onBackToDashboard={onBackToDashboard}
         centerContent={
           <div className="flex items-center gap-1.5 max-w-full truncate">
-            <span className="text-base leading-none shrink-0" title="Character Avatar">{char.avatarIcon || '🛡️'}</span>
+            <span className="text-base leading-none shrink-0" title="Actor Avatar">{char.avatarIcon || '🛡️'}</span>
             <input
               type="text"
               value={char.name}
               onChange={(e) => updateCharacter(c => ({ ...c, name: e.target.value }))}
               className="bg-transparent text-xs sm:text-sm font-bold text-white border-b border-dashed border-neutral-700 hover:border-rose-500 focus:border-rose-500 focus:outline-none transition py-0.5 max-w-[130px] sm:max-w-[190px] text-center"
-              title="Click to edit character name"
+              title="Click to edit actor name"
             />
-            <span className="text-[9px] uppercase font-bold font-mono px-1.5 py-0.5 rounded bg-rose-950/60 border border-rose-500/40 text-rose-300 shrink-0">
-              {char.characterType}
-            </span>
+            <select
+              value={char.characterType}
+              onChange={(e) => updateCharacter(c => ({ ...c, characterType: e.target.value as any }))}
+              className="text-[9px] uppercase font-bold font-mono px-1.5 py-0.5 rounded bg-rose-950 border border-rose-500/60 text-rose-300 shrink-0 cursor-pointer focus:outline-none focus:border-rose-400"
+              title="Change Actor Type"
+            >
+              <option value="player_hero">PLAYER HERO</option>
+              <option value="friendly_npc">FRIENDLY NPC</option>
+              <option value="enemy_mob">ENEMY MOB</option>
+              <option value="boss_archon">BOSS ARCHON</option>
+              <option value="environmental_prop">ENVIRONMENTAL PROP</option>
+            </select>
           </div>
         }
         extraActions={

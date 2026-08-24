@@ -1,3 +1,4 @@
+import { ParticleEngine } from "../engine/systems/ParticleEngine";
 
 // Super Cover Line Algorithm (Orthogonal Line Interpolation) for smooth gapless painting
 function getInterpolatedLineTiles(x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
@@ -102,6 +103,8 @@ import {
 } from 'lucide-react';
 
 interface RefinedMapCanvasProps {
+  particleSystems?: any[];
+  characters?: any[];
   mapData: RefinedMapData;
   biomes: RefinedBiome[];
   activeBiome: RefinedBiome;
@@ -130,6 +133,8 @@ interface RefinedMapCanvasProps {
 }
 
 export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
+  particleSystems = [],
+  characters = [],
   mapData,
   biomes,
   activeBiome,
@@ -157,12 +162,47 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   redoCount = 0
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
   const [showParallaxBg, setShowParallaxBg] = useState<boolean>(true);
   const [showForegroundLayer, setShowForegroundLayer] = useState<boolean>(true);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number } | null>(null);
   const [, setRenderTrigger] = useState(0);
 
-  // Exact character configuration derivation strictly from testCharacter and linkedBehavior
+
+  // Set up particle emitters when entering play mode
+  useEffect(() => {
+    if (mode === 'play') {
+      particleEngineRef.current.clearEmitters();
+      particleEngineRef.current.particles = [];
+      
+      // Look for props/actors that have attached particles
+      if (mapData && characters && particleSystems) {
+        for (let y = 0; y < mapData.height; y++) {
+          for (let x = 0; x < mapData.width; x++) {
+            const cell = mapData.cells[y * mapData.width + x];
+            
+            // Check actor_id
+            if (cell.actor_id) {
+              const actor = characters.find(c => c.id === cell.actor_id);
+              if (actor && actor.attachedParticles) {
+                for (const attachment of actor.attachedParticles) {
+                  const system = particleSystems.find(ps => ps.id === attachment.particleSystemId);
+                  if (system) {
+                    const originX = x * 64 + 32 + (attachment.offsetX || 0);
+                    const originY = y * 64 + 32 + (attachment.offsetY || 0);
+                    particleEngineRef.current.addEmitter(system, originX, originY);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, [mode, mapData, characters, particleSystems]);
+
+  // Exact character configuration
+  // derivation strictly from testCharacter and linkedBehavior
   const charConfig = React.useMemo(() => {
     // 1. Dimensions & Capsule from Character File
     const rawRad = testCharacter?.capsule?.radius;
@@ -1438,10 +1478,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       });
 
       setRenderTrigger(t => t + 1);
+      
+      particleEngineRef.current.update(dt, {}, mapData.height * 64 + 1000);
       animId = requestAnimationFrame(physicsTick);
     };
 
     animId = requestAnimationFrame(physicsTick);
+
     return () => {
       if (animId) cancelAnimationFrame(animId);
     };

@@ -1627,6 +1627,8 @@ export const EditorLayout: React.FC = () => {
                   {/* Center Canvas */}
                   <main className="flex-1 bg-neutral-950 relative overflow-hidden flex flex-col">
                     <RefinedMapCanvas 
+                      particleSystems={project?.fileSystem.particles || []}
+                      characters={project?.fileSystem.characters || []}
                       mapData={currentMapData}
                       biomes={biomesList}
                       activeBiome={activeBiome}
@@ -2090,6 +2092,61 @@ export const EditorLayout: React.FC = () => {
                       )}
 
                       {/* Particle Emitters */}
+                      
+                      {paintCategory === 'actor' && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssetId('')}
+                            className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
+                              selectedAssetId === '' 
+                                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-200 shadow-md' 
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:bg-neutral-850'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-cyan-400 text-xs">
+                                ∅
+                              </div>
+                              <div className="text-xs font-bold">Clear Actor / Prop</div>
+                            </div>
+                          </button>
+
+                          {(project.fileSystem.characters && project.fileSystem.characters.length > 0) ? (
+                            project.fileSystem.characters.map(actor => (
+                              <button
+                                key={actor.id}
+                                type="button"
+                                onClick={() => setSelectedAssetId(actor.id)}
+                                className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition group ${
+                                  selectedAssetId === actor.id
+                                    ? 'bg-cyan-900/60 border-cyan-500 text-cyan-100 shadow-sm'
+                                    : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  {actor.spriteUrl ? (
+                                    <img src={actor.spriteUrl} alt={actor.name} className="w-8 h-8 object-contain pixelated bg-neutral-950 rounded" />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded bg-neutral-950 border border-neutral-800 flex items-center justify-center">
+                                      <Zap size={14} className="text-neutral-600" />
+                                    </div>
+                                  )}
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-bold font-mono">{actor.name}</span>
+                                    <span className="text-[10px] text-neutral-500 uppercase">{actor.type === 'prop' ? 'Prop' : 'Actor'}</span>
+                                  </div>
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="text-center p-4 border border-dashed border-neutral-800 rounded-xl">
+                              <p className="text-xs text-neutral-500">No actors/props in project.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {paintCategory === 'particles' && (
                         <div className="space-y-2">
                           <button

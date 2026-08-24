@@ -565,12 +565,20 @@ export interface CharacterData {
   name: string;
   title?: string;
   backstory?: string;
-  characterType: 'player_hero' | 'enemy_mob' | 'boss_archon' | 'friendly_npc';
+  characterType: 'player_hero' | 'enemy_mob' | 'boss_archon' | 'friendly_npc' | 'environmental_prop';
   avatarIcon: string;
   spriteWidth: number;
   spriteHeight: number;
   tintColor: string;
   baseScale: number;
+
+  attachedParticles?: {
+    particleSystemId: string;
+    offsetX: number;
+    offsetY: number;
+    isBehind: boolean;
+    enabled: boolean;
+  }[];
 
   // Variables & Attributes
   variables?: BehaviorVariable[];
@@ -1115,6 +1123,8 @@ export interface ParticleVisualsConfig {
   animateAlpha?: boolean;
   animateEmissive?: boolean;
   animateRotation?: boolean;
+  animateSpeed?: boolean;
+  animateDrag?: boolean;
   renderResolutionScale?: number; // 0.25, 0.35, 0.5, 0.75, 1.0 (Offscreen buffer resolution scale for speed)
   metaballThreshold?: number; // 20 to 180 (Gooiness connection reach cutoff)
   metaballRimThickness?: number; // 0 to 50 (Surface tension contour rim)
@@ -1149,6 +1159,8 @@ export interface ParticlePhysicsConfig {
   maxBounces?: number;           // Max allowed bounces before sticking (undefined or 0 = unlimited)
   destroyOnCollision: boolean;
   spawnCollisionSparks: boolean;
+  fluidSelfCollision?: boolean;
+  fluidRepulsionForce?: number;
   collisionShape?: 'circle' | 'box' | 'triangle' | 'hexagon' | 'diamond' | 'custom_polygon';
   collisionOffset?: { x: number; y: number }; // Offset position (px) relative to particle center
   collisionScale?: number; // Scale factor for physics size vs visual particle size (0.1 to 3.0)

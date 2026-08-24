@@ -62,8 +62,8 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
   },
   {
     id: 'characters',
-    name: 'Character Creator & AI',
-    tagline: 'Visual spritesheets, hurtboxes, sensory sockets, attributes & bespoke IFTTT rule engine',
+    name: 'Actors & Props',
+    tagline: 'Visual spritesheets, state machines, props, attributes & bespoke IFTTT rule engine',
     category: 'Actors & Combat',
     subfolder: 'modules/characters',
     entryHtml: '/modules/characters/index.html',
@@ -71,7 +71,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     associatedExtension: '.character',
     iconName: 'Users',
     accentColor: 'rose',
-    description: 'Author player heroes, NPCs, and enemy sprites with custom spritesheets, frame sequences, sensory tag sockets (head_eyes for sight, head_ears for hearing), hurtboxes/hitboxes, custom variables, and bespoke IFTTT behavior rule logic.',
+    description: 'Author player heroes, NPCs, enemies, and animated props (like campfires) with custom spritesheets, state machines, custom variables, and bespoke IFTTT behavior rule logic.',
     features: [
       'Visual Animation Studio: Multi-spritesheet support, frame sequencing, hitbox/hurtbox polygons & sockets',
       'Base Attributes & Variables: Manage stats, proficiencies, and custom variables with auto-generated IDs',

@@ -48,6 +48,7 @@ import {
   ParticleAnimStyle,
   DEFAULT_PARTICLE_SYSTEMS
 } from '../engine/masonProjectSchema';
+import { ParticleEngine, evaluateTrackValue } from '../engine/systems/ParticleEngine';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { exportParticleFile, createNewParticleInProject } from '../utils/masonStorage';
 
@@ -58,74 +59,6 @@ interface ParticlesEditorProps {
   onBackToDashboard: () => void;
 }
 
-interface ParticleInstance {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  rotation: number;
-  vRot: number;
-  lifetime: number;
-  maxLifetime: number;
-  startSize: number;
-  midSize?: number;
-  endSize: number;
-  sizeCurve: ParticleSizeCurve;
-  alphaCurve?: ParticleCurveMode;
-  startColor: string;
-  startAlpha: number;
-  midColor?: string;
-  midAlpha?: number;
-  endColor: string;
-  endAlpha: number;
-  shape: ParticleShape;
-  customGlyph?: string;
-  customSvgPath?: string;
-  glowBlurRadius: number;
-  blendMode: ParticleBlendMode;
-  drag: number;
-  startDrag?: number;
-  midDrag?: number;
-  endDrag?: number;
-  dragCurve?: ParticleCurveMode;
-  angularDrag: number;
-  gravityScale?: number;
-  gravityScaleX?: number;
-  gravityX: number;
-  gravityY: number;
-  windSensitivity?: number;
-  windForce: number;
-  turbulenceJitter: number;
-  collides: boolean;
-  restitution: number;
-  bounces?: number;
-  destroyOnCollision: boolean;
-  spawnCollisionSparks: boolean;
-  isRestingOnFloor?: boolean;
-  fxStyle?: ParticleFxStyle;
-  isEmissive?: boolean;
-  emissiveMode?: ParticleEmissiveMode;
-  emissiveStartColor?: string;
-  emissiveStartStrength?: number;
-  emissiveMidColor?: string;
-  emissiveMidStrength?: number;
-  emissiveEndColor?: string;
-  emissiveEndStrength?: number;
-  emissiveCurve?: ParticleCurveMode;
-  startRotationDeg?: number;
-  midRotationDeg?: number;
-  endRotationDeg?: number;
-  rotationCurve?: ParticleCurveMode;
-  sizeAnimStyle?: ParticleAnimStyle;
-  colorAnimStyle?: ParticleAnimStyle;
-  emissiveAnimStyle?: ParticleAnimStyle;
-  rotationAnimStyle?: ParticleAnimStyle;
-  animateSize?: boolean;
-  animateColor?: boolean;
-  animateAlpha?: boolean;
-  animateEmissive?: boolean;
-  animateRotation?: boolean;
-}
 
 export const SVG_PARTICLE_PRESETS: { id: string; name: string; icon: string; path: string }[] = [
   {
@@ -459,17 +392,21 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
   // UI State
   const [activeTab, setActiveTab] = useState<'initialize' | 'animation' | 'spritesheets' | 'presets'>('initialize');
-  const [selectedTrack, setSelectedTrack] = useState<'size' | 'color' | 'alpha' | 'emissive' | 'rotation'>('size');
+  const [selectedTrack, setSelectedTrack] = useState<'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag'>('size');
   const [addedProps, setAddedProps] = useState<string[]>([]);
   const [draggedNodeIndex, setDraggedNodeIndex] = useState<number | null>(null);
+  const dragStateRef = useRef<{track: string, nodes: any[]} | null>(null);
+  const [dragTick, setDragTick] = useState(0);
 
   const visibleTracks = useMemo(() => {
-    const list: ('size' | 'color' | 'alpha' | 'emissive' | 'rotation')[] = [];
+    const list: ('size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag')[] = [];
     if (addedProps.includes('size_curve')) list.push('size');
     if (addedProps.includes('color_flow')) list.push('color');
     if (addedProps.includes('alpha_opac')) list.push('alpha');
     if (addedProps.includes('bloom')) list.push('emissive');
     if (addedProps.includes('rotation')) list.push('rotation');
+    if (addedProps.includes('launch_speed')) list.push('speed');
+    if (addedProps.includes('drag')) list.push('drag');
     return list;
   }, [addedProps]);
 
@@ -791,7 +728,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     });
   };
 
-  const handleAddNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation') => {
+  const handleAddNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag') => {
     const nodes = getTrackNodesForData(activeParticleData.visuals, track);
     if (nodes.length >= 5) {
       showToast("Max limit of 5 nodes reached for this track!");
@@ -818,7 +755,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     updateTrackNodes(track, newNodes);
   };
 
-  const handleDeleteNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation', index: number) => {
+  const handleDeleteNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', index: number) => {
     const nodes = getTrackNodesForData(activeParticleData.visuals, track);
     if (nodes.length <= 2) {
       showToast("Must have at least Spawn and Death nodes!");
@@ -828,7 +765,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     updateTrackNodes(track, newNodes);
   };
 
-  const handleUpdateNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation', index: number, field: 'time' | 'value', val: any) => {
+  const handleUpdateNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', index: number, field: 'time' | 'value', val: any) => {
     const nodes = getTrackNodesForData(activeParticleData.visuals, track);
     const updated = nodes.map((n, i) => {
       if (i === index) {
@@ -842,7 +779,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     updateTrackNodes(track, updated);
   };
 
-  const generateTrackSvgPath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation', minVal: number, maxVal: number) => {
+  const generateTrackSvgPath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', minVal: number, maxVal: number) => {
     const points: string[] = [];
     const sampleCount = 60;
     
@@ -875,7 +812,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   }, [activeTab]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const particlesRef = useRef<ParticleInstance[]>([]);
+  const engineRef = useRef<ParticleEngine>(new ParticleEngine());
   const lastEmitTimeRef = useRef<number>(0);
   const lastBurstTimeRef = useRef<number>(0);
   const nextBurstIntervalRef = useRef<number | null>(null);
@@ -1052,42 +989,47 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       const t = Math.max(0, Math.min(1, mouseX / rect.width));
       const rawVal = yToVal(selectedTrack, mouseY, rect.height);
 
-      updateActiveParticle(prev => {
-        const currentNodes = getTrackNodesForData(prev.visuals, selectedTrack);
-        const sorted = [...currentNodes].sort((a, b) => a.time - b.time);
-        const updated = sorted.map((node, idx) => {
-          if (idx !== draggedNodeIndex) return node;
+      const currentNodes = getTrackNodesForData(activeParticleData.visuals, selectedTrack);
+      const sorted = [...currentNodes].sort((a, b) => a.time - b.time);
+      const updated = sorted.map((node, idx) => {
+        if (idx !== draggedNodeIndex) return node;
 
-          let finalT = node.time;
-          // Keep internal keyframes constrained between their left and right neighbors
-          if (idx > 0 && idx < sorted.length - 1) {
-            const minTime = sorted[idx - 1].time + 0.01;
-            const maxTime = sorted[idx + 1].time - 0.01;
-            finalT = Math.max(minTime, Math.min(maxTime, t));
-          }
-
-          return {
-            ...node,
-            time: Number(finalT.toFixed(3)),
-            value: selectedTrack === 'color' ? node.value : rawVal
-          };
-        });
+        let finalT = node.time;
+        // Keep internal keyframes constrained between their left and right neighbors
+        if (idx > 0 && idx < sorted.length - 1) {
+          const minTime = sorted[idx - 1].time + 0.01;
+          const maxTime = sorted[idx + 1].time - 0.01;
+          finalT = Math.max(minTime, Math.min(maxTime, t));
+        }
 
         return {
+          ...node,
+          time: Number(finalT.toFixed(3)),
+          value: selectedTrack === 'color' ? node.value : rawVal
+        };
+      });
+
+      dragStateRef.current = { track: selectedTrack, nodes: updated };
+      setDragTick(t => t + 1);
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (dragStateRef.current) {
+        const { track, nodes } = dragStateRef.current;
+        updateActiveParticle(prev => ({
           ...prev,
           visuals: {
             ...prev.visuals,
             trackNodes: {
               ...(prev.visuals.trackNodes || {}),
-              [selectedTrack]: updated
+              [track]: nodes
             }
           }
-        };
-      });
-    };
-
-    const handleGlobalMouseUp = () => {
+        }));
+      }
+      dragStateRef.current = null;
       setDraggedNodeIndex(null);
+      setDragTick(t => t + 1);
     };
 
     window.addEventListener('mousemove', handleGlobalMouseMove);
@@ -1097,7 +1039,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       window.removeEventListener('mousemove', handleGlobalMouseMove);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [draggedNodeIndex, selectedTrack]);
+  }, [draggedNodeIndex, selectedTrack, activeParticleData.visuals]);
 
   // Update current particle file helper
   const updateActiveParticle = (updater: (prev: ParticleSystemData) => ParticleSystemData) => {
@@ -1167,7 +1109,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   };
 
-  const getTrackBounds = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation'): { min: number; max: number } => {
+  const getTrackBounds = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag'): { min: number; max: number } => {
     switch (track) {
       case 'size':
         return { min: 0, max: 80 };
@@ -1177,13 +1119,17 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         return { min: 0, max: 100 };
       case 'rotation':
         return { min: 0, max: 360 };
+      case 'speed':
+        return { min: -500, max: 500 };
+      case 'drag':
+        return { min: 0.8, max: 1.1 };
       case 'color':
       default:
         return { min: 0, max: 1 };
     }
   };
 
-  const valToY = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation', val: any, height: number): number => {
+  const valToY = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', val: any, height: number): number => {
     const { min, max } = getTrackBounds(track);
     let numericVal = 0;
     if (track === 'color') {
@@ -1196,7 +1142,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return height - (clamped * (height - 24) + 12);
   };
 
-  const yToVal = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation', y: number, height: number): any => {
+  const yToVal = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', y: number, height: number): any => {
     const { min, max } = getTrackBounds(track);
     if (track === 'color') {
       return '#ffa500';
@@ -1204,13 +1150,13 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     const ratio = (height - y - 12) / (height - 24);
     const clamped = Math.max(0, Math.min(1, ratio));
     const rawVal = min + clamped * (max - min);
-    if (track === 'alpha') {
+    if (track === 'alpha' || track === 'drag') {
       return Number(clamped.toFixed(2));
     }
     return Math.round(rawVal);
   };
 
-  const getSparklinePath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation', width: number = 100, height: number = 100, margin: number = 6) => {
+  const getSparklinePath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', width: number = 100, height: number = 100, margin: number = 6) => {
     const points: string[] = [];
     const steps = 40;
     const { min, max } = getTrackBounds(track);
@@ -1372,6 +1318,10 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   };
 
   const getTrackNodesForData = (visuals: any, track: string): { time: number; value: any }[] => {
+    if (dragStateRef.current && dragStateRef.current.track === track) {
+      return dragStateRef.current.nodes;
+    }
+
     if (visuals?.trackNodes?.[track]) {
       return visuals.trackNodes[track];
     }
@@ -1421,12 +1371,20 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
 
+    if (track === 'speed') {
+      return [{ time: 0, value: 0 }, { time: 1, value: 0 }];
+    }
+
+    if (track === 'drag') {
+      return [{ time: 0, value: 0.98 }, { time: 1, value: 0.98 }];
+    }
+
     return [{ time: 0, value: 0 }, { time: 1, value: 1 }];
   };
 
   const evaluateTrackValue = (
     progress: number,
-    track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation',
+    track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag',
     visuals: any
   ): any => {
     let animStyle: ParticleAnimStyle = 'one_shot';
@@ -1659,164 +1617,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return Math.max(0.1, evaluateTrackValue(progress, 'size', visuals));
   };
 
-  // Spawn a burst of particles at given position
   const spawnParticles = (count: number, customOrigin?: { x: number; y: number }) => {
-    const data = activeParticleData;
     const origin = customOrigin || emitterPos;
-    const { emitter, kinematics, visuals, physics } = data;
-
-    const newParticles: ParticleInstance[] = [];
-
-    const getRandVal = (min: number, max?: number) => {
-      if (max === undefined || max <= min) return min;
-      return min + Math.random() * (max - min);
-    };
-
-    for (let i = 0; i < count; i++) {
-      if (particlesRef.current.length + newParticles.length >= (emitter.maxParticles || 300)) {
-        break;
-      }
-
-      // Calculate initial position based on emitter shape
-      let spawnX = origin.x;
-      let spawnY = origin.y;
-
-      if (emitter.shape === 'box') {
-        spawnX += (Math.random() - 0.5) * (emitter.width || 32);
-        spawnY += (Math.random() - 0.5) * (emitter.height || 32);
-      } else if (emitter.shape === 'circle') {
-        const r = Math.sqrt(Math.random()) * (emitter.radius || 20);
-        const theta = Math.random() * Math.PI * 2;
-        spawnX += Math.cos(theta) * r;
-        spawnY += Math.sin(theta) * r;
-      } else if (emitter.shape === 'ring') {
-        const theta = Math.random() * Math.PI * 2;
-        const r = emitter.radius || 25;
-        spawnX += Math.cos(theta) * r;
-        spawnY += Math.sin(theta) * r;
-      } else if (emitter.shape === 'line') {
-        spawnX += (Math.random() - 0.5) * (emitter.width || 48);
-      }
-      // Calculate launch angle and speed
-      const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : 270;
-      const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : 30;
-      const baseAngleRad = angleDeg * (Math.PI / 180);
-      const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
-      const launchAngle = baseAngleRad + spreadRad;
-      // Scale launch speed: 1 unit in UI equals 100 force in physics simulation
-      const rawMinSpd = kinematics.minSpeed !== undefined ? kinematics.minSpeed : 0.3;
-      const rawMaxSpd = kinematics.maxSpeed !== undefined ? kinematics.maxSpeed : 0.85;
-      const effMinSpd = (rawMinSpd > 15 ? rawMinSpd / 100 : rawMinSpd) * 100;
-      const effMaxSpd = (rawMaxSpd > 15 ? rawMaxSpd / 100 : rawMaxSpd) * 100;
-      const speed = effMinSpd + Math.random() * Math.max(0, effMaxSpd - effMinSpd);
-
-      if (emitter.shape === 'cone') {
-        const coneRadius = Math.random() * (emitter.radius || 30);
-        spawnX += Math.cos(launchAngle) * coneRadius;
-        spawnY += Math.sin(launchAngle) * coneRadius;
-      }
-
-      const vx = Math.cos(launchAngle) * speed;
-      const vy = Math.sin(launchAngle) * speed;
-
-      const lifetime = visuals.minLifetime + Math.random() * Math.max(0.1, visuals.maxLifetime - visuals.minLifetime);
-      const vRot = kinematics.minAngularVelocity + Math.random() * Math.max(0, kinematics.maxAngularVelocity - kinematics.minAngularVelocity);
-
-      const instStartSize = getRandVal(visuals.startSize, visuals.startSizeMax);
-      const instMidSize = visuals.midSize !== undefined ? getRandVal(visuals.midSize, visuals.midSizeMax) : undefined;
-      const instEndSize = getRandVal(visuals.endSize, visuals.endSizeMax);
-
-      const instStartAlpha = getRandVal(visuals.startAlpha ?? 1.0, visuals.startAlphaMax);
-      const instMidAlpha = visuals.midAlpha !== undefined ? getRandVal(visuals.midAlpha, visuals.midAlphaMax) : undefined;
-      const instEndAlpha = getRandVal(visuals.endAlpha ?? 0.0, visuals.endAlphaMax);
-
-      const instStartRot = getRandVal(visuals.startRotationDeg ?? 0, visuals.startRotationDegMax);
-      const instMidRot = visuals.midRotationDeg !== undefined ? getRandVal(visuals.midRotationDeg, visuals.midRotationDegMax) : undefined;
-      const instEndRot = getRandVal(visuals.endRotationDeg ?? 360, visuals.endRotationDegMax);
-
-      const instEmissiveStartStr = getRandVal(visuals.emissiveStartStrength ?? 35, visuals.emissiveStartStrengthMax);
-      const instEmissiveMidStr = visuals.emissiveMidStrength !== undefined ? getRandVal(visuals.emissiveMidStrength, visuals.emissiveMidStrengthMax) : undefined;
-      const instEmissiveEndStr = getRandVal(visuals.emissiveEndStrength ?? 0, visuals.emissiveEndStrengthMax);
-
-      const getRandDrag = (v1: number, v2?: number) => {
-        if (v2 === undefined) return v1;
-        return v1 + Math.random() * (v2 - v1);
-      };
-
-      const instStartDrag = getRandDrag(kinematics.startDrag ?? kinematics.drag ?? 0.98, kinematics.startDragMax);
-      const instMidDrag = kinematics.midDrag !== undefined ? getRandDrag(kinematics.midDrag, kinematics.midDragMax) : undefined;
-      const instEndDrag = getRandDrag(kinematics.endDrag ?? kinematics.drag ?? 0.98, kinematics.endDragMax);
-
-      newParticles.push({
-        x: spawnX,
-        y: spawnY,
-        vx,
-        vy,
-        rotation: instStartRot,
-        vRot,
-        lifetime: 0,
-        maxLifetime: lifetime,
-        startSize: instStartSize,
-        midSize: instMidSize,
-        endSize: instEndSize,
-        sizeCurve: visuals.sizeCurve || 'balanced',
-        alphaCurve: visuals.alphaCurve || 'balanced',
-        startColor: visuals.startColor,
-        startAlpha: instStartAlpha,
-        midColor: visuals.midColor,
-        midAlpha: instMidAlpha,
-        endColor: visuals.endColor,
-        endAlpha: instEndAlpha,
-        shape: visuals.shape || 'glow_circle',
-        customGlyph: visuals.customGlyph,
-        customSvgPath: visuals.customSvgPath,
-        glowBlurRadius: visuals.glowBlurRadius ?? 8,
-        blendMode: visuals.blendMode || 'lighter',
-        drag: instStartDrag,
-        startDrag: instStartDrag,
-        midDrag: instMidDrag,
-        endDrag: instEndDrag,
-        dragCurve: kinematics.dragCurve || 'linear',
-        angularDrag: kinematics.angularDrag ?? 0.98,
-        gravityScale: kinematics.gravityScale !== undefined ? kinematics.gravityScale : (kinematics.gravityY !== undefined ? kinematics.gravityY / 980 : 0),
-        gravityScaleX: kinematics.gravityScaleX !== undefined ? kinematics.gravityScaleX : (kinematics.gravityX !== undefined ? kinematics.gravityX / 980 : 0),
-        gravityX: kinematics.gravityX ?? 0,
-        gravityY: kinematics.gravityY ?? 0,
-        windSensitivity: kinematics.windSensitivity !== undefined ? kinematics.windSensitivity : 1.0,
-        windForce: kinematics.windForce ?? 0,
-        turbulenceJitter: kinematics.turbulenceJitter ?? 0,
-        collides: physics.collideWithMapSolids ?? false,
-        restitution: physics.collisionRestitution ?? 0.3,
-        bounces: 0,
-        destroyOnCollision: physics.destroyOnCollision ?? false,
-        spawnCollisionSparks: physics.spawnCollisionSparks ?? false,
-        fxStyle: visuals.fxStyle || 'default',
-        isEmissive: visuals.isEmissive ?? false,
-        emissiveMode: visuals.emissiveMode || 'glow_only',
-        emissiveStartColor: visuals.emissiveStartColor || visuals.startColor,
-        emissiveStartStrength: instEmissiveStartStr,
-        emissiveMidColor: visuals.emissiveMidColor,
-        emissiveMidStrength: instEmissiveMidStr,
-        emissiveEndColor: visuals.emissiveEndColor || visuals.endColor,
-        emissiveEndStrength: instEmissiveEndStr,
-        emissiveCurve: visuals.emissiveCurve || 'balanced',
-        startRotationDeg: instStartRot,
-        midRotationDeg: instMidRot,
-        endRotationDeg: instEndRot,
-        rotationCurve: visuals.rotationCurve || 'linear',
-        sizeAnimStyle: visuals.sizeAnimStyle || 'one_shot',
-        colorAnimStyle: visuals.colorAnimStyle || 'one_shot',
-        emissiveAnimStyle: visuals.emissiveAnimStyle || 'one_shot',
-        rotationAnimStyle: visuals.rotationAnimStyle || 'one_shot',
-        animateSize: visuals.animateSize !== false,
-        animateColor: visuals.animateColor !== false,
-        animateAlpha: visuals.animateAlpha !== false,
-        animateEmissive: visuals.animateEmissive !== false,
-        animateRotation: visuals.animateRotation !== false
-      });
-    }
-
-    particlesRef.current = [...particlesRef.current, ...newParticles];
+    engineRef.current.spawnParticles(count, activeParticleData, origin);
   };
 
   // Main 60fps GPU simulation render loop
@@ -1856,6 +1659,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         const rateMin = activeParticleData.emitter.emissionRateMin ?? activeParticleData.emitter.emissionRate ?? 20;
         const rateMax = activeParticleData.emitter.emissionRateMax ?? activeParticleData.emitter.emissionRate ?? 20;
         const currentRate = rateMin + Math.random() * (rateMax - rateMin);
+        
         if (currentRate > 0) {
           const emitInterval = 1 / currentRate;
           if (now - lastEmitTimeRef.current >= emitInterval * 1000) {
@@ -1871,788 +1675,81 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       if (isPlaying && burstEnabled) {
         const intervalMin = activeParticleData.emitter.burstIntervalMin ?? activeParticleData.emitter.burstInterval ?? 1.0;
         const intervalMax = activeParticleData.emitter.burstIntervalMax ?? activeParticleData.emitter.burstInterval ?? 1.0;
-
+        
         if (nextBurstIntervalRef.current === null) {
-          nextBurstIntervalRef.current = intervalMin + Math.random() * (intervalMax - intervalMin);
+           nextBurstIntervalRef.current = intervalMin + Math.random() * (intervalMax - intervalMin);
         }
 
-        if (nextBurstIntervalRef.current > 0 && now - lastBurstTimeRef.current >= nextBurstIntervalRef.current * 1000) {
-          const countMin = activeParticleData.emitter.burstCountMin ?? activeParticleData.emitter.burstCount ?? 20;
-          const countMax = activeParticleData.emitter.burstCountMax ?? activeParticleData.emitter.burstCount ?? 20;
-          const countToSpawn = Math.round(countMin + Math.random() * (countMax - countMin));
-          
-          if (countToSpawn > 0) {
-            spawnParticles(countToSpawn);
-          }
+        if (now - lastBurstTimeRef.current >= nextBurstIntervalRef.current * 1000) {
+          const countMin = activeParticleData.emitter.burstCountMin ?? activeParticleData.emitter.burstCount ?? 30;
+          const countMax = activeParticleData.emitter.burstCountMax ?? activeParticleData.emitter.burstCount ?? 30;
+          const count = Math.floor(countMin + Math.random() * (countMax - countMin));
+          spawnParticles(count);
           lastBurstTimeRef.current = now;
-          // Pick next random interval
           nextBurstIntervalRef.current = intervalMin + Math.random() * (intervalMax - intervalMin);
         }
       }
 
-      // Clear full screen
+      engineRef.current.update(dt, activeParticleData.physics, floorY);
+
+      // Render environment
       ctx.clearRect(0, 0, width, height);
 
-      // Fill background screen style
-      if (bgTheme === 'grid') {
-        ctx.fillStyle = '#0a0a0f';
-        ctx.fillRect(0, 0, width, height);
-      } else if (bgTheme === 'dungeon') {
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#0f172a');
-        bgGrad.addColorStop(1, '#020617');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-      } else if (bgTheme === 'boxes') {
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#111827');
-        bgGrad.addColorStop(1, '#030712');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-      } else if (bgTheme === 'forest') {
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#022c22');
-        bgGrad.addColorStop(1, '#020617');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-      } else if (bgTheme === 'magma') {
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#1c100b');
-        bgGrad.addColorStop(1, '#2c0c04');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-      } else if (bgTheme === 'void') {
-        const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, 350);
-        bgGrad.addColorStop(0, '#2e1065');
-        bgGrad.addColorStop(1, '#05020a');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-      } else if (bgTheme === 'cave') {
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#064e3b');
-        bgGrad.addColorStop(1, '#022c22');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-      }
-
-      // ===========================================
-      // SAVE CONTEXT FOR VIEWPORT ZOOM & PAN TRANSFORM
-      // ===========================================
+      // Draw Grid
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      const gridSize = 64;
+      
       ctx.save();
-      const centerX = width / 2;
-      const centerY = height / 2;
-      ctx.translate(centerX + panOffset.x, centerY + panOffset.y);
+      ctx.translate(panOffset.x, panOffset.y);
       ctx.scale(zoom, zoom);
-      ctx.translate(-centerX, -centerY);
-
-      // Draw Grid & Realistic Scene Geometry in transformed world space
-      if (bgTheme === 'grid') {
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 1;
-        const gridSize = 24;
-        for (let x = -width; x < width * 2; x += gridSize) {
-          ctx.beginPath();
-          ctx.moveTo(x, -height);
-          ctx.lineTo(x, height * 2);
-          ctx.stroke();
-        }
-        for (let y = -height; y < height * 2; y += gridSize) {
-          ctx.beginPath();
-          ctx.moveTo(-width, y);
-          ctx.lineTo(width * 2, y);
-          ctx.stroke();
-        }
-      } else if (bgTheme === 'dungeon') {
-        // Stone Brick Wall Grid
-        ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
-        ctx.lineWidth = 1.5;
-        for (let y = 30; y < height; y += 40) {
-          ctx.beginPath();
-          ctx.moveTo(-width, y);
-          ctx.lineTo(width * 2, y);
-          ctx.stroke();
-        }
-        for (let y = 30; y < height; y += 40) {
-          const rowOffset = ((y / 40) % 2) * 35;
-          for (let x = -width + rowOffset; x < width * 2; x += 70) {
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x, y + 40);
-            ctx.stroke();
-          }
-        }
-
-        // Wall Torch Sconces with animated flames
-        const torchTime = performance.now() / 1000;
-        const torchLocations = [{ x: 100, y: 180 }, { x: 540, y: 180 }];
-        torchLocations.forEach(t => {
-          ctx.fillStyle = '#475569';
-          ctx.fillRect(t.x - 4, t.y, 8, 20); // Iron bracket
-          ctx.fillStyle = '#b45309';
-          ctx.fillRect(t.x - 6, t.y - 10, 12, 10); // Wooden torch handle
-
-          // Flame glow
-          const flicker = 0.85 + 0.15 * Math.sin(torchTime * 12 + t.x);
-          const tGrad = ctx.createRadialGradient(t.x, t.y - 16, 2, t.x, t.y - 16, 32 * flicker);
-          tGrad.addColorStop(0, 'rgba(251, 191, 36, 0.9)');
-          tGrad.addColorStop(0.5, 'rgba(245, 158, 11, 0.4)');
-          tGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
-          ctx.fillStyle = tGrad;
-          ctx.beginPath();
-          ctx.arc(t.x, t.y - 16, 32 * flicker, 0, Math.PI * 2);
-          ctx.fill();
-        });
-
-        // Dungeon Stone Pillars
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(140, 140, 50, floorY - 140);
-        ctx.fillRect(450, 140, 50, floorY - 140);
-        ctx.strokeStyle = '#334155';
-        ctx.strokeRect(140, 140, 50, floorY - 140);
-        ctx.strokeRect(450, 140, 50, floorY - 140);
-      } else if (bgTheme === 'boxes') {
-        // Wooden Workshop / Storehouse
-        ctx.fillStyle = '#1f2937';
-        ctx.fillRect(-width, 100, width * 3, 8); // Wall beam trim
-
-        // Wall Shelf
-        ctx.fillStyle = '#374151';
-        ctx.fillRect(80, 140, 160, 12);
-        ctx.fillStyle = '#4b5563';
-        ctx.fillRect(100, 152, 10, 16);
-        ctx.fillRect(210, 152, 10, 16);
-
-        // 3D Box Obstacle A (Crate A)
-        ctx.fillStyle = '#78350f';
-        ctx.fillRect(180, 260, 80, 80);
-        ctx.strokeStyle = '#451a03';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(180, 260, 80, 80);
-        ctx.beginPath();
-        ctx.moveTo(180, 260); ctx.lineTo(260, 340);
-        ctx.moveTo(260, 260); ctx.lineTo(180, 340);
-        ctx.stroke();
-
-        // 3D Box Obstacle B (Crate B)
-        ctx.fillStyle = '#92400e';
-        ctx.fillRect(380, 220, 100, 120);
-        ctx.strokeStyle = '#451a03';
-        ctx.strokeRect(380, 220, 100, 120);
-        ctx.beginPath();
-        ctx.moveTo(380, 220); ctx.lineTo(480, 340);
-        ctx.moveTo(480, 220); ctx.lineTo(380, 340);
-        ctx.stroke();
-
-        ctx.font = '9px monospace';
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillText('CRATE A', 198, 305);
-        ctx.fillText('CRATE B', 408, 285);
-      } else if (bgTheme === 'forest') {
-        // Full Moon
-        ctx.fillStyle = '#fef3c7';
-        ctx.beginPath();
-        ctx.arc(520, 80, 32, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Tree Silhouettes
-        ctx.fillStyle = '#064e3b';
-        [80, 220, 480, 580].forEach(tx => {
-          ctx.fillRect(tx - 12, 160, 24, floorY - 160);
-          ctx.beginPath();
-          ctx.arc(tx, 140, 45, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      } else if (bgTheme === 'cave') {
-        // Stalactites & Crystal Clusters
-        ctx.fillStyle = '#065f46';
-        ctx.beginPath();
-        ctx.moveTo(100, 0); ctx.lineTo(120, 90); ctx.lineTo(140, 0);
-        ctx.moveTo(300, 0); ctx.lineTo(325, 110); ctx.lineTo(350, 0);
-        ctx.moveTo(480, 0); ctx.lineTo(500, 80); ctx.lineTo(520, 0);
-        ctx.fill();
-
-        // Glowing Crystal Clusters on Ground
-        ctx.fillStyle = '#06b6d4';
-        ctx.beginPath();
-        ctx.moveTo(120, 340); ctx.lineTo(128, 290); ctx.lineTo(136, 340);
-        ctx.moveTo(132, 340); ctx.lineTo(144, 275); ctx.lineTo(152, 340);
-        ctx.fill();
+      
+      const scaledWidth = width / zoom;
+      const scaledHeight = height / zoom;
+      const startX = -panOffset.x / zoom;
+      const startY = -panOffset.y / zoom;
+      
+      ctx.beginPath();
+      for (let x = Math.floor(startX / gridSize) * gridSize; x < startX + scaledWidth; x += gridSize) {
+        ctx.moveTo(x, startY);
+        ctx.lineTo(x, startY + scaledHeight);
       }
-
-      // Draw Floor Platform in world space
-      if (floorCollisionEnabled) {
-        ctx.fillStyle = bgTheme === 'boxes' ? '#374151' : (bgTheme === 'forest' ? '#064e3b' : '#334155');
-        ctx.fillRect(-width, floorY, width * 3, 4);
-        ctx.fillStyle = bgTheme === 'boxes' ? '#1f2937' : (bgTheme === 'forest' ? '#022c22' : '#0f172a');
-        ctx.fillRect(-width, floorY + 4, width * 3, height);
+      for (let y = Math.floor(startY / gridSize) * gridSize; y < startY + scaledHeight; y += gridSize) {
+        ctx.moveTo(startX, y);
+        ctx.lineTo(startX + scaledWidth, y);
+      }
+      ctx.stroke();
+      
+      // Draw emitter handle
+      if (isPlaying) {
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(emitterPos.x, emitterPos.y, 4 / zoom, 0, Math.PI * 2);
+        ctx.fill();
         
-        ctx.font = '10px monospace';
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2 / zoom;
+        ctx.beginPath();
+        ctx.arc(emitterPos.x, emitterPos.y, 12 / zoom, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      if (activeParticleData.physics.collideWithMapSolids) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, floorY, width, height - floorY);
+        ctx.strokeStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(0, floorY);
+        ctx.lineTo(width, floorY);
+        ctx.stroke();
+        
+        ctx.font = '12px Inter, sans-serif';
         ctx.fillStyle = '#64748b';
         ctx.fillText('SOLID FLOOR GEOMETRY (COLLISION PLANE)', 16, floorY + 20);
       }
 
-      // Update & Render Particles in world space
-      const aliveParticles: ParticleInstance[] = [];
-      const newSparks: ParticleInstance[] = [];
-
-      // Set global composite blend mode & buffer scale
-      const targetBlendMode = activeParticleData.visuals.blendMode || 'lighter';
-      const resScale = activeParticleData.visuals.renderResolutionScale ?? 1.0;
-      const useOffscreenBuffer = resScale < 1.0;
-
-      let renderCtx = ctx;
-      let bCtx: CanvasRenderingContext2D | null = null;
-      const bufWidth = Math.ceil(width * resScale);
-      const bufHeight = Math.ceil(height * resScale);
-
-      if (useOffscreenBuffer) {
-        if (!bufferCanvasRef.current) {
-          bufferCanvasRef.current = document.createElement('canvas');
-        }
-        if (bufferCanvasRef.current.width !== bufWidth || bufferCanvasRef.current.height !== bufHeight) {
-          bufferCanvasRef.current.width = bufWidth;
-          bufferCanvasRef.current.height = bufHeight;
-        }
-        bCtx = bufferCanvasRef.current.getContext('2d');
-        if (bCtx) {
-          bCtx.clearRect(0, 0, bufWidth, bufHeight);
-          bCtx.imageSmoothingEnabled = false;
-          bCtx.save();
-          bCtx.scale(resScale, resScale);
-          const centerX = width / 2;
-          const centerY = height / 2;
-          bCtx.translate(centerX + panOffset.x, centerY + panOffset.y);
-          bCtx.scale(zoom, zoom);
-          bCtx.translate(-centerX, -centerY);
-          bCtx.globalCompositeOperation = targetBlendMode;
-          renderCtx = bCtx;
-        }
-      } else {
-        ctx.globalCompositeOperation = targetBlendMode;
-        ctx.imageSmoothingEnabled = false;
-      }
-
-      for (let i = 0; i < particlesRef.current.length; i++) {
-        const p = particlesRef.current[i];
-
-        if (isPlaying) {
-          p.lifetime += dt;
-        }
-
-        if (p.lifetime >= p.maxLifetime) {
-          continue; // expired
-        }
-
-        const progress = Math.min(1, Math.max(0, p.lifetime / p.maxLifetime));
-
-        if (isPlaying) {
-          // Physics step - Standardized Earth 1.0G = 980 px/s² gravity
-          const effGravityY = (p.gravityScale !== undefined ? p.gravityScale : (p.gravityY / 980)) * 980;
-          const effGravityX = (p.gravityScaleX !== undefined ? p.gravityScaleX : (p.gravityX / 980)) * 980;
-          const activeWind = simulatedBiomeWindEnabledRef.current ? simulatedBiomeWindRef.current : 0;
-          const effWindAcc = (activeWind + p.windForce) * (p.windSensitivity ?? 1.0);
-
-          // Floor collision with custom physics hull & offset
-          const colShape = activeParticleData.physics.collisionShape || 'circle';
-          const offsetY = activeParticleData.physics.collisionOffset?.y || 0;
-          const colScale = activeParticleData.physics.collisionScale ?? 1.0;
-          
-          let maxYOffset = p.startSize / 2;
-          if (colShape === 'box') {
-            maxYOffset = (p.startSize / 2) * colScale;
-          } else if (colShape === 'triangle' || colShape === 'hexagon' || colShape === 'diamond' || colShape === 'custom_polygon') {
-            let pts = activeParticleData.physics.customPolygon;
-            if (!pts || pts.length === 0) {
-              const preset = POLYGON_PRESETS.find(pr => pr.id === colShape);
-              pts = preset ? preset.points : POLYGON_PRESETS[0].points;
-            }
-            const maxPtY = pts && pts.length > 0 ? Math.max(...pts.map(pt => pt.y)) : 0.5;
-            maxYOffset = maxPtY * p.startSize * colScale;
-          } else {
-            maxYOffset = (p.startSize / 2) * colScale;
-          }
-
-          // Check if particle resting on surface should be lifted off by external forces (upward wind or inverted gravity)
-          if (p.isRestingOnFloor) {
-            if (effGravityY < -10 || effWindAcc < -40) {
-              p.isRestingOnFloor = false;
-            }
-          }
-
-          if (p.isRestingOnFloor) {
-            // Particle has depleted its bounce energy and is resting on floor
-            p.vy = 0;
-            p.vRot *= Math.pow(0.85, dt * 60);
-
-            // Horizontal forces (wind & gravity X) still slide resting particles smoothly
-            p.vx += (effGravityX + effWindAcc) * dt;
-            p.vx *= Math.pow(0.88, dt * 60); // Surface friction
-
-            p.x += p.vx * dt;
-            p.y = floorY - offsetY - maxYOffset;
-            p.rotation += p.vRot * dt;
-          } else {
-            // Free airborne motion
-            p.vx += (effGravityX + effWindAcc) * dt;
-            p.vy += effGravityY * dt;
-
-            if (p.turbulenceJitter > 0) {
-              p.vx += (Math.random() - 0.5) * p.turbulenceJitter;
-              p.vy += (Math.random() - 0.5) * p.turbulenceJitter;
-            }
-
-            // 3-Keyframe Lifecycle Air Drag Curve
-            const currentDrag = evaluate3PointValue(progress, p.startDrag ?? p.drag ?? 0.98, p.endDrag ?? p.drag ?? 0.98, p.midDrag, p.dragCurve || 'linear');
-            p.vx *= Math.pow(currentDrag, dt * 60);
-            p.vy *= Math.pow(currentDrag, dt * 60);
-
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-
-            // Multi-Node Timeline Rotation Curve
-            if (p.animateRotation !== false) {
-              const evalRot = evaluateTrackValue(progress, 'rotation', activeParticleData.visuals);
-              p.rotation = evalRot + (p.vRot * p.lifetime);
-            } else {
-              p.rotation += p.vRot * dt;
-            }
-            p.vRot *= Math.pow(p.angularDrag, dt * 60);
-
-            // Behavioral FX Style Motion Modulation
-            if (p.fxStyle === 'orbit_swirl') {
-              const dx = p.x - emitterPos.x;
-              const dy = p.y - emitterPos.y;
-              const dist = Math.hypot(dx, dy) + 12;
-              const swirlForce = 120 / dist;
-              p.vx += (-dy / dist) * swirlForce * dt * 60;
-              p.vy += (dx / dist) * swirlForce * dt * 60;
-            } else if (p.fxStyle === 'spark_crackle') {
-              if (Math.random() < 0.12) {
-                p.vx += (Math.random() - 0.5) * 40;
-                p.vy += (Math.random() - 0.5) * 40;
-              }
-            }
-
-            const lowestParticleY = p.y + offsetY + maxYOffset;
-
-            if ((floorCollisionEnabled || p.collides) && lowestParticleY >= floorY) {
-              if (p.destroyOnCollision) {
-                if (p.spawnCollisionSparks) {
-                  for (let s = 0; s < 3; s++) {
-                    newSparks.push({
-                      ...p,
-                      y: floorY - offsetY - maxYOffset - 1,
-                      vx: (Math.random() - 0.5) * 60,
-                      vy: -Math.random() * 40,
-                      lifetime: 0,
-                      maxLifetime: 0.3,
-                      startSize: 3,
-                      endSize: 0,
-                      collides: false
-                    });
-                  }
-                }
-                continue; // destroy
-              } else {
-                const restitution = activeParticleData.physics.collisionRestitution !== undefined
-                  ? activeParticleData.physics.collisionRestitution
-                  : (p.restitution ?? 0.3);
-
-                const maxBounces = activeParticleData.physics.maxBounces;
-                const currentBounces = p.bounces || 0;
-
-                p.y = floorY - offsetY - maxYOffset;
-
-                const nextBounceVy = -Math.abs(p.vy) * restitution;
-                const isMinBounceThreshold = Math.abs(nextBounceVy) < 12 || Math.abs(p.vy) < 25;
-
-                // Restitution energy depleted -> transition to surface rest without jitter
-                if (restitution === 0 || (maxBounces !== undefined && maxBounces > 0 && currentBounces >= maxBounces) || isMinBounceThreshold) {
-                  p.vy = 0;
-                  p.vx = p.vx * 0.5;
-                  p.vRot = 0;
-                  p.isRestingOnFloor = true;
-                } else {
-                  p.bounces = currentBounces + 1;
-                  p.vy = nextBounceVy;
-                  p.vx = p.vx * (0.8 + 0.2 * restitution);
-                  p.vRot = p.vRot * restitution;
-                }
-              }
-            }
-          }
-        }
-
-        aliveParticles.push(p);
-
-        // Render Particle using pre-rendered offscreen raster sprite
-        let size: number;
-        if (p.animateSize !== false) {
-          size = evaluateTrackValue(progress, 'size', activeParticleData.visuals);
-        } else {
-          size = p.startSize;
-        }
-
-        let alpha: number;
-        let r: number, g: number, b: number;
-
-        if (p.animateColor !== false || p.animateAlpha !== false) {
-          const colHex = evaluateTrackValue(progress, 'color', activeParticleData.visuals);
-          const rgb = hexToRgb(colHex);
-          r = rgb.r;
-          g = rgb.g;
-          b = rgb.b;
-          alpha = evaluateTrackValue(progress, 'alpha', activeParticleData.visuals);
-        } else {
-          const c = hexToRgb(p.startColor);
-          r = c.r;
-          g = c.g;
-          b = c.b;
-          alpha = p.startAlpha;
-        }
-
-        // Apply FX Style Visual Modulations
-        if (p.fxStyle === 'pulse_oscillate') {
-          size *= (1 + 0.35 * Math.sin(p.lifetime * 10));
-        } else if (p.fxStyle === 'flicker_shimmer') {
-          const shimmer = 0.65 + 0.35 * Math.sin(p.lifetime * 28 + p.x * 0.05) * Math.cos(p.lifetime * 16);
-          alpha = Math.max(0, Math.min(1, alpha * shimmer));
-        } else if (p.fxStyle === 'spark_crackle') {
-          if (Math.random() < 0.15) {
-            alpha = Math.min(1.0, alpha * 1.6);
-          }
-        }
-
-        if (size <= 0.1) continue;
-
-        // Render Dynamic Emissive Lighting & Glow Pass
-        if (p.isEmissive) {
-          let emissiveRadius: number;
-          let emissiveColorObj: { alpha: number; r: number; g: number; b: number };
-
-          if (p.animateEmissive !== false) {
-            emissiveRadius = Math.max(2, evaluateTrackValue(progress, 'emissive', activeParticleData.visuals));
-            const colHex = evaluateTrackValue(progress, 'color', activeParticleData.visuals);
-            const rgb = hexToRgb(colHex);
-            emissiveColorObj = {
-              alpha: evaluateTrackValue(progress, 'alpha', activeParticleData.visuals),
-              r: rgb.r,
-              g: rgb.g,
-              b: rgb.b
-            };
-          } else {
-            emissiveRadius = p.emissiveStartStrength ?? 35;
-            const c = hexToRgb(p.emissiveStartColor || p.startColor);
-            emissiveColorObj = {
-              alpha: p.startAlpha,
-              r: c.r,
-              g: c.g,
-              b: c.b
-            };
-          }
-
-          if (p.emissiveMode === 'light_up_area' && emissiveRadius > 1) {
-            // Cast dynamic radial illumination onto scene geometry & walls
-            renderCtx.save();
-            renderCtx.globalCompositeOperation = 'screen';
-            const lightGrad = renderCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, emissiveRadius * 2.2);
-            lightGrad.addColorStop(0, `rgba(${emissiveColorObj.r}, ${emissiveColorObj.g}, ${emissiveColorObj.b}, ${emissiveColorObj.alpha * 0.75})`);
-            lightGrad.addColorStop(0.5, `rgba(${emissiveColorObj.r}, ${emissiveColorObj.g}, ${emissiveColorObj.b}, ${emissiveColorObj.alpha * 0.25})`);
-            lightGrad.addColorStop(1, `rgba(${emissiveColorObj.r}, ${emissiveColorObj.g}, ${emissiveColorObj.b}, 0)`);
-            renderCtx.fillStyle = lightGrad;
-            renderCtx.beginPath();
-            renderCtx.arc(p.x, p.y, emissiveRadius * 2.2, 0, Math.PI * 2);
-            renderCtx.fill();
-            renderCtx.restore();
-          } else if (p.emissiveMode === 'glow_only' && emissiveRadius > 1) {
-            // Soft glowing halo flare
-            renderCtx.save();
-            renderCtx.globalCompositeOperation = 'lighter';
-            const lightGrad = renderCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, emissiveRadius * 1.4);
-            lightGrad.addColorStop(0, `rgba(${emissiveColorObj.r}, ${emissiveColorObj.g}, ${emissiveColorObj.b}, ${emissiveColorObj.alpha * 0.5})`);
-            lightGrad.addColorStop(1, `rgba(${emissiveColorObj.r}, ${emissiveColorObj.g}, ${emissiveColorObj.b}, 0)`);
-            renderCtx.fillStyle = lightGrad;
-            renderCtx.beginPath();
-            renderCtx.arc(p.x, p.y, emissiveRadius * 1.4, 0, Math.PI * 2);
-            renderCtx.fill();
-            renderCtx.restore();
-          }
-        }
-
-        let isSpritesheetDrawn = false;
-        if (p.shape === 'spritesheet' && activeParticleData.visuals.spritesheet) {
-          const sheet = activeParticleData.visuals.spritesheet;
-          const src = sheet.dataUrl || sheet.imageUrl;
-          if (src) {
-            let img = imageCacheRef.current.get(src);
-            if (!img) {
-              img = new Image();
-              img.src = src;
-              imageCacheRef.current.set(src, img);
-            }
-            if (img.complete && img.width > 0) {
-              const cols = sheet.cols || 8;
-              const rows = sheet.rows || 1;
-              const tw = sheet.tileWidth || 64;
-              const th = sheet.tileHeight || 64;
-              
-              // Calculate frame index over lifetime
-              let frameIdx = 0;
-              const frameAnimStyle = activeParticleData.visuals.frameAnimStyle || 'loop'; // 'loop' vs 'keyframe'
-              if (frameAnimStyle === 'keyframe') {
-                const startF = activeParticleData.visuals.startFrameIndex ?? 0;
-                const midF = activeParticleData.visuals.midFrameIndex ?? startF;
-                const endF = activeParticleData.visuals.endFrameIndex ?? startF;
-                frameIdx = Math.round(evaluate3PointValue(progress, startF, endF, midF, 'linear'));
-              } else {
-                // Loop frames from startFrameIndex to endFrameIndex over lifetime
-                const startF = activeParticleData.visuals.startFrameIndex ?? 0;
-                const endF = activeParticleData.visuals.endFrameIndex ?? ((sheet.totalFrames || (cols * rows)) - 1);
-                const frameRange = endF - startF + 1;
-                if (frameRange > 1) {
-                  const fps = activeParticleData.visuals.frameRateFps || 12;
-                  const elapsedFrames = Math.floor(p.lifetime * fps);
-                  if (activeParticleData.visuals.frameLoop !== false) {
-                    frameIdx = startF + (elapsedFrames % frameRange);
-                  } else {
-                    frameIdx = Math.min(endF, startF + elapsedFrames);
-                  }
-                } else {
-                  frameIdx = startF;
-                }
-              }
-              
-              // Ensure bounds
-              const maxFrames = sheet.totalFrames || (cols * rows);
-              frameIdx = Math.max(0, Math.min(maxFrames - 1, frameIdx));
-              const col = frameIdx % cols;
-              const row = Math.floor(frameIdx / cols);
-              
-              renderCtx.save();
-              renderCtx.translate(p.x, p.y);
-              renderCtx.rotate((p.rotation * Math.PI) / 180);
-              renderCtx.globalAlpha = alpha;
-              
-              renderCtx.drawImage(
-                img,
-                col * tw,
-                row * th,
-                tw,
-                th,
-                -size / 2,
-                -size / 2,
-                size,
-                size
-              );
-              renderCtx.restore();
-              isSpritesheetDrawn = true;
-            }
-          }
-        }
-
-        if (!isSpritesheetDrawn) {
-          const spriteCanvas = getOrCreateParticleSprite(
-            p.shape,
-            p.customGlyph,
-            p.customSvgPath,
-            p.glowBlurRadius,
-            `${r},${g},${b}`
-          );
-
-          renderCtx.save();
-          renderCtx.translate(p.x, p.y);
-          renderCtx.rotate((p.rotation * Math.PI) / 180);
-          renderCtx.globalAlpha = alpha;
-          renderCtx.drawImage(spriteCanvas, -size / 2, -size / 2, size, size);
-          renderCtx.restore();
-        }
-      }
-
-      if (useOffscreenBuffer && bCtx && bufferCanvasRef.current) {
-        bCtx.restore(); // Restore bCtx transform matrix back to identity
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0); // Screen space identity matrix
-        ctx.globalCompositeOperation = targetBlendMode;
-        ctx.imageSmoothingEnabled = false; // Nearest-neighbor pixel-perfect buffer scaling
-        ctx.drawImage(bufferCanvasRef.current, 0, 0, bufWidth, bufHeight, 0, 0, width, height);
-        ctx.restore();
-      }
-
-      particlesRef.current = [...aliveParticles, ...newSparks];
-      setActiveParticleCount(particlesRef.current.length);
-
-      // Draw Physics Debug Wireframe Hull Overlay
-      if (showCollisionWireframeRef.current) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = 1.0;
-
-        const colShape = activeParticleData.physics.collisionShape || 'circle';
-        const offsetX = activeParticleData.physics.collisionOffset?.x || 0;
-        const offsetY = activeParticleData.physics.collisionOffset?.y || 0;
-        const colScale = activeParticleData.physics.collisionScale ?? 1.0;
-
-        let pts = activeParticleData.physics.customPolygon;
-        if (!pts || pts.length === 0) {
-          const preset = POLYGON_PRESETS.find(pr => pr.id === colShape);
-          pts = preset ? preset.points : POLYGON_PRESETS[0].points;
-        }
-
-        const drawHullAt = (x: number, y: number, rotationDeg: number, baseSize: number) => {
-          const effectiveSize = baseSize * colScale;
-          ctx.save();
-          ctx.translate(x + offsetX, y + offsetY);
-          ctx.rotate((rotationDeg * Math.PI) / 180);
-
-          ctx.strokeStyle = '#06b6d4'; // Cyan 500
-          ctx.lineWidth = 1.5 / zoom;
-          ctx.setLineDash([4 / zoom, 3 / zoom]);
-
-          if (colShape === 'circle') {
-            ctx.beginPath();
-            ctx.arc(0, 0, effectiveSize / 2, 0, Math.PI * 2);
-            ctx.stroke();
-          } else if (colShape === 'box') {
-            const half = effectiveSize / 2;
-            ctx.strokeRect(-half, -half, effectiveSize, effectiveSize);
-          } else if (pts && pts.length > 0) {
-            ctx.beginPath();
-            pts.forEach((pt, idx) => {
-              const vx = pt.x * effectiveSize;
-              const vy = pt.y * effectiveSize;
-              if (idx === 0) ctx.moveTo(vx, vy);
-              else ctx.lineTo(vx, vy);
-            });
-            ctx.closePath();
-            ctx.stroke();
-
-            ctx.fillStyle = '#f59e0b';
-            pts.forEach((pt) => {
-              ctx.beginPath();
-              ctx.arc(pt.x * effectiveSize, pt.y * effectiveSize, 3 / zoom, 0, Math.PI * 2);
-              ctx.fill();
-            });
-          }
-
-          // Center offset crosshair
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 1.2 / zoom;
-          ctx.setLineDash([]);
-          ctx.beginPath();
-          ctx.moveTo(-5 / zoom, 0); ctx.lineTo(5 / zoom, 0);
-          ctx.moveTo(0, -5 / zoom); ctx.lineTo(0, 5 / zoom);
-          ctx.stroke();
-
-          ctx.restore();
-        };
-
-        if (particlesRef.current.length > 0) {
-          for (let i = 0; i < particlesRef.current.length; i++) {
-            const p = particlesRef.current[i];
-            const progress = Math.min(1, Math.max(0, p.lifetime / p.maxLifetime));
-            const currentSize = evaluateSize(progress, p.startSize, p.endSize, p.midSize, p.sizeCurve);
-            if (currentSize > 0.1) {
-              drawHullAt(p.x, p.y, p.rotation, currentSize);
-            }
-          }
-        } else {
-          // Preview hull at emitter anchor when 0 active particles exist
-          const previewSize = activeParticleData.emitter.width || activeParticleData.emitter.radius || 32;
-          drawHullAt(emitterPos.x, emitterPos.y, 0, previewSize);
-        }
-
-        ctx.restore();
-      }
-
-      // Draw Emitter Anchor & Bounds Gizmo in transformed world space
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.save();
-      ctx.translate(emitterPos.x, emitterPos.y);
-
-      const emitterShape = activeParticleData.emitter.shape;
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
-      ctx.lineWidth = 1.5 / zoom;
-      ctx.setLineDash([3, 3]);
-
-      if (emitterShape === 'box') {
-        const ew = activeParticleData.emitter.width || 32;
-        const eh = activeParticleData.emitter.height || 32;
-        ctx.strokeRect(-ew / 2, -eh / 2, ew, eh);
-      } else if (emitterShape === 'circle' || emitterShape === 'ring') {
-        const er = activeParticleData.emitter.radius || 24;
-        ctx.beginPath();
-        ctx.arc(0, 0, er, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (emitterShape === 'line') {
-        const ew = activeParticleData.emitter.width || 48;
-        ctx.beginPath();
-        ctx.moveTo(-ew / 2, 0);
-        ctx.lineTo(ew / 2, 0);
-        ctx.stroke();
-      }
-
-      ctx.setLineDash([]);
-
-      // Center crosshair anchor
-      ctx.fillStyle = isDraggingEmitter ? '#f59e0b' : '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(0, 0, 6 / zoom, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5 / zoom;
-      ctx.stroke();
-
-      // Launch direction indicator arrow & cone spread gizmo
-      const dirAngleDeg = activeParticleData.kinematics.angleDeg !== undefined ? activeParticleData.kinematics.angleDeg : 270;
-      const spreadDeg = activeParticleData.kinematics.spreadDeg || 0;
-      const angleRad = dirAngleDeg * (Math.PI / 180);
-      const spreadHalfRad = (spreadDeg / 2) * (Math.PI / 180);
-      const arrowLength = 36 / zoom;
-
-      // Cone spread arc fan
-      if (spreadDeg > 0) {
-        ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
-        ctx.lineWidth = 1 / zoom;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, arrowLength, angleRad - spreadHalfRad, angleRad + spreadHalfRad);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      // Center launch arrow
-      const arrowX = Math.cos(angleRad) * arrowLength;
-      const arrowY = Math.sin(angleRad) * arrowLength;
-
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2.5 / zoom;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(arrowX, arrowY);
-      ctx.stroke();
-
-      // Arrow head
-      const headLen = 8 / zoom;
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.moveTo(arrowX, arrowY);
-      ctx.lineTo(
-        arrowX - headLen * Math.cos(angleRad - Math.PI / 6),
-        arrowY - headLen * Math.sin(angleRad - Math.PI / 6)
-      );
-      ctx.lineTo(
-        arrowX - headLen * Math.cos(angleRad + Math.PI / 6),
-        arrowY - headLen * Math.sin(angleRad + Math.PI / 6)
-      );
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.restore();
-
-      // Restore zoom transform
-      ctx.restore();
+      engineRef.current.render(ctx, panOffset, zoom, activeParticleData);
 
       animId = requestAnimationFrame(renderLoop);
     };
@@ -2759,7 +1856,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     onUpdateProject(() => updatedProj);
     setIsCreateModalOpen(false);
     setNewSystemName('New Particle Burst');
-    particlesRef.current = [];
+    engineRef.current.particles = [];
     showToast(`Created particle file: ${newFile.fileName}`);
   };
 
@@ -2804,7 +1901,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       id: activeParticleData.id,
       name: activeParticleData.name
     }));
-    particlesRef.current = [];
+    engineRef.current.particles = [];
     showToast(`Loaded preset parameters: ${preset.name}`);
   };
 
@@ -3057,7 +2154,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               particleFileName: fName
             }
           }));
-          particlesRef.current = [];
+          engineRef.current.particles = [];
         }}
         onNewFile={(name) => {
           const template = DEFAULT_PARTICLE_SYSTEMS[0];
@@ -3067,7 +2164,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
             template
           );
           onUpdateProject(() => updatedProj);
-          particlesRef.current = [];
+          engineRef.current.particles = [];
           showToast(`Created particle file: ${newFile.fileName}`);
         }}
         onDuplicateFile={() => {
@@ -3146,7 +2243,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  particlesRef.current = [];
+                  engineRef.current.particles = [];
                 }}
                 className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
                 title="Clear all active particles"
@@ -3862,9 +2959,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </button>
                     </div>
                     <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Start Size (px)</label>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Base Size (px)</label>
                           <input
                             type="number"
                             min="1"
@@ -3874,20 +2971,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">End Size (px)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={activeParticleData.visuals.endSize || 2}
-                            onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, endSize: Number(e.target.value) } }))}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                          />
-                        </div>
                       </div>
                       <p className="text-[10px] text-neutral-500 italic">
-                        Animates from start size to end size. Go to the Animation tab to customize nodes or use a curve envelope.
+                        Go to the Animation tab to customize size over time using nodes.
                       </p>
                     </div>
                   </div>
@@ -3915,9 +3001,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </button>
                     </div>
                     <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Start Color</label>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Base Color</label>
                           <div className="flex items-center gap-1.5 bg-neutral-950 border border-neutral-800 rounded-lg p-1">
                             <input
                               type="color"
@@ -3928,21 +3014,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             <span className="font-mono text-[10px] text-neutral-400 uppercase">{activeParticleData.visuals.startColor}</span>
                           </div>
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">End Color</label>
-                          <div className="flex items-center gap-1.5 bg-neutral-950 border border-neutral-800 rounded-lg p-1">
-                            <input
-                              type="color"
-                              value={activeParticleData.visuals.endColor || '#000000'}
-                              onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, endColor: e.target.value } }))}
-                              className="w-8 h-6 bg-transparent rounded cursor-pointer border-none"
-                            />
-                            <span className="font-mono text-[10px] text-neutral-400 uppercase">{activeParticleData.visuals.endColor || '#000000'}</span>
-                          </div>
-                        </div>
                       </div>
                       <p className="text-[10px] text-neutral-500 italic">
-                        Animates the color over time. Go to the Animation tab to add multi-color keyframe nodes or use a flow preset.
+                        Go to the Animation tab to add multi-color keyframe nodes or use a flow preset.
                       </p>
                     </div>
                   </div>
@@ -3970,9 +3044,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </button>
                     </div>
                     <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Start Alpha</label>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Base Alpha</label>
                           <input
                             type="range"
                             min="0"
@@ -3984,22 +3058,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           />
                           <div className="text-right text-[9px] font-mono text-neutral-400 mt-0.5">{Math.round((activeParticleData.visuals.startAlpha ?? 1.0) * 100)}%</div>
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">End Alpha</label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={activeParticleData.visuals.endAlpha ?? 0.0}
-                            onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, endAlpha: Number(e.target.value) } }))}
-                            className="w-full accent-amber-500"
-                          />
-                          <div className="text-right text-[9px] font-mono text-neutral-400 mt-0.5">{Math.round((activeParticleData.visuals.endAlpha ?? 0.0) * 100)}%</div>
-                        </div>
                       </div>
                       <p className="text-[10px] text-neutral-500 italic">
-                        Animates opacity curves. Go to the Animation tab to adjust fade in/out curves and envelope rates.
+                        Go to the Animation tab to adjust fade in/out curves and envelope rates.
                       </p>
                     </div>
                   </div>
@@ -4052,9 +3113,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Start Rot (deg)</label>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Base Rotation (deg)</label>
                           <input
                             type="number"
                             min="0"
@@ -4064,20 +3125,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">End Rot (deg)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="360"
-                            value={activeParticleData.visuals.endRotationDeg ?? 360}
-                            onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, endRotationDeg: Number(e.target.value) } }))}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                          />
-                        </div>
                       </div>
                       <p className="text-[10px] text-neutral-500 italic">
-                        Animates rotation angle and spin torque. Go to the Animation tab to customize easing or repeat curves.
+                        Go to the Animation tab to customize easing or repeat curves.
                       </p>
                     </div>
                   </div>
@@ -4367,6 +3417,34 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </button>
                     </div>
                     <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
+                      <label className="flex items-center justify-between p-2 rounded bg-neutral-950 border border-neutral-800 cursor-pointer">
+                        <span className="font-bold text-neutral-300">Fluid Self-Collision</span>
+                        <input
+                          type="checkbox"
+                          checked={activeParticleData.physics.fluidSelfCollision || false}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, fluidSelfCollision: e.target.checked } }))}
+                          className="rounded accent-amber-500 font-mono w-4 h-4"
+                        />
+                      </label>
+
+                      {activeParticleData.physics.fluidSelfCollision && (
+                        <div className="grid grid-cols-1 pt-1 border-t border-neutral-800/30">
+                          <div>
+                            <label className="text-[10px] font-bold text-neutral-400 block mb-1">Repulsion Force</label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="2"
+                              step="0.05"
+                              value={activeParticleData.physics.fluidRepulsionForce ?? 0.5}
+                              onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, fluidRepulsionForce: Number(e.target.value) } }))}
+                              className="w-full accent-amber-500"
+                            />
+                            <div className="text-right text-[9px] font-mono text-neutral-400 mt-0.5">{(activeParticleData.physics.fluidRepulsionForce ?? 0.5).toFixed(2)}x strength</div>
+                          </div>
+                        </div>
+                      )}
+
                       <label className="flex items-center justify-between p-2 rounded bg-neutral-950 border border-neutral-800 cursor-pointer">
                         <span className="font-bold text-neutral-300">Solid Room Tiles Bounce</span>
                         <input
@@ -4903,6 +3981,104 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         </div>
                       )}
 
+                      {/* Row 6: Speed Modifier Track */}
+                      {addedProps.includes('launch_speed') && (
+                        <div 
+                          className={`grid grid-cols-[110px_1fr] items-center cursor-pointer hover:bg-neutral-900/30 group ${
+                            selectedTrack === 'speed' ? 'bg-amber-500/10 border-l-2 border-amber-500' : ''
+                          }`}
+                          onClick={(e) => {
+                            setSelectedTrack('speed');
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const clickX = e.clientX - rect.left - 110;
+                            const width = rect.width - 110;
+                            if (clickX >= 0 && width > 0) {
+                              setScrubberProgress(Math.max(0, Math.min(1, clickX / width)));
+                            }
+                          }}
+                        >
+                          <div className="p-2 border-r border-neutral-900 flex items-center justify-between bg-neutral-950">
+                            <span className="font-bold text-neutral-300">🚀 Speed</span>
+                            <input 
+                              type="checkbox"
+                              checked={activeParticleData.visuals.animateSpeed || false}
+                              onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, animateSpeed: e.target.checked } }))}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded accent-amber-500 scale-75 cursor-pointer"
+                              title="Toggle Speed Animation"
+                            />
+                          </div>
+                          <div className="relative h-9 bg-neutral-950/40 px-2 flex items-center">
+                            {activeParticleData.visuals.animateSpeed ? (
+                              <>
+                                <svg className="absolute inset-0 w-full h-full stroke-cyan-500 fill-none opacity-40 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                  <path d={getSparklinePath('speed', 100, 100)} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                                </svg>
+                                {getTrackNodesForData(activeParticleData.visuals, 'speed').map((nd, idx) => (
+                                  <div 
+                                    key={idx}
+                                    className="absolute w-2 h-2 bg-cyan-400 rotate-45 border border-neutral-900" 
+                                    style={{ left: `${nd.time * 96 + 2}%` }}
+                                    title={`Node ${idx}: ${(nd.time * 100).toFixed(0)}% = ${nd.value}px/s`} 
+                                  />
+                                ))}
+                              </>
+                            ) : (
+                              <span className="text-[9px] text-neutral-600 italic pl-1">🔒 Locked static speed</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Row 7: Drag Modifier Track */}
+                      {addedProps.includes('drag') && (
+                        <div 
+                          className={`grid grid-cols-[110px_1fr] items-center cursor-pointer hover:bg-neutral-900/30 group ${
+                            selectedTrack === 'drag' ? 'bg-amber-500/10 border-l-2 border-amber-500' : ''
+                          }`}
+                          onClick={(e) => {
+                            setSelectedTrack('drag');
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const clickX = e.clientX - rect.left - 110;
+                            const width = rect.width - 110;
+                            if (clickX >= 0 && width > 0) {
+                              setScrubberProgress(Math.max(0, Math.min(1, clickX / width)));
+                            }
+                          }}
+                        >
+                          <div className="p-2 border-r border-neutral-900 flex items-center justify-between bg-neutral-950">
+                            <span className="font-bold text-neutral-300">💧 Drag Curve</span>
+                            <input 
+                              type="checkbox"
+                              checked={activeParticleData.visuals.animateDrag || false}
+                              onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, animateDrag: e.target.checked } }))}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded accent-amber-500 scale-75 cursor-pointer"
+                              title="Toggle Drag Animation"
+                            />
+                          </div>
+                          <div className="relative h-9 bg-neutral-950/40 px-2 flex items-center">
+                            {activeParticleData.visuals.animateDrag ? (
+                              <>
+                                <svg className="absolute inset-0 w-full h-full stroke-blue-500 fill-none opacity-40 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                  <path d={getSparklinePath('drag', 100, 100)} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                                </svg>
+                                {getTrackNodesForData(activeParticleData.visuals, 'drag').map((nd, idx) => (
+                                  <div 
+                                    key={idx}
+                                    className="absolute w-2 h-2 bg-blue-400 rotate-45 border border-neutral-900" 
+                                    style={{ left: `${nd.time * 96 + 2}%` }}
+                                    title={`Node ${idx}: ${(nd.time * 100).toFixed(0)}% = ${nd.value}`} 
+                                  />
+                                ))}
+                              </>
+                            ) : (
+                              <span className="text-[9px] text-neutral-600 italic pl-1">🔒 Locked static drag</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Fallback Message when no tracks are added */}
                       {visibleTracks.length === 0 && (
                         <div className="p-8 text-center text-neutral-500 space-y-2">
@@ -5129,13 +4305,14 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                                   className="drop-shadow-[0_0_4px_rgba(234,179,8,0.5)]"
                                 />
                               ) : (
-                                // Draw color stops as a beautiful line
-                                <path
-                                  d="M 0,50 L 100,50"
-                                  fill="none"
-                                  stroke="url(#colorTrackGradDetails)"
-                                  strokeWidth="6"
-                                  vectorEffect="non-scaling-stroke"
+                                // Draw color stops as a full beautiful gradient background block
+                                <rect
+                                  x="0"
+                                  y="0"
+                                  width="100"
+                                  height="100"
+                                  fill="url(#colorTrackGradDetails)"
+                                  className="opacity-70 rounded-lg"
                                 />
                               )}
                             </svg>

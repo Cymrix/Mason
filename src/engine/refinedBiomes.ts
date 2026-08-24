@@ -226,7 +226,7 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         icon: '💎',
         color: '#38bdf8',
         interactionMethod: 'interact',
-        interactionPrompt: 'Attune Character & Save Checkpoint',
+        interactionPrompt: 'Attune Prefab & Save Checkpoint',
         actionType: 'modify_resource',
         resourceType: 'health',
         resourceOp: 'set',
@@ -671,7 +671,7 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         type: 'binding_stone',
         icon: '💎',
         color: '#22d3ee',
-        interactionPrompt: 'Attune Character & Save Checkpoint'
+        interactionPrompt: 'Attune Prefab & Save Checkpoint'
       },
       {
         id: 'spore_alchemist_cache',
@@ -823,7 +823,7 @@ export const INITIAL_REFINED_BIOMES: RefinedBiome[] = [
         type: 'binding_stone',
         icon: '💎',
         color: '#7dd3fc',
-        interactionPrompt: 'Attune Character & Save Checkpoint'
+        interactionPrompt: 'Attune Prefab & Save Checkpoint'
       }
     ],
     wildlife: [

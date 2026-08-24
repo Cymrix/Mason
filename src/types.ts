@@ -6,6 +6,7 @@ export interface RefinedCellState {
   current_health: number;
   damage_threshold_index: number;
   environmental_detail_id?: string | null;
+  prefab_id?: string | null;
   interactive_detail_id?: string | null;
   wildlife_id?: string | null;
   particle_emitter_id?: string | null; // Placed ambient particle system ID (e.g. torch flame, mist, embers)
@@ -28,7 +29,7 @@ export interface RefinedMapData {
 
 export type ToolType = 'brush' | 'bucket' | 'eraser' | 'chunk_add' | 'chunk_delete' | 'spawn_place';
 export type ModeType = 'paint' | 'play';
-export type PaintCategory = 'tile_type' | 'environmental' | 'interactive' | 'wildlife' | 'particles';
+export type PaintCategory = 'tile_type' | 'environmental' | 'interactive' | 'wildlife' | 'particles' | 'prefab';
 
 // Legacy compatibility types
 export interface TileType {

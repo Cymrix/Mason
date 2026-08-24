@@ -26,7 +26,7 @@ function getLinePixels(x0: number, y0: number, x1: number, y1: number): Array<{ 
   return points;
 }
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { 
   BiomeAllocationMatrix, 
@@ -99,7 +99,7 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
     }
   }, [isOpen, currentWidth, currentHeight, selectedBiomeId]);
 
-  const biomeColorMap = React.useMemo(() => {
+  const biomeColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     biomes.forEach(b => {
       map[b.id] = b.regionColor || '#475569';

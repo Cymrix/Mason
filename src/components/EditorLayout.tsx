@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MasonProject, 
   MasonModuleId,
@@ -75,7 +75,9 @@ import {
   RotateCcw,
   RotateCw,
   Undo2,
-  Redo2
+  Redo2,
+  Zap,
+  Skull
 } from 'lucide-react';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
@@ -125,14 +127,14 @@ export const EditorLayout: React.FC = () => {
     }
   };
 
-  const handleNavigateToModule = (modId: string, options?: { behaviorFileName?: string; characterFileName?: string }) => {
-    if (options?.behaviorFileName || options?.characterFileName) {
+  const handleNavigateToModule = (modId: string, options?: { behaviorFileName?: string; prefabFileName?: string }) => {
+    if (options?.behaviorFileName || options?.prefabFileName) {
       setProject(prev => ({
         ...prev,
         activeFiles: {
           ...prev.activeFiles,
           ...(options.behaviorFileName ? { behaviorFileName: options.behaviorFileName } : {}),
-          ...(options.characterFileName ? { characterFileName: options.characterFileName } : {})
+          ...(options.prefabFileName ? { prefabFileName: options.prefabFileName } : {})
         }
       }));
     }
@@ -270,7 +272,7 @@ export const EditorLayout: React.FC = () => {
   // Derived references for active project
   const currentMapFile = project ? (project.fileSystem.maps.find(m => m.fileName === project.activeFiles.mapFileName) || project.fileSystem.maps[0]) : null;
   const currentBiomeFile = project ? (project.fileSystem.biomes.find(b => b.fileName === project.activeFiles.biomeFileName) || project.fileSystem.biomes[0]) : null;
-  const currentCharacterFile = project ? (project.fileSystem?.characters?.find(c => c.fileName === project.activeFiles?.characterFileName) || project.fileSystem?.characters?.[0]) : null;
+  const currentCharacterFile = project ? (project.fileSystem?.prefabs?.find(c => c.fileName === project.activeFiles?.prefabFileName) || project.fileSystem?.prefabs?.[0]) : null;
   const activeBiome: RefinedBiome | null = currentBiomeFile?.biomeData || project?.fileSystem.biomes?.[0]?.biomeData || null;
   const biomesList: RefinedBiome[] = project ? project.fileSystem.biomes?.map(b => b.biomeData) : [];
 
@@ -404,13 +406,13 @@ export const EditorLayout: React.FC = () => {
     chunks: currentMapFile.chunks || (currentMapFile as any).data?.chunks || {}
   } : null;
 
-  // Character Play Mode State & Spawn Configuration
+  // Prefab Play Mode State & Spawn Configuration
   const [selectedTestCharacterId, setSelectedTestCharacterId] = useState<string>(() => {
-    return currentCharacterFile?.characterData?.id || 'char_korrath';
+    return currentCharacterFile?.prefabData?.id || 'char_korrath';
   });
 
-  const availableCharacters = React.useMemo(() => {
-    const charsFromProject = project?.fileSystem?.characters?.map(c => c.characterData).filter(Boolean) || [];
+  const availableCharacters = useMemo(() => {
+    const charsFromProject = project?.fileSystem?.prefabs?.map(c => c.prefabData).filter(Boolean) || [];
     if (charsFromProject.length > 0) {
       return charsFromProject;
     }
@@ -418,7 +420,7 @@ export const EditorLayout: React.FC = () => {
       {
         id: 'hero_knight',
         name: 'Ashen Knight',
-        characterType: 'player_hero' as const,
+        prefabType: 'player_hero' as const,
         avatarIcon: '🛡️',
         spriteWidth: 32,
         spriteHeight: 32,
@@ -430,7 +432,7 @@ export const EditorLayout: React.FC = () => {
       {
         id: 'hero_sorceress',
         name: 'Astral Sorceress',
-        characterType: 'player_hero' as const,
+        prefabType: 'player_hero' as const,
         avatarIcon: '🔮',
         spriteWidth: 32,
         spriteHeight: 32,
@@ -442,7 +444,7 @@ export const EditorLayout: React.FC = () => {
       {
         id: 'hero_rogue',
         name: 'Shadow Stalker',
-        characterType: 'player_hero' as const,
+        prefabType: 'player_hero' as const,
         avatarIcon: '🗡️',
         spriteWidth: 32,
         spriteHeight: 32,
@@ -454,7 +456,7 @@ export const EditorLayout: React.FC = () => {
       {
         id: 'hero_valkyrie',
         name: 'Valkyrie Warden',
-        characterType: 'player_hero' as const,
+        prefabType: 'player_hero' as const,
         avatarIcon: '⚡',
         spriteWidth: 32,
         spriteHeight: 32,
@@ -464,37 +466,37 @@ export const EditorLayout: React.FC = () => {
         sockets: []
       }
     ];
-  }, [project?.fileSystem?.characters]);
+  }, [project?.fileSystem?.prefabs]);
 
-  // Synchronize active character file in Character Studio with Map Editor selected test character
+  // Synchronize active prefab file in Prefab Studio with Map Editor selected test prefab
   useEffect(() => {
-    if (currentCharacterFile?.characterData?.id) {
-      setSelectedTestCharacterId(currentCharacterFile.characterData.id);
+    if (currentCharacterFile?.prefabData?.id) {
+      setSelectedTestCharacterId(currentCharacterFile.prefabData.id);
     } else if (availableCharacters.length > 0 && !availableCharacters.some(c => c.id === selectedTestCharacterId)) {
       setSelectedTestCharacterId(availableCharacters[0].id);
     }
-  }, [currentCharacterFile?.characterData?.id, currentCharacterFile?.fileName, availableCharacters]);
+  }, [currentCharacterFile?.prefabData?.id, currentCharacterFile?.fileName, availableCharacters]);
 
   const handleSelectTestCharacter = (charId: string) => {
     setSelectedTestCharacterId(charId);
-    const matchedCharFile = project?.fileSystem?.characters?.find(c => c.characterData?.id === charId || c.id === charId);
-    if (matchedCharFile && project && project.activeFiles.characterFileName !== matchedCharFile.fileName) {
+    const matchedCharFile = project?.fileSystem?.prefabs?.find(c => c.prefabData?.id === charId || c.id === charId);
+    if (matchedCharFile && project && project.activeFiles.prefabFileName !== matchedCharFile.fileName) {
       handleUpdateProject(p => ({
         ...p,
         activeFiles: {
           ...p.activeFiles,
-          characterFileName: matchedCharFile.fileName
+          prefabFileName: matchedCharFile.fileName
         }
       }));
     }
   };
 
-  const activeTestCharacter = React.useMemo(() => {
+  const activeTestCharacter = useMemo(() => {
     return availableCharacters.find(c => c.id === selectedTestCharacterId) || availableCharacters[0];
   }, [availableCharacters, selectedTestCharacterId]);
 
-  // Resolve Linked Behavior from Character Configuration (preferring bespoke character rules)
-  const linkedBehavior = React.useMemo(() => {
+  // Resolve Linked Behavior from Prefab Configuration (preferring bespoke prefab rules)
+  const linkedBehavior = useMemo(() => {
     if (!activeTestCharacter) return undefined;
     if (activeTestCharacter.rules && activeTestCharacter.rules.length > 0) {
       return {
@@ -502,7 +504,7 @@ export const EditorLayout: React.FC = () => {
         name: activeTestCharacter.name,
         title: activeTestCharacter.name,
         description: activeTestCharacter.backstory || '',
-        category: (activeTestCharacter.characterType === 'player_hero' ? 'hero' : activeTestCharacter.characterType === 'boss_archon' ? 'boss' : activeTestCharacter.characterType === 'friendly_npc' ? 'npc' : 'mob') as any,
+        category: (activeTestCharacter.prefabType === 'player_hero' ? 'hero' : activeTestCharacter.prefabType === 'boss_archon' ? 'boss' : activeTestCharacter.prefabType === 'friendly_npc' ? 'npc' : 'mob') as any,
         sensoryTags: activeTestCharacter.sockets?.map(s => ({
           tagId: s.tagId,
           label: s.label,
@@ -565,7 +567,7 @@ export const EditorLayout: React.FC = () => {
     return project?.fileSystem?.behaviors?.find(b => b.behaviorData?.id === activeTestCharacter.id || b.behaviorData?.name === activeTestCharacter.name)?.behaviorData;
   }, [activeTestCharacter, project?.fileSystem?.behaviors]);
 
-  const currentSpawnPoint = React.useMemo(() => {
+  const currentSpawnPoint = useMemo(() => {
     const spawns = currentMapFile?.playerSpawns;
     if (spawns && spawns.length > 0) {
       return spawns[0];
@@ -602,7 +604,7 @@ export const EditorLayout: React.FC = () => {
         }
       };
     });
-    showToast(`Set character spawn point to (${x}, ${y})`, 'success');
+    showToast(`Set prefab spawn point to (${x}, ${y})`, 'success');
   };
 
   // Map tile editing handler
@@ -1394,14 +1396,14 @@ export const EditorLayout: React.FC = () => {
                   <div className="flex items-center gap-2.5">
                     {mapsSubMode === 'tilemap' && (
                       <>
-                        {/* Test Character Selector */}
+                        {/* Test Prefab Selector */}
                         <div className="flex items-center gap-1.5 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
-                          <span className="text-neutral-400 text-xs font-semibold">Test Character:</span>
+                          <span className="text-neutral-400 text-xs font-semibold">Test Prefab:</span>
                           <select
                             value={selectedTestCharacterId}
                             onChange={(e) => handleSelectTestCharacter(e.target.value)}
                             className="bg-neutral-900 border border-neutral-700 text-xs font-bold text-cyan-300 rounded px-2 py-0.5 outline-none cursor-pointer hover:border-cyan-500 transition"
-                            title="Select which character to spawn and test control in this map"
+                            title="Select which prefab to spawn and test control in this map"
                           >
                             {availableCharacters.map(c => (
                               <option key={c.id} value={c.id}>
@@ -1423,7 +1425,7 @@ export const EditorLayout: React.FC = () => {
                               ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400 shadow-sm' 
                               : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:text-white hover:bg-neutral-750'
                           }`}
-                          title="Click anywhere on the map to place character spawn point"
+                          title="Click anywhere on the map to place prefab spawn point"
                         >
                           <MapPin size={13} className={activeTool === 'spawn_place' ? 'text-cyan-400' : 'text-neutral-400'} />
                           <span>Place Spawn</span>
@@ -1445,7 +1447,7 @@ export const EditorLayout: React.FC = () => {
                               ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 shadow-rose-950/50 animate-pulse'
                               : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 shadow-emerald-950/50'
                           }`}
-                          title={mode === 'play' ? 'Exit Play Mode (Esc)' : 'Test Play Level with character physics & combat'}
+                          title={mode === 'play' ? 'Exit Play Mode (Esc)' : 'Test Play Level with prefab physics & combat'}
                         >
                           {mode === 'play' ? <Square size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
                           <span>{mode === 'play' ? 'Stop Playing' : 'Play Level'}</span>
@@ -1527,7 +1529,7 @@ export const EditorLayout: React.FC = () => {
                       className={`p-2.5 rounded-xl border transition ${
                         activeTool === 'spawn_place' && mode !== 'play' ? 'bg-cyan-600 text-white border-cyan-400 shadow-sm' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                       }`}
-                      title="Place Character Spawn Point"
+                      title="Place Prefab Spawn Point"
                     >
                       <MapPin size={16} />
                     </button>
@@ -1628,7 +1630,7 @@ export const EditorLayout: React.FC = () => {
                   <main className="flex-1 bg-neutral-950 relative overflow-hidden flex flex-col">
                     <RefinedMapCanvas 
                       particleSystems={project?.fileSystem.particles || []}
-                      characters={project?.fileSystem.characters || []}
+                      prefabs={project?.fileSystem.prefabs || []}
                       mapData={currentMapData}
                       biomes={biomesList}
                       activeBiome={activeBiome}
@@ -2093,7 +2095,8 @@ export const EditorLayout: React.FC = () => {
 
                       {/* Particle Emitters */}
                       
-                      {paintCategory === 'actor' && (
+                      
+                      {paintCategory === 'prefab' && (
                         <div className="space-y-2">
                           <button
                             type="button"
@@ -2108,33 +2111,33 @@ export const EditorLayout: React.FC = () => {
                               <div className="w-6 h-6 rounded border border-dashed border-cyan-500/50 flex items-center justify-center text-cyan-400 text-xs">
                                 ∅
                               </div>
-                              <div className="text-xs font-bold">Clear Actor / Prop</div>
+                              <div className="text-xs font-bold">Clear Prefab / Prop</div>
                             </div>
                           </button>
 
-                          {(project.fileSystem.characters && project.fileSystem.characters.length > 0) ? (
-                            project.fileSystem.characters.map(actor => (
+                          {(project.fileSystem.prefabs && project.fileSystem.prefabs.length > 0) ? (
+                            project.fileSystem.prefabs.map(prefab => (
                               <button
-                                key={actor.id}
+                                key={prefab.id}
                                 type="button"
-                                onClick={() => setSelectedAssetId(actor.id)}
+                                onClick={() => setSelectedAssetId(prefab.id)}
                                 className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition group ${
-                                  selectedAssetId === actor.id
+                                  selectedAssetId === prefab.id
                                     ? 'bg-cyan-900/60 border-cyan-500 text-cyan-100 shadow-sm'
                                     : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-700'
                                 }`}
                               >
                                 <div className="flex items-center gap-3">
-                                  {actor.spriteUrl ? (
-                                    <img src={actor.spriteUrl} alt={actor.name} className="w-8 h-8 object-contain pixelated bg-neutral-950 rounded" />
+                                  {prefab.prefabData?.avatarIcon ? (
+                                    <img src={prefab.prefabData?.avatarIcon} alt={prefab.prefabData?.name} className="w-8 h-8 object-contain pixelated bg-neutral-950 rounded" />
                                   ) : (
                                     <div className="w-8 h-8 rounded bg-neutral-950 border border-neutral-800 flex items-center justify-center">
                                       <Zap size={14} className="text-neutral-600" />
                                     </div>
                                   )}
                                   <div className="flex flex-col">
-                                    <span className="text-xs font-bold font-mono">{actor.name}</span>
-                                    <span className="text-[10px] text-neutral-500 uppercase">{actor.type === 'prop' ? 'Prop' : 'Actor'}</span>
+                                    <span className="text-xs font-bold font-mono">{prefab.prefabData?.name}</span>
+                                    <span className="text-[10px] text-neutral-500 uppercase">{prefab.prefabData?.prefabType === 'environmental_prop' ? 'Prop' : 'Prefab'}</span>
                                   </div>
                                 </div>
                               </button>
@@ -2146,7 +2149,6 @@ export const EditorLayout: React.FC = () => {
                           )}
                         </div>
                       )}
-
                       {paintCategory === 'particles' && (
                         <div className="space-y-2">
                           <button
@@ -2271,7 +2273,7 @@ export const EditorLayout: React.FC = () => {
             if (file) {
               if (mod === 'maps') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, mapFileName: file } }));
               else if (mod === 'biomes') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, biomeFileName: file } }));
-              else if (mod === 'characters') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, characterFileName: file } }));
+              else if (mod === 'prefabs') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, prefabFileName: file } }));
               else if (mod === 'behaviors') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, behaviorFileName: file } }));
               else if (mod === 'ui') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, uiFileName: file } }));
               else if (mod === 'gamestructure') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, gameStructureFileName: file } }));

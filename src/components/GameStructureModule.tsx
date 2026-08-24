@@ -1176,7 +1176,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                   Initial Game Entry & Active Module Attachments
                 </h2>
                 <p className="text-xs text-neutral-400 mt-1">
-                  Designate the starting level, initial character, and HUD theme attached to this game session.
+                  Designate the starting level, initial prefab, and HUD theme attached to this game session.
                 </p>
               </div>
 
@@ -1208,26 +1208,26 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Starting Hero Character */}
+                {/* 2. Starting Hero Prefab */}
                 <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-500/40 flex items-center justify-center text-rose-400">
                       <Users size={20} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-neutral-200">Default Character</h4>
+                      <h4 className="text-sm font-bold text-neutral-200">Default Prefab</h4>
                       <p className="text-xs text-neutral-400">Initial player appearance & stats</p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-neutral-300">Select .character File</label>
+                    <label className="text-xs font-bold text-neutral-300">Select .prefab File</label>
                     <select
-                      value={data.defaultCharacterFileName}
-                      onChange={(e) => updateStructure(s => ({ ...s, defaultCharacterFileName: e.target.value }))}
+                      value={data.defaultPrefabFileName}
+                      onChange={(e) => updateStructure(s => ({ ...s, defaultPrefabFileName: e.target.value }))}
                       className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
                     >
-                      {(project.fileSystem.characters || []).map(c => (
+                      {(project.fileSystem.prefabs || []).map(c => (
                         <option key={c.fileName} value={c.fileName}>{c.fileName} ({c.name})</option>
                       ))}
                     </select>

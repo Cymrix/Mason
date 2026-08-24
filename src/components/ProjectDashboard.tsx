@@ -59,17 +59,17 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
 
   const mapCount = project.fileSystem?.maps?.length || 0;
   const biomeCount = project.fileSystem?.biomes?.length || 0;
-  const characterCount = project.fileSystem?.characters?.length || 0;
+  const prefabCount = project.fileSystem?.prefabs?.length || 0;
   const particleCount = project.fileSystem?.particles?.length || 0;
   const uiCount = project.fileSystem?.ui?.length || 0;
   const gameCount = project.fileSystem?.game?.length || 0;
 
-  const totalFiles = mapCount + biomeCount + characterCount + particleCount + uiCount + gameCount;
+  const totalFiles = mapCount + biomeCount + prefabCount + particleCount + uiCount + gameCount;
 
   // Module color definitions
   const mapsColor = getModuleColorDef('maps');
   const biomesColor = getModuleColorDef('biomes');
-  const charactersColor = getModuleColorDef('characters');
+  const prefabsColor = getModuleColorDef('prefabs');
   const particlesColor = getModuleColorDef('particles');
   const uiColor = getModuleColorDef('ui');
   const gameColor = getModuleColorDef('gamestructure');
@@ -123,7 +123,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             </h1>
 
             <p className="text-sm text-neutral-400 max-w-2xl leading-relaxed">
-              {project.description || '2D Metroidvania project with modular level design, 7-layer parallax biomes, characters, and game flow architecture.'}
+              {project.description || '2D Metroidvania project with modular level design, 7-layer parallax biomes, prefabs, and game flow architecture.'}
             </p>
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-400 pt-2 font-mono">
@@ -351,24 +351,24 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           </div>
         </div>
 
-        {/* Characters & Bespoke AI */}
+        {/* Prefabs & Bespoke AI */}
         <div 
-          onClick={() => onLaunchModule('characters')}
+          onClick={() => onLaunchModule('prefabs')}
           className="flex-1 min-w-[130px] max-w-[190px] p-3.5 rounded-2xl border transition cursor-pointer group flex flex-col justify-between shadow-lg"
           style={{
             backgroundColor: bgDef.cardHex,
             borderColor: bgDef.borderHex
           }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = charactersColor.hex)}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = prefabsColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
         >
           <div className="flex items-center justify-between">
             <div 
               className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform"
               style={{
-                backgroundColor: `rgba(${charactersColor.rgb}, 0.2)`,
-                borderColor: `rgba(${charactersColor.rgb}, 0.4)`,
-                color: charactersColor.hex
+                backgroundColor: `rgba(${prefabsColor.rgb}, 0.2)`,
+                borderColor: `rgba(${prefabsColor.rgb}, 0.4)`,
+                color: prefabsColor.hex
               }}
             >
               <Users size={16} />
@@ -376,17 +376,17 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             <span 
               className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border"
               style={{
-                backgroundColor: `rgba(${charactersColor.rgb}, 0.15)`,
-                borderColor: `rgba(${charactersColor.rgb}, 0.3)`,
-                color: charactersColor.hex
+                backgroundColor: `rgba(${prefabsColor.rgb}, 0.15)`,
+                borderColor: `rgba(${prefabsColor.rgb}, 0.3)`,
+                color: prefabsColor.hex
               }}
             >
-              .character
+              .prefab
             </span>
           </div>
           <div className="mt-2.5">
-            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{characterCount}</div>
-            <div className="text-[11px] font-bold text-neutral-300 truncate">Characters & AI</div>
+            <div className="text-xl font-black text-white group-hover:opacity-90 transition font-mono">{prefabCount}</div>
+            <div className="text-[11px] font-bold text-neutral-300 truncate">Prefabs & AI</div>
           </div>
         </div>
 

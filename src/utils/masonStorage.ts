@@ -618,7 +618,7 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
     activeFiles: {
       mapFileName: mapFile.fileName,
       biomeFileName: biomeFiles[0]?.fileName || 'ashen_steppes.biome',
-      characterFileName: 'hero_adventurer.character',
+      prefabFileName: 'hero_adventurer.prefab',
       uiFileName: 'standard_dark.ui',
       gameStructureFileName: 'main_metroidvania.gamestructure',
       particleFileName: 'fire_embers.particle'
@@ -626,17 +626,17 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
     fileSystem: {
       maps: [mapFile],
       biomes: biomeFiles,
-      characters: [
+      prefabs: [
         {
           id: 'char_hero',
           name: 'Hero Adventurer',
-          fileName: 'hero_adventurer.character',
+          fileName: 'hero_adventurer.prefab',
           createdAt: now,
           updatedAt: now,
-          characterData: {
+          prefabData: {
             id: 'char_hero',
             name: 'Hero Adventurer',
-            characterType: 'player_hero',
+            prefabType: 'player_hero',
             avatarIcon: '🛡️',
             spriteWidth: 64,
             spriteHeight: 64,

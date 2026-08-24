@@ -61,14 +61,14 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     version: MASON_VERSION_DISPLAY
   },
   {
-    id: 'characters',
-    name: 'Actors & Props',
+    id: 'prefabs',
+    name: 'Prefabs',
     tagline: 'Visual spritesheets, state machines, props, attributes & bespoke IFTTT rule engine',
     category: 'Actors & Combat',
-    subfolder: 'modules/characters',
-    entryHtml: '/modules/characters/index.html',
-    associatedFolder: 'characters',
-    associatedExtension: '.character',
+    subfolder: 'modules/prefabs',
+    entryHtml: '/modules/prefabs/index.html',
+    associatedFolder: 'prefabs',
+    associatedExtension: '.prefab',
     iconName: 'Users',
     accentColor: 'rose',
     description: 'Author player heroes, NPCs, enemies, and animated props (like campfires) with custom spritesheets, state machines, custom variables, and bespoke IFTTT behavior rule logic.',
@@ -76,7 +76,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Visual Animation Studio: Multi-spritesheet support, frame sequencing, hitbox/hurtbox polygons & sockets',
       'Base Attributes & Variables: Manage stats, proficiencies, and custom variables with auto-generated IDs',
       'Bespoke IFTTT Rule Engine: Author sensory sight, sound hearing, proximity, player input, and camera tracking rules',
-      'Rule Inheritance & Cloning: 1-click duplicate character or copy behavior rules from another character'
+      'Rule Inheritance & Cloning: 1-click duplicate prefab or copy behavior rules from another prefab'
     ],
     version: MASON_VERSION_DISPLAY
   },
@@ -91,7 +91,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     associatedExtension: '.particle',
     iconName: 'Sparkles',
     accentColor: 'amber',
-    description: 'Author stunning 2D particle systems: torches, embers, magic sparkles, rain, snow, toxic spores, and explosions. Place ambient emitters in the Map Editor or spawn FX dynamically via Behavior Rules and character sockets.',
+    description: 'Author stunning 2D particle systems: torches, embers, magic sparkles, rain, snow, toxic spores, and explosions. Place ambient emitters in the Map Editor or spawn FX dynamically via Behavior Rules and prefab sockets.',
     features: [
       'Interactive 60fps Real-Time Physics Preview with live cursor burst & drag emitter',
       'Kinematics: Velocity, spread angle dial, gravity X/Y, drag, wind drift & turbulence jitter',

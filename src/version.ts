@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.107';
-export const MASON_VERSION_DISPLAY = 'v0.107';
-export const MASON_FULL_VERSION = 'v0.107';
+export const MASON_VERSION = '0.114';
+export const MASON_VERSION_DISPLAY = 'v0.114';
+export const MASON_FULL_VERSION = 'v0.114';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,56 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.114',
+    date: '2026-08-23',
+    changes: [
+      'Fixed React state mutation bug in bi-directional sync which caused animation settings to stop rendering.'
+    ]
+  },
+  {
+    version: 'v0.113',
+    date: '2026-08-23',
+    changes: [
+      'Fixed bidirectional sync bug where animation track edits were overwritten by initialization fields.'
+    ]
+  },
+  {
+    version: 'v0.112',
+    date: '2026-08-23',
+    changes: [
+      'Initialization & Animation Bi-Directional Synchronization: Merged base initialization properties (start/mid/end colors, sizes, alpha, emissive, rotation) with track node keyframes so editing initialization parameters instantly updates animation gradients and viewport rendering.'
+    ]
+  },
+  {
+    version: 'v0.114',
+    date: '2026-08-23',
+    changes: [
+      'Rule & Version Enforcement: Established strict project rules requiring sequential integer version bumping across package.json, version.ts, and service worker cache on every code update.'
+    ]
+  },
+  {
+    version: 'v0.110',
+    date: '2026-08-23',
+    changes: [
+      'Particle Matrix & Color Flow Fixes: Synchronized the timeline matrix scrubber slider position with the overlay row indicator line, and unified color flow keyframe nodes with inspector color settings using robust hex normalization.'
+    ]
+  },
+  {
+    version: 'v0.109',
+    date: '2026-08-23',
+    changes: [
+      'Particle Viewport Zoom: Fixed mouse wheel zoom behavior in the particle editor viewport to correctly center and scale toward the mouse cursor position.'
+    ]
+  },
+  {
+    version: 'v0.108',
+    date: '2026-08-23',
+    changes: [
+      'React Hook Import Fixes: Resolved runtime `useState` and `useMemo` errors by explicitly importing `useMemo`, `useEffect`, and `useCallback` directly from \'react\' across core components and custom hooks.',
+      'Build Stability: Verified type checking and production bundling across all editor modules.'
+    ]
+  },
   {
     version: 'v0.107',
     date: '2026-08-23',
@@ -112,9 +162,9 @@ export const MASON_RELEASE_HISTORY = [
     date: '2026-08-23',
     changes: [
       'Biome Gravity System: Added biome gravity multiplier controls in Biome Studio (Standard 1.0x, Zero-G / Weightless 0.0x, Low-G Moon 0.3x, Heavy 1.8x, Inverted -1.0x, or Custom scale).',
-      'Character Gravity Overrides: Added action to allow character behaviors to override biome gravity or revert back to biome defaults dynamically.',
-      'Character Variable Binding: Character behaviors can now bind and read character variables (e.g., speed, jump_force, gravity_scale) for movement velocity, impulse jump forces, and gravity modifiers.',
-      'Sensory Triggers Refinement: Removed redundant gravity filters from character triggers, unifying gravity state checks into the multi-condition IF evaluation engine.'
+      'Prefab Gravity Overrides: Added action to allow prefab behaviors to override biome gravity or revert back to biome defaults dynamically.',
+      'Prefab Variable Binding: Prefab behaviors can now bind and read prefab variables (e.g., speed, jump_force, gravity_scale) for movement velocity, impulse jump forces, and gravity modifiers.',
+      'Sensory Triggers Refinement: Removed redundant gravity filters from prefab triggers, unifying gravity state checks into the multi-condition IF evaluation engine.'
     ]
   },
   {
@@ -122,7 +172,7 @@ export const MASON_RELEASE_HISTORY = [
     date: '2026-08-23',
     changes: [
       'Engine Sensory Triggers: Integrated solid detection (left, right, ceiling, floor, forward, backward, ledge ahead) and kinematics physics triggers (jump peak, apex, falling, rising, grounded, wall sliding).',
-      'Multi-Condition IF Evaluator: Added full AND / OR multi-trigger condition evaluation in Character and Behavior rules.',
+      'Multi-Condition IF Evaluator: Added full AND / OR multi-trigger condition evaluation in Prefab and Behavior rules.',
       'Parallax Viewport Centering: Parallax backdrop rendering strictly synchronizes with the center viewport chunk, fading out completely when positioned over unallocated void chunks.',
       'Top Navigation Polish: Removed theme shortcut button from top navbar in favor of main menu theme settings.'
     ]
@@ -131,25 +181,25 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.94',
     date: '2026-08-22',
     changes: [
-      'Character Studio Viewport Defaults: Configured sensory sockets, hitboxes, and collision capsule overlays to be turned OFF by default in the animation viewport so only the clean sprite is visible on launch.',
-      'Map Module Animation Speed Calibration: Fixed the delta-time physics timer calculation in play mode so character animation frame transitions play smoothly at their exact configured FPS rate.',
-      'Character Sprite & Capsule Alignment: Realigned the map spawn marker, placement preview, and interactive player sprite to use center-anchored coordinates matching the Character Studio definition and exact capsule offset.'
+      'Prefab Studio Viewport Defaults: Configured sensory sockets, hitboxes, and collision capsule overlays to be turned OFF by default in the animation viewport so only the clean sprite is visible on launch.',
+      'Map Module Animation Speed Calibration: Fixed the delta-time physics timer calculation in play mode so prefab animation frame transitions play smoothly at their exact configured FPS rate.',
+      'Prefab Sprite & Capsule Alignment: Realigned the map spawn marker, placement preview, and interactive player sprite to use center-anchored coordinates matching the Prefab Studio definition and exact capsule offset.'
     ]
   },
   {
     version: 'v0.93',
     date: '2026-08-22',
     changes: [
-      'Map Module Character Sync: Auto-synchronized the Map Editor "Test Hero" selector with the active character file in Character Studio.',
-      'Real Character Sprite Rendering: Updated Map Canvas to render the actual character spritesheet frames, collision capsules, and orientation at the spawn location and placement hover preview instead of a generic capsule proxy.',
-      'Play Mode Sprite Animation: Animated real character sprites in Play Mode with state-based clip selection (idle, walk, run, jump, attack, dash), facing direction flips, and squash-and-stretch effects.'
+      'Map Module Prefab Sync: Auto-synchronized the Map Editor "Test Hero" selector with the active prefab file in Prefab Studio.',
+      'Real Prefab Sprite Rendering: Updated Map Canvas to render the actual prefab spritesheet frames, collision capsules, and orientation at the spawn location and placement hover preview instead of a generic capsule proxy.',
+      'Play Mode Sprite Animation: Animated real prefab sprites in Play Mode with state-based clip selection (idle, walk, run, jump, attack, dash), facing direction flips, and squash-and-stretch effects.'
     ]
   },
   {
     version: 'v0.92',
     date: '2026-08-22',
     changes: [
-      'Character Animation Studio: Square Keyframe Matrix Grid — Fixed layout and column width table styling with <colgroup> definitions and w-max table-fixed rules, enforcing perfect 28px × 28px square cells.',
+      'Prefab Animation Studio: Square Keyframe Matrix Grid — Fixed layout and column width table styling with <colgroup> definitions and w-max table-fixed rules, enforcing perfect 28px × 28px square cells.',
       'Keyframe Matrix UI Polish: Replaced text coordinates with compact centered indicator badges (◆ for keyframes, ○ for holding frames), added vertical drag-resize handles and S/M/L height presets.',
       'Left Sidebar Resizing: Implemented interactive draggable border handle for adjustable animation sidebar width.'
     ]
@@ -166,7 +216,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.90',
     date: '2026-08-22',
     changes: [
-      'Character Module Spritesheet Optimization: Removed redundant Total Frames input from spritesheet slot cards (frames are configured directly per animation clip).',
+      'Prefab Module Spritesheet Optimization: Removed redundant Total Frames input from spritesheet slot cards (frames are configured directly per animation clip).',
       'Tile Grid Inspector Cleanup: Removed the redundant "Set as Start Frame" button from the spritesheet inspector.',
       'Fixed Spritesheet Zoom & Viewport Framing: Synchronized tile grid cell dimensions with background slice size and offsets across all zoom levels (0.5x, 1x, 2x, 3x, 4x), guaranteeing every sprite frame stays perfectly centered and bounded inside each cell.'
     ]
@@ -274,17 +324,17 @@ export const MASON_RELEASE_HISTORY = [
       'UI Streamlining: Restored full-featured top navbar font sizes and re-added the quick Modules icon dropdown (🧩) in the main top header.',
       'Removed Redundant Navigation: Removed intermediate dashboard module tabs bar (dashboard cards handle navigation) and consolidated duplicate buttons.',
       'Maximizing Vertical Space: Removed redundant sub-header bar, standalone app switch, and duplicate switch module button in ModuleRunnerContainer.',
-      'Sticky Module Tabs: Made primary workspace tabs in Character Creator (Animation Studio, Spritesheets, Variables, States, Behaviors) and Biome Editor sticky so they never scroll away.',
-      'Header Consolidation: Combined Project Info/Dashboard navigation and file operations into a single sleek h-9 bar, aligning Copy Rules/Vars alongside the character metadata.'
+      'Sticky Module Tabs: Made primary workspace tabs in Prefab Creator (Animation Studio, Spritesheets, Variables, States, Behaviors) and Biome Editor sticky so they never scroll away.',
+      'Header Consolidation: Combined Project Info/Dashboard navigation and file operations into a single sleek h-9 bar, aligning Copy Rules/Vars alongside the prefab metadata.'
     ]
   },
   {
     version: 'v0.78',
     date: '2026-08-18',
     changes: [
-      'App Layout: Added persistent, always-visible Module Tabs Bar (Dashboard, Maps, Biomes, Characters, UI HUD, World Graph) for instant 1-click navigation.',
+      'App Layout: Added persistent, always-visible Module Tabs Bar (Dashboard, Maps, Biomes, Prefabs, UI HUD, World Graph) for instant 1-click navigation.',
       'Vertical Space Optimization: Condensed headers, file subfolder breadcrumb bars (h-9), and workspace tabs across all modules with compact pill styles and tooltips.',
-      'Character FSM Engine: Fixed Add State and Add Transition modals, enabling instant visual creation and configuration of state nodes and transition triggers.'
+      'Prefab FSM Engine: Fixed Add State and Add Transition modals, enabling instant visual creation and configuration of state nodes and transition triggers.'
     ]
   },
   {
@@ -302,7 +352,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.76',
     date: '2026-08-18',
     changes: [
-      'Character Module: Added group & individual visibility toggles for Sprite, Capsule, Sockets, and Hitboxes in the 2D Viewport and Sidebar.',
+      'Prefab Module: Added group & individual visibility toggles for Sprite, Capsule, Sockets, and Hitboxes in the 2D Viewport and Sidebar.',
       'FSM States: Implemented smooth mouse wheel zoom and right-click / middle-click panning on the Finite State Machine graph canvas.',
       'Behaviors: Added a secondary state dropdown when "State Active / Event" trigger condition is chosen (supporting While In State, On State Enter, On State Exit, and On Transition Fired).',
       'Behaviors: Minimized behavior rule cards by default with summary badges and added global "Expand All" / "Collapse All" controls.'
@@ -313,16 +363,16 @@ export const MASON_RELEASE_HISTORY = [
     date: '2026-08-18',
     changes: [
       'Dashboard: Centered the module grid layout for better focus on desktop.',
-      'Behaviors: Added a "Variables" tab to allow Behavior scripts to dictate custom RPG stats, attributes, and proficiencies to linked Characters (with static/open enforcement).',
-      'Characters: Refactored the RPG Stats tab to dynamically render variables exposed by the linked Behavior script.',
-      'Behaviors: Added an animation selector dropdown to the "Play Animation State" action node, which aggregates available animations from assigned characters.'
+      'Behaviors: Added a "Variables" tab to allow Behavior scripts to dictate custom RPG stats, attributes, and proficiencies to linked Prefabs (with static/open enforcement).',
+      'Prefabs: Refactored the RPG Stats tab to dynamically render variables exposed by the linked Behavior script.',
+      'Behaviors: Added an animation selector dropdown to the "Play Animation State" action node, which aggregates available animations from assigned prefabs.'
     ]
   },
   {
     version: 'v0.74',
     date: '2026-08-18',
     changes: [
-      'Engine: Completely decoupled and removed Archetypes from the architecture, merging stats and functionality directly into the Character Editor.',
+      'Engine: Completely decoupled and removed Archetypes from the architecture, merging stats and functionality directly into the Prefab Editor.',
       'Dashboard & Modals: Removed the Archetypes module card from the dashboard and pruned Archetypes from the subfolder system.'
     ]
   },
@@ -348,31 +398,31 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.71',
     date: '2026-08-17',
     changes: [
-      'Character Module: Resolved viewport stretching regression by dynamically syncing internal canvas buffer dimensions with container width/height instead of fixed aspect ratio scaling.',
-      'Character Module: Fixed point & polygon snap-back on drag release by guaranteeing character file insertion in project filesystem and updating both active keyframe and base character anchors upon mouse release.'
+      'Prefab Module: Resolved viewport stretching regression by dynamically syncing internal canvas buffer dimensions with container width/height instead of fixed aspect ratio scaling.',
+      'Prefab Module: Fixed point & polygon snap-back on drag release by guaranteeing prefab file insertion in project filesystem and updating both active keyframe and base prefab anchors upon mouse release.'
     ]
   },
   {
     version: 'v0.70',
     date: '2026-08-17',
     changes: [
-      'Character Module: Fixed silent failure where new keyframes were not saved if the base animation object had not yet been formally initialized in the character\'s data array.'
+      'Prefab Module: Fixed silent failure where new keyframes were not saved if the base animation object had not yet been formally initialized in the prefab\'s data array.'
     ]
   },
   {
     version: 'v0.69',
     date: '2026-08-17',
     changes: [
-      'Character Module: Bulletproofed global project state updates with deep cloning to prevent React from dropping mouseup commits.',
-      'Character Module: Consolidated overlapping canvas and global mouseup event handlers to prevent race conditions during drag release.'
+      'Prefab Module: Bulletproofed global project state updates with deep cloning to prevent React from dropping mouseup commits.',
+      'Prefab Module: Consolidated overlapping canvas and global mouseup event handlers to prevent race conditions during drag release.'
     ]
   },
   {
     version: 'v0.68',
     date: '2026-08-17',
     changes: [
-      'Character Module: Re-architected canvas point/polygon dragging to use local component state (dragOverride) instead of dispatching global project updates on every mouse move, completely eliminating the 60fps rendering bottleneck/hang.',
-      'Character Module: Restricted canvas panning exclusively to Right-Click (button 2) as requested.'
+      'Prefab Module: Re-architected canvas point/polygon dragging to use local component state (dragOverride) instead of dispatching global project updates on every mouse move, completely eliminating the 60fps rendering bottleneck/hang.',
+      'Prefab Module: Restricted canvas panning exclusively to Right-Click (button 2) as requested.'
     ]
   },
   {
@@ -393,7 +443,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.65',
     date: '2026-08-17',
     changes: [
-      'Character Module: Fixed item dragging in viewport by resolving a stale closure on the live keyframe updater',
+      'Prefab Module: Fixed item dragging in viewport by resolving a stale closure on the live keyframe updater',
       'All Modules: Standardized panning controls to allow Right Click across all editor canvases'
     ]
   },
@@ -401,12 +451,12 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.64',
     date: '2026-08-17',
     changes: [
-      'Character Module: Fixed canvas viewport mouse coordinate scaling factor to account for CSS resolution vs buffer size',
-      'Character Module: Expanded point and polygon vertex hit detection targets (16px and 14px canvas radii)',
-      'Character Module: Added point-in-polygon body click selection so clicking anywhere inside a hitbox selects it',
-      'Character Module: Auto-pause animation playback during dragging to prevent keyframes from ticking',
-      'Character Module: Fixed viewport wheel zoom event listener with non-passive preventDefault to prevent outer page scrolling',
-      'Character Module: Enforced crisp handle sizing on screen regardless of zoom level'
+      'Prefab Module: Fixed canvas viewport mouse coordinate scaling factor to account for CSS resolution vs buffer size',
+      'Prefab Module: Expanded point and polygon vertex hit detection targets (16px and 14px canvas radii)',
+      'Prefab Module: Added point-in-polygon body click selection so clicking anywhere inside a hitbox selects it',
+      'Prefab Module: Auto-pause animation playback during dragging to prevent keyframes from ticking',
+      'Prefab Module: Fixed viewport wheel zoom event listener with non-passive preventDefault to prevent outer page scrolling',
+      'Prefab Module: Enforced crisp handle sizing on screen regardless of zoom level'
     ]
   },
   {

@@ -7,7 +7,7 @@ import { UIThemeModule } from './UIThemeModule';
 import { RefinedBiomeEditor } from './RefinedBiomeEditor';
 import { GameStructureModule } from './GameStructureModule';
 import { BiomeMacroMapModal } from './BiomeMacroMapModal';
-import { CharacterEditor } from './CharacterEditor';
+import { PrefabEditor } from './PrefabEditor';
 import { ParticlesEditor } from './ParticlesEditor';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle } from '../engine/metroidvaniaGenerator';
@@ -19,7 +19,7 @@ interface ModuleRunnerContainerProps {
   onBackToProjectInfo: () => void;
   onOpenModulesModal: () => void;
   onOpenExplorer: () => void;
-  onNavigateToModule?: (moduleId: string, fileOptions?: { characterFileName?: string }) => void;
+  onNavigateToModule?: (moduleId: string, fileOptions?: { prefabFileName?: string }) => void;
 }
 
 export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
@@ -100,8 +100,8 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
     <div className="flex-1 flex flex-col overflow-hidden bg-neutral-950 select-none">
       {/* Interactive Full-Engine Direct View */}
       <div className="w-full h-full flex flex-col overflow-hidden">
-        {moduleId === 'characters' && (
-          <CharacterEditor
+        {moduleId === 'prefabs' && (
+          <PrefabEditor
             project={project}
             onUpdateProject={onUpdateProject}
             onOpenFiles={onOpenExplorer}

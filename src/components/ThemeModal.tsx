@@ -204,7 +204,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
 
                 const mapsDef = COLOR_DEFINITIONS[preset.moduleColors.maps];
                 const biomesDef = COLOR_DEFINITIONS[preset.moduleColors.biomes];
-                const charDef = COLOR_DEFINITIONS[preset.moduleColors.characters];
+                const charDef = COLOR_DEFINITIONS[preset.moduleColors.prefabs];
                 const uiDef = COLOR_DEFINITIONS[preset.moduleColors.ui];
                 const gameDef = COLOR_DEFINITIONS[preset.moduleColors.gamestructure];
 
@@ -313,7 +313,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: biomesDef?.hex }} />
                         </div>
 
-                        {/* Characters */}
+                        {/* Prefabs */}
                         <div 
                           className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
                           style={{
@@ -321,7 +321,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                             borderColor: charDef?.hex,
                             color: charDef?.hex
                           }}
-                          title={`Characters & AI (.character): ${charDef?.name}`}
+                          title={`Prefabs & AI (.prefab): ${charDef?.name}`}
                         >
                           <span className="text-[8px] opacity-70">CHR</span>
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: charDef?.hex }} />
@@ -504,21 +504,21 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Characters Module */}
+                  {/* Prefabs Module */}
                   <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
                       <div 
                         className="w-7 h-7 rounded-lg border flex items-center justify-center"
                         style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('characters').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('characters').hex,
-                          color: getModuleColorDef('characters').hex
+                          backgroundColor: `rgba(${getModuleColorDef('prefabs').rgb}, 0.2)`,
+                          borderColor: getModuleColorDef('prefabs').hex,
+                          color: getModuleColorDef('prefabs').hex
                         }}
                       >
                         <Users size={15} />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-neutral-200">Character Creator & AI (.character)</div>
+                        <div className="text-xs font-bold text-neutral-200">Prefab Creator & AI (.prefab)</div>
                         <div className="text-[10px] text-neutral-400">Spritesheets, hitboxes & IFTTT AI rules</div>
                       </div>
                     </div>
@@ -528,14 +528,14 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         <button
                           key={k}
                           type="button"
-                          onClick={() => setModuleColor('characters', k)}
+                          onClick={() => setModuleColor('prefabs', k)}
                           className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.characters === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
+                            theme.moduleColors.prefabs === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
                           }`}
                           style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
                           title={COLOR_DEFINITIONS[k].name}
                         >
-                          {theme.moduleColors.characters === k && <Check size={12} />}
+                          {theme.moduleColors.prefabs === k && <Check size={12} />}
                         </button>
                       ))}
                     </div>
@@ -811,11 +811,11 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         <div 
                           className="w-6 h-6 rounded-lg flex items-center justify-center border text-xs"
                           style={{
-                            backgroundColor: `rgba(${getModuleColorDef('characters').rgb}, 0.2)`,
-                            borderColor: getModuleColorDef('characters').hex,
-                            color: getModuleColorDef('characters').hex
+                            backgroundColor: `rgba(${getModuleColorDef('prefabs').rgb}, 0.2)`,
+                            borderColor: getModuleColorDef('prefabs').hex,
+                            color: getModuleColorDef('prefabs').hex
                           }}
-                          title="Characters & AI"
+                          title="Prefabs & AI"
                         >
                           <Users size={13} />
                         </div>

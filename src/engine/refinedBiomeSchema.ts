@@ -528,7 +528,7 @@ export interface RefinedMapCell {
   current_health: number;
   damage_threshold_index: number;
   environmental_detail_id?: string | null;
-  actor_id?: string | null;
+  prefab_id?: string | null;
   interactive_detail_id?: string | null;
   wildlife_id?: string | null;
 }

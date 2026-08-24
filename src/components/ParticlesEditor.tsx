@@ -48,7 +48,7 @@ import {
   ParticleAnimStyle,
   DEFAULT_PARTICLE_SYSTEMS
 } from '../engine/masonProjectSchema';
-import { ParticleEngine, evaluateTrackValue } from '../engine/systems/ParticleEngine';
+import { ParticleEngine, evaluateTrackValue } from '../engine/ParticleEngine';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { exportParticleFile, createNewParticleInProject } from '../utils/masonStorage';
 
@@ -1052,6 +1052,59 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       let updatedData = { ...rawUpdated };
 
       if (currentParticleData.visuals && updatedData.visuals) {
+        // --- Bidirectional Sync ---
+        const oldVis = currentParticleData.visuals;
+        const newVis = updatedData.visuals;
+        
+        // Ensure trackNodes is safely deep-cloned if we are going to modify it
+        if (newVis.trackNodes && newVis.trackNodes === oldVis.trackNodes) {
+           newVis.trackNodes = { ...oldVis.trackNodes };
+        }
+        
+        const syncTrack = (trackName: string, startField: string, endField: string, midField: string) => {
+           let initChanged = false;
+           
+           if (oldVis[startField] !== newVis[startField]) {
+               initChanged = true;
+               if (newVis.trackNodes?.[trackName]) {
+                   newVis.trackNodes[trackName] = newVis.trackNodes[trackName].map((n: any) => Math.abs(n.time) < 0.001 ? { ...n, value: newVis[startField] } : n);
+               }
+           }
+           if (oldVis[endField] !== newVis[endField]) {
+               initChanged = true;
+               if (newVis.trackNodes?.[trackName]) {
+                   newVis.trackNodes[trackName] = newVis.trackNodes[trackName].map((n: any) => Math.abs(n.time - 1) < 0.001 ? { ...n, value: newVis[endField] } : n);
+               }
+           }
+           if (oldVis[midField] !== newVis[midField] && newVis[midField] !== undefined) {
+               initChanged = true;
+               if (newVis.trackNodes?.[trackName]) {
+                   newVis.trackNodes[trackName] = newVis.trackNodes[trackName].map((n: any) => Math.abs(n.time - 0.5) < 0.001 ? { ...n, value: newVis[midField] } : n);
+               }
+           }
+           
+           // If the initialization fields weren't touched, check if the track nodes were touched and sync back
+           if (!initChanged && newVis.trackNodes?.[trackName] && newVis.trackNodes[trackName] !== oldVis.trackNodes?.[trackName]) {
+               const n0 = newVis.trackNodes[trackName].find((n: any) => Math.abs(n.time) < 0.001);
+               if (n0) newVis[startField] = n0.value;
+               const n1 = newVis.trackNodes[trackName].find((n: any) => Math.abs(n.time - 1) < 0.001);
+               if (n1) newVis[endField] = n1.value;
+               const nMid = newVis.trackNodes[trackName].find((n: any) => Math.abs(n.time - 0.5) < 0.001);
+               if (nMid) {
+                   newVis[midField] = nMid.value;
+               } else if (newVis[midField] !== undefined) {
+                   newVis[midField] = undefined; // If mid node was deleted, clear the mid field
+               }
+           }
+        };
+
+        syncTrack('color', 'startColor', 'endColor', 'midColor');
+        syncTrack('size', 'startSize', 'endSize', 'midSize');
+        syncTrack('alpha', 'startAlpha', 'endAlpha', 'midAlpha');
+        syncTrack('emissive', 'emissiveStartStrength', 'emissiveEndStrength', 'emissiveMidStrength');
+        syncTrack('rotation', 'startRotationDeg', 'endRotationDeg', 'midRotationDeg');
+        // --------------------------
+
         const oldStyle = currentParticleData.visuals.fxStyle as any;
         const newStyle = updatedData.visuals.fxStyle as any;
         if (oldStyle !== 'custom' && oldStyle === newStyle) {
@@ -1087,7 +1140,21 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     });
   };
 
+  const toValidHex = (hex: any): string => {
+    if (!hex || typeof hex !== 'string') return '#ffa500';
+    if (hex.startsWith('#') && (hex.length === 7 || hex.length === 4)) {
+      if (hex.length === 4) {
+        return '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+      }
+      return hex;
+    }
+    const rgb = hexToRgb(hex);
+    return rgbToHex(rgb.r, rgb.g, rgb.b);
+  };
   // Helper to parse hex colors to RGB
+  
+
+
   const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
     let cleanHex = hex.replace('#', '');
     if (cleanHex.length === 3) {
@@ -1334,7 +1401,6 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
-
     if (track === 'color') {
       const start = visuals?.startColor ?? '#ffa500';
       const end = visuals?.endColor ?? '#ff0000';
@@ -1343,7 +1409,6 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
-
     if (track === 'alpha') {
       const start = visuals?.startAlpha ?? 1.0;
       const end = visuals?.endAlpha ?? 0.0;
@@ -1352,7 +1417,6 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
-
     if (track === 'emissive') {
       const start = visuals?.emissiveStartStrength ?? 35;
       const end = visuals?.emissiveEndStrength ?? 0;
@@ -1361,7 +1425,6 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
-
     if (track === 'rotation') {
       const start = visuals?.startRotationDeg ?? 0;
       const end = visuals?.endRotationDeg ?? 360;
@@ -1370,18 +1433,15 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       return [{ time: 0, value: start }, { time: 1, value: end }];
     }
-
     if (track === 'speed') {
       return [{ time: 0, value: 0 }, { time: 1, value: 0 }];
     }
-
     if (track === 'drag') {
       return [{ time: 0, value: 0.98 }, { time: 1, value: 0.98 }];
     }
-
     return [{ time: 0, value: 0 }, { time: 1, value: 1 }];
   };
-
+  
   const evaluateTrackValue = (
     progress: number,
     track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag',
@@ -1690,7 +1750,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }
       }
 
-      engineRef.current.update(dt, activeParticleData.physics, floorY);
+            const globalWind = simulatedBiomeWindEnabled ? simulatedBiomeWind : 0;
+      engineRef.current.update(dt, activeParticleData.physics, floorY, globalWind);
+      setActiveParticleCount(engineRef.current.particles.length);
 
       // Render environment
       ctx.clearRect(0, 0, width, height);
@@ -1749,7 +1811,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         ctx.fillText('SOLID FLOOR GEOMETRY (COLLISION PLANE)', 16, floorY + 20);
       }
 
-      engineRef.current.render(ctx, panOffset, zoom, activeParticleData);
+      engineRef.current.render(ctx, panOffset, zoom, activeParticleData, showCollisionWireframe, emitterPos);
 
       animId = requestAnimationFrame(renderLoop);
     };
@@ -1766,10 +1828,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     const mouseX = ((e.clientX - rect.left) / rect.width) * canvas.width;
     const mouseY = ((e.clientY - rect.top) / rect.height) * canvas.height;
 
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const worldX = (mouseX - (centerX + panOffset.x)) / zoom + centerX;
-    const worldY = (mouseY - (centerY + panOffset.y)) / zoom + centerY;
+    const worldX = (mouseX - panOffset.x) / zoom;
+    const worldY = (mouseY - panOffset.y) / zoom;
 
     return { mouseX, mouseY, worldX, worldY };
   };
@@ -1787,13 +1847,11 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     const nextZoom = Math.min(4.0, Math.max(0.25, Math.round(zoom * delta * 100) / 100));
     if (nextZoom === zoom) return;
 
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
     const zoomRatio = nextZoom / zoom;
 
     // Shift pan offset to keep mouse position fixed in world space during zoom
-    const nextPanX = (mouseX - centerX) - (mouseX - centerX - panOffset.x) * zoomRatio;
-    const nextPanY = (mouseY - centerY) - (mouseY - centerY - panOffset.y) * zoomRatio;
+    const nextPanX = mouseX - (mouseX - panOffset.x) * zoomRatio;
+    const nextPanY = mouseY - (mouseY - panOffset.y) * zoomRatio;
 
     setZoom(nextZoom);
     setPanOffset({ x: nextPanX, y: nextPanY });
@@ -2871,7 +2929,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         <option value="square">Solid Box Square</option>
                         <option value="pixel_square">Crisp Retro Pixel</option>
                         <option value="bubble">Translucent Floating Bubble</option>
-                        <option value="custom_glyph">Procedural Character Glyph</option>
+                        <option value="custom_glyph">Procedural Prefab Glyph</option>
                         <option value="svg_path">Custom Vector SVG Path</option>
                         <option value="spritesheet">Animated Spritesheet Atlas</option>
                       </select>
@@ -2880,7 +2938,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                     {/* Custom glyph / svg inputs if active */}
                     {activeParticleData.visuals.shape === 'custom_glyph' && (
                       <div>
-                        <label className="text-[10px] font-bold text-neutral-400 block mb-1">Custom Character / Symbol / Emoji</label>
+                        <label className="text-[10px] font-bold text-neutral-400 block mb-1">Custom Prefab / Symbol / Emoji</label>
                         <input
                           type="text"
                           maxLength={5}
@@ -3724,7 +3782,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       {visibleTracks.length > 0 && (
                         <div 
                           className="absolute top-0 bottom-0 w-[2px] bg-rose-500 z-10 pointer-events-none shadow-[0_0_8px_rgba(244,63,94,0.6)]"
-                          style={{ left: `calc(110px + ${scrubberProgress * 100}% - ${scrubberProgress * 6}px)` }}
+                          style={{ left: `calc(110px + ${scrubberProgress} * (100% - 110px))` }}
                         >
                           <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white" />
                         </div>

@@ -58,14 +58,14 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
   onNavigateToModule
 }) => {
   const [selectedFile, setSelectedFile] = useState<{
-    subfolder: 'maps' | 'biomes' | 'characters' | 'ui' | 'game';
+    subfolder: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game';
     file: any;
   } | null>(null);
 
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
     maps: true,
     biomes: true,
-    characters: true,
+    prefabs: true,
     ui: true,
     game: true
   });
@@ -90,18 +90,18 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
     } else if (newFileInput.subfolder === 'biomes') {
       const { project: updated } = createNewBiomeInProject(project, name);
       onUpdateProject(() => updated);
-    } else if (newFileInput.subfolder === 'characters') {
-      const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.character`;
+    } else if (newFileInput.subfolder === 'prefabs') {
+      const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
       const newChar = {
         id: `char_${Date.now()}`,
         name,
         fileName: safeName,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        characterData: {
+        prefabData: {
           id: `char_${Date.now()}`,
           name,
-          characterType: 'enemy_mob' as const,
+          prefabType: 'enemy_mob' as const,
           avatarIcon: '👹',
           spriteWidth: 64,
           spriteHeight: 64,
@@ -147,7 +147,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
       };
       onUpdateProject(p => ({
         ...p,
-        fileSystem: { ...p.fileSystem, characters: [...(p.fileSystem.characters || []), newChar] }
+        fileSystem: { ...p.fileSystem, prefabs: [...(p.fileSystem.prefabs || []), newChar] }
       }));
     } else if (newFileInput.subfolder === 'ui') {
       const { project: updated } = createNewUIThemeInProject(project, name);
@@ -182,10 +182,10 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
             ...p,
             fileSystem: { ...p.fileSystem, biomes: [...p.fileSystem.biomes, parsed] }
           }));
-        } else if (file.name.endsWith('.character') || parsed.characterData) {
+        } else if (file.name.endsWith('.prefab') || parsed.prefabData) {
           onUpdateProject(p => ({
             ...p,
-            fileSystem: { ...p.fileSystem, characters: [...(p.fileSystem.characters || []), parsed] }
+            fileSystem: { ...p.fileSystem, prefabs: [...(p.fileSystem.prefabs || []), parsed] }
           }));
         } else if (file.name.endsWith('.behavior') || parsed.behaviorData) {
           onUpdateProject(p => ({
@@ -231,7 +231,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Subfolder-based virtual file storage for Maps, Biomes, Characters, Behaviors, UI & Game Framework
+                Subfolder-based virtual file storage for Maps, Biomes, Prefabs, Behaviors, UI & Game Framework
               </p>
             </div>
           </div>
@@ -358,36 +358,36 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
               )}
             </div>
 
-            {/* FOLDER 3.5: /characters/ (.character) */}
+            {/* FOLDER 3.5: /prefabs/ (.prefab) */}
             <div className="space-y-1">
               <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
                 <button
                   type="button"
-                  onClick={() => toggleFolder('characters')}
+                  onClick={() => toggleFolder('prefabs')}
                   className="flex items-center gap-2 text-xs font-bold text-neutral-200"
                 >
-                  {expandedFolders.characters ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
+                  {expandedFolders.prefabs ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
                   <Folder size={15} className="text-rose-400" />
-                  <span>characters/</span>
-                  <span className="text-[10px] font-mono text-neutral-500">({(project.fileSystem.characters || []).length})</span>
+                  <span>prefabs/</span>
+                  <span className="text-[10px] font-mono text-neutral-500">({(project.fileSystem.prefabs || []).length})</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setNewFileInput({ subfolder: 'characters', name: '' })}
+                  onClick={() => setNewFileInput({ subfolder: 'prefabs', name: '' })}
                   className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-400 rounded"
-                  title="New .character file"
+                  title="New .prefab file"
                 >
                   <Plus size={13} />
                 </button>
               </div>
 
-              {expandedFolders.characters && (
+              {expandedFolders.prefabs && (
                 <div className="pl-6 space-y-0.5">
-                  {(project.fileSystem.characters || []).map(c => (
+                  {(project.fileSystem.prefabs || []).map(c => (
                     <button
                       key={c.fileName}
                       type="button"
-                      onClick={() => setSelectedFile({ subfolder: 'characters', file: c })}
+                      onClick={() => setSelectedFile({ subfolder: 'prefabs', file: c })}
                       className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
                         selectedFile?.file?.fileName === c.fileName
                           ? 'bg-rose-950/60 text-rose-200 border border-rose-500/40'
@@ -515,7 +515,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                         const targetModule: MasonModuleId = 
                           selectedFile.subfolder === 'maps' ? 'maps' :
                           selectedFile.subfolder === 'biomes' ? 'biomes' :
-                          selectedFile.subfolder === 'characters' ? 'characters' :
+                          selectedFile.subfolder === 'prefabs' ? 'prefabs' :
                           selectedFile.subfolder === 'ui' ? 'ui' : 'gamestructure';
 
                         onNavigateToModule(targetModule, selectedFile.file.fileName);

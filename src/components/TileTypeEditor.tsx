@@ -589,7 +589,7 @@ export const TileTypeEditor: React.FC<TileTypeEditorProps> = ({
                 <div className="p-3 bg-neutral-950/70 border border-neutral-800 rounded-lg text-[11px] text-neutral-400 space-y-1">
                   <span className="font-semibold text-neutral-300">Gating Separation</span>
                   <p>
-                    TileType handles speed and contact hazards. Progression gating is explicitly reserved for character traversal abilities (double jump, dash, glide).
+                    TileType handles speed and contact hazards. Progression gating is explicitly reserved for prefab traversal abilities (double jump, dash, glide).
                   </p>
                 </div>
               </div>

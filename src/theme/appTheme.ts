@@ -43,7 +43,7 @@ export type ThemeCategory = 'standard' | 'accessibility';
 export interface ModuleColorMap {
   maps: AccentColorKey;
   biomes: AccentColorKey;
-  characters: AccentColorKey;
+  prefabs: AccentColorKey;
   ui: AccentColorKey;
   gamestructure: AccentColorKey;
 }
@@ -486,7 +486,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'cyan',
       biomes: 'emerald',
-      characters: 'rose',
+      prefabs: 'rose',
       ui: 'amber',
       gamestructure: 'purple'
     }
@@ -501,7 +501,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'lime',
       biomes: 'teal',
-      characters: 'fuchsia',
+      prefabs: 'fuchsia',
       ui: 'amber',
       gamestructure: 'purple'
     }
@@ -516,7 +516,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'sky',
       biomes: 'lime',
-      characters: 'rose',
+      prefabs: 'rose',
       ui: 'gold',
       gamestructure: 'indigo'
     }
@@ -531,7 +531,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'cyan',
       biomes: 'emerald',
-      characters: 'fuchsia',
+      prefabs: 'fuchsia',
       ui: 'amber',
       gamestructure: 'purple'
     }
@@ -546,7 +546,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'cyan',
       biomes: 'lime',
-      characters: 'rose',
+      prefabs: 'rose',
       ui: 'teal',
       gamestructure: 'purple'
     }
@@ -561,7 +561,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'cyan',
       biomes: 'lime',
-      characters: 'rose',
+      prefabs: 'rose',
       ui: 'amber',
       gamestructure: 'blue'
     }
@@ -576,7 +576,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'cyan',
       biomes: 'lime',
-      characters: 'orange',
+      prefabs: 'orange',
       ui: 'gold',
       gamestructure: 'indigo'
     }
@@ -594,7 +594,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'okabe_skyblue',
       biomes: 'okabe_bluishgreen',
-      characters: 'okabe_vermillion',
+      prefabs: 'okabe_vermillion',
       ui: 'okabe_yellow',
       gamestructure: 'okabe_redpurple'
     }
@@ -610,7 +610,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'sky',
       biomes: 'teal',
-      characters: 'orange',
+      prefabs: 'orange',
       ui: 'gold',
       gamestructure: 'purple'
     }
@@ -626,7 +626,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'emerald',
       biomes: 'lime',
-      characters: 'fuchsia',
+      prefabs: 'fuchsia',
       ui: 'coral',
       gamestructure: 'white'
     }
@@ -642,7 +642,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     moduleColors: {
       maps: 'cyan',
       biomes: 'lime',
-      characters: 'coral',
+      prefabs: 'coral',
       ui: 'gold',
       gamestructure: 'monochrome'
     }
@@ -686,7 +686,7 @@ export function applyThemeCSSVariables(theme: AppThemeConfig): void {
 
     root.style.setProperty('--mason-maps-color', COLOR_DEFINITIONS[theme.moduleColors.maps]?.hex || '#06b6d4');
     root.style.setProperty('--mason-biomes-color', COLOR_DEFINITIONS[theme.moduleColors.biomes]?.hex || '#10b981');
-    root.style.setProperty('--mason-characters-color', COLOR_DEFINITIONS[theme.moduleColors.characters]?.hex || '#f43f5e');
+    root.style.setProperty('--mason-prefabs-color', COLOR_DEFINITIONS[theme.moduleColors.prefabs]?.hex || '#f43f5e');
     root.style.setProperty('--mason-ui-color', COLOR_DEFINITIONS[theme.moduleColors.ui]?.hex || '#f59e0b');
     root.style.setProperty('--mason-gamestructure-color', COLOR_DEFINITIONS[theme.moduleColors.gamestructure]?.hex || '#a855f7');
     root.style.setProperty('--mason-bg-base', bgDef.hex);

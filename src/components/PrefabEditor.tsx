@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   MasonProject, 
-  CharacterFile, 
-  CharacterData, 
-  CharacterSpritesheet,
-  CharacterNamedPoint,
-  CharacterNamedPolygon,
-  CharacterAnimationConfig,
-  CharacterCapsuleConfig,
+  PrefabFile, 
+  PrefabData, 
+  PrefabSpritesheet,
+  PrefabNamedPoint,
+  PrefabNamedPolygon,
+  PrefabAnimationConfig,
+  PrefabCapsuleConfig,
   PolygonHitboxVertex,
   BehaviorVariable,
   BehaviorRule,
@@ -18,9 +18,9 @@ import {
   InputMapping,
   MovementControllerConfig,
   EnemyAIConfig,
-  CharacterStateNode,
-  CharacterStateTransition,
-  CharacterStateMachine
+  PrefabStateNode,
+  PrefabStateTransition,
+  PrefabStateMachine
 } from '../engine/masonProjectSchema';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { 
@@ -216,13 +216,13 @@ interface CharacterEditorProps {
   onBackToDashboard?: () => void;
 }
 
-export const CharacterEditor: React.FC<CharacterEditorProps> = ({
+export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   project,
   onUpdateProject,
   onOpenFiles,
   onBackToDashboard
 }) => {
-  // Toast notification state for Character Module
+  // Toast notification state for Prefab Module
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -280,7 +280,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   });
 
   // Helper to check if a transition condition is unset or 'none'
-  const isTransitionConditionUnset = (tr: CharacterStateTransition | { triggerLabel?: string; behaviorRuleId?: string; conditionType?: string }): boolean => {
+  const isTransitionConditionUnset = (tr: PrefabStateTransition | { triggerLabel?: string; behaviorRuleId?: string; conditionType?: string }): boolean => {
     if (!tr.behaviorRuleId || tr.behaviorRuleId === 'none') return true;
     if (tr.conditionType === 'none') return true;
     if (!tr.triggerLabel) return true;
@@ -447,19 +447,19 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   const dragRafRef = useRef<number | null>(null);
   const currentDragPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Character Files & Active Selection
-  const charFiles = project.fileSystem.characters || [];
-  const activeFileName = project.activeFiles.characterFileName || charFiles[0]?.fileName || '';
+  // Prefab Files & Active Selection
+  const charFiles = project.fileSystem.prefabs || [];
+  const activeFileName = project.activeFiles.prefabFileName || charFiles[0]?.fileName || '';
   const currentFile = charFiles.find(c => c.fileName === activeFileName) || charFiles[0] || {
     id: 'char_default',
     name: 'Korrath Steelhand',
-    fileName: 'korrath.character',
+    fileName: 'korrath.prefab',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    characterData: {
+    prefabData: {
       id: 'char_korrath',
       name: 'Korrath Steelhand',
-      characterType: 'player_hero' as const,
+      prefabType: 'player_hero' as const,
       avatarIcon: '🛡️',
       spriteWidth: 64,
       spriteHeight: 64,
@@ -508,7 +508,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     }
   };
 
-  const char: CharacterData = currentFile.characterData;
+  const char: PrefabData = currentFile.prefabData;
 
   // Available UI Input Mappings for Player Controls
   const activeUiFile = project.fileSystem.ui?.find(u => u.fileName === project.activeFiles.uiFileName) || project.fileSystem.ui?.[0];
@@ -521,10 +521,10 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     { id: 'inp_interact', name: 'interact', label: 'Interact / Talk', triggerMode: 'press', keys: ['KeyE'] }
   ];
 
-  // Helper to safely update current character
-  const updateCharacter = (updater: (prev: CharacterData) => CharacterData) => {
+  // Helper to safely update current prefab
+  const updateCharacter = (updater: (prev: PrefabData) => PrefabData) => {
     onUpdateProject(p => {
-      const chars = p.fileSystem.characters || [];
+      const chars = p.fileSystem.prefabs || [];
       const exists = chars.some(c => c.fileName === currentFile.fileName || c.id === currentFile.id);
       let updatedChars;
       if (exists) {
@@ -533,19 +533,19 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             return {
               ...c,
               updatedAt: new Date().toISOString(),
-              characterData: updater(c.characterData)
+              prefabData: updater(c.prefabData)
             };
           }
           return c;
         });
       } else {
-        const newFile: CharacterFile = {
+        const newFile: PrefabFile = {
           id: currentFile.id || `char_file_${Date.now()}`,
           name: currentFile.name || 'Korrath Steelhand',
-          fileName: currentFile.fileName || 'korrath.character',
+          fileName: currentFile.fileName || 'korrath.prefab',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          characterData: updater(currentFile.characterData)
+          prefabData: updater(currentFile.prefabData)
         };
         updatedChars = [...chars, newFile];
       }
@@ -553,46 +553,46 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         ...p,
         fileSystem: {
           ...p.fileSystem,
-          characters: updatedChars
+          prefabs: updatedChars
         }
       };
     });
   };
 
-  // Fast duplicate character
+  // Fast duplicate prefab
   const handleDuplicateCharacter = () => {
     const baseName = `${char.name} (Copy)`;
-    const safeFileName = `${char.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_copy_${Date.now().toString().slice(-4)}.character`;
-    const newCharData: CharacterData = JSON.parse(JSON.stringify(char));
+    const safeFileName = `${char.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_copy_${Date.now().toString().slice(-4)}.prefab`;
+    const newCharData: PrefabData = JSON.parse(JSON.stringify(char));
     newCharData.id = `char_${Date.now()}`;
     newCharData.name = baseName;
 
-    const newCharFile: CharacterFile = {
+    const newCharFile: PrefabFile = {
       id: `char_file_${Date.now()}`,
       name: baseName,
       fileName: safeFileName,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      characterData: newCharData
+      prefabData: newCharData
     };
 
     onUpdateProject(p => ({
       ...p,
-      activeFiles: { ...p.activeFiles, characterFileName: safeFileName },
+      activeFiles: { ...p.activeFiles, prefabFileName: safeFileName },
       fileSystem: {
         ...p.fileSystem,
-        characters: [...(p.fileSystem.characters || []), newCharFile]
+        prefabs: [...(p.fileSystem.prefabs || []), newCharFile]
       }
     }));
   };
 
-  // Copy Behavior & Variables from another character
+  // Copy Behavior & Variables from another prefab
   const handleCopyBehaviorFromCharacter = () => {
     if (!sourceCharIdToCopy) return;
-    const sourceCharFile = charFiles.find(c => c.characterData.id === sourceCharIdToCopy || c.id === sourceCharIdToCopy);
+    const sourceCharFile = charFiles.find(c => c.prefabData.id === sourceCharIdToCopy || c.id === sourceCharIdToCopy);
     if (!sourceCharFile) return;
 
-    const sourceData = sourceCharFile.characterData;
+    const sourceData = sourceCharFile.prefabData;
     updateCharacter(c => ({
       ...c,
       variables: sourceData.variables ? JSON.parse(JSON.stringify(sourceData.variables)) : c.variables,
@@ -607,13 +607,13 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   };
 
   // Ensure arrays exist
-  const spritesheetsList: CharacterSpritesheet[] = char.spritesheets || [
+  const spritesheetsList: PrefabSpritesheet[] = char.spritesheets || [
     { id: 'sheet_default', name: 'Primary Spritesheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }
   ];
-  const animationsList: CharacterAnimationConfig[] = char.animations || [];
-  const pointsList: CharacterNamedPoint[] = char.points || [];
-  const polygonsList: CharacterNamedPolygon[] = char.polygons || [];
-  const capsuleConfig: CharacterCapsuleConfig = char.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
+  const animationsList: PrefabAnimationConfig[] = char.animations || [];
+  const pointsList: PrefabNamedPoint[] = char.points || [];
+  const polygonsList: PrefabNamedPolygon[] = char.polygons || [];
+  const capsuleConfig: PrefabCapsuleConfig = char.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
   const variablesList: BehaviorVariable[] = char.variables || [];
   const rulesList: BehaviorRule[] = char.rules || [];
   const fsmStates: string[] = char.states || ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
@@ -622,7 +622,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   const defaultColors = ['#38bdf8', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#06b6d4', '#6366f1'];
   const rawStatesList: string[] = char.states && char.states.length > 0 ? char.states : ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
 
-  const stateNodes: CharacterStateNode[] = (char.stateMachine?.states && char.stateMachine.states.length > 0)
+  const stateNodes: PrefabStateNode[] = (char.stateMachine?.states && char.stateMachine.states.length > 0)
     ? char.stateMachine.states
     : rawStatesList.map((st, idx) => {
         const angle = (idx / rawStatesList.length) * 2 * Math.PI - Math.PI / 2;
@@ -633,11 +633,11 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           x: Math.round(320 + Math.cos(angle) * 190),
           y: Math.round(220 + Math.sin(angle) * 130),
           isInitial: idx === 0,
-          description: `Character in ${st} state`
+          description: `Prefab in ${st} state`
         };
       });
 
-  const stateTransitions: CharacterStateTransition[] = (char.stateMachine?.transitions && char.stateMachine.transitions.length > 0)
+  const stateTransitions: PrefabStateTransition[] = (char.stateMachine?.transitions && char.stateMachine.transitions.length > 0)
     ? char.stateMachine.transitions
     : stateNodes.length >= 2 ? [
         { id: 'tr_1', fromStateId: stateNodes[0].id, toStateId: stateNodes[1].id, isBidirectional: false, triggerLabel: 'Movement' },
@@ -646,9 +646,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         ...(stateNodes.length >= 4 ? [{ id: 'tr_3', fromStateId: stateNodes[2].id, toStateId: stateNodes[3].id, isBidirectional: false, triggerLabel: 'Combat Range' }] : [])
       ] : [];
 
-  const updateStateMachine = (updater: (prev: CharacterStateMachine) => CharacterStateMachine) => {
+  const updateStateMachine = (updater: (prev: PrefabStateMachine) => PrefabStateMachine) => {
     updateCharacter(c => {
-      const currentSM: CharacterStateMachine = c.stateMachine || {
+      const currentSM: PrefabStateMachine = c.stateMachine || {
         initialStateId: stateNodes.find(s => s.isInitial)?.id || stateNodes[0]?.id || 'st_idle',
         states: stateNodes,
         transitions: stateTransitions
@@ -671,7 +671,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
       const isFirst = sm.states.length === 0;
       const willBeInitial = stateForm.isInitial || isFirst;
 
-      let newStates: CharacterStateNode[];
+      let newStates: PrefabStateNode[];
       if (stateForm.isEditing) {
         newStates = sm.states.map(s => {
           if (s.id === stateForm.id) {
@@ -686,7 +686,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           return willBeInitial ? { ...s, isInitial: false } : s;
         });
       } else {
-        const newNode: CharacterStateNode = {
+        const newNode: PrefabStateNode = {
           id: safeId,
           name: stateForm.name.trim(),
           color: stateForm.color,
@@ -738,7 +738,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
       if (existing) setSelectedTransitionId(existing.id);
       return;
     }
-    const newTr: CharacterStateTransition = {
+    const newTr: PrefabStateTransition = {
       id: `tr_${Date.now().toString().slice(-4)}`,
       fromStateId: toId,
       toStateId: fromId,
@@ -772,7 +772,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           } : t)
         };
       } else {
-        const newTr: CharacterStateTransition = {
+        const newTr: PrefabStateTransition = {
           id: `tr_${Date.now().toString().slice(-4)}`,
           fromStateId: transitionForm.fromStateId,
           toStateId: transitionForm.toStateId,
@@ -894,7 +894,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
   const activeSpritesheet = spritesheetsList.find(s => s.id === currentAnimation.spritesheetId) || spritesheetsList[0];
 
-  const getSpritesheetDataUrl = (sheet: CharacterSpritesheet): string => {
+  const getSpritesheetDataUrl = (sheet: PrefabSpritesheet): string => {
     if (sheet.imageUrl || sheet.dataUrl) return sheet.imageUrl || sheet.dataUrl || '';
 
     // Procedural fallback sprite sheet image
@@ -962,7 +962,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   };
 
   // Hold-forward evaluation: look for latest keyframe at or before activeGlobalFrameIndex (within current animation clip)
-  const getPointPosForActiveFrame = (pt: CharacterNamedPoint): { x: number; y: number } => {
+  const getPointPosForActiveFrame = (pt: PrefabNamedPoint): { x: number; y: number } => {
     const keyframes = currentAnimation.keyframes || [];
     // Sort descending by frameIndex and find most recent keyframe <= activeGlobalFrameIndex
     const sortedKfs = [...keyframes]
@@ -978,7 +978,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     return { x: pt.defaultOffsetX, y: pt.defaultOffsetY };
   };
 
-  const getPolyVertsForActiveFrame = (poly: CharacterNamedPolygon): PolygonHitboxVertex[] => {
+  const getPolyVertsForActiveFrame = (poly: PrefabNamedPolygon): PolygonHitboxVertex[] => {
     const keyframes = currentAnimation.keyframes || [];
     const sortedKfs = [...keyframes]
       .filter(k => k.frameIndex >= startIdx && k.frameIndex <= activeGlobalFrameIndex)
@@ -993,7 +993,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     return poly.defaultVertices || [];
   };
 
-  const getCapsuleForActiveFrame = (): CharacterCapsuleConfig => {
+  const getCapsuleForActiveFrame = (): PrefabCapsuleConfig => {
     const keyframes = currentAnimation.keyframes || [];
     const sortedKfs = [...keyframes]
       .filter(k => k.frameIndex >= startIdx && k.frameIndex <= activeGlobalFrameIndex)
@@ -1112,7 +1112,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     });
   };
 
-  const updateActiveFrameCapsule = (updater: (prev: CharacterCapsuleConfig) => CharacterCapsuleConfig) => {
+  const updateActiveFrameCapsule = (updater: (prev: PrefabCapsuleConfig) => PrefabCapsuleConfig) => {
     const currentCapsule = getCapsuleForActiveFrame();
     const nextCapsule = updater(currentCapsule);
 
@@ -1514,7 +1514,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
     ctx.lineTo(0, 20);
     ctx.stroke();
 
-    // 1. Draw Character Sprite Frame from Active Spritesheet
+    // 1. Draw Prefab Sprite Frame from Active Spritesheet
     if (showSprite && activeSpritesheet) {
       const tileW = activeSpritesheet.tileWidth || 64;
       const tileH = activeSpritesheet.tileHeight || 64;
@@ -1949,9 +1949,9 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
       
       {/* 1. TOP HEADER & SUBFOLDER NAVIGATION */}
       <FileSubfolderHeader
-        subfolderName="characters"
-        extension=".character"
-        files={(project.fileSystem.characters || []).map(c => ({
+        subfolderName="prefabs"
+        extension=".prefab"
+        files={(project.fileSystem.prefabs || []).map(c => ({
           id: c.id,
           name: c.name,
           fileName: c.fileName,
@@ -1962,19 +1962,19 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         onBackToDashboard={onBackToDashboard}
         centerContent={
           <div className="flex items-center gap-1.5 max-w-full truncate">
-            <span className="text-base leading-none shrink-0" title="Actor Avatar">{char.avatarIcon || '🛡️'}</span>
+            <span className="text-base leading-none shrink-0" title="Prefab Avatar">{char.avatarIcon || '🛡️'}</span>
             <input
               type="text"
               value={char.name}
               onChange={(e) => updateCharacter(c => ({ ...c, name: e.target.value }))}
               className="bg-transparent text-xs sm:text-sm font-bold text-white border-b border-dashed border-neutral-700 hover:border-rose-500 focus:border-rose-500 focus:outline-none transition py-0.5 max-w-[130px] sm:max-w-[190px] text-center"
-              title="Click to edit actor name"
+              title="Click to edit prefab name"
             />
             <select
-              value={char.characterType}
-              onChange={(e) => updateCharacter(c => ({ ...c, characterType: e.target.value as any }))}
+              value={char.prefabType}
+              onChange={(e) => updateCharacter(c => ({ ...c, prefabType: e.target.value as any }))}
               className="text-[9px] uppercase font-bold font-mono px-1.5 py-0.5 rounded bg-rose-950 border border-rose-500/60 text-rose-300 shrink-0 cursor-pointer focus:outline-none focus:border-rose-400"
-              title="Change Actor Type"
+              title="Change Prefab Type"
             >
               <option value="player_hero">PLAYER HERO</option>
               <option value="friendly_npc">FRIENDLY NPC</option>
@@ -1989,7 +1989,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             type="button"
             onClick={() => setIsCopyModalOpen(true)}
             className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white rounded text-xs font-semibold flex items-center gap-1.5 transition border border-neutral-750 shadow-sm"
-            title="Copy behavior rules & variables from another character"
+            title="Copy behavior rules & variables from another prefab"
           >
             <Sparkles size={12} className="text-amber-400" />
             <span className="hidden md:inline">Copy Rules/Vars</span>
@@ -1999,21 +1999,21 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         onSelectFile={(fileName) => {
           onUpdateProject(p => ({
             ...p,
-            activeFiles: { ...p.activeFiles, characterFileName: fileName }
+            activeFiles: { ...p.activeFiles, prefabFileName: fileName }
           }));
         }}
         onNewFile={(name) => {
-          const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.character`;
-          const newCharFile: CharacterFile = {
+          const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
+          const newCharFile: PrefabFile = {
             id: `char_${Date.now()}`,
             name,
             fileName: safeName,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            characterData: {
+            prefabData: {
               id: `char_${Date.now()}`,
               name,
-              characterType: 'enemy_mob',
+              prefabType: 'enemy_mob',
               avatarIcon: '👹',
               spriteWidth: 64,
               spriteHeight: 64,
@@ -2059,8 +2059,8 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           };
           onUpdateProject(p => ({
             ...p,
-            activeFiles: { ...p.activeFiles, characterFileName: safeName },
-            fileSystem: { ...p.fileSystem, characters: [...(p.fileSystem.characters || []), newCharFile] }
+            activeFiles: { ...p.activeFiles, prefabFileName: safeName },
+            fileSystem: { ...p.fileSystem, prefabs: [...(p.fileSystem.prefabs || []), newCharFile] }
           }));
         }}
         onDuplicateFile={(_fileName) => {
@@ -2071,7 +2071,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             ...c,
             updatedAt: new Date().toISOString()
           }));
-          showToast(`Saved character "${char.name || currentFile.name}" (${currentFile.fileName})`, 'success');
+          showToast(`Saved prefab "${char.name || currentFile.name}" (${currentFile.fileName})`, 'success');
         }}
         onExportFile={(fileName) => {
           const jsonStr = JSON.stringify(currentFile, null, 2);
@@ -2083,31 +2083,31 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
           a.click();
         }}
         onDeleteFile={(fileName) => {
-          if ((project.fileSystem.characters || []).length <= 1) return;
+          if ((project.fileSystem.prefabs || []).length <= 1) return;
           onUpdateProject(p => {
-            const rem = (p.fileSystem.characters || []).filter(c => c.fileName !== fileName);
+            const rem = (p.fileSystem.prefabs || []).filter(c => c.fileName !== fileName);
             return {
               ...p,
-              activeFiles: { ...p.activeFiles, characterFileName: rem[0]?.fileName || '' },
-              fileSystem: { ...p.fileSystem, characters: rem }
+              activeFiles: { ...p.activeFiles, prefabFileName: rem[0]?.fileName || '' },
+              fileSystem: { ...p.fileSystem, prefabs: rem }
             };
           });
         }}
         onRenameFile={(oldFileName, newName) => {
-          const safeName = newName.endsWith('.character') ? newName : `${newName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.character`;
+          const safeName = newName.endsWith('.prefab') ? newName : `${newName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.prefab`;
           onUpdateProject(p => ({
             ...p,
             activeFiles: {
               ...p.activeFiles,
-              characterFileName: p.activeFiles.characterFileName === oldFileName ? safeName : p.activeFiles.characterFileName
+              prefabFileName: p.activeFiles.prefabFileName === oldFileName ? safeName : p.activeFiles.prefabFileName
             },
             fileSystem: {
               ...p.fileSystem,
-              characters: (p.fileSystem.characters || []).map(c => c.fileName === oldFileName ? {
+              prefabs: (p.fileSystem.prefabs || []).map(c => c.fileName === oldFileName ? {
                 ...c,
-                name: newName.replace(/\.character$/, ''),
+                name: newName.replace(/\.prefab$/, ''),
                 fileName: safeName,
-                characterData: { ...c.characterData, name: newName.replace(/\.character$/, '') }
+                prefabData: { ...c.prefabData, name: newName.replace(/\.prefab$/, '') }
               } : c)
             }
           }));
@@ -2206,7 +2206,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                     type="button"
                     onClick={() => {
                       const newStateId = `state_${Date.now().toString().slice(-4)}`;
-                      const newAnim: CharacterAnimationConfig = {
+                      const newAnim: PrefabAnimationConfig = {
                         stateId: newStateId,
                         label: 'New Action',
                         spritesheetId: activeSpritesheet.id,
@@ -2450,7 +2450,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const newPt: CharacterNamedPoint = {
+                        const newPt: PrefabNamedPoint = {
                           id: `pt_${Date.now().toString().slice(-4)}`,
                           name: 'Custom Socket',
                           color: '#38bdf8',
@@ -2614,7 +2614,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const newPoly: CharacterNamedPolygon = {
+                        const newPoly: PrefabNamedPolygon = {
                           id: `poly_${Date.now().toString().slice(-4)}`,
                           name: 'Attack Hitbox',
                           type: 'hitbox',
@@ -3548,7 +3548,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                   );
                 })()}
 
-                {/* 3. Empty Selection Default: Quick Character / Capsule Glance */}
+                {/* 3. Empty Selection Default: Quick Prefab / Capsule Glance */}
                 {!selectedPointId && !selectedPolygonId && (
                   <div className="text-neutral-400 text-xs space-y-2 font-mono">
                     <p className="text-neutral-500 italic font-sans text-xs">
@@ -3593,7 +3593,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const newSheet: CharacterSpritesheet = {
+                    const newSheet: PrefabSpritesheet = {
                       id: `sheet_${Date.now().toString().slice(-4)}`,
                       name: `Spritesheet Slot #${spritesheetsList.length + 1}`,
                       tileWidth: 64,
@@ -4182,7 +4182,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Database size={16} className="text-rose-400" />
-                  Character Variables & Attributes
+                  Prefab Variables & Attributes
                 </h3>
                 <p className="text-xs text-neutral-400">
                   Manage core stats, proficiencies, and bespoke parameters with immutable auto-generated IDs (<code className="font-mono text-cyan-400">var_xxxxxxxx</code>).
@@ -4216,7 +4216,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 <Database size={32} className="mx-auto text-neutral-600" />
                 <p className="text-sm font-bold text-neutral-300">No Custom Variables Configured</p>
                 <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                  Click "Add Variable" above to declare character health, stamina, move speeds, or combat proficiencies.
+                  Click "Add Variable" above to declare prefab health, stamina, move speeds, or combat proficiencies.
                 </p>
               </div>
             ) : (
@@ -4344,7 +4344,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <GitMerge size={16} className="text-indigo-400" />
-                  Character State Machine & Transitions Graph
+                  Prefab State Machine & Transitions Graph
                 </h3>
                 <p className="text-xs text-neutral-400">
                   Visual FSM: Drag nodes, dictate one-way (<span className="text-indigo-400">→</span>) or bidirectional (<span className="text-indigo-400">↔</span>) transitions, and bind them directly to Behavior triggers.
@@ -4741,7 +4741,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                             if (connectingFromStateId) {
                               // Connect state node
                               if (connectingFromStateId !== node.id) {
-                                const newTr: CharacterStateTransition = {
+                                const newTr: PrefabStateTransition = {
                                   id: `tr_${Date.now().toString().slice(-4)}`,
                                   fromStateId: connectingFromStateId,
                                   toStateId: node.id,
@@ -5124,7 +5124,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                           </select>
                           {rulesList.length === 0 && (
                             <p className="text-[10px] text-neutral-500 italic mt-1">
-                              No behavior rules created yet for this character. Add a rule in the Behaviors tab to link it as an IF condition.
+                              No behavior rules created yet for this prefab. Add a rule in the Behaviors tab to link it as an IF condition.
                             </p>
                           )}
                         </div>
@@ -5365,7 +5365,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Brain size={16} className="text-amber-400" />
-                  Character Behaviors & IFTTT Rules
+                  Prefab Behaviors & IFTTT Rules
                 </h3>
                 <p className="text-xs text-neutral-400">
                   Trigger logic with conditions (Sensory sockets, State machine events, Variables, Health) and reactive action sequences. Rules are minimized by default.
@@ -5425,7 +5425,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 <Zap size={32} className="mx-auto text-amber-500/80" />
                 <p className="text-sm font-bold text-neutral-300">No Behavior Rules Yet</p>
                 <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                  Add custom IFTTT rules (triggers, conditions, and action sequences) or clone rules from another character.
+                  Add custom IFTTT rules (triggers, conditions, and action sequences) or clone rules from another prefab.
                 </p>
                 <button
                   type="button"
@@ -5777,7 +5777,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                               <option value="left">⬅️ Left Wall (Solid barrier to the left)</option>
                                               <option value="right">➡️ Right Wall (Solid barrier to the right)</option>
                                               <option value="wall_forward">⏩ Forward Wall (Facing direction solid)</option>
-                                              <option value="wall_backward">⏪ Backward Wall (Behind character)</option>
+                                              <option value="wall_backward">⏪ Backward Wall (Behind prefab)</option>
                                             </select>
                                           </div>
 
@@ -6048,7 +6048,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                             >
                                               <option value="player">Player Hero</option>
                                               <option value="enemy">Enemy Mob</option>
-                                              <option value="any">Any Actor</option>
+                                              <option value="any">Any Prefab</option>
                                             </select>
                                           </div>
                                         </div>
@@ -6366,7 +6366,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                               <option value="wall_impact">Wall / Obstacle Impact</option>
                                               <option value="ground_touch">Ground Touch (Landing)</option>
                                               <option value="hazard_touch">Hazard / Spikes Touch</option>
-                                              <option value="character_overlap">Hero/Mob Overlap</option>
+                                              <option value="prefab_overlap">Hero/Mob Overlap</option>
                                             </select>
                                           </div>
                                         </div>
@@ -6538,7 +6538,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                           }}
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
                                         >
-                                          <option value="track_self">Track This Character</option>
+                                          <option value="track_self">Track This Prefab</option>
                                           <option value="look_ahead">Look Ahead Offset</option>
                                           <option value="shake">Screen Shake</option>
                                           <option value="fixed">Fixed Point</option>
@@ -6628,14 +6628,14 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-emerald-400 font-mono mt-1"
                                         >
                                           <option value="fixed">🔢 Constant Number</option>
-                                          <option value="variable">📊 Character Variable</option>
+                                          <option value="variable">📊 Prefab Variable</option>
                                         </select>
                                       </div>
 
                                       <div>
                                         {action.speedSource === 'variable' ? (
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Character Variable</label>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Prefab Variable</label>
                                             <select
                                               value={action.speedVariableId || variablesList[0]?.id || ''}
                                               onChange={(e) => {
@@ -6713,14 +6713,14 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-cyan-400 font-mono mt-1"
                                         >
                                           <option value="fixed">🔢 Constant Force</option>
-                                          <option value="variable">📊 Character Variable (e.g. jump_force)</option>
+                                          <option value="variable">📊 Prefab Variable (e.g. jump_force)</option>
                                         </select>
                                       </div>
 
                                       <div>
                                         {action.forceSource === 'variable' ? (
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Character Variable</label>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Prefab Variable</label>
                                             <select
                                               value={action.forceVariableId || variablesList[0]?.id || ''}
                                               onChange={(e) => {
@@ -6808,14 +6808,14 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-400 font-mono mt-1"
                                         >
                                           <option value="fixed">🔢 Preset / Fixed Value</option>
-                                          <option value="variable">📊 Character Variable</option>
+                                          <option value="variable">📊 Prefab Variable</option>
                                         </select>
                                       </div>
 
                                       <div>
                                         {action.gravitySource === 'variable' ? (
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Character Variable</label>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Prefab Variable</label>
                                             <select
                                               value={action.gravityVariableId || variablesList[0]?.id || ''}
                                               onChange={(e) => {
@@ -6941,7 +6941,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <h4 className="font-bold text-sm text-white flex items-center gap-2">
                 <Database size={15} className="text-rose-400" />
-                {varForm.isEditing ? 'Edit Character Variable' : 'Add Character Variable'}
+                {varForm.isEditing ? 'Edit Prefab Variable' : 'Add Prefab Variable'}
               </h4>
               <button
                 type="button"
@@ -7099,20 +7099,20 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
 
             <div className="space-y-3 text-xs">
               <p className="text-neutral-400">
-                Select a character from this project to clone their custom variables, FSM states, and bespoke IFTTT behavior rules into <strong>{char.name}</strong>.
+                Select a prefab from this project to clone their custom variables, FSM states, and bespoke IFTTT behavior rules into <strong>{char.name}</strong>.
               </p>
 
               <div>
-                <label className="text-neutral-300 font-bold block mb-1">Source Character</label>
+                <label className="text-neutral-300 font-bold block mb-1">Source Prefab</label>
                 <select
                   value={sourceCharIdToCopy}
                   onChange={(e) => setSourceCharIdToCopy(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono"
                 >
-                  <option value="">-- Choose Character --</option>
+                  <option value="">-- Choose Prefab --</option>
                   {charFiles.map(c => (
-                    <option key={c.characterData.id} value={c.characterData.id}>
-                      {c.characterData.name} ({c.fileName}) • {(c.characterData.rules || []).length} rules
+                    <option key={c.prefabData.id} value={c.prefabData.id}>
+                      {c.prefabData.name} ({c.fileName}) • {(c.prefabData.rules || []).length} rules
                     </option>
                   ))}
                 </select>
@@ -7310,7 +7310,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 </div>
               </div>
 
-              {/* Behavior Selector Condition Dropdown - ONLY 'none' and available character behaviors */}
+              {/* Behavior Selector Condition Dropdown - ONLY 'none' and available prefab behaviors */}
               <div className="space-y-1">
                 <label className="text-neutral-400 font-bold block">Behavior Condition</label>
                 <select
@@ -7488,7 +7488,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
         </div>
       )}
 
-      {/* Toast Notification Alert for Character Module */}
+      {/* Toast Notification Alert for Prefab Module */}
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
           <div 

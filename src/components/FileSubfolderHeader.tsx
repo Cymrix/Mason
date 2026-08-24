@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Folder, 
   FileText, 
@@ -21,8 +21,8 @@ interface FileItem {
 }
 
 interface FileSubfolderHeaderProps {
-  subfolderName: string; // e.g. "maps", "biomes", "characters", "behaviors", "ui", "game"
-  extension: string; // e.g. ".map", ".biome", ".character", ".ui", ".gamestructure"
+  subfolderName: string; // e.g. "maps", "biomes", "prefabs", "behaviors", "ui", "game"
+  extension: string; // e.g. ".map", ".biome", ".prefab", ".ui", ".gamestructure"
   files: FileItem[];
   activeFileName: string;
   onSelectFile: (fileName: string) => void;
@@ -69,7 +69,7 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
     fileName: activeFileName || 'file'
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     setIsConfirmingDelete(false);
   }, [activeFileName]);
 

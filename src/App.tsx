@@ -4,12 +4,13 @@
  */
 
 import { EditorLayout } from './components/EditorLayout';
+import { ErrorDisplay } from './components/ErrorDisplay';
 import { ThemeProvider } from './theme/ThemeContext';
 
 export default function App() {
   return (
     <ThemeProvider>
-      <EditorLayout />
+      <ErrorDisplay /><EditorLayout />
     </ThemeProvider>
   );
 }

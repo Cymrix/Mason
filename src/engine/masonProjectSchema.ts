@@ -416,12 +416,12 @@ export interface BehaviorData {
   rules: BehaviorRule[];
   states: string[];
   skills?: BehaviorSkill[]; // Added for combat/abilities configuration
-  exposedVariables?: BehaviorVariable[]; // Variables dictated to the linked Character
+  exposedVariables?: BehaviorVariable[]; // Variables dictated to the linked Prefab
   foci: CameraFocusConfig;
   movement: MovementControllerConfig;
   ai: EnemyAIConfig;
   
-  // Actor Category-Specific Behavior Configurations
+  // Prefab Category-Specific Behavior Configurations
   heroInput?: HeroInputConfig;
   bossPhases?: BossPhaseConfig[];
   sentryTargeting?: SentryTargetingConfig;
@@ -438,9 +438,9 @@ export interface BehaviorFile {
 }
 
 // ==========================================
-// 3.6 CHARACTER CREATOR & ANIMATION FILE (.character)
+// 3.6 PREFAB CREATOR & ANIMATION FILE (.prefab)
 // ==========================================
-export interface CharacterSocket {
+export interface PrefabSocket {
   tagId: SensoryTagID; // e.g. 'head_eyes', 'head_ears', 'torso_center', 'feet_ground', 'hand_weapon'
   label: string;
   offsetX: number; // px relative to center
@@ -448,7 +448,7 @@ export interface CharacterSocket {
   visualMarkerColor?: string;
 }
 
-export interface CharacterSpritesheet {
+export interface PrefabSpritesheet {
   id: string;
   name: string;
   dataUrl?: string; // base64 or data URL for uploaded image
@@ -463,7 +463,7 @@ export interface CharacterSpritesheet {
   totalFrames: number; // total cells e.g. 32
 }
 
-export interface CharacterNamedPoint {
+export interface PrefabNamedPoint {
   id: string;
   name: string;
   color?: string;
@@ -477,7 +477,7 @@ export interface PolygonHitboxVertex {
   y: number;
 }
 
-export interface CharacterNamedPolygon {
+export interface PrefabNamedPolygon {
   id: string;
   name: string;
   type: 'hurtbox' | 'hitbox' | 'shield' | 'trigger';
@@ -502,10 +502,10 @@ export interface FrameKeyframeData {
   frameIndex: number; // grid index on the spritesheet (e.g. 0..31)
   points: PointAnchorFrameData[];
   polygons: PolygonHitboxFrameData[];
-  capsule?: CharacterCapsuleConfig;
+  capsule?: PrefabCapsuleConfig;
 }
 
-export interface CharacterAnimationConfig {
+export interface PrefabAnimationConfig {
   stateId: string; // 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hurt' | 'death'
   label: string;
   spritesheetId: string;
@@ -517,7 +517,7 @@ export interface CharacterAnimationConfig {
   keyframes?: FrameKeyframeData[];
 }
 
-export interface CharacterCapsuleConfig {
+export interface PrefabCapsuleConfig {
   radius: number; // e.g., 16
   height: number; // e.g., 48
   offsetX: number;
@@ -534,7 +534,7 @@ export interface AnimationStateConfig {
   soundCue?: string;
 }
 
-export interface CharacterStateNode {
+export interface PrefabStateNode {
   id: string; // e.g. 'st_idle', 'st_patrol'
   name: string; // e.g. 'Idle', 'Patrol', 'Chase', 'Combat', 'Stunned', 'Flee'
   color?: string; // hex color e.g. '#38bdf8'
@@ -544,7 +544,7 @@ export interface CharacterStateNode {
   description?: string;
 }
 
-export interface CharacterStateTransition {
+export interface PrefabStateTransition {
   id: string;
   fromStateId: string;
   toStateId: string;
@@ -554,18 +554,18 @@ export interface CharacterStateTransition {
   conditionType?: 'none' | 'behavior' | 'custom';
 }
 
-export interface CharacterStateMachine {
+export interface PrefabStateMachine {
   initialStateId?: string;
-  states: CharacterStateNode[];
-  transitions: CharacterStateTransition[];
+  states: PrefabStateNode[];
+  transitions: PrefabStateTransition[];
 }
 
-export interface CharacterData {
+export interface PrefabData {
   id: string;
   name: string;
   title?: string;
   backstory?: string;
-  characterType: 'player_hero' | 'enemy_mob' | 'boss_archon' | 'friendly_npc' | 'environmental_prop';
+  prefabType: 'player_hero' | 'enemy_mob' | 'boss_archon' | 'friendly_npc' | 'environmental_prop';
   avatarIcon: string;
   spriteWidth: number;
   spriteHeight: number;
@@ -587,19 +587,19 @@ export interface CharacterData {
   // Bespoke IFTTT Rule Engine & AI Logic
   rules?: BehaviorRule[];
   states?: string[];
-  stateMachine?: CharacterStateMachine;
+  stateMachine?: PrefabStateMachine;
   movement?: MovementControllerConfig;
   ai?: EnemyAIConfig;
 
-  // Visual Character Creator Fields
-  capsule?: CharacterCapsuleConfig;
-  spritesheets?: CharacterSpritesheet[];
-  points?: CharacterNamedPoint[];
-  polygons?: CharacterNamedPolygon[];
-  animations: CharacterAnimationConfig[];
+  // Visual Prefab Creator Fields
+  capsule?: PrefabCapsuleConfig;
+  spritesheets?: PrefabSpritesheet[];
+  points?: PrefabNamedPoint[];
+  polygons?: PrefabNamedPolygon[];
+  animations: PrefabAnimationConfig[];
 
   // Sensory Sockets & Dialogue
-  sockets: CharacterSocket[];
+  sockets: PrefabSocket[];
   dialogueGreeting?: string;
 
   // Legacy fields for backward compatibility
@@ -617,13 +617,13 @@ export interface CharacterData {
   assignedBehaviorFileName?: string;
 }
 
-export interface CharacterFile {
+export interface PrefabFile {
   id: string;
   name: string;
-  fileName: string; // e.g. "ashen_hunter.character"
+  fileName: string; // e.g. "ashen_hunter.prefab"
   createdAt: string;
   updatedAt: string;
-  characterData: CharacterData;
+  prefabData: PrefabData;
 }
 
 // ==========================================
@@ -990,7 +990,7 @@ export interface GameStructureData {
   // Attachments to other modules
   entryMapFileName: string; // Initial starting .map file
   entrySpawnId: string;
-  defaultCharacterFileName: string; // Starting player class
+  defaultPrefabFileName: string; // Starting player class
   attachedUiFileName: string; // Active HUD/UI configuration
   
   // Game framework configs
@@ -1049,7 +1049,7 @@ export interface ParticleKinematicsConfig {
   maxSpeed: number;
   angleDeg: number;       // 0 to 360 (0 = right, 90 = down, 180 = left, 270 = up)
   spreadDeg: number;      // 0 to 360
-  gravityScale?: number;  // Standardized Gravity Scale matching Biomes & Characters (1.0 = Standard 1.0G Earth Gravity, 0.0 = Zero-G, -0.05 = Thermal Buoyancy)
+  gravityScale?: number;  // Standardized Gravity Scale matching Biomes & Prefabs (1.0 = Standard 1.0G Earth Gravity, 0.0 = Zero-G, -0.05 = Thermal Buoyancy)
   gravityScaleX?: number; // Optional horizontal gravity/drift scale (-1.0 to 1.0G)
   gravityX: number;       // legacy/computed acceleration X (px/s^2)
   gravityY: number;       // legacy/computed acceleration Y (px/s^2, positive = down)
@@ -1071,7 +1071,7 @@ export interface ParticleKinematicsConfig {
 
 export interface ParticleVisualsConfig {
   shape: ParticleShape;
-  customGlyph?: string;   // Single character / emoji / icon symbol (e.g. ✦, ❄, 💧, ⚔️, 💀)
+  customGlyph?: string;   // Single prefab / emoji / icon symbol (e.g. ✦, ❄, 💧, ⚔️, 💀)
   customSvgPath?: string; // Custom vector SVG Path d="..." string
   minLifetime: number;    // seconds (e.g. 0.5)
   maxLifetime: number;    // seconds (e.g. 1.8)
@@ -1192,12 +1192,12 @@ export interface ParticleSystemFile {
 // ==========================================
 // 6. MASON MASTER PROJECT CONTAINER
 // ==========================================
-export type MasonModuleId = 'maps' | 'biomes' | 'characters' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles';
+export type MasonModuleId = 'maps' | 'biomes' | 'prefabs' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles';
 
 export interface MasonFileSystem {
   maps: MapFile[];
   biomes: BiomeFile[];
-  characters: CharacterFile[];
+  prefabs: PrefabFile[];
   ui: UIThemeFile[];
   game: GameStructureFile[];
   behaviors: BehaviorFile[];
@@ -1219,7 +1219,7 @@ export interface MasonProject {
   activeFiles: {
     mapFileName: string;
     biomeFileName: string;
-    characterFileName?: string;
+    prefabFileName?: string;
     uiFileName: string;
     gameStructureFileName: string;
     behaviorFileName?: string;
@@ -1449,7 +1449,7 @@ export const ensureUIConfigDefaults = (config?: Partial<UIConfigData>): UIConfig
         },
         {
           id: 'w_btn_hero_inventory',
-          name: 'Character & Equipment Button',
+          name: 'Prefab & Equipment Button',
           type: 'button',
           x: 48,
           y: 338,
@@ -1705,7 +1705,7 @@ export const ensureUIConfigDefaults = (config?: Partial<UIConfigData>): UIConfig
     },
     {
       id: 'menu_inventory',
-      name: 'Character & Equipment',
+      name: 'Prefab & Equipment',
       description: 'Item cards, stat gauges, and paperdoll summary',
       widgets: [
         {
@@ -2358,7 +2358,7 @@ export const createDefaultGameStructure = (): GameStructureData => {
     author: 'Mason Game Director',
     entryMapFileName: 'ashen_outpost.map',
     entrySpawnId: 'spawn_default',
-    defaultCharacterFileName: 'korrath.character',
+    defaultPrefabFileName: 'korrath.prefab',
     attachedUiFileName: 'classic_gothic_hud.ui',
     mainMenu: {
       gameTitle: 'ECHOES OF THE ASHEN VOID',
@@ -2953,11 +2953,11 @@ export const DEFAULT_BEHAVIORS: BehaviorData[] = [
   }
 ];
 
-export const DEFAULT_CHARACTERS: CharacterData[] = [
+export const DEFAULT_PREFABS: PrefabData[] = [
   {
     id: 'char_korrath',
     name: 'Korrath Steelhand (Player Hero)',
-    characterType: 'player_hero',
+    prefabType: 'player_hero',
     avatarIcon: '🛡️',
     spriteWidth: 64,
     spriteHeight: 64,
@@ -3126,7 +3126,7 @@ export const DEFAULT_CHARACTERS: CharacterData[] = [
   {
     id: 'char_ashen_hunter',
     name: 'Ashen Outpost Hunter (Enemy Mob)',
-    characterType: 'enemy_mob',
+    prefabType: 'enemy_mob',
     avatarIcon: '👹',
     spriteWidth: 64,
     spriteHeight: 64,
@@ -4052,14 +4052,14 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
     behaviorData: b
   }));
 
-  // Character files
-  const characters: CharacterFile[] = DEFAULT_CHARACTERS.map(c => ({
+  // Prefab files
+  const prefabs: PrefabFile[] = DEFAULT_PREFABS.map(c => ({
     id: c.id,
     name: c.name,
-    fileName: `${c.id.replace('char_', '')}.character`,
+    fileName: `${c.id.replace('char_', '')}.prefab`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    characterData: c
+    prefabData: c
   }));
 
   // UI Theme files
@@ -4097,7 +4097,7 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
   return {
     id: `proj_${Date.now()}`,
     name,
-    description: '2D Metroidvania world with modular maps, biomes, characters, behaviors, particles, UI themes, and game structure framework.',
+    description: '2D Metroidvania world with modular maps, biomes, prefabs, behaviors, particles, UI themes, and game structure framework.',
     author: 'Mason Architect',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -4106,7 +4106,7 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
     activeFiles: {
       mapFileName: 'ashen_outpost.map',
       biomeFileName: 'mourne_ashen_steppes.biome',
-      characterFileName: 'korrath.character',
+      prefabFileName: 'korrath.prefab',
       uiFileName: 'classic_gothic_hud.ui',
       gameStructureFileName: 'main_campaign.gamestructure',
       behaviorFileName: 'ashen_hunter.behavior',
@@ -4115,7 +4115,7 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
     fileSystem: {
       maps: [map1, map2, map3],
       biomes,
-      characters,
+      prefabs,
       ui: uiThemes,
       game: gameStructures,
       behaviors,

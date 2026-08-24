@@ -1,4 +1,4 @@
-import { ParticleEngine } from "../engine/systems/ParticleEngine";
+import { ParticleEngine } from "../engine/ParticleEngine";
 
 // Super Cover Line Algorithm (Orthogonal Line Interpolation) for smooth gapless painting
 function getInterpolatedLineTiles(x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
@@ -65,10 +65,10 @@ function getBrushTiles(px: number, py: number, brushSize: number = 1, activeTool
   return tiles;
 }
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RefinedMapData, RefinedCellState, ToolType, ModeType } from '../types';
 import { TILE_SIZE, RefinedBiome, BiomeTileType } from '../engine/refinedBiomeSchema';
-import { CharacterData, BehaviorData } from '../engine/masonProjectSchema';
+import { PrefabData, BehaviorData } from '../engine/masonProjectSchema';
 import { renderRefinedTileCell } from '../engine/tileMaterialRenderer';
 import { drawThresholdCrackMask } from '../engine/heightBlendShader';
 import { renderParallaxLayer } from '../engine/parallaxRenderer';
@@ -104,7 +104,7 @@ import {
 
 interface RefinedMapCanvasProps {
   particleSystems?: any[];
-  characters?: any[];
+  prefabs?: any[];
   mapData: RefinedMapData;
   biomes: RefinedBiome[];
   activeBiome: RefinedBiome;
@@ -119,7 +119,7 @@ interface RefinedMapCanvasProps {
   activeTool?: ToolType;
   mode?: ModeType;
   setMode?: (mode: ModeType) => void;
-  testCharacter?: CharacterData;
+  testCharacter?: PrefabData;
   linkedBehavior?: BehaviorData;
   spawnPoint?: { x: number; y: number; facing?: 'left' | 'right' };
   onSetSpawnPoint?: (x: number, y: number) => void;
@@ -134,7 +134,7 @@ interface RefinedMapCanvasProps {
 
 export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   particleSystems = [],
-  characters = [],
+  prefabs = [],
   mapData,
   biomes,
   activeBiome,
@@ -176,16 +176,16 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       particleEngineRef.current.particles = [];
       
       // Look for props/actors that have attached particles
-      if (mapData && characters && particleSystems) {
+      if (mapData && prefabs && particleSystems) {
         for (let y = 0; y < mapData.height; y++) {
           for (let x = 0; x < mapData.width; x++) {
-            const cell = mapData.cells[y * mapData.width + x];
+            const cell = mapData.cells[y]?.[x];
             
-            // Check actor_id
-            if (cell.actor_id) {
-              const actor = characters.find(c => c.id === cell.actor_id);
-              if (actor && actor.attachedParticles) {
-                for (const attachment of actor.attachedParticles) {
+            // Check prefab_id
+            if (cell.prefab_id) {
+              const prefab = prefabs.find(c => c.id === cell.prefab_id);
+              if (prefab && prefab.attachedParticles) {
+                for (const attachment of prefab.attachedParticles) {
                   const system = particleSystems.find(ps => ps.id === attachment.particleSystemId);
                   if (system) {
                     const originX = x * 64 + 32 + (attachment.offsetX || 0);
@@ -199,12 +199,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         }
       }
     }
-  }, [mode, mapData, characters, particleSystems]);
+  }, [mode, mapData, prefabs, particleSystems]);
 
-  // Exact character configuration
+  // Exact prefab configuration
   // derivation strictly from testCharacter and linkedBehavior
-  const charConfig = React.useMemo(() => {
-    // 1. Dimensions & Capsule from Character File
+  const charConfig = useMemo(() => {
+    // 1. Dimensions & Capsule from Prefab File
     const rawRad = testCharacter?.capsule?.radius;
     const rawH = testCharacter?.capsule?.height;
     const radius = (rawRad !== undefined && rawRad > 0) ? rawRad : (testCharacter?.spriteWidth ? Math.min(14, testCharacter.spriteWidth / 4) : 16);
@@ -212,16 +212,16 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const offsetX = testCharacter?.capsule?.offsetX ?? 0;
     const offsetY = testCharacter?.capsule?.offsetY ?? 0;
     
-    // 2. Health, Mana, Stamina from Character BaseStats
+    // 2. Health, Mana, Stamina from Prefab BaseStats
     const maxHp = testCharacter?.baseStats?.health ?? 100;
     const maxMp = testCharacter?.baseStats?.energy ?? 100;
     const maxSp = testCharacter?.baseStats?.stamina ?? 100;
 
-    // 3. Movement & Kinematics — Strictly driven by Character Kinematics / Behavior Rules
+    // 3. Movement & Kinematics — Strictly driven by Prefab Kinematics / Behavior Rules
     const behMov = linkedBehavior?.movement || testCharacter?.movement;
     const heroInp = linkedBehavior?.heroInput;
 
-    // Inspect Character and Behavior rules for actions / impulses / triggers
+    // Inspect Prefab and Behavior rules for actions / impulses / triggers
     const allRules = [
       ...(testCharacter?.rules || []),
       ...(linkedBehavior?.rules || [])
@@ -249,7 +249,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       );
     });
 
-    // Movement speed: strictly from Character / Behavior configuration. If not configured, 0.
+    // Movement speed: strictly from Prefab / Behavior configuration. If not configured, 0.
     const rawMoveSpeed = testCharacter?.movement?.moveSpeed ?? linkedBehavior?.movement?.moveSpeed ?? testCharacter?.baseStats?.speed;
     const baseSpeed = (rawMoveSpeed !== undefined && rawMoveSpeed > 0) ? rawMoveSpeed : (hasRuleMove ? 4.5 : 0);
     const accel = baseSpeed > 0 ? baseSpeed * 0.8 : 0;
@@ -287,7 +287,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const wallJumpForceX = heroInp?.wallJumpForceX ?? (baseSpeed > 0 ? baseSpeed * 1.8 : 6);
     const wallJumpForceY = heroInp?.wallJumpForceY ?? (jumpForce > 0 ? jumpForce * 0.95 : 0);
 
-    // 7. Combat Attacks — Driven by character hitboxes/animations and behavior attack rules/actions/skills
+    // 7. Combat Attacks — Driven by prefab hitboxes/animations and behavior attack rules/actions/skills
     const hasAttack = !!(
       testCharacter?.polygons?.some(poly => poly.type === 'hitbox') ||
       testCharacter?.animations?.some(anim => anim.stateId === 'attack') ||
@@ -333,11 +333,11 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     };
   }, [testCharacter, linkedBehavior]);
 
-  // Character Spritesheet Image Loader & Cache
+  // Prefab Spritesheet Image Loader & Cache
   const charImgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const [charImgVersion, setCharImgVersion] = useState<number>(0);
 
-  const getCharacterSpriteInfo = useCallback((char?: CharacterData) => {
+  const getCharacterSpriteInfo = useCallback((char?: PrefabData) => {
     if (!char) return null;
     const sheet = char.spritesheets?.[0];
     const tileW = sheet?.tileWidth || char.spriteWidth || 64;
@@ -347,7 +347,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
     let url = sheet?.imageUrl || sheet?.dataUrl || (sheet as any)?.imageBase64 || '';
     if (!url) {
-      // Procedural fallback spritesheet canvas matching Character Studio
+      // Procedural fallback spritesheet canvas matching Prefab Studio
       const cvs = document.createElement('canvas');
       cvs.width = tileW * cols;
       cvs.height = tileH * rows;
@@ -506,7 +506,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const logicalMapWidth = mapData.width * TILE_SIZE;
   const logicalMapHeight = mapData.height * TILE_SIZE;
 
-  const handleFitMap = React.useCallback(() => {
+  const handleFitMap = useCallback(() => {
     const bounds = calculateMapBounds(mapData);
     const minX = bounds.minX;
     const maxX = bounds.maxX;
@@ -531,7 +531,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   }, [mapData.id, handleFitMap, canvasWidth, canvasHeight]);
 
   // Biome and TileType lookup caches
-  const { biomeMap, tileTypeMap, envDetailMap, interactiveDetailMap, wildlifeMap } = React.useMemo(() => {
+  const { biomeMap, tileTypeMap, envDetailMap, interactiveDetailMap, wildlifeMap } = useMemo(() => {
     const bMap: Record<string, RefinedBiome> = {};
     const tileTypes: Record<string, { tileType: BiomeTileType; biome: RefinedBiome }> = {};
     const envDetails: Record<string, any> = {};
@@ -571,7 +571,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const fadeAlphaRef = useRef<number>(1.0);
 
   // Determine centermost camera biome based strictly on the chunk at the center of the viewport
-  const targetBiome = React.useMemo<RefinedBiome | null>(() => {
+  const targetBiome = useMemo<RefinedBiome | null>(() => {
     const centerTileX = Math.floor((canvasWidth / 2 - pan.x) / (scale * TILE_SIZE));
     const centerTileY = Math.floor((canvasHeight / 2 - pan.y) / (scale * TILE_SIZE));
 
@@ -669,7 +669,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   }, [targetBiomeId, targetBiome]);
 
   // Hovered Chunk & Biome derivation for Upper-Left HUD
-  const hoveredChunkInfo = React.useMemo(() => {
+  const hoveredChunkInfo = useMemo(() => {
     if (!hoverTile) return null;
     const { cx, cy, lx, ly } = getChunkCoords(hoverTile.x, hoverTile.y);
     const chunkKey = getChunkKey(cx, cy);
@@ -711,7 +711,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setShowGrid]);
 
-  // Respawn character function
+  // Respawn prefab function
   const respawnPlayer = useCallback(() => {
     const sx = (spawnPoint?.x ?? 4) * TILE_SIZE + TILE_SIZE / 2;
     const sy = (spawnPoint?.y ?? 12) * TILE_SIZE + TILE_SIZE - 2;
@@ -987,7 +987,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const halfW = charConfig.radius;
       const charH = charConfig.height;
 
-      // Movement Input (if not dashing and character speed > 0)
+      // Movement Input (if not dashing and prefab speed > 0)
       // 0. Environmental Gravity & Dynamic Kinematic Configuration
       // Determine active biome for the player's current location or viewport
       const pTileX = Math.floor(p.x / TILE_SIZE);
@@ -1001,12 +1001,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       
       const biomeGravityScale = playerBiome?.gravityScale !== undefined ? playerBiome.gravityScale : (charConfig.gravScale ?? 1.0);
       
-      // Effective Gravity: Character behavior override strictly takes precedence over biome gravity
+      // Effective Gravity: Prefab behavior override strictly takes precedence over biome gravity
       const effectiveGravScale = (p.gravityOverride !== null && p.gravityOverride !== undefined)
         ? p.gravityOverride
         : biomeGravityScale;
 
-      // Character Variable resolver helper
+      // Prefab Variable resolver helper
       const getCharVarNum = (varIdOrName?: string, fallback: number = 0): number => {
         if (!varIdOrName) return fallback;
         const v = (testCharacter?.variables || []).find(cv => cv.id === varIdOrName || cv.name.toLowerCase() === varIdOrName.toLowerCase());
@@ -1166,7 +1166,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           if (direction === 'ceiling') effDir = 'above';
 
           if (mode === 'ledge_ahead') {
-            // Ledge check: ground ahead of character in facing direction
+            // Ledge check: ground ahead of prefab in facing direction
             const lookAheadX = p.x + (p.facing === 'right' ? halfW + dist : -(halfW + dist));
             const lookDownY = p.y + 6;
             const tX = Math.floor(lookAheadX / TILE_SIZE);
@@ -1312,11 +1312,11 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           }
         };
 
-        // Helper to execute single character behavior action
+        // Helper to execute single prefab behavior action
         const executeCharacterAction = (action: any) => {
           if (!action || action.actionType === 'none') return;
 
-          // 1. Hero Impulse (Jump, Dash, Wall Jump, Knockback) with dynamic Character Variables support
+          // 1. Hero Impulse (Jump, Dash, Wall Jump, Knockback) with dynamic Prefab Variables support
           if (action.actionType === 'hero_impulse') {
             const force = (action.forceSource === 'variable' && action.forceVariableId)
               ? getCharVarNum(action.forceVariableId, action.force ?? 12)
@@ -1335,7 +1335,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               p.vy = -force * 0.35;
             }
           }
-          // 2. Kinematic Move with dynamic Character Variables support
+          // 2. Kinematic Move with dynamic Prefab Variables support
           else if (action.actionType === 'move') {
             const speed = (action.speedSource === 'variable' && action.speedVariableId)
               ? getCharVarNum(action.speedVariableId, action.speed ?? 4.0)
@@ -1380,7 +1380,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           }
         };
 
-        // Evaluate Character FSM State Transitions conditioned on Behavior "IFs"
+        // Evaluate Prefab FSM State Transitions conditioned on Behavior "IFs"
         if (testCharacter?.stateMachine?.transitions && testCharacter.stateMachine.transitions.length > 0) {
           const charStates = testCharacter.stateMachine.states || [];
           const currentStateNode = charStates.find(s => s.id === p.activeBehaviorState || s.name.toLowerCase() === (p.activeBehaviorState || '').toLowerCase());
@@ -1883,7 +1883,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const spriteInfo = getCharacterSpriteInfo(testCharacter);
 
     if (mode === 'paint') {
-      // Draw Placed Character Spawn Point Marker
+      // Draw Placed Prefab Spawn Point Marker
       const spawnX = (spawnPoint?.x ?? 4) * TILE_SIZE + TILE_SIZE / 2;
       const spawnY = (spawnPoint?.y ?? 12) * TILE_SIZE + TILE_SIZE;
       const charColor = testCharacter?.tintColor || '#06b6d4';
@@ -1916,7 +1916,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const capOx = charConfig.offsetX;
       const capOy = charConfig.offsetY;
 
-      // In Character Studio, the capsule center is at (capOx, capOy) relative to sprite center (0,0).
+      // In Prefab Studio, the capsule center is at (capOx, capOy) relative to sprite center (0,0).
       // On the map, the bottom of the capsule rests on the ground at spawnY (or p.y).
       // Therefore, the capsule center is at (spawnX, spawnY - capH / 2).
       // And the sprite center is at (spawnX - capOx, spawnY - (capOy + capH / 2)).
@@ -1940,7 +1940,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.stroke();
       ctx.restore();
 
-      // 4. Render Real Character Sprite Frame (Idle frame 0)
+      // 4. Render Real Prefab Sprite Frame (Idle frame 0)
       if (spriteInfo && spriteInfo.img.complete && spriteInfo.img.naturalWidth > 0) {
         const { img, tileW, tileH, cols } = spriteInfo;
         const idleAnim = testCharacter?.animations?.find(a => a.stateId === 'idle') || testCharacter?.animations?.[0];
@@ -2105,7 +2105,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         || testCharacter?.animations?.find(a => a.stateId === 'idle')
         || testCharacter?.animations?.[0];
 
-      // 4. Animated Character Body (with Squash & Stretch and Real Spritesheet Frame)
+      // 4. Animated Prefab Body (with Squash & Stretch and Real Spritesheet Frame)
       const spriteTileH = spriteInfo?.tileH || testCharacter?.spriteHeight || 64;
       const spriteTileW = spriteInfo?.tileW || testCharacter?.spriteWidth || 64;
       const capOx = charConfig.offsetX;
@@ -2115,7 +2115,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const pSpriteCenterY = p.y - (capOy + capH / 2);
 
       ctx.save();
-      // Translate to character sprite center
+      // Translate to prefab sprite center
       ctx.translate(pSpriteCenterX, pSpriteCenterY);
 
       // Run animation bounce / tilt
@@ -2164,7 +2164,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(3, -8 + runBounce, 3, 3);
 
-        // Character Avatar Icon inside body
+        // Prefab Avatar Icon inside body
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -2215,7 +2215,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       });
 
       // 6. Floating Name & Mini Health Pip
-      const nameText = testCharacter?.name || 'Player Character';
+      const nameText = testCharacter?.name || 'Player Prefab';
       ctx.font = `bold ${Math.max(8 / scale, 7.5)}px monospace`;
       const nW = ctx.measureText(nameText).width;
       const nX = p.x - nW / 2 - 3 / scale;
@@ -2510,12 +2510,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           ========================================== */}
       {mode === 'play' && (
         <>
-          {/* Top-Left Character Stats & Health Orb/Gauges */}
+          {/* Top-Left Prefab Stats & Health Orb/Gauges */}
           <div 
             data-no-paint="true"
             className="absolute top-4 left-4 z-30 flex items-start gap-3 bg-neutral-950/85 backdrop-blur-md p-3 rounded-2xl border border-cyan-500/40 shadow-2xl shadow-cyan-950/50 select-none pointer-events-auto"
           >
-            {/* Character Portrait Gem */}
+            {/* Prefab Portrait Gem */}
             <div 
               className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center border-2 border-cyan-400 bg-gradient-to-b from-neutral-900 to-neutral-950 shadow-lg relative shrink-0"
               style={{ borderColor: testCharacter?.tintColor || '#06b6d4' }}
@@ -2531,14 +2531,14 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               )}
             </div>
 
-            {/* Bars & Character Metadata */}
+            {/* Bars & Prefab Metadata */}
             <div className="flex flex-col gap-1.5 min-w-[220px]">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-black text-white tracking-wide truncate max-w-[120px]">
-                  {testCharacter?.name || 'Player Character'}
+                  {testCharacter?.name || 'Player Prefab'}
                 </span>
                 <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-neutral-900 border border-neutral-700 text-cyan-300 font-bold shrink-0">
-                  {testCharacter?.characterType?.replace('_', ' ') || 'Character'}
+                  {testCharacter?.prefabType?.replace('_', ' ') || 'Prefab'}
                 </span>
               </div>
 
@@ -2600,7 +2600,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               type="button"
               onClick={respawnPlayer}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-bold transition border border-neutral-700"
-              title="Respawn character at spawn point (Hotkey: R)"
+              title="Respawn prefab at spawn point (Hotkey: R)"
             >
               <RotateCcw size={13} className="text-cyan-400" />
               <span>Respawn (R)</span>
@@ -2687,7 +2687,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               {charConfig.baseSpeed === 0 && !charConfig.canJump && !charConfig.hasDash && !charConfig.hasAttack && !charConfig.hasSpecial && (
                 <>
                   <span className="text-amber-400 font-medium flex items-center gap-1">
-                    <span>⚠️</span> No movement or jump configured for this character
+                    <span>⚠️</span> No movement or jump configured for this prefab
                   </span>
                   <span className="text-neutral-600">•</span>
                 </>

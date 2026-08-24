@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { MapData } from '../types';
 import { TILE_SIZE } from '../constants';
 import { Biome } from '../engine/biomes';
@@ -60,13 +60,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   }, [canvasWidth, canvasHeight, centerContent]);
 
   // Quick lookup caches
-  const biomeMap = React.useMemo(() => {
+  const biomeMap = useMemo(() => {
     const map: Record<string, Biome> = {};
     biomes.forEach(b => { map[b.id] = b; });
     return map;
   }, [biomes]);
 
-  const decorMap = React.useMemo(() => {
+  const decorMap = useMemo(() => {
     const map: Record<string, { name: string; color: string; icon: string; layer: string; health: number; armor: number }> = {};
     biomes.forEach(b => {
       b.decorItems.forEach(d => {

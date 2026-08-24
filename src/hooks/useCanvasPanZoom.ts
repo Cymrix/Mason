@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 
 export interface PanZoomOptions {
   minScale?: number;
@@ -50,7 +50,7 @@ export function useCanvasPanZoom(options: PanZoomOptions = {}) {
   }, []);
 
   // Backwards compatibility getter/setter for containerRef.current
-  const combinedRef = React.useMemo(() => {
+  const combinedRef = useMemo(() => {
     const fn = (node: HTMLDivElement | null) => setRef(node);
     Object.defineProperty(fn, 'current', {
       get() { return containerRef.current; },

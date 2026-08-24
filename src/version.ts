@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.114';
-export const MASON_VERSION_DISPLAY = 'v0.114';
-export const MASON_FULL_VERSION = 'v0.114';
+export const MASON_VERSION = '0.121';
+export const MASON_VERSION_DISPLAY = 'v0.121';
+export const MASON_FULL_VERSION = 'v0.121';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -31,7 +31,16 @@ export const getMasonVersionString = (revision?: number): string => {
  */
 export const MASON_RELEASE_HISTORY = [
   {
-    version: 'v0.114',
+    version: 'v0.121',
+    date: '2026-08-23',
+    changes: [
+      'Added full motion blur support to both Particle and Prefab animation timelines.',
+      'Particles Engine stretches particles dynamically across their velocity vector based on the motion blur track intensity.',
+      'Prefab Editor features a new Sprite Blur track in the Animation Studio Matrix for keyframing visual motion blur during fast character animations.'
+    ]
+  },
+  {
+    version: 'v0.121',
     date: '2026-08-23',
     changes: [
       'Fixed React state mutation bug in bi-directional sync which caused animation settings to stop rendering.'
@@ -52,7 +61,7 @@ export const MASON_RELEASE_HISTORY = [
     ]
   },
   {
-    version: 'v0.114',
+    version: 'v0.121',
     date: '2026-08-23',
     changes: [
       'Rule & Version Enforcement: Established strict project rules requiring sequential integer version bumping across package.json, version.ts, and service worker cache on every code update.'

@@ -43,6 +43,10 @@ export interface ParticleInstance {
   windSensitivity?: number;
   windForce: number;
   turbulenceJitter: number;
+  emitterPull?: boolean;
+  emitterPullRadius?: number;
+  emitterPullStrength?: number;
+  emitterPullFalloff?: number;
   collides: boolean;
   restitution: number;
   bounces?: number;
@@ -72,6 +76,18 @@ export interface ParticleInstance {
   animateAlpha?: boolean;
   animateEmissive?: boolean;
   animateRotation?: boolean;
+  animateMotionBlur?: boolean;
+  startMotionBlur?: number;
+  midMotionBlur?: number;
+  endMotionBlur?: number;
+  motionBlurAnimStyle?: ParticleAnimStyle;
+  motionBlurCurve?: ParticleCurveMode;
+  hasTrails?: boolean;
+  trailLength?: number;
+  trailWidthScale?: number;
+  trailTaper?: boolean;
+  trailTaperLength?: number;
+  trailHistory?: {x: number, y: number}[];
   trackNodes?: Record<string, any>;
 }
 
@@ -146,12 +162,20 @@ export function getTrackNodesForData(visuals: any, track: string): { time: numbe
   if (track === "drag") {
     return [{ time: 0, value: 0.98 }, { time: 1, value: 0.98 }];
   }
+  if (track === "motionBlur") {
+    const start = visuals?.startMotionBlur ?? 0;
+    const end = visuals?.endMotionBlur ?? 0;
+    if (visuals?.midMotionBlur !== undefined) {
+      return [{ time: 0, value: start }, { time: 0.5, value: visuals.midMotionBlur }, { time: 1, value: end }];
+    }
+    return [{ time: 0, value: start }, { time: 1, value: end }];
+  }
   return [{ time: 0, value: 0 }, { time: 1, value: 1 }];
 }
 
 export function evaluateTrackValue(
   progress: number,
-  track: "size" | "color" | "alpha" | "emissive" | "rotation" | "speed" | "drag",
+  track: "size" | "color" | "alpha" | "emissive" | "rotation" | "speed" | "drag" | "motionBlur",
   visuals: any
 ): any {
   let animStyle: ParticleAnimStyle = "one_shot";
@@ -177,6 +201,10 @@ export function evaluateTrackValue(
     animStyle = visuals.rotationAnimStyle || "one_shot";
     repeatCount = visuals.trackRepeats?.rotation ?? visuals.rotationLoops ?? 1;
     curve = visuals.rotationCurve || "linear";
+  } else if (track === "motionBlur") {
+    animStyle = visuals.motionBlurAnimStyle || "one_shot";
+    repeatCount = visuals.trackRepeats?.motionBlur ?? visuals.motionBlurLoops ?? 1;
+    curve = visuals.motionBlurCurve || "linear";
   }
   let localProgress = progress;
   if (animStyle === "repeat") {
@@ -415,6 +443,10 @@ export class ParticleEngine {
         windSensitivity: kinematics.windSensitivity !== undefined ? kinematics.windSensitivity : 1.0,
         windForce: kinematics.windForce ?? 0,
         turbulenceJitter: kinematics.turbulenceJitter ?? 0,
+        emitterPull: kinematics.emitterPull ?? false,
+        emitterPullRadius: kinematics.emitterPullRadius ?? 150,
+        emitterPullStrength: kinematics.emitterPullStrength ?? 1.0,
+        emitterPullFalloff: kinematics.emitterPullFalloff ?? 1.0,
         collides: physics.collideWithMapSolids ?? false,
         restitution: physics.collisionRestitution ?? 0.3,
         bounces: 0,
@@ -442,12 +474,24 @@ export class ParticleEngine {
         animateAlpha: visuals.animateAlpha ?? true,
         animateEmissive: visuals.animateEmissive ?? false,
         animateRotation: visuals.animateRotation ?? false,
+        animateMotionBlur: visuals.animateMotionBlur ?? true,
+        startMotionBlur: visuals.startMotionBlur,
+        midMotionBlur: visuals.midMotionBlur,
+        endMotionBlur: visuals.endMotionBlur,
+        motionBlurAnimStyle: visuals.motionBlurAnimStyle || "one_shot",
+        motionBlurCurve: visuals.motionBlurCurve || "linear",
+        hasTrails: visuals.hasTrails ?? false,
+        trailLength: visuals.trailLength ?? 10,
+        trailWidthScale: visuals.trailWidthScale ?? 1.0,
+        trailTaper: visuals.trailTaper ?? false,
+        trailTaperLength: visuals.trailTaperLength ?? visuals.trailLength ?? 10,
+        trailHistory: [],
         trackNodes: visuals.trackNodes
       });
     }
   }
 
-  public update(dt: number, physics: any, floorY: number, globalWind: number = 0) {
+  public update(dt: number, physics: any, floorY: number, globalWind: number = 0, emitterState?: { x: number, y: number, dx: number, dy: number }) {
     try {
       this.spatialGrid.clear();
       const fluidEnabled = physics.fluidSelfCollision ?? false;
@@ -481,6 +525,21 @@ export class ParticleEngine {
           p.vy += (Math.random() - 0.5) * p.turbulenceJitter * dt * 50;
         }
 
+        if (p.emitterPull && emitterState && (emitterState.dx !== 0 || emitterState.dy !== 0)) {
+          const dist = Math.hypot(p.x - emitterState.x, p.y - emitterState.y);
+          const pullRadius = p.emitterPullRadius ?? 150;
+          if (dist < pullRadius) {
+            let factor = 1.0;
+            const falloff = p.emitterPullFalloff ?? 1.0;
+            if (falloff > 0) {
+              factor = Math.pow(Math.max(0, 1.0 - dist / pullRadius), falloff);
+            }
+            const strength = p.emitterPullStrength ?? 1.0;
+            p.x += emitterState.dx * factor * strength;
+            p.y += emitterState.dy * factor * strength;
+          }
+        }
+
         // Fluid Push / Boids repulsion
         if (fluidEnabled) {
           const cellX = Math.floor(p.x / this.CELL_SIZE);
@@ -496,6 +555,14 @@ export class ParticleEngine {
 
         p.vy += p.gravityY * dt;
         p.vx += p.gravityX * dt;
+        
+        if (p.hasTrails && p.trailHistory) {
+            p.trailHistory.push({ x: p.x, y: p.y });
+            if (p.trailHistory.length > (p.trailLength || 10)) {
+                p.trailHistory.shift();
+            }
+        }
+        
         p.x += p.vx * dt;
         p.y += p.vy * dt;
 
@@ -617,6 +684,12 @@ export class ParticleEngine {
           colorAnimStyle: p.colorAnimStyle,
           emissiveAnimStyle: p.emissiveAnimStyle,
           rotationAnimStyle: p.rotationAnimStyle,
+          animateMotionBlur: p.animateMotionBlur,
+          startMotionBlur: p.startMotionBlur,
+          midMotionBlur: p.midMotionBlur,
+          endMotionBlur: p.endMotionBlur,
+          motionBlurAnimStyle: p.motionBlurAnimStyle,
+          motionBlurCurve: p.motionBlurCurve,
           trackNodes: p.trackNodes,
         };
 
@@ -624,6 +697,7 @@ export class ParticleEngine {
         const colorProgress = p.animateColor ? getAnimProgress(rawProgress, p.colorAnimStyle) : rawProgress;
         const emissiveProgress = p.animateEmissive ? getAnimProgress(rawProgress, p.emissiveAnimStyle) : rawProgress;
         const rotationProgress = p.animateRotation ? getAnimProgress(rawProgress, p.rotationAnimStyle) : rawProgress;
+        const motionBlurProgress = p.animateMotionBlur !== false ? getAnimProgress(rawProgress, p.motionBlurAnimStyle) : rawProgress;
 
         const currentSize = evaluateSize(sizeProgress, visuals);
         const { color, alpha } = evaluateColorAlpha(colorProgress, visuals);
@@ -631,9 +705,87 @@ export class ParticleEngine {
         if (p.animateRotation && visuals.startRotationDeg !== undefined) {
           currentRotation += evaluateTrackValue(rotationProgress, "rotation", visuals) * (Math.PI / 180);
         }
+        
+        if (p.hasTrails && p.trailHistory && p.trailHistory.length > 1) {
+          ctx.save();
+          ctx.globalCompositeOperation = p.blendMode as any;
+          
+          const pts = [...p.trailHistory, {x: p.x, y: p.y}];
+          const N = pts.length;
+          const baseWidth = currentSize * (p.trailWidthScale ?? 1.0);
+          
+          if (p.glowBlurRadius > 0) {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = p.glowBlurRadius;
+          }
+          ctx.globalAlpha = alpha * 0.7;
+
+          if (p.trailTaper) {
+             const taperFrames = p.trailTaperLength ?? p.trailLength ?? 10;
+             const leftPts = [];
+             const rightPts = [];
+             
+             for (let j = 0; j < N; j++) {
+               let dx = 0, dy = 0;
+               if (j === 0) {
+                 dx = pts[1].x - pts[0].x; dy = pts[1].y - pts[0].y;
+               } else if (j === N - 1) {
+                 dx = pts[N-1].x - pts[N-2].x; dy = pts[N-1].y - pts[N-2].y;
+               } else {
+                 dx = pts[j+1].x - pts[j-1].x; dy = pts[j+1].y - pts[j-1].y;
+               }
+               const len = Math.sqrt(dx*dx + dy*dy);
+               if (len > 0.0001) { dx /= len; dy /= len; } else { dx = 1; dy = 0; }
+               const nx = -dy; const ny = dx;
+               
+               const age = (N - 1) - j;
+               let w = baseWidth;
+               if (age >= taperFrames) w = 0;
+               else w = baseWidth * (1.0 - (age / taperFrames));
+               
+               const halfW = w / 2;
+               leftPts.push({ x: pts[j].x + nx * halfW, y: pts[j].y + ny * halfW });
+               rightPts.push({ x: pts[j].x - nx * halfW, y: pts[j].y - ny * halfW });
+             }
+             
+             ctx.beginPath();
+             ctx.moveTo(leftPts[0].x, leftPts[0].y);
+             for (let j = 1; j < N; j++) ctx.lineTo(leftPts[j].x, leftPts[j].y);
+             for (let j = N - 1; j >= 0; j--) ctx.lineTo(rightPts[j].x, rightPts[j].y);
+             ctx.closePath();
+             
+             ctx.fillStyle = color;
+             ctx.fill();
+          } else {
+             ctx.beginPath();
+             ctx.moveTo(pts[0].x, pts[0].y);
+             for (let j = 1; j < N; j++) {
+               ctx.lineTo(pts[j].x, pts[j].y);
+             }
+             
+             ctx.strokeStyle = color;
+             ctx.lineWidth = baseWidth;
+             ctx.lineCap = "round";
+             ctx.lineJoin = "round";
+             ctx.stroke();
+          }
+          ctx.restore();
+        }
 
         ctx.save();
         ctx.translate(p.x, p.y);
+        
+        const motionBlurVal = evaluateTrackValue(motionBlurProgress, "motionBlur", visuals) || 0;
+        if (motionBlurVal > 0) {
+            const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+            if (speed > 0.1) {
+                const angle = Math.atan2(p.vy, p.vx);
+                ctx.rotate(angle);
+                ctx.scale(1 + speed * motionBlurVal * 0.05, 1);
+                ctx.rotate(-angle);
+            }
+        }
+        
         ctx.rotate(currentRotation);
         ctx.globalCompositeOperation = p.blendMode as any;
 

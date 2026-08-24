@@ -1315,7 +1315,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
   // Helper to query keyframe data for any item across any animation frame offset
   const getItemFrameKeyframe = (
-    itemType: 'capsule' | 'point' | 'polygon',
+    itemType: 'capsule' | 'point' | 'polygon' | 'motionBlur',
     itemId: string,
     frameOffset: number
   ): { isKeyframed: boolean; data: any } => {
@@ -1325,6 +1325,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
     if (itemType === 'capsule') {
       return { isKeyframed: !!kf.capsule, data: kf.capsule || null };
+    }
+    if (itemType === 'motionBlur') {
+      return { isKeyframed: kf.motionBlur === true, data: kf.motionBlur };
     }
     if (itemType === 'point') {
       const ptKf = kf.points?.find(p => p.pointId === itemId && p.enabled !== false && typeof p.x === 'number');
@@ -1339,7 +1342,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
   // Helper to toggle / set keyframe for an individual item on a specific frame
   const handleToggleItemKeyframe = (
-    itemType: 'capsule' | 'point' | 'polygon',
+    itemType: 'capsule' | 'point' | 'polygon' | 'motionBlur',
     itemId: string,
     frameOffset: number
   ) => {
@@ -1361,6 +1364,12 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
               delete baseKf.capsule;
             } else {
               baseKf.capsule = { ...getCapsuleForActiveFrame() };
+            }
+          } else if (itemType === 'motionBlur') {
+            if (baseKf.motionBlur === true || baseKf.motionBlur === true) {
+              delete baseKf.motionBlur;
+            } else {
+              baseKf.motionBlur = true;
             }
           } else if (itemType === 'point') {
             const ptObj = (c.points || []).find(p => p.id === itemId);
@@ -1396,9 +1405,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           const hasPoints = baseKf.points && baseKf.points.length > 0;
           const hasPolys = baseKf.polygons && baseKf.polygons.length > 0;
           const hasCap = !!baseKf.capsule;
+          const hasBlur = baseKf.motionBlur === true;
 
           let newKeyframes: any[];
-          if (!hasPoints && !hasPolys && !hasCap) {
+          if (!hasPoints && !hasPolys && !hasCap && !hasBlur) {
             newKeyframes = keyframes.filter((_, idx) => idx !== existingIdx);
           } else if (existingIdx >= 0) {
             newKeyframes = keyframes.map((k, idx) => idx === existingIdx ? baseKf : k);
@@ -1546,6 +1556,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
           ctx.save();
           ctx.imageSmoothingEnabled = false;
+          
+          const hasMotionBlur = getItemFrameKeyframe('motionBlur', 'blur', currentFrameOffset).isKeyframed;
+          if (hasMotionBlur) {
+             ctx.filter = 'blur(2.5px) drop-shadow(0px 0px 4px rgba(255,255,255,0.4))';
+             ctx.globalAlpha = 0.85;
+          }
+          
           ctx.drawImage(
             cachedImg,
             srcX, srcY, tileW, tileH,
@@ -3012,6 +3029,42 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
                       <tbody className="divide-y divide-neutral-900 font-mono text-[11px]">
                         
+                        {/* 0. MOTION BLUR TRACK ROW */}
+                        <tr className="hover:bg-neutral-900/40 transition h-7">
+                          <td className="px-2 py-0 sticky left-0 bg-neutral-950 z-10 border-r border-neutral-800 font-sans truncate w-[130px] min-w-[130px] max-w-[130px] align-middle">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <Activity size={10} className="text-pink-400 shrink-0" />
+                              <span className="font-bold text-pink-300 text-xs truncate">Sprite Blur</span>
+                            </div>
+                          </td>
+                          {Array.from({ length: frameCount }).map((_, offset) => {
+                            const isCurrent = offset === currentFrameOffset;
+                            const kfStatus = getItemFrameKeyframe('motionBlur', 'blur', offset);
+                            return (
+                              <td
+                                key={offset}
+                                onClick={() => {
+                                  setCurrentFrameOffset(offset);
+                                }}
+                                onDoubleClick={() => handleToggleItemKeyframe('motionBlur', 'blur', offset)}
+                                style={{ width: '28px', minWidth: '28px', maxWidth: '28px', height: '28px' }}
+                                className={`p-0 text-center border-r border-neutral-800/40 cursor-pointer transition select-none align-middle ${
+                                  isCurrent ? 'bg-cyan-950/40 ring-1 ring-inset ring-cyan-500/30' : 'hover:bg-neutral-900/60'
+                                }`}
+                                title={kfStatus.isKeyframed ? 'Motion Blur Enabled. Double-click to disable.' : 'Motion Blur Disabled. Double-click to enable.'}
+                              >
+                                <div className="w-[28px] h-[28px] flex items-center justify-center">
+                                  {kfStatus.isKeyframed ? (
+                                    <span className="text-pink-400 font-bold leading-none">■</span>
+                                  ) : (
+                                    <span className="text-neutral-700 leading-none hover:text-neutral-500">·</span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+
                         {/* 1. CAPSULE TRACK ROW */}
                         <tr className="hover:bg-neutral-900/40 transition h-7">
                           <td className="px-2 py-0 sticky left-0 bg-neutral-950 z-10 border-r border-neutral-800 font-sans truncate w-[130px] min-w-[130px] max-w-[130px] align-middle">
@@ -5502,7 +5555,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                       const v = variablesList.find(vl => vl.id === t.variableId);
                       const compSymbol = t.comparator === 'equals' ? '==' : t.comparator === 'not_equals' ? '!=' : t.comparator === 'greater_than' ? '>' : t.comparator === 'less_than' ? '<' : t.comparator === 'greater_or_equal' ? '>=' : t.comparator === 'less_or_equal' ? '<=' : '==';
                       const valDisplay = v?.type === 'boolean' 
-                        ? (t.value === undefined || t.value === true || t.value === 'true' || t.value === 1 ? 'True' : 'False') 
+                        ? (t.value === undefined || t.value === true || t.value === 'true' || t.value === 1 ? 'true' : 'False') 
                         : String(t.value ?? 0);
                       return `${v?.name || t.variableId || 'Var'} ${compSymbol} ${valDisplay}`;
                     }

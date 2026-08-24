@@ -503,6 +503,7 @@ export interface FrameKeyframeData {
   points: PointAnchorFrameData[];
   polygons: PolygonHitboxFrameData[];
   capsule?: PrefabCapsuleConfig;
+  motionBlur?: boolean; // Toggles motion blur rendering for this keyframe
 }
 
 export interface PrefabAnimationConfig {
@@ -1062,7 +1063,13 @@ export interface ParticleKinematicsConfig {
   endDrag?: number;       // 3-keyframe end air drag
   endDragMax?: number;    // Optional max range for random end drag
   dragCurve?: ParticleCurveMode; // Drag lifecycle curve
+  
+
   windForce: number;      // legacy horizontal wind drift
+  emitterPull?: boolean;
+  emitterPullRadius?: number;
+  emitterPullStrength?: number;
+  emitterPullFalloff?: number;
   turbulenceJitter: number;// random velocity noise jitter
   minAngularVelocity: number; // deg/s
   maxAngularVelocity: number; // deg/s
@@ -1125,6 +1132,17 @@ export interface ParticleVisualsConfig {
   animateRotation?: boolean;
   animateSpeed?: boolean;
   animateDrag?: boolean;
+  animateMotionBlur?: boolean;
+  startMotionBlur?: number;
+  midMotionBlur?: number;
+  endMotionBlur?: number;
+  motionBlurAnimStyle?: ParticleAnimStyle;
+  motionBlurCurve?: ParticleCurveMode;
+  hasTrails?: boolean;
+  trailLength?: number;
+  trailWidthScale?: number;
+  trailTaper?: boolean;
+  trailTaperLength?: number;
   renderResolutionScale?: number; // 0.25, 0.35, 0.5, 0.75, 1.0 (Offscreen buffer resolution scale for speed)
   metaballThreshold?: number; // 20 to 180 (Gooiness connection reach cutoff)
   metaballRimThickness?: number; // 0 to 50 (Surface tension contour rim)

@@ -354,6 +354,16 @@ const AVAILABLE_INITIALIZE_PROPS = [
     desc: 'Render glowing neon aura shadows.'
   },
   {
+    id: 'motionBlur',
+    label: '☄️ Motion Blur',
+    desc: 'Streak particles across their velocity vector.'
+  },
+  {
+    id: 'trails',
+    label: '☄️ Trails',
+    desc: 'Draw a trailing history behind particles.'
+  },
+  {
     id: 'physics',
     label: '🧱 Solid Map Collision',
     desc: 'Bounce off room borders or platforms.'
@@ -362,6 +372,11 @@ const AVAILABLE_INITIALIZE_PROPS = [
     id: 'destroy_on_hit',
     label: '💥 Destroy on Hit',
     desc: 'Despawn instantly when hitting a surface.'
+  },
+  {
+    id: 'pull',
+    label: '🧲 Emitter Pull',
+    desc: 'Drag particles along when the emitter moves.'
   }
 ];
 
@@ -392,14 +407,14 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
   // UI State
   const [activeTab, setActiveTab] = useState<'initialize' | 'animation' | 'spritesheets' | 'presets'>('initialize');
-  const [selectedTrack, setSelectedTrack] = useState<'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag'>('size');
+  const [selectedTrack, setSelectedTrack] = useState<'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur'>('size');
   const [addedProps, setAddedProps] = useState<string[]>([]);
   const [draggedNodeIndex, setDraggedNodeIndex] = useState<number | null>(null);
   const dragStateRef = useRef<{track: string, nodes: any[]} | null>(null);
   const [dragTick, setDragTick] = useState(0);
 
   const visibleTracks = useMemo(() => {
-    const list: ('size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag')[] = [];
+    const list: ('size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur')[] = [];
     if (addedProps.includes('size_curve')) list.push('size');
     if (addedProps.includes('color_flow')) list.push('color');
     if (addedProps.includes('alpha_opac')) list.push('alpha');
@@ -407,6 +422,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     if (addedProps.includes('rotation')) list.push('rotation');
     if (addedProps.includes('launch_speed')) list.push('speed');
     if (addedProps.includes('drag')) list.push('drag');
+    if (addedProps.includes('motionBlur')) list.push('motionBlur');
     return list;
   }, [addedProps]);
 
@@ -431,8 +447,11 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     if ((k.gravityX ?? 0) !== 0 || (k.gravityY ?? 0) !== 0) props.push('gravity');
     if (k.drag !== 1.0) props.push('drag');
     if ((k.windForce ?? 0) !== 0) props.push('wind');
+    if (k.emitterPull) props.push('pull');
     if ((k.angleDeg ?? 270) !== 270 || (k.spreadDeg ?? 45) !== 45 || (k.turbulenceJitter ?? 0) !== 0) props.push('angle');
     if ((v.glowBlurRadius ?? 8) > 0) props.push('bloom');
+    if (v.startMotionBlur !== undefined || v.endMotionBlur !== undefined) props.push('motionBlur');
+    if (v.hasTrails) props.push('trails');
     if (ph.collideWithMapSolids) props.push('physics');
     if (ph.destroyOnCollision) props.push('destroy_on_hit');
 
@@ -728,7 +747,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     });
   };
 
-  const handleAddNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag') => {
+  const handleAddNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur') => {
     const nodes = getTrackNodesForData(activeParticleData.visuals, track);
     if (nodes.length >= 5) {
       showToast("Max limit of 5 nodes reached for this track!");
@@ -755,7 +774,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     updateTrackNodes(track, newNodes);
   };
 
-  const handleDeleteNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', index: number) => {
+  const handleDeleteNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', index: number) => {
     const nodes = getTrackNodesForData(activeParticleData.visuals, track);
     if (nodes.length <= 2) {
       showToast("Must have at least Spawn and Death nodes!");
@@ -765,7 +784,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     updateTrackNodes(track, newNodes);
   };
 
-  const handleUpdateNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', index: number, field: 'time' | 'value', val: any) => {
+  const handleUpdateNode = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', index: number, field: 'time' | 'value', val: any) => {
     const nodes = getTrackNodesForData(activeParticleData.visuals, track);
     const updated = nodes.map((n, i) => {
       if (i === index) {
@@ -779,7 +798,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     updateTrackNodes(track, updated);
   };
 
-  const generateTrackSvgPath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', minVal: number, maxVal: number) => {
+  const generateTrackSvgPath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', minVal: number, maxVal: number) => {
     const points: string[] = [];
     const sampleCount = 60;
     
@@ -824,6 +843,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const detailsSvgRef = useRef<SVGSVGElement | null>(null);
+  const lastEmitterPosRef = useRef<{x: number, y: number} | null>(null);
 
   // Bakes and caches any particle shape (standard, glyph, or vector SVG) into a high-res offscreen raster canvas texture
   const getOrCreateParticleSprite = (
@@ -1103,6 +1123,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         syncTrack('alpha', 'startAlpha', 'endAlpha', 'midAlpha');
         syncTrack('emissive', 'emissiveStartStrength', 'emissiveEndStrength', 'emissiveMidStrength');
         syncTrack('rotation', 'startRotationDeg', 'endRotationDeg', 'midRotationDeg');
+        syncTrack('motionBlur', 'startMotionBlur', 'endMotionBlur', 'midMotionBlur' as any);
         // --------------------------
 
         const oldStyle = currentParticleData.visuals.fxStyle as any;
@@ -1176,7 +1197,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   };
 
-  const getTrackBounds = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag'): { min: number; max: number } => {
+  const getTrackBounds = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur'): { min: number; max: number } => {
     switch (track) {
       case 'size':
         return { min: 0, max: 80 };
@@ -1196,7 +1217,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     }
   };
 
-  const valToY = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', val: any, height: number): number => {
+  const valToY = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', val: any, height: number): number => {
     const { min, max } = getTrackBounds(track);
     let numericVal = 0;
     if (track === 'color') {
@@ -1209,7 +1230,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return height - (clamped * (height - 24) + 12);
   };
 
-  const yToVal = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', y: number, height: number): any => {
+  const yToVal = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', y: number, height: number): any => {
     const { min, max } = getTrackBounds(track);
     if (track === 'color') {
       return '#ffa500';
@@ -1223,7 +1244,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return Math.round(rawVal);
   };
 
-  const getSparklinePath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag', width: number = 100, height: number = 100, margin: number = 6) => {
+  const getSparklinePath = (track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur', width: number = 100, height: number = 100, margin: number = 6) => {
     const points: string[] = [];
     const steps = 40;
     const { min, max } = getTrackBounds(track);
@@ -1439,12 +1460,20 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     if (track === 'drag') {
       return [{ time: 0, value: 0.98 }, { time: 1, value: 0.98 }];
     }
+    if (track === 'motionBlur') {
+      const start = visuals?.startMotionBlur ?? 0;
+      const end = visuals?.endMotionBlur ?? 0;
+      if (visuals?.midMotionBlur !== undefined) {
+        return [{ time: 0, value: start }, { time: 0.5, value: visuals.midMotionBlur }, { time: 1, value: end }];
+      }
+      return [{ time: 0, value: start }, { time: 1, value: end }];
+    }
     return [{ time: 0, value: 0 }, { time: 1, value: 1 }];
   };
   
   const evaluateTrackValue = (
     progress: number,
-    track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag',
+    track: 'size' | 'color' | 'alpha' | 'emissive' | 'rotation' | 'speed' | 'drag' | 'motionBlur',
     visuals: any
   ): any => {
     let animStyle: ParticleAnimStyle = 'one_shot';
@@ -1751,7 +1780,21 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
 
             const globalWind = simulatedBiomeWindEnabled ? simulatedBiomeWind : 0;
-      engineRef.current.update(dt, activeParticleData.physics, floorY, globalWind);
+      
+      let edx = 0;
+      let edy = 0;
+      if (lastEmitterPosRef.current) {
+        edx = emitterPos.x - lastEmitterPosRef.current.x;
+        edy = emitterPos.y - lastEmitterPosRef.current.y;
+      }
+      lastEmitterPosRef.current = { x: emitterPos.x, y: emitterPos.y };
+      
+      engineRef.current.update(dt, activeParticleData.physics, floorY, globalWind, {
+        x: emitterPos.x,
+        y: emitterPos.y,
+        dx: edx,
+        dy: edy
+      });
       setActiveParticleCount(engineRef.current.particles.length);
 
       // Render environment
@@ -3288,6 +3331,41 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   </div>
                 )}
 
+                {addedProps.includes('motionBlur') && (
+                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span>☄️ Motion Blur</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddedProps(prev => prev.filter(p => p !== 'motionBlur'));
+                          updateActiveParticle(p => ({
+                            ...p,
+                            visuals: { ...p.visuals, startMotionBlur: undefined, endMotionBlur: undefined }
+                          }));
+                        }}
+                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                        title="Remove motion blur"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="p-3 bg-neutral-950/20 text-xs">
+                      <label className="text-[10px] font-bold text-neutral-400 block mb-1">Base Blur Intensity</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="5"
+                        value={activeParticleData.visuals.startMotionBlur ?? 0}
+                        onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, startMotionBlur: Number(e.target.value) } }))}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                )}
                 {addedProps.includes('drag') && (
                   <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
                     <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
@@ -3324,6 +3402,66 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   </div>
                 )}
 
+                                {addedProps.includes('pull') && (
+                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span>🧲 Emitter Pull</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddedProps(prev => prev.filter(p => p !== 'pull'));
+                          updateActiveParticle(p => ({
+                            ...p,
+                            kinematics: { ...p.kinematics, emitterPull: false }
+                          }));
+                        }}
+                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                        title="Remove pull"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="p-3 bg-neutral-950/20 text-xs flex flex-col gap-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Radius</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="1000"
+                            value={activeParticleData.kinematics.emitterPullRadius ?? 150}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, emitterPullRadius: Number(e.target.value) } }))}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Strength</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={activeParticleData.kinematics.emitterPullStrength ?? 1.0}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, emitterPullStrength: Number(e.target.value) } }))}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Falloff Curve</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={activeParticleData.kinematics.emitterPullFalloff ?? 1.0}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, emitterPullFalloff: Number(e.target.value) } }))}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                            title="0 = Constant, 1 = Linear, >1 = Exponential/Quadratic falloff"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {addedProps.includes('wind') && (
                   <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
                     <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
@@ -3453,6 +3591,79 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   </div>
                 )}
 
+                {addedProps.includes('trails') && (
+                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span>☄️ Trails</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddedProps(prev => prev.filter(p => p !== 'trails'));
+                          updateActiveParticle(p => ({
+                            ...p,
+                            visuals: { ...p.visuals, hasTrails: false }
+                          }));
+                        }}
+                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                        title="Remove trails"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="p-3 bg-neutral-950/20 text-xs flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Length (Frames)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={activeParticleData.visuals.trailLength ?? 10}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, trailLength: Number(e.target.value) } }))}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Width Multiplier</label>
+                          <input
+                            type="number"
+                            min="0.1"
+                            max="10.0"
+                            step="0.1"
+                            value={activeParticleData.visuals.trailWidthScale ?? 1.0}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, trailWidthScale: Number(e.target.value) } }))}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-800/60 mt-1">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.visuals.trailTaper ?? false}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, trailTaper: e.target.checked } }))}
+                            className="rounded accent-amber-500 scale-90 cursor-pointer"
+                          />
+                          <label className="text-[10px] font-bold text-neutral-400">Taper Tail</label>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Taper Length (Frames)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            disabled={!activeParticleData.visuals.trailTaper}
+                            value={activeParticleData.visuals.trailTaperLength ?? activeParticleData.visuals.trailLength ?? 10}
+                            onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, trailTaperLength: Number(e.target.value) } }))}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500 disabled:opacity-30"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {addedProps.includes('physics') && (
                   <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
                     <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
@@ -3644,6 +3855,27 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                               updateActiveParticle(pr => ({
                                 ...pr,
                                 visuals: { ...pr.visuals, glowBlurRadius: 8 }
+                              }));
+                            } else if (p.id === 'motionBlur') {
+                              updateActiveParticle(pr => ({
+                                ...pr,
+                                visuals: { ...pr.visuals, startMotionBlur: 1, endMotionBlur: 1, animateMotionBlur: true }
+                              }));
+                            } else if (p.id === 'trails') {
+                              updateActiveParticle(pr => ({
+                                ...pr,
+                                visuals: { ...pr.visuals, hasTrails: true, trailLength: 10, trailWidthScale: 1.0, trailTaper: true, trailTaperLength: 10 }
+                              }));
+                            } else if (p.id === 'pull') {
+                              updateActiveParticle(pr => ({
+                                ...pr,
+                                kinematics: { 
+                                  ...pr.kinematics, 
+                                  emitterPull: true, 
+                                  emitterPullRadius: 150, 
+                                  emitterPullStrength: 1.0, 
+                                  emitterPullFalloff: 1.0 
+                                }
                               }));
                             } else if (p.id === 'physics') {
                               updateActiveParticle(pr => ({
@@ -4089,7 +4321,56 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       )}
 
                       {/* Row 7: Drag Modifier Track */}
-                      {addedProps.includes('drag') && (
+                {addedProps.includes('motionBlur') && (
+                        <div 
+                          className={`grid grid-cols-[110px_1fr] items-center cursor-pointer hover:bg-neutral-900/30 group ${
+                            selectedTrack === 'motionBlur' ? 'bg-amber-500/10 border-l-2 border-amber-500' : ''
+                          }`}
+                          onClick={(e) => {
+                            setSelectedTrack('motionBlur');
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const clickX = e.clientX - rect.left - 110;
+                            const width = rect.width - 110;
+                            if (clickX >= 0 && width > 0) {
+                              setScrubberProgress(Math.max(0, Math.min(1, clickX / width)));
+                            }
+                          }}
+                        >
+                          <div className="p-2 border-r border-neutral-900 flex items-center justify-between bg-neutral-950">
+                            <span className="font-bold text-neutral-300 text-[10px]">☄️ Motion Blur</span>
+                            <input 
+                              type="checkbox"
+                              checked={activeParticleData.visuals.animateMotionBlur ?? true}
+                              onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, animateMotionBlur: e.target.checked } }))}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded accent-amber-500 scale-75 cursor-pointer"
+                              title="Toggle Motion Blur Animation"
+                            />
+                          </div>
+                          <div className="relative h-9 bg-neutral-950/40 px-2 flex items-center">
+                            {(activeParticleData.visuals.animateMotionBlur ?? true) ? (
+                              <>
+                                <svg className="absolute inset-0 w-full h-full stroke-pink-500 fill-none opacity-40 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                  <path d={getSparklinePath('motionBlur', 100, 100)} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                                </svg>
+                                {getTrackNodesForData(activeParticleData.visuals, 'motionBlur').map((nd, idx) => (
+                                  <div 
+                                    key={idx}
+                                    className="absolute w-2 h-2 bg-pink-400 rotate-45 border border-neutral-900" 
+                                    style={{ left: `${nd.time * 96 + 2}%` }}
+                                    title={`T: ${nd.time.toFixed(2)}`}
+                                  />
+                                ))}
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center px-4">
+                                <div className="h-0.5 w-full bg-neutral-800 rounded"></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                )}
+                {addedProps.includes('drag') && (
                         <div 
                           className={`grid grid-cols-[110px_1fr] items-center cursor-pointer hover:bg-neutral-900/30 group ${
                             selectedTrack === 'drag' ? 'bg-amber-500/10 border-l-2 border-amber-500' : ''

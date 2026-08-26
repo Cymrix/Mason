@@ -32,20 +32,28 @@
     dummy.setAttribute = function(){};
     dummy.getAttribute = function(){ return null; };
 
-    if (typeof Proxy !== 'undefined') {
+        if (typeof Proxy !== 'undefined') {
       return new Proxy(dummy, {
         get: function(target, prop) {
-          if (prop in target) return target[prop];
+          if (prop in target) {
+            const val = target[prop];
+            if (typeof val === 'function') return val.bind(target);
+            return val;
+          }
           if (prop === Symbol.iterator) return [][Symbol.iterator];
           if (typeof prop === 'string' && prop.startsWith('on')) return function(){};
           return function(){};
+        },
+        set: function(target, prop, value) {
+          target[prop] = value;
+          return true;
         }
       });
     }
     return dummy;
   }
 
-  document.getElementById = function(id) {
+    document.getElementById = function(id) {
     const el = origGetId(id);
     if (el) return el;
     return makeDummy(id);
@@ -54,7 +62,9 @@
   document.querySelector = function(sel) {
     const el = origQuery(sel);
     if (el) return el;
-    if (sel && typeof sel === 'string' && sel.startsWith('#')) return makeDummy(sel.slice(1));
+    if (sel && typeof sel === 'string' && sel.startsWith('#')) {
+      return makeDummy(sel.slice(1));
+    }
     return null;
   };
 })();
@@ -17933,6 +17943,8 @@ void main(void)\r
     const projNameInput = document.getElementById('projectNameInput');
     if(projNameInput) projNameInput.value = projName || 'Untitled';
     if(typeof syncBackupUI === 'function') syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
 
     W = Math.max(1, Math.min(8192, parseInt(w) || 512));
     H = Math.max(1, Math.min(8192, parseInt(h) || 512));
@@ -19418,6 +19430,8 @@ void main(void)\r
 
   function refreshBackupButtonStyle(){
     syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
   }
 
   async function toggleBackups(){
@@ -19428,6 +19442,8 @@ void main(void)\r
         cb.dispatchEvent(new Event('change')); // Triggers toast & localStorage
       }
       syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
       return;
     }
 
@@ -19436,6 +19452,8 @@ void main(void)\r
       clearInterval(backupIntervalTimer);
       backupIntervalTimer = null;
       syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
       showToast('Local backups turned off');
       return;
     }
@@ -19454,6 +19472,8 @@ void main(void)\r
       backupDirHandle = targetHandle;
       saveBackupHandleToDB(dir);
       syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
       startBackupIntervalTimer();
       const displayFolderName = (dir.name === BACKUP_SUBFOLDER_NAME) ? dir.name : (dir.name + '/' + BACKUP_SUBFOLDER_NAME);
       showToast('Backups on — into "' + displayFolderName + '", every save plus every ' + document.getElementById('backupIntervalInput').value + ' min');
@@ -20363,6 +20383,8 @@ void main(void)\r
         currentCloudProviderUsed = null;
         currentCloudFileName = null;
         syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
         loadProjectData(proj);
         return;
       } catch(err){
@@ -20386,6 +20408,8 @@ void main(void)\r
       currentCloudProviderUsed = null;
       currentCloudFileName = null;
       syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
       loadProjectData(proj);
     };
     reader.readAsText(file);
@@ -20521,6 +20545,8 @@ void main(void)\r
     }
     checkCloudAuthStatus();
     syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
   }
 
   if (cloudToggleGDrive) cloudToggleGDrive.addEventListener('click', () => switchCloudProvider('gdrive'));
@@ -21190,6 +21216,8 @@ void main(void)\r
       currentCloudProviderUsed = provider;
       currentCloudFileName = fileName;
       syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
       closeCloudStorageModal();
       showToast(`Loaded "${fileName}" from Cloud`);
     } catch (err) {
@@ -21239,6 +21267,8 @@ void main(void)\r
           currentCloudProviderUsed = 'gdrive';
           currentCloudFileName = fileName;
           syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
 
           loadCloudFileList();
           await writeBackupCopy();
@@ -21280,6 +21310,8 @@ void main(void)\r
           currentCloudProviderUsed = 'onedrive';
           currentCloudFileName = fileName;
           syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
 
           loadCloudFileList();
           await writeBackupCopy();
@@ -21752,6 +21784,8 @@ void main(void)\r
   refreshMatrixTimeline();
   initPanelSectionManager();
   syncBackupUI();
+  if (typeof render === 'function') render();
+  if (typeof drawGridOverlay === 'function') drawGridOverlay();
 
   (function initDelayedTooltips(){
     const tooltipEl = document.createElement('div');
@@ -21998,18 +22032,19 @@ window.addEventListener("appinstalled", () => {
     const data = evt.data;
     if (!data || typeof data !== 'object') return;
 
-    if (data.type === 'LOAD_SPRITE') {
+        if (data.type === 'LOAD_SPRITE') {
+      const targetW = data.width || (typeof W !== 'undefined' ? W : 512);
+      const targetH = data.height || (typeof H !== 'undefined' ? H : 512);
       if (data.imageDataUrl) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
-          const targetW = data.width || img.width;
-          const targetH = data.height || img.height;
-          if (typeof resizeCanvasTo === 'function') {
-            resizeCanvasTo(targetW, targetH);
+          if (typeof resizeCanvasWorkspace === 'function') {
+            resizeCanvasWorkspace(targetW, targetH);
           } else {
             if (typeof W !== 'undefined') W = targetW;
             if (typeof H !== 'undefined') H = targetH;
+            if (typeof resizeAllCanvasesToWH === 'function') resizeAllCanvasesToWH();
           }
           if (typeof layers !== 'undefined' && layers && layers[0]) {
             const l = layers[0];
@@ -22018,8 +22053,24 @@ window.addEventListener("appinstalled", () => {
             ctx.drawImage(img, 0, 0);
           }
           if (typeof render === 'function') render();
+          if (typeof fitCanvasToScreen === 'function') fitCanvasToScreen(true);
+          if (typeof centerCanvas === 'function') centerCanvas();
         };
         img.src = data.imageDataUrl;
+      } else {
+        if (typeof resetProjectToDefaults === 'function') {
+           resetProjectToDefaults(targetW, targetH).then(() => {
+             if (typeof fitCanvasToScreen === 'function') fitCanvasToScreen(true);
+             if (typeof centerCanvas === 'function') centerCanvas();
+           });
+        } else {
+           if (typeof W !== 'undefined') W = targetW;
+           if (typeof H !== 'undefined') H = targetH;
+           if (typeof resizeAllCanvasesToWH === 'function') resizeAllCanvasesToWH();
+           if (typeof render === 'function') render();
+           if (typeof fitCanvasToScreen === 'function') fitCanvasToScreen(true);
+           if (typeof centerCanvas === 'function') centerCanvas();
+        }
       }
       if (data.projectName && document.getElementById('projectNameInput')) {
         document.getElementById('projectNameInput').value = data.projectName;
@@ -22029,6 +22080,22 @@ window.addEventListener("appinstalled", () => {
     }
   });
 })();
+</script>
+
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (typeof layers !== 'undefined' && (!layers || layers.length === 0)) {
+      if (typeof resetProjectToDefaults === 'function') {
+        resetProjectToDefaults(32, 32);
+      }
+    } else {
+      if (typeof render === 'function') render();
+      if (typeof drawGridOverlay === 'function') drawGridOverlay();
+      if (typeof centerCanvas === 'function') centerCanvas();
+    }
+  }, 50);
+});
 </script>
 </body>
 

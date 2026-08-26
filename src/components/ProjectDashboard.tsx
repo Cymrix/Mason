@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
+import { getContrastTextColor } from '../theme/appTheme';
 import { ProjectTaskBoard } from './dashboard/ProjectTaskBoard';
 import { 
   Folder, 
@@ -42,10 +43,10 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onOpenThemeModal,
   onExportBundle
 }) => {
-  const [isEditingMetadata, setIsEditingMetadata] = useState(false);
-  const [name, setName] = useState(project.name);
-  const [author, setAuthor] = useState(project.author || 'Mason Architect');
-  const [description, setDescription] = useState(project.description || '');
+  const [isEditingMetadata, setIsEditingMetadata] = React.useState(false);
+  const [name, setName] = React.useState(project.name);
+  const [author, setAuthor] = React.useState(project.author || 'Mason Architect');
+  const [description, setDescription] = React.useState(project.description || '');
 
   const { theme, primaryDef, bgDef, getModuleColorDef } = useAppTheme();
 
@@ -154,9 +155,10 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
             <button
               type="button"
               onClick={onOpenModulesModal}
-              className="px-5 py-2.5 rounded-2xl text-white text-xs font-bold shadow-xl flex items-center justify-center gap-2 transition active:scale-95"
+              className="px-5 py-2.5 rounded-2xl text-xs font-bold shadow-xl flex items-center justify-center gap-2 transition active:scale-95"
               style={{
                 backgroundColor: primaryDef.hex,
+                color: getContrastTextColor(primaryDef),
                 boxShadow: `0 10px 20px -5px rgba(${primaryDef.rgb}, 0.35)`
               }}
             >
@@ -264,8 +266,11 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               <button
                 type="button"
                 onClick={handleSaveMetadata}
-                className="px-4 py-1.5 rounded-xl text-white text-xs font-bold"
-                style={{ backgroundColor: primaryDef.hex }}
+                className="px-4 py-1.5 rounded-xl text-xs font-bold"
+                style={{
+                  backgroundColor: primaryDef.hex,
+                  color: getContrastTextColor(primaryDef)
+                }}
               >
                 Save Details
               </button>

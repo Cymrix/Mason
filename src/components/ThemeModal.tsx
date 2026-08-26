@@ -30,7 +30,8 @@ import {
   BackgroundToneKey,
   ThemeCategory,
   analyzeThemeFamilies,
-  getColorFamilyKey
+  getColorFamilyKey,
+  getContrastTextColor
 } from '../theme/appTheme';
 
 interface ThemeModalProps {
@@ -883,9 +884,10 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-lg transition"
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-lg transition"
                         style={{
                           backgroundColor: primaryDef.hex,
+                          color: getContrastTextColor(primaryDef),
                           boxShadow: `0 6px 14px -3px rgba(${primaryDef.rgb}, 0.4)`
                         }}
                       >
@@ -991,9 +993,10 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl text-xs font-bold text-white shadow-lg transition"
+            className="px-5 py-2 rounded-xl text-xs font-bold shadow-lg transition"
             style={{
-              backgroundColor: primaryDef.hex
+              backgroundColor: primaryDef.hex,
+              color: getContrastTextColor(primaryDef)
             }}
           >
             Done

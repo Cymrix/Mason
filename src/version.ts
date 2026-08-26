@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.135';
-export const MASON_VERSION_DISPLAY = 'v0.135';
-export const MASON_FULL_VERSION = 'v0.135';
+export const MASON_VERSION = '0.145';
+export const MASON_VERSION_DISPLAY = 'v0.145';
+export const MASON_FULL_VERSION = 'v0.145';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,110 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.145',
+    date: '2026-08-25',
+    changes: [
+      'Resolved SpriteEditor iframe save timeouts by safely catching errors during asynchronous image loads.',
+      'Fixed blank canvases during project load due to empty image data throwing unhandled exceptions.',
+      'Ensured `isSuppressingDirty` resets correctly after project load, restoring dirty state functionality and red save buttons.'
+    ]
+  },
+  {
+    version: 'v0.145',
+    date: '2026-08-25',
+    changes: [
+      'Resolved SpriteEditor iframe save timeouts by safely catching errors during asynchronous image loads.',
+      'Fixed blank canvases during project load due to empty image data throwing unhandled exceptions.',
+      'Ensured  resets correctly after project load, restoring dirty state functionality and red save buttons.'
+    ]
+  },
+  {
+    version: 'v0.145',
+    date: '2026-08-25',
+    changes: [
+      'Resolved SpriteEditor saves failing silently by fixing buildProjectData crashing in iframe.',
+      'Fixed SVG caching missing patches and cross-file frame caching on load.',
+      'Fixed SpriteEditor isDirty not firing on stroke completion, restoring glowing red Save button.',
+      'Patched async load project execution to prevent dirty-state suppression overriding new user edits.'
+    ]
+  },
+  {
+    version: 'v0.145',
+    date: '2026-08-25',
+    changes: [
+      'Sequential version bump to v0.145 maintaining strict version increment discipline.',
+      'Verified zero-downtime hot reloading, development server stability, and production build readiness.'
+    ]
+  },
+  {
+    version: 'v0.142',
+    date: '2026-08-25',
+    changes: [
+      'Eliminated asynchronous default SVG preset loading delays that blocked dirty state propagation.',
+      'Fixed frames array clearing in resetProjectToDefaults, resolving the issue where old sprite graphics persisted into blank or newly switched files.',
+      'Hardened buildProjectData with null-safe accessors for canvas data URLs, stamps, frames, and layers, preventing save serialization crashes.',
+      'Added immediate visual toast notifications and error handling on saving, file switching, and sprite operations.',
+      'Guaranteed dirty state notification dispatch on every stroke completion and layer manipulation so the Save button turns glowing red with live save prompts on file switch.'
+    ]
+  },
+  {
+    version: 'v0.141',
+    date: '2026-08-25',
+    changes: [
+      'Fixed sprite dirty state suppression flags with try/finally lifecycle guarding so unsaved edits reliably mark the file dirty and never get silently discarded.',
+      'Enhanced the Save button with an unmissable glowing red pulse, white badge, and bold highlight when unsaved changes exist in the active sprite.',
+      'Synchronized the main top-right Save Project button to also glow red and pulse when sprite changes are pending.',
+      'Ensured instant canvas clearing on sprite file switches to prevent previous sprite graphics from persisting into new files.',
+      'Enabled reliable confirmation prompts when switching away from a modified sprite or creating new files with unsaved work.',
+      'Fixed toast notification dispatching for sprite saves, file creation, duplication, and deletion.'
+    ]
+  },
+  {
+    version: 'v0.140',
+    date: '2026-08-25',
+    changes: [
+      'Resolved sprite dirty state tracking bug caused by shadowed setDirty declaration in iframe context, restoring live red glowing Save button indicators.',
+      'Fixed asynchronous file saving in Sprite Editor with explicit save acknowledgement and prompt confirmation dialogs on file switches and new sprite creation.',
+      'Fixed canvas persistence bleed when switching between different .sprite files by awaiting clean reset/load promises before clearing dirty flags.',
+      'Added success and informational toast notifications on saving, creating, duplicating, and deleting sprite files.'
+    ]
+  },
+  {
+    version: 'v0.139',
+    date: '2026-08-25',
+    changes: [
+      'Preserved live canvas & tool state in memory when switching between Sprite Editor and other Mason modules (Maps, Biomes, Dashboard).',
+      'Implemented confirmation dialog on switching between different .sprite files or creating new sprites when unsaved changes exist, giving choices to Save or Discard changes.',
+      'Fixed workspace canvas clean reset on file switches to prevent pixel bleeding into empty sprite files.',
+      'Updated active dirty state indicator on the header Save button to highlight red when changes are made.'
+    ]
+  },
+  {
+    version: 'v0.138',
+    date: '2026-08-24',
+    changes: [
+      'Resolved `Invalid hook call` and `Cannot read properties of null (reading useState)` runtime errors in ProjectTaskBoard and ProjectDashboard components.',
+      'Refactored hooks usage to access `React.useState` explicitly via default React namespace to avoid Vite module resolution and Fast Refresh destructuring collisions.'
+    ]
+  },
+  {
+    version: 'v0.137',
+    date: '2026-08-24',
+    changes: [
+      'Resolved a critical SyntaxError resulting from a malformed replacement string block that aborted the entire script execution prematurely.',
+      'Fixed a TypeError (Illegal invocation) inside the makeDummy proxy by correctly binding native HTML Element getters to the target instead of the Proxy wrapper.'
+    ]
+  },
+  {
+    version: 'v0.136',
+    date: '2026-08-24',
+    changes: [
+      'Fixed a bug in Palette Spray Studio embedded applet causing a black screen on fresh sprite creation.',
+      'Corrected string quotation in typeof checks and implemented a resilient makeDummy DOM fallback for optional module elements.',
+      'Ensured proper canvas resize and initial rendering for empty LOAD_SPRITE events.'
+    ]
+  },
   {
     version: 'v0.135',
     date: '2026-08-24',

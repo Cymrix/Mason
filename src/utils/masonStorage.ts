@@ -5,6 +5,7 @@ import {
   UIThemeFile, 
   GameStructureFile,
   ParticleSystemFile,
+  SpriteFile,
   ParticleSystemData,
   createInitialMasonProject,
   createDefaultMapFile,
@@ -691,3 +692,25 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
   return masonProj;
 };
 
+
+export const createNewSpriteInProject = (project: MasonProject, name: string): { project: MasonProject, newFile: SpriteFile } => {
+  const fileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.sprite`;
+  const newFile: SpriteFile = {
+    id: `sprite_${Date.now()}`,
+    name,
+    fileName,
+    updatedAt: new Date().toISOString(),
+    spriteData: null
+  };
+  
+  const updatedProject = {
+    ...project,
+    fileSystem: {
+      ...project.fileSystem,
+      sprites: [...(project.fileSystem.sprites || []), newFile]
+    }
+  };
+  
+  saveActiveMasonProject(updatedProject);
+  return { project: updatedProject, newFile };
+};

@@ -456,124 +456,124 @@ export const BACKGROUND_TONES: Record<BackgroundToneKey, BackgroundToneDef> = {
 };
 
 export const PRESET_APP_THEMES: AppThemeConfig[] = [
-  // ── STANDARD PRESETS (Guaranteed 7 Color Family Distinction) ──
+  // ── STANDARD PRESETS (Guaranteed 7 Color Family Distinction via Custom Palette Mixer Hues) ──
   {
     id: 'indigo_citadel',
     name: 'Citadel Indigo (Default)',
-    description: 'Standard Mason blueprint theme. Spans all 7 color families with Citadel Indigo header, Emerald Image Editor & Cyan cartography.',
+    description: 'Standard Mason blueprint theme. Electric Indigo primary, Emerald Mint Image Editor, Pure Cyan maps, Abyssal Teal biomes, Deep Rose prefabs, Deep Orange particles, Pure Yellow HUD, Astral Purple logic.',
     category: 'standard',
-    primary: 'indigo',
+    primary: 'hue_250',
     backgroundTone: 'void',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'cyan',
-      biomes: 'teal',
-      prefabs: 'rose',
-      particles: 'orange',
-      ui: 'gold',
-      gamestructure: 'purple'
+      sprites: 'hue_130',
+      maps: 'hue_180',
+      biomes: 'hue_160',
+      prefabs: 'hue_330',
+      particles: 'hue_30',
+      ui: 'hue_60',
+      gamestructure: 'hue_280'
     }
   },
   {
     id: 'cyberpunk_neon',
     name: 'Cyberpunk Neon 2088',
-    description: 'High-contrast 7-family spectrum: Neon Cyan primary, Emerald Image Editor, Electric Lime maps, Platinum biomes, Vapor Fuchsia prefabs, Blaze particles, Solar Gold HUD, Crimson logic.',
+    description: 'High-contrast 7-family spectrum: Pure Cyan primary, Pure Green Image Editor, Solar Lime maps, Platinum White biomes, Bright Fuchsia prefabs, Blaze Orange particles, Golden Amber HUD, Pure Red logic.',
     category: 'standard',
-    primary: 'cyan',
+    primary: 'hue_180',
     backgroundTone: 'void',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'lime',
-      biomes: 'white',
-      prefabs: 'fuchsia',
-      particles: 'orange',
-      ui: 'gold',
-      gamestructure: 'crimson'
+      sprites: 'hue_120',
+      maps: 'hue_80',
+      biomes: 'gray_white',
+      prefabs: 'hue_310',
+      particles: 'hue_40',
+      ui: 'hue_50',
+      gamestructure: 'hue_0'
     }
   },
   {
     id: 'emerald_deepwood',
     name: 'Emerald Deepwood',
-    description: 'Lush forest theme: Emerald primary, Solar Lime Image Editor, Sky maps, Emerald biomes, Crimson Rose prefabs, Orange particles, Gold HUD, Astral Purple logic.',
+    description: 'Lush forest theme: Pure Green primary, Pure Lime Image Editor, Sky Blue maps, Hyper Mint biomes, Deep Carmine prefabs, Deep Orange particles, Pure Yellow HUD, Cosmic Violet logic.',
     category: 'standard',
-    primary: 'emerald',
+    primary: 'hue_120',
     backgroundTone: 'slate',
     moduleColors: {
-      sprites: 'lime',
-      maps: 'sky',
-      biomes: 'emerald',
-      prefabs: 'rose',
-      particles: 'orange',
-      ui: 'gold',
-      gamestructure: 'purple'
+      sprites: 'hue_90',
+      maps: 'hue_200',
+      biomes: 'hue_140',
+      prefabs: 'hue_340',
+      particles: 'hue_30',
+      ui: 'hue_60',
+      gamestructure: 'hue_260'
     }
   },
   {
     id: 'obsidian_crimson',
     name: 'Obsidian Crimson',
-    description: 'Full 7-family spectrum: Blood-ruby Crimson primary, Pure Green Image Editor, Neon Cyan maps, Abyssal Teal biomes, Blaze Orange prefabs, Solar Gold particles, Slate HUD, Astral Purple logic.',
+    description: 'Full 7-family spectrum: Pure Red primary, Emerald Mint Image Editor, Sky Cyan maps, Ocean Teal biomes, Coral Red prefabs, Golden Amber particles, Steel Slate HUD, Astral Purple logic.',
     category: 'standard',
-    primary: 'crimson',
+    primary: 'hue_0',
     backgroundTone: 'void',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'cyan',
-      biomes: 'teal',
-      prefabs: 'orange',
-      particles: 'gold',
-      ui: 'monochrome',
-      gamestructure: 'purple'
+      sprites: 'hue_130',
+      maps: 'hue_190',
+      biomes: 'hue_170',
+      prefabs: 'hue_20',
+      particles: 'hue_50',
+      ui: 'gray_slate',
+      gamestructure: 'hue_280'
     }
   },
   {
     id: 'solar_amber',
     name: 'Solar Flare & Amber',
-    description: 'Warm energetic 7-family spectrum: Solar Amber primary, Pure Jade Image Editor, Cobalt Blue maps, Electric Lime biomes, Crimson Rose prefabs, Blaze Orange particles, Platinum HUD, Astral Purple logic.',
+    description: 'Warm energetic 7-family spectrum: Golden Amber primary, Pure Jade Image Editor, Royal Cobalt maps, Solar Lime biomes, Deep Rose prefabs, Deep Orange particles, Platinum White HUD, Pure Violet logic.',
     category: 'standard',
-    primary: 'amber',
+    primary: 'hue_50',
     backgroundTone: 'espresso',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'blue',
-      biomes: 'lime',
-      prefabs: 'rose',
-      particles: 'orange',
-      ui: 'white',
-      gamestructure: 'purple'
+      sprites: 'hue_150',
+      maps: 'hue_220',
+      biomes: 'hue_80',
+      prefabs: 'hue_330',
+      particles: 'hue_30',
+      ui: 'gray_white',
+      gamestructure: 'hue_270'
     }
   },
   {
     id: 'astral_violet',
     name: 'Astral Void & Amethyst',
-    description: 'Cosmic 7-family spectrum: Astral Purple primary, Abyssal Teal Image Editor, Neon Cyan maps, Emerald biomes, Sunset Coral prefabs, Blaze Orange particles, Solar Gold HUD, Carbon Slate logic.',
+    description: 'Cosmic 7-family spectrum: Astral Purple primary, Abyssal Teal Image Editor, Pure Cyan maps, Pure Green biomes, Neon Pink prefabs, Blaze Orange particles, Pure Yellow HUD, Bright Silver logic.',
     category: 'standard',
-    primary: 'purple',
+    primary: 'hue_280',
     backgroundTone: 'navy',
     moduleColors: {
-      sprites: 'teal',
-      maps: 'cyan',
-      biomes: 'emerald',
-      prefabs: 'coral',
-      particles: 'orange',
-      ui: 'gold',
-      gamestructure: 'monochrome'
+      sprites: 'hue_160',
+      maps: 'hue_180',
+      biomes: 'hue_120',
+      prefabs: 'hue_320',
+      particles: 'hue_40',
+      ui: 'hue_60',
+      gamestructure: 'gray_silver'
     }
   },
   {
     id: 'vaporwave_sunset',
     name: 'Vaporwave Sunset',
-    description: 'Retro synthwave 7-family spectrum: Vapor Fuchsia primary, Emerald Mint Image Editor, Sky Blue maps, Electric Lime biomes, Crimson Rose prefabs, Blaze Orange particles, Solar Amber HUD, Carbon Slate logic.',
+    description: 'Retro synthwave 7-family spectrum: Bright Fuchsia primary, Hyper Mint Image Editor, Sky Blue maps, Solar Lime biomes, Deep Carmine prefabs, Deep Orange particles, Golden Amber HUD, Electric Indigo logic.',
     category: 'standard',
-    primary: 'fuchsia',
+    primary: 'hue_310',
     backgroundTone: 'void',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'sky',
-      biomes: 'lime',
-      prefabs: 'rose',
-      particles: 'orange',
-      ui: 'amber',
-      gamestructure: 'monochrome'
+      sprites: 'hue_140',
+      maps: 'hue_200',
+      biomes: 'hue_80',
+      prefabs: 'hue_340',
+      particles: 'hue_30',
+      ui: 'hue_50',
+      gamestructure: 'hue_250'
     }
   },
   {
@@ -581,16 +581,16 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     name: 'Monochrome Slate Studio',
     description: 'Tactical graphite neutral primary paired with 7 distinct colorful module accents for minimal header distraction & maximum workspace clarity.',
     category: 'standard',
-    primary: 'monochrome',
+    primary: 'gray_slate',
     backgroundTone: 'carbon',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'cyan',
-      biomes: 'teal',
-      prefabs: 'rose',
-      particles: 'amber',
-      ui: 'orange',
-      gamestructure: 'purple'
+      sprites: 'hue_120',
+      maps: 'hue_180',
+      biomes: 'hue_160',
+      prefabs: 'hue_330',
+      particles: 'hue_40',
+      ui: 'hue_60',
+      gamestructure: 'hue_280'
     }
   },
 
@@ -601,16 +601,16 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     description: 'Gold-standard Color Universal Design (Nature Methods). Maximally distinct for all vision types.',
     category: 'accessibility',
     accessibilityTag: 'Universal Safe',
-    primary: 'okabe_blue',
+    primary: 'hue_230',
     backgroundTone: 'void',
     moduleColors: {
-      sprites: 'okabe_bluishgreen',
-      maps: 'okabe_skyblue',
-      biomes: 'okabe_orange',
-      prefabs: 'okabe_vermillion',
-      particles: 'okabe_yellow',
-      ui: 'okabe_redpurple',
-      gamestructure: 'white'
+      sprites: 'hue_150',
+      maps: 'hue_190',
+      biomes: 'hue_30',
+      prefabs: 'hue_10',
+      particles: 'hue_60',
+      ui: 'hue_300',
+      gamestructure: 'gray_white'
     }
   },
   {
@@ -619,16 +619,16 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     description: 'Optimized for red-green color blindness (~8% of males). Zero red-green confusion using blue, gold, and orange.',
     category: 'accessibility',
     accessibilityTag: 'Red-Green Safe',
-    primary: 'blue',
+    primary: 'hue_220',
     backgroundTone: 'slate',
     moduleColors: {
-      sprites: 'teal',
-      maps: 'sky',
-      biomes: 'blue',
-      prefabs: 'orange',
-      particles: 'amber',
-      ui: 'gold',
-      gamestructure: 'purple'
+      sprites: 'hue_170',
+      maps: 'hue_200',
+      biomes: 'hue_240',
+      prefabs: 'hue_30',
+      particles: 'hue_40',
+      ui: 'hue_60',
+      gamestructure: 'hue_270'
     }
   },
   {
@@ -637,16 +637,16 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     description: 'Optimized for blue-yellow vision deficiency. High-contrast crimson, emerald, hot fuchsia, and platinum.',
     category: 'accessibility',
     accessibilityTag: 'Blue-Yellow Safe',
-    primary: 'crimson',
+    primary: 'hue_0',
     backgroundTone: 'void',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'lime',
-      biomes: 'teal',
-      prefabs: 'fuchsia',
-      particles: 'coral',
-      ui: 'amber',
-      gamestructure: 'white'
+      sprites: 'hue_120',
+      maps: 'hue_90',
+      biomes: 'hue_160',
+      prefabs: 'hue_310',
+      particles: 'hue_20',
+      ui: 'hue_50',
+      gamestructure: 'gray_white'
     }
   },
   {
@@ -655,16 +655,16 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
     description: 'Stepped lightness values for total color blindness (achromatopsia), grayscale, or low-vision clarity.',
     category: 'accessibility',
     accessibilityTag: 'Achromatopsia Safe',
-    primary: 'white',
+    primary: 'gray_white',
     backgroundTone: 'void',
     moduleColors: {
-      sprites: 'emerald',
-      maps: 'cyan',
-      biomes: 'lime',
-      prefabs: 'coral',
-      particles: 'gold',
-      ui: 'amber',
-      gamestructure: 'monochrome'
+      sprites: 'hue_120',
+      maps: 'hue_180',
+      biomes: 'hue_80',
+      prefabs: 'hue_20',
+      particles: 'hue_60',
+      ui: 'hue_50',
+      gamestructure: 'gray_silver'
     }
   }
 ];
@@ -677,11 +677,50 @@ export function loadSavedAppTheme(): AppThemeConfig {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.primary && parsed.moduleColors) {
+        // Map legacy color aliases to new chromatic hue and grayscale keys
+        const legacyMap: Record<string, AccentColorKey> = {
+          indigo: 'hue_250',
+          cyan: 'hue_180',
+          emerald: 'hue_120',
+          rose: 'hue_330',
+          amber: 'hue_50',
+          purple: 'hue_280',
+          blue: 'hue_220',
+          crimson: 'hue_0',
+          teal: 'hue_160',
+          fuchsia: 'hue_310',
+          lime: 'hue_80',
+          orange: 'hue_30',
+          gold: 'hue_60',
+          sky: 'hue_200',
+          coral: 'hue_20',
+          monochrome: 'gray_slate',
+          white: 'gray_white',
+          okabe_blue: 'hue_230',
+          okabe_orange: 'hue_30',
+          okabe_skyblue: 'hue_190',
+          okabe_bluishgreen: 'hue_150',
+          okabe_yellow: 'hue_60',
+          okabe_vermillion: 'hue_10',
+          okabe_redpurple: 'hue_300'
+        };
+
+        if (legacyMap[parsed.primary]) {
+          parsed.primary = legacyMap[parsed.primary];
+        }
+        if (parsed.moduleColors) {
+          for (const modKey of Object.keys(parsed.moduleColors)) {
+            const val = parsed.moduleColors[modKey];
+            if (legacyMap[val]) {
+              parsed.moduleColors[modKey] = legacyMap[val];
+            }
+          }
+        }
         if (!parsed.moduleColors.sprites) {
-          parsed.moduleColors.sprites = 'emerald';
+          parsed.moduleColors.sprites = 'hue_130';
         }
         if (!parsed.moduleColors.particles) {
-          parsed.moduleColors.particles = 'amber';
+          parsed.moduleColors.particles = 'hue_30';
         }
         return parsed;
       }
@@ -690,6 +729,40 @@ export function loadSavedAppTheme(): AppThemeConfig {
     console.warn('Failed to load saved app theme:', err);
   }
   return PRESET_APP_THEMES[0];
+}
+
+export function getContrastTextColor(color: string | ColorDef | undefined | null): string {
+  if (!color) return '#ffffff';
+  
+  let rgbStr = '';
+  if (typeof color === 'object') {
+    rgbStr = color.rgb || color.hex || '';
+  } else {
+    rgbStr = color;
+  }
+
+  let r = 255, g = 255, b = 255;
+  if (rgbStr.includes(',')) {
+    const parts = rgbStr.split(',').map(p => parseInt(p.trim(), 10));
+    if (parts.length >= 3 && !isNaN(parts[0])) {
+      r = parts[0]; g = parts[1]; b = parts[2];
+    }
+  } else if (rgbStr.startsWith('#')) {
+    const hex = rgbStr.replace('#', '');
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16);
+      g = parseInt(hex[1] + hex[1], 16);
+      b = parseInt(hex[2] + hex[2], 16);
+    } else if (hex.length === 6) {
+      r = parseInt(hex.substring(0, 2), 16);
+      g = parseInt(hex.substring(2, 4), 16);
+      b = parseInt(hex.substring(4, 6), 16);
+    }
+  }
+
+  // ITU-R BT.709 perceived luminance formula
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? '#09090b' : '#ffffff';
 }
 
 export function saveAppTheme(theme: AppThemeConfig): void {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   ProjectTaskBoardData, 
   ProjectTaskCard, 
@@ -8,6 +8,7 @@ import {
   createDefaultTaskBoard
 } from '../../engine/masonProjectSchema';
 import { useAppTheme } from '../../theme/ThemeContext';
+import { getContrastTextColor } from '../../theme/appTheme';
 import { 
   Kanban, 
   Plus, 
@@ -44,31 +45,31 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
   const { theme, primaryDef, bgDef } = useAppTheme();
 
   // Filters & Search
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = React.useState<string>('all');
 
   // Drag State
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
+  const [draggedTaskId, setDraggedTaskId] = React.useState<string | null>(null);
+  const [dragOverColumnId, setDragOverColumnId] = React.useState<string | null>(null);
 
   // Modals state
-  const [activeTaskModal, setActiveTaskModal] = useState<ProjectTaskCard | null>(null);
-  const [isCreatingTask, setIsCreatingTask] = useState<boolean>(false);
-  const [newTaskColumnId, setNewTaskColumnId] = useState<string | undefined>(undefined);
+  const [activeTaskModal, setActiveTaskModal] = React.useState<ProjectTaskCard | null>(null);
+  const [isCreatingTask, setIsCreatingTask] = React.useState<boolean>(false);
+  const [newTaskColumnId, setNewTaskColumnId] = React.useState<string | undefined>(undefined);
 
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
-  const [editingCategory, setEditingCategory] = useState<ProjectTaskCategory | null>(null);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatColor, setNewCatColor] = useState('#ec4899');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = React.useState<boolean>(false);
+  const [editingCategory, setEditingCategory] = React.useState<ProjectTaskCategory | null>(null);
+  const [newCatName, setNewCatName] = React.useState('');
+  const [newCatColor, setNewCatColor] = React.useState('#ec4899');
 
-  const [isMemberModalOpen, setIsMemberModalOpen] = useState<boolean>(false);
-  const [editingMember, setEditingMember] = useState<ProjectTeamMemberColumn | null>(null);
-  const [memberName, setMemberName] = useState('');
-  const [memberRole, setMemberRole] = useState('');
-  const [memberColor, setMemberColor] = useState('#3b82f6');
+  const [isMemberModalOpen, setIsMemberModalOpen] = React.useState<boolean>(false);
+  const [editingMember, setEditingMember] = React.useState<ProjectTeamMemberColumn | null>(null);
+  const [memberName, setMemberName] = React.useState('');
+  const [memberRole, setMemberRole] = React.useState('');
+  const [memberColor, setMemberColor] = React.useState('#3b82f6');
 
   // Inline Quick Add Task Title per column
-  const [quickTaskTitles, setQuickTaskTitles] = useState<Record<string, string>>({});
+  const [quickTaskTitles, setQuickTaskTitles] = React.useState<Record<string, string>>({});
 
   // Color preset options for categories & avatars
   const COLOR_PRESETS = [
@@ -417,9 +418,10 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
             <button
               type="button"
               onClick={() => openNewTaskModal('unassigned')}
-              className="px-3.5 py-1.5 rounded-2xl text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition active:scale-95"
+              className="px-3.5 py-1.5 rounded-2xl text-xs font-bold shadow-lg flex items-center gap-1.5 transition active:scale-95"
               style={{
                 backgroundColor: primaryDef.hex,
+                color: getContrastTextColor(primaryDef),
                 boxShadow: `0 6px 16px -4px rgba(${primaryDef.rgb}, 0.4)`
               }}
             >
@@ -825,14 +827,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 }) => {
   const { bgDef, primaryDef } = useAppTheme();
 
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description || '');
-  const [categoryId, setCategoryId] = useState(task.categoryId || categories[0]?.id || 'cat_art');
-  const [assigneeId, setAssigneeId] = useState<string | undefined>(task.assigneeId);
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>(task.priority || 'medium');
-  const [dueDate, setDueDate] = useState(task.dueDate || '');
-  const [subtasks, setSubtasks] = useState<ProjectTaskSubtask[]>(task.subtasks || []);
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [title, setTitle] = React.useState(task.title);
+  const [description, setDescription] = React.useState(task.description || '');
+  const [categoryId, setCategoryId] = React.useState(task.categoryId || categories[0]?.id || 'cat_art');
+  const [assigneeId, setAssigneeId] = React.useState<string | undefined>(task.assigneeId);
+  const [priority, setPriority] = React.useState<'low' | 'medium' | 'high' | 'urgent'>(task.priority || 'medium');
+  const [dueDate, setDueDate] = React.useState(task.dueDate || '');
+  const [subtasks, setSubtasks] = React.useState<ProjectTaskSubtask[]>(task.subtasks || []);
+  const [newSubtaskTitle, setNewSubtaskTitle] = React.useState('');
 
   const handleAddSubtask = () => {
     if (!newSubtaskTitle.trim()) return;
@@ -1155,8 +1157,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-2xl text-xs font-bold text-white shadow-lg transition active:scale-95"
-                style={{ backgroundColor: primaryDef.hex }}
+                className="px-5 py-2 rounded-2xl text-xs font-bold shadow-lg transition active:scale-95"
+                style={{
+                  backgroundColor: primaryDef.hex,
+                  color: getContrastTextColor(primaryDef)
+                }}
               >
                 {isNew ? 'Create Task' : 'Save Changes'}
               </button>
@@ -1245,8 +1250,11 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
               <button
                 type="button"
                 onClick={onSaveCategory}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white shrink-0"
-                style={{ backgroundColor: primaryDef.hex }}
+                className="px-4 py-2 rounded-xl text-xs font-bold shrink-0"
+                style={{
+                  backgroundColor: primaryDef.hex,
+                  color: getContrastTextColor(primaryDef)
+                }}
               >
                 {editingCategory ? 'Update' : 'Add'}
               </button>
@@ -1464,8 +1472,11 @@ const MemberColumnModal: React.FC<MemberColumnModalProps> = ({
               <button
                 type="button"
                 onClick={onSave}
-                className="px-5 py-2 rounded-2xl text-xs font-bold text-white shadow-lg transition active:scale-95"
-                style={{ backgroundColor: primaryDef.hex }}
+                className="px-5 py-2 rounded-2xl text-xs font-bold shadow-lg transition active:scale-95"
+                style={{
+                  backgroundColor: primaryDef.hex,
+                  color: getContrastTextColor(primaryDef)
+                }}
               >
                 {member ? 'Save Changes' : 'Add Column'}
               </button>

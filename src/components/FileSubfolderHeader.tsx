@@ -33,6 +33,7 @@ interface FileSubfolderHeaderProps {
   onDeleteFile?: (fileName: string) => void;
   onRenameFile?: (oldFileName: string, newName: string) => void;
   onBackToDashboard?: () => void;
+  isDirty?: boolean;
   accentColor?: string; // e.g. "cyan", "emerald", "amber", "purple", "rose"
   centerContent?: React.ReactNode;
   extraActions?: React.ReactNode;
@@ -51,6 +52,7 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
   onDeleteFile,
   onRenameFile,
   onBackToDashboard,
+  isDirty = false,
   accentColor = 'cyan',
   centerContent,
   extraActions
@@ -256,11 +258,18 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
         <button
           type="button"
           onClick={onSaveFile}
-          className="flex items-center gap-1 px-2 py-0.5 bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-200 rounded text-xs font-semibold transition"
-          title="Save changes to file"
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition shadow-sm ${
+            isDirty 
+              ? "bg-red-600 hover:bg-red-500 text-white border border-red-400 shadow-[0_0_14px_rgba(239,68,68,0.9)] animate-pulse scale-105" 
+              : "bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-200"
+          }`}
+          title={isDirty ? "Unsaved changes! Click to save" : "Save changes to file"}
         >
-          <Save size={12} className="text-cyan-400" />
+          <Save size={13} className={isDirty ? "text-white" : "text-cyan-400"} />
           <span className="hidden sm:inline">Save</span>
+          {isDirty && (
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping ml-0.5" />
+          )}
         </button>
 
         <button

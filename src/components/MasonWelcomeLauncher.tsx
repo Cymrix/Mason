@@ -1,4 +1,5 @@
 import React from 'react';
+import { getContrastTextColor } from '../theme/appTheme';
 import { 
   Plus, 
   FolderOpen, 
@@ -229,8 +230,11 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                       <Trash2 size={14} />
                     </button>
                     <div 
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 text-white"
-                      style={{ backgroundColor: primaryDef.hex }}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                      style={{
+                        backgroundColor: primaryDef.hex,
+                        color: getContrastTextColor(primaryDef)
+                      }}
                     >
                       <span>Open</span>
                     </div>

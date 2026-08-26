@@ -1313,6 +1313,15 @@ export interface ParticleSystemFile {
 // ==========================================
 export type MasonModuleId = 'maps' | 'biomes' | 'prefabs' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles';
 
+export interface SpriteFile {
+  id: string;
+  name: string;
+  fileName: string;
+  createdAt?: string;
+  updatedAt: string;
+  spriteData: any; // Raw JSON export from Palette Spray Studio
+}
+
 export interface MasonFileSystem {
   maps: MapFile[];
   biomes: BiomeFile[];
@@ -1321,6 +1330,7 @@ export interface MasonFileSystem {
   game: GameStructureFile[];
   behaviors: BehaviorFile[];
   particles?: ParticleSystemFile[];
+  sprites?: SpriteFile[];
 }
 
 export interface MasonProject {
@@ -1343,6 +1353,7 @@ export interface MasonProject {
     gameStructureFileName: string;
     behaviorFileName?: string;
     particleFileName?: string;
+    spriteFileName?: string;
   };
   
   fileSystem: MasonFileSystem;
@@ -4363,7 +4374,8 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
       uiFileName: 'classic_gothic_hud.ui',
       gameStructureFileName: 'main_campaign.gamestructure',
       behaviorFileName: 'ashen_hunter.behavior',
-      particleFileName: 'fire_embers.particle'
+      particleFileName: 'fire_embers.particle',
+      spriteFileName: 'hero_character.sprite'
     },
     fileSystem: {
       maps: [map1, map2, map3],
@@ -4372,7 +4384,17 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
       ui: uiThemes,
       game: gameStructures,
       behaviors,
-      particles
+      particles,
+      sprites: [
+        {
+          id: 'sprite_hero_character',
+          name: 'Hero Character',
+          fileName: 'hero_character.sprite',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          spriteData: null
+        }
+      ]
     },
     taskBoard: createDefaultTaskBoard()
   };

@@ -39,6 +39,7 @@ import { RefinedBiomeEditor } from './RefinedBiomeEditor';
 import { UIThemeModule } from './UIThemeModule';
 import { GameStructureModule } from './GameStructureModule';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
+import { SpriteEditorWrapper } from './SpriteEditorWrapper';
 import { CloudSyncModal } from './CloudSyncModal';
 import {
   Paintbrush,
@@ -115,7 +116,15 @@ export const EditorLayout: React.FC = () => {
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   const [mapsSubMode, setMapsSubMode] = useState<'tilemap' | 'macro'>('tilemap');
 
-  const handleLaunchModule = (modId: string | null) => {
+  const handleLaunchModule = async (modId: string | null) => {
+    if (activeModuleId === 'sprites' && modId !== 'sprites' && (window as any).masonCheckSpriteDirty?.()) {
+      const choice = window.confirm(
+        'You have unsaved changes in your active sprite.\n\nClick OK to Save before leaving, or Cancel to Discard changes.'
+      );
+      if (choice && (window as any).masonRequestSpriteSave) {
+        await (window as any).masonRequestSpriteSave();
+      }
+    }
     if (modId === 'macro') {
       setActiveModuleId('maps');
       setMapsSubMode('macro');
@@ -156,6 +165,17 @@ export const EditorLayout: React.FC = () => {
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [isSpriteDirty, setIsSpriteDirty] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleMsg = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'SPRITE_DIRTY') {
+        setIsSpriteDirty(!!e.data.isDirty);
+      }
+    };
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, []);
 
   // Map Painting State (for maps module)
   const [mode, setMode] = useState<ModeType>('paint');
@@ -200,7 +220,15 @@ export const EditorLayout: React.FC = () => {
   };
 
   // Project lifecycle handlers
-  const handleCreateNewProject = (name: string, description: string, author: string) => {
+  const handleCreateNewProject = async (name: string, description: string, author: string)  => {
+    if (activeModuleId === 'sprites') {
+      const checkDirty = (window as any).masonCheckSpriteDirty;
+      if (checkDirty && checkDirty()) {
+        if (!window.confirm("You have unsaved changes in the Sprite Editor. Do you want to continue? (Click OK to discard changes, Cancel to stay)")) {
+          return;
+        }
+      }
+    }
     const newProj = createNewProject(name, description, author);
     setProject(newProj);
     setActiveModuleId(null); // Show project info by default
@@ -208,7 +236,15 @@ export const EditorLayout: React.FC = () => {
     showToast(`Created new project: ${name}`, 'success');
   };
 
-  const handleSelectSavedProject = async (id: string) => {
+  const handleSelectSavedProject = async (id: string)  => {
+    if (activeModuleId === 'sprites') {
+      const checkDirty = (window as any).masonCheckSpriteDirty;
+      if (checkDirty && checkDirty()) {
+        if (!window.confirm("You have unsaved changes in the Sprite Editor. Do you want to continue? (Click OK to discard changes, Cancel to stay)")) {
+          return;
+        }
+      }
+    }
     const loaded = loadSavedProjectById(id);
     if (loaded) {
       setProject(loaded);
@@ -235,7 +271,15 @@ export const EditorLayout: React.FC = () => {
     }
   };
 
-  const handleDeleteSavedProject = (id: string, e: React.MouseEvent) => {
+  const handleDeleteSavedProject = async (id: string, e: React.MouseEvent)  => {
+    if (activeModuleId === 'sprites') {
+      const checkDirty = (window as any).masonCheckSpriteDirty;
+      if (checkDirty && checkDirty()) {
+        if (!window.confirm("You have unsaved changes in the Sprite Editor. Do you want to continue? (Click OK to discard changes, Cancel to stay)")) {
+          return;
+        }
+      }
+    }
     e.stopPropagation();
     deleteSavedProject(id);
     if (project && project.id === id) {
@@ -246,7 +290,15 @@ export const EditorLayout: React.FC = () => {
     showToast('Deleted project from storage', 'info');
   };
 
-  const handleCloseProject = () => {
+  const handleCloseProject = async ()  => {
+    if (activeModuleId === 'sprites') {
+      const checkDirty = (window as any).masonCheckSpriteDirty;
+      if (checkDirty && checkDirty()) {
+        if (!window.confirm("You have unsaved changes in the Sprite Editor. Do you want to continue? (Click OK to discard changes, Cancel to stay)")) {
+          return;
+        }
+      }
+    }
     closeActiveMasonProject();
     setProject(null);
     setActiveModuleId(null);
@@ -254,7 +306,15 @@ export const EditorLayout: React.FC = () => {
     showToast('Closed active project', 'info');
   };
 
-  const handleImportBundle = (imported: MasonProject) => {
+  const handleImportBundle = async (imported: MasonProject)  => {
+    if (activeModuleId === 'sprites') {
+      const checkDirty = (window as any).masonCheckSpriteDirty;
+      if (checkDirty && checkDirty()) {
+        if (!window.confirm("You have unsaved changes in the Sprite Editor. Do you want to continue? (Click OK to discard changes, Cancel to stay)")) {
+          return;
+        }
+      }
+    }
     saveActiveMasonProject(imported);
     setProject(imported);
     setActiveModuleId(null);
@@ -378,9 +438,21 @@ export const EditorLayout: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         if (project) {
-          saveActiveMasonProject(project);
-          refreshSavedProjects();
-          showToast(`Saved ${project.name} to local storage`, 'success');
+          if ((window as any).masonRequestSpriteSave) {
+            (window as any).masonRequestSpriteSave().then((savedProj: any) => {
+              if (savedProj) {
+                saveActiveMasonProject(savedProj);
+              } else {
+                saveActiveMasonProject(project);
+              }
+              refreshSavedProjects();
+              showToast(`Saved ${project.name} to local storage`, 'success');
+            });
+          } else {
+            saveActiveMasonProject(project);
+            refreshSavedProjects();
+            showToast(`Saved ${project.name} to local storage`, 'success');
+          }
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -913,7 +985,7 @@ export const EditorLayout: React.FC = () => {
             onOpenModulesModal={() => setIsModulesModalOpen(true)}
             onOpenExplorerModal={() => setIsExplorerModalOpen(true)}
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
-            onShowProjectInfo={() => setActiveModuleId(null)}
+            onShowProjectInfo={() => handleLaunchModule(null)}
             onNewProject={() => setIsCreateModalOpen(true)}
             onLoadProject={() => setIsLoadModalOpen(true)}
             onSaveProject={() => {
@@ -936,7 +1008,7 @@ export const EditorLayout: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveModuleId(null)}
+              onClick={() => handleLaunchModule(null)}
               className="flex items-center gap-2 group hover:opacity-90 transition text-left"
               title="Mason Studio - View Dashboard"
             >
@@ -955,7 +1027,7 @@ export const EditorLayout: React.FC = () => {
             {project ? (
               <button
                 type="button"
-                onClick={() => setActiveModuleId(null)}
+                onClick={() => handleLaunchModule(null)}
                 className="text-xs font-mono flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-neutral-700 transition"
                 title="Click to view Project Dashboard"
               >
@@ -988,7 +1060,7 @@ export const EditorLayout: React.FC = () => {
                 {/* Dashboard Icon */}
                 <button
                   type="button"
-                  onClick={() => setActiveModuleId(null)}
+                  onClick={() => handleLaunchModule(null)}
                   title="Project Dashboard"
                   className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 relative border ${
                     activeModuleId === null
@@ -1150,17 +1222,28 @@ export const EditorLayout: React.FC = () => {
               {/* Save Project Button (Icon Only) */}
               <button
                 type="button"
-                onClick={() => {
-                  saveActiveMasonProject(project);
+                onClick={async () => {
+                  if ((window as any).masonRequestSpriteSave) {
+                    const savedProj = await (window as any).masonRequestSpriteSave();
+                    if (savedProj) {
+                      saveActiveMasonProject(savedProj);
+                    } else {
+                      saveActiveMasonProject(project);
+                    }
+                  } else {
+                    saveActiveMasonProject(project);
+                  }
                   refreshSavedProjects();
                   showToast(`Saved ${project.name}`, 'success');
                 }}
-                className="w-8 h-8 flex items-center justify-center text-white rounded-xl transition shadow-md active:scale-95"
+                className={`w-8 h-8 flex items-center justify-center text-white rounded-xl transition shadow-md active:scale-95 ${
+                  isSpriteDirty ? "animate-pulse ring-2 ring-red-400" : ""
+                }`}
                 style={{
-                  backgroundColor: primaryDef.hex,
-                  boxShadow: `0 4px 12px rgba(${primaryDef.rgb}, 0.35)`
+                  backgroundColor: isSpriteDirty ? '#dc2626' : primaryDef.hex,
+                  boxShadow: isSpriteDirty ? '0 0 16px rgba(220, 38, 38, 0.9)' : `0 4px 12px rgba(${primaryDef.rgb}, 0.35)`
                 }}
-                title="Save Project"
+                title={isSpriteDirty ? "Unsaved changes! Click to save" : "Save Project"}
                 aria-label="Save"
               >
                 <Save size={16} />
@@ -1212,6 +1295,21 @@ export const EditorLayout: React.FC = () => {
           />
         )}
 
+        {/* Persistent Sprite Editor Canvas: Kept mounted across module & dashboard transitions */}
+        {project && (
+          <div 
+            className="w-full h-full flex flex-col overflow-hidden absolute inset-0 z-10"
+            style={{ display: activeModuleId === 'sprites' ? 'flex' : 'none' }}
+          >
+            <SpriteEditorWrapper
+              project={project}
+              onUpdateProject={handleUpdateProject}
+              onBackToDashboard={() => handleLaunchModule(null)}
+              onShowToast={showToast}
+            />
+          </div>
+        )}
+
         {/* CASE B: Project Loaded & No Module Active -> Default Project Info / Dashboard View */}
         {project && activeModuleId === null && (
           <ProjectDashboard
@@ -1226,7 +1324,7 @@ export const EditorLayout: React.FC = () => {
         )}
 
         {/* CASE C: Project Loaded & A Module is Active -> Module Runner Container */}
-        {project && activeModuleId !== null && (
+        {project && activeModuleId !== null && activeModuleId !== 'sprites' && (
           <>
             {/* If maps module: Can render dedicated interactive full-scale canvas or iframe runner */}
             {activeModuleId === 'maps' && currentMapFile && currentMapData && activeBiome ? (
@@ -2226,7 +2324,7 @@ export const EditorLayout: React.FC = () => {
                 moduleId={activeModuleId}
                 project={project}
                 onUpdateProject={handleUpdateProject}
-                onBackToProjectInfo={() => setActiveModuleId(null)}
+                onBackToProjectInfo={() => handleLaunchModule(null)}
                 onOpenModulesModal={() => setIsModulesModalOpen(true)}
                 onOpenExplorer={() => setIsExplorerModalOpen(true)}
                 onNavigateToModule={handleNavigateToModule}

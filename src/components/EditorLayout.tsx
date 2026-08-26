@@ -119,7 +119,7 @@ export const EditorLayout: React.FC = () => {
   const handleLaunchModule = async (modId: string | null) => {
     if (activeModuleId === 'sprites' && modId !== 'sprites' && (window as any).masonCheckSpriteDirty?.()) {
       const choice = window.confirm(
-        'You have unsaved changes in your active sprite.\n\nClick OK to Save before leaving, or Cancel to Discard changes.'
+        'You have unsaved changes in your active sprite.\n\nClick OK to Save before leaving, or Cancel to Discard changes and leave.'
       );
       if (choice && (window as any).masonRequestSpriteSave) {
         await (window as any).masonRequestSpriteSave();
@@ -136,14 +136,15 @@ export const EditorLayout: React.FC = () => {
     }
   };
 
-  const handleNavigateToModule = (modId: string, options?: { behaviorFileName?: string; prefabFileName?: string }) => {
-    if (options?.behaviorFileName || options?.prefabFileName) {
+  const handleNavigateToModule = (modId: string, options?: { behaviorFileName?: string; prefabFileName?: string; spriteFileName?: string }) => {
+    if (options?.behaviorFileName || options?.prefabFileName || options?.spriteFileName) {
       setProject(prev => ({
         ...prev,
         activeFiles: {
           ...prev.activeFiles,
           ...(options.behaviorFileName ? { behaviorFileName: options.behaviorFileName } : {}),
-          ...(options.prefabFileName ? { prefabFileName: options.prefabFileName } : {})
+          ...(options.prefabFileName ? { prefabFileName: options.prefabFileName } : {}),
+          ...(options.spriteFileName ? { spriteFileName: options.spriteFileName } : {})
         }
       }));
     }
@@ -1393,9 +1394,10 @@ export const EditorLayout: React.FC = () => {
                         );
                         filtered = [newMap];
                       }
+                      const nextMapFileName = p.activeFiles.mapFileName === fName ? filtered[0].fileName : p.activeFiles.mapFileName;
                       return {
                         ...p,
-                        activeFiles: { ...p.activeFiles, mapFileName: filtered[0].fileName },
+                        activeFiles: { ...p.activeFiles, mapFileName: nextMapFileName },
                         fileSystem: { ...p.fileSystem, maps: filtered }
                       };
                     });
@@ -2376,6 +2378,10 @@ export const EditorLayout: React.FC = () => {
               else if (mod === 'behaviors') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, behaviorFileName: file } }));
               else if (mod === 'ui') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, uiFileName: file } }));
               else if (mod === 'gamestructure') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, gameStructureFileName: file } }));
+              else if (mod === 'sprites') {
+                const targetSpriteFile = file.endsWith('.sprite') ? file : `${file.replace(/\.[^.]+$/, '')}.sprite`;
+                handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, spriteFileName: targetSpriteFile } }));
+              }
             }
           }}
         />

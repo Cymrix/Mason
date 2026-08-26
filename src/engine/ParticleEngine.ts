@@ -710,6 +710,7 @@ export class ParticleEngine {
   ) {
     try {
       ctx.save();
+      ctx.imageSmoothingEnabled = false;
       ctx.translate(panOffset.x, panOffset.y);
       ctx.scale(zoom, zoom);
 

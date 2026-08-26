@@ -66,12 +66,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   const particleCount = project.fileSystem?.particles?.length || 0;
   const uiCount = project.fileSystem?.ui?.length || 0;
   const gameCount = project.fileSystem?.game?.length || 0;
-  const spriteCount = project.fileSystem?.prefabs?.reduce((acc, p) => acc + (p.prefabData?.spritesheets?.length || 0), 0) || 1;
+  const spriteCount = project.fileSystem?.sprites?.length || 0;
+  const imageCount = project.fileSystem?.images?.length || 0;
 
   const currentMapFile = project.fileSystem?.maps?.find(m => m.fileName === project.activeFiles?.mapFileName) || project.fileSystem?.maps?.[0];
   const activeMapName = currentMapFile?.name || 'World Level Map';
 
-  const totalFiles = mapCount + biomeCount + prefabCount + particleCount + uiCount + gameCount;
+  const totalFiles = mapCount + biomeCount + prefabCount + particleCount + uiCount + gameCount + spriteCount + imageCount;
 
   // Module color definitions
   const spritesColor = getModuleColorDef('sprites');
@@ -291,11 +292,14 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = spritesColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
-          title="Image Editor (.png)"
+          title="Image & Sprite Studio (.sprite)"
         >
           {/* Upper Right Number */}
-          <div className="absolute top-3.5 right-3.5 text-lg font-black text-white font-mono group-hover:scale-105 transition-transform">
-            {spriteCount}
+          <div className="absolute top-3.5 right-3.5 text-right font-mono group-hover:scale-105 transition-transform">
+            <div className="text-lg font-black text-white">{spriteCount}</div>
+            {imageCount > 0 && (
+              <div className="text-[10px] text-amber-400 font-bold">{imageCount} png</div>
+            )}
           </div>
 
           {/* 1. Module Icon */}
@@ -319,7 +323,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               color: spritesColor.hex
             }}
           >
-            .png
+            .sprite
           </span>
 
           {/* 3. Module Name */}

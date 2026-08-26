@@ -6,7 +6,11 @@ import {
   GameStructureFile,
   ParticleSystemFile,
   SpriteFile,
+  ImageFile,
   ParticleSystemData,
+  ProjectBackupRecord,
+  FileBackupRecord,
+  MasonModuleId,
   createInitialMasonProject,
   createDefaultMapFile,
   DEFAULT_UI_THEMES,
@@ -40,9 +44,11 @@ const inMemoryProjectsCache: Map<string, MasonProject> = new Map();
 // INDEXED_DB PERSISTENCE (Quota-free high-capacity storage)
 // ==================================================
 const DB_NAME = 'mason_metroidvania_studio_idb';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const STORE_PROJECTS = 'projects';
 const STORE_META = 'meta';
+const STORE_BACKUPS = 'backups';
+const STORE_FILE_BACKUPS = 'file_backups';
 
 let idbPromise: Promise<IDBDatabase | null> | null = null;
 
@@ -63,6 +69,17 @@ function getIDB(): Promise<IDBDatabase | null> {
         if (!db.objectStoreNames.contains(STORE_META)) {
           db.createObjectStore(STORE_META, { keyPath: 'key' });
         }
+        if (!db.objectStoreNames.contains(STORE_BACKUPS)) {
+          const bStore = db.createObjectStore(STORE_BACKUPS, { keyPath: 'id' });
+          bStore.createIndex('projectId', 'projectId', { unique: false });
+          bStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(STORE_FILE_BACKUPS)) {
+          const fbStore = db.createObjectStore(STORE_FILE_BACKUPS, { keyPath: 'id' });
+          fbStore.createIndex('projectId', 'projectId', { unique: false });
+          fbStore.createIndex('fileName', 'fileName', { unique: false });
+          fbStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => {
@@ -75,6 +92,409 @@ function getIDB(): Promise<IDBDatabase | null> {
   });
 
   return idbPromise;
+}
+
+// In-memory runtime cache for backups fallback
+const inMemoryBackupsCache: Map<string, ProjectBackupRecord[]> = new Map();
+const inMemoryFileBackupsCache: Map<string, FileBackupRecord[]> = new Map();
+
+export async function savePerFileBackupsForProject(
+  project: MasonProject,
+  actionLabel?: string
+): Promise<FileBackupRecord[]> {
+  if (!project || !project.id || !project.fileSystem) return [];
+  const newRecords: FileBackupRecord[] = [];
+  const projectId = project.id;
+
+  const fileCategories: Array<{
+    key: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'behaviors' | 'particles' | 'sprites' | 'images';
+    list: any[];
+  }> = [
+    { key: 'maps', list: project.fileSystem.maps || [] },
+    { key: 'biomes', list: project.fileSystem.biomes || [] },
+    { key: 'prefabs', list: project.fileSystem.prefabs || [] },
+    { key: 'ui', list: project.fileSystem.ui || [] },
+    { key: 'game', list: project.fileSystem.game || [] },
+    { key: 'behaviors', list: project.fileSystem.behaviors || [] },
+    { key: 'particles', list: project.fileSystem.particles || [] },
+    { key: 'sprites', list: project.fileSystem.sprites || [] },
+    { key: 'images', list: project.fileSystem.images || [] }
+  ];
+
+  try {
+    const db = await getIDB();
+    for (const cat of fileCategories) {
+      for (const file of cat.list) {
+        if (!file || !file.fileName) continue;
+        const cacheKey = `${projectId}:${file.fileName}`;
+        let existingList = inMemoryFileBackupsCache.get(cacheKey);
+
+        if (!existingList && db && db.objectStoreNames.contains(STORE_FILE_BACKUPS)) {
+          existingList = await new Promise<FileBackupRecord[]>((resolve) => {
+            const tx = db.transaction(STORE_FILE_BACKUPS, 'readonly');
+            const req = tx.objectStore(STORE_FILE_BACKUPS).getAll();
+            req.onsuccess = () => {
+              const all: FileBackupRecord[] = req.result || [];
+              const matching = all.filter(r => r.projectId === projectId && r.fileName === file.fileName);
+              matching.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+              resolve(matching);
+            };
+            req.onerror = () => resolve([]);
+          });
+          inMemoryFileBackupsCache.set(cacheKey, existingList);
+        }
+        if (!existingList) existingList = [];
+
+        const stripTimestamp = (obj: any) => {
+          if (!obj) return null;
+          const clone = JSON.parse(JSON.stringify(obj));
+          delete clone.updatedAt;
+          return JSON.stringify(clone);
+        };
+
+        const currentNormalized = stripTimestamp(file);
+
+        // Check if current state matches any existing backup point
+        const matchingIndex = existingList.findIndex(bk => stripTimestamp(bk.fileSnapshot) === currentNormalized);
+
+        if (matchingIndex !== -1) {
+          // Content matches an existing restore point — DO NOT create a new restore point!
+          let changed = false;
+          existingList.forEach((bk, idx) => {
+            const shouldBeCurrent = (idx === matchingIndex);
+            if (bk.isCurrent !== shouldBeCurrent) {
+              bk.isCurrent = shouldBeCurrent;
+              changed = true;
+              if (db && db.objectStoreNames.contains(STORE_FILE_BACKUPS)) {
+                const tx = db.transaction(STORE_FILE_BACKUPS, 'readwrite');
+                tx.objectStore(STORE_FILE_BACKUPS).put(bk);
+              }
+            }
+          });
+          if (changed) {
+            inMemoryFileBackupsCache.set(cacheKey, [...existingList]);
+          }
+        } else {
+          // Content is newly edited — unmark previous points and create a new restore point
+          existingList.forEach(bk => {
+            if (bk.isCurrent) {
+              bk.isCurrent = false;
+              if (db && db.objectStoreNames.contains(STORE_FILE_BACKUPS)) {
+                const tx = db.transaction(STORE_FILE_BACKUPS, 'readwrite');
+                tx.objectStore(STORE_FILE_BACKUPS).put(bk);
+              }
+            }
+          });
+
+          const record: FileBackupRecord = {
+            id: `fbk_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            projectId,
+            fileCategory: cat.key,
+            fileName: file.fileName,
+            timestamp: file.updatedAt || new Date().toISOString(),
+            actionLabel: actionLabel || `Updated ${file.name || file.fileName}`,
+            fileSnapshot: JSON.parse(JSON.stringify(file)),
+            fileSizeEstimate: JSON.stringify(file).length,
+            isCurrent: true
+          };
+
+          const fullList = [record, ...existingList];
+          const updatedList = fullList.slice(0, 10);
+          const evictedList = fullList.slice(10);
+
+          inMemoryFileBackupsCache.set(cacheKey, updatedList);
+          newRecords.push(record);
+
+          if (db && db.objectStoreNames.contains(STORE_FILE_BACKUPS)) {
+            const tx = db.transaction(STORE_FILE_BACKUPS, 'readwrite');
+            const store = tx.objectStore(STORE_FILE_BACKUPS);
+            store.put(record);
+            evictedList.forEach(ev => store.delete(ev.id));
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error saving per-file backups:', err);
+  }
+
+  return newRecords;
+}
+
+export async function getFileBackups(projectId: string, fileName: string): Promise<FileBackupRecord[]> {
+  try {
+    const cacheKey = `${projectId}:${fileName}`;
+    const memory = inMemoryFileBackupsCache.get(cacheKey);
+    if (memory && memory.length > 0) return memory.slice(0, 10);
+
+    const db = await getIDB();
+    if (!db || !db.objectStoreNames.contains(STORE_FILE_BACKUPS)) return [];
+
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_FILE_BACKUPS, 'readwrite');
+      const store = tx.objectStore(STORE_FILE_BACKUPS);
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const all: FileBackupRecord[] = req.result || [];
+        const matching = all.filter(r => r.projectId === projectId && r.fileName === fileName);
+        matching.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        const kept = matching.slice(0, 10);
+        const evicted = matching.slice(10);
+        evicted.forEach(ev => store.delete(ev.id));
+
+        inMemoryFileBackupsCache.set(cacheKey, kept);
+        resolve(kept);
+      };
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function restoreFileVersion(
+  project: MasonProject,
+  fileBackupId: string
+): Promise<{ updatedProject: MasonProject; restoredFileName: string; restoredCategory: string } | null> {
+  try {
+    const db = await getIDB();
+    let record: FileBackupRecord | null = null;
+
+    if (db && db.objectStoreNames.contains(STORE_FILE_BACKUPS)) {
+      record = await new Promise((resolve) => {
+        const tx = db.transaction(STORE_FILE_BACKUPS, 'readonly');
+        const req = tx.objectStore(STORE_FILE_BACKUPS).get(fileBackupId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    if (!record) {
+      for (const [, records] of inMemoryFileBackupsCache.entries()) {
+        const found = records.find(r => r.id === fileBackupId);
+        if (found) {
+          record = found;
+          break;
+        }
+      }
+    }
+
+    if (!record || !record.fileSnapshot) return null;
+
+    const cat = record.fileCategory;
+    const restoredFile = JSON.parse(JSON.stringify(record.fileSnapshot));
+    restoredFile.updatedAt = new Date().toISOString();
+
+    const currentList: any[] = (project.fileSystem as any)[cat] || [];
+    const idx = currentList.findIndex(f => f.fileName === record.fileName);
+
+    let updatedList: any[];
+    if (idx !== -1) {
+      updatedList = [...currentList];
+      updatedList[idx] = restoredFile;
+    } else {
+      updatedList = [...currentList, restoredFile];
+    }
+
+    let updatedFileSystem = {
+      ...project.fileSystem,
+      [cat]: updatedList
+    };
+
+    // BIDIRECTIONAL SYNC FOR RESTORING SPRITES & IMAGES
+    if (cat === 'images' && restoredFile.dataUrl) {
+      const cleanBase = record.fileName.replace(/\.png$/, '');
+      const spriteName = `${cleanBase}.sprite`;
+      const currentSprites = project.fileSystem.sprites || [];
+      const spriteIdx = currentSprites.findIndex(s => s.fileName === spriteName || s.fileName === restoredFile.sourceSpriteFileName);
+      if (spriteIdx !== -1) {
+        const updatedSprites = [...currentSprites];
+        const s = updatedSprites[spriteIdx];
+        updatedSprites[spriteIdx] = {
+          ...s,
+          updatedAt: new Date().toISOString(),
+          dataUrl: restoredFile.dataUrl,
+          imageUrl: restoredFile.dataUrl
+        };
+        updatedFileSystem.sprites = updatedSprites;
+      }
+    } else if (cat === 'sprites' && (restoredFile.dataUrl || restoredFile.imageUrl)) {
+      const restoredDataUrl = restoredFile.dataUrl || restoredFile.imageUrl;
+      const cleanBase = record.fileName.replace(/\.sprite$/, '');
+      const pngName = `${cleanBase}.png`;
+      const currentImages = project.fileSystem.images || [];
+      const imgIdx = currentImages.findIndex(i => i.fileName === pngName || record.fileSnapshot.linkedImageFileNames?.includes(i.fileName));
+      if (imgIdx !== -1 && restoredDataUrl) {
+        const updatedImages = [...currentImages];
+        updatedImages[imgIdx] = {
+          ...updatedImages[imgIdx],
+          updatedAt: new Date().toISOString(),
+          dataUrl: restoredDataUrl
+        };
+        updatedFileSystem.images = updatedImages;
+      }
+    }
+
+    const updatedProject: MasonProject = {
+      ...project,
+      fileSystem: updatedFileSystem
+    };
+
+    saveActiveMasonProject(
+      updatedProject,
+      `Restored /${cat}/${record.fileName} to version from ${new Date(record.timestamp).toLocaleTimeString()}`
+    );
+
+    return {
+      updatedProject,
+      restoredFileName: record.fileName,
+      restoredCategory: cat
+    };
+  } catch (err) {
+    console.error('Failed to restore file version:', err);
+    return null;
+  }
+}
+
+export async function deleteFileBackup(fileBackupId: string): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (db && db.objectStoreNames.contains(STORE_FILE_BACKUPS)) {
+      const tx = db.transaction(STORE_FILE_BACKUPS, 'readwrite');
+      tx.objectStore(STORE_FILE_BACKUPS).delete(fileBackupId);
+    }
+    for (const [key, records] of inMemoryFileBackupsCache.entries()) {
+      inMemoryFileBackupsCache.set(key, records.filter(r => r.id !== fileBackupId));
+    }
+  } catch (err) {
+    console.warn('Failed to delete file backup:', err);
+  }
+}
+
+export async function saveProjectBackup(
+  project: MasonProject,
+  actionLabel?: string,
+  module?: MasonModuleId
+): Promise<ProjectBackupRecord | null> {
+  if (!project || !project.id) return null;
+  try {
+    const now = new Date().toISOString();
+    const backupId = `bk_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    
+    const record: ProjectBackupRecord = {
+      id: backupId,
+      projectId: project.id,
+      timestamp: now,
+      module: module || project.activeModule || 'general',
+      actionLabel: actionLabel || `Saved ${project.name}`,
+      fileCountsSummary: {
+        maps: project.fileSystem?.maps?.length || 0,
+        biomes: project.fileSystem?.biomes?.length || 0,
+        prefabs: project.fileSystem?.prefabs?.length || 0,
+        sprites: project.fileSystem?.sprites?.length || 0,
+        images: project.fileSystem?.images?.length || 0,
+        behaviors: project.fileSystem?.behaviors?.length || 0
+      },
+      projectSnapshot: JSON.parse(JSON.stringify(project))
+    };
+
+    // Update memory cache
+    const existing = inMemoryBackupsCache.get(project.id) || [];
+    const updated = [record, ...existing].slice(0, 50); // Keep last 50 backups
+    inMemoryBackupsCache.set(project.id, updated);
+
+    // Save to IndexedDB
+    const db = await getIDB();
+    if (db && db.objectStoreNames.contains(STORE_BACKUPS)) {
+      const tx = db.transaction(STORE_BACKUPS, 'readwrite');
+      tx.objectStore(STORE_BACKUPS).put(record);
+    }
+
+    return record;
+  } catch (err) {
+    console.warn('Failed to save project backup:', err);
+    return null;
+  }
+}
+
+export async function getProjectBackups(projectId: string): Promise<ProjectBackupRecord[]> {
+  try {
+    const memory = inMemoryBackupsCache.get(projectId);
+    if (memory && memory.length > 0) return memory;
+
+    const db = await getIDB();
+    if (!db || !db.objectStoreNames.contains(STORE_BACKUPS)) return [];
+
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_BACKUPS, 'readonly');
+      const store = tx.objectStore(STORE_BACKUPS);
+      const index = store.index('projectId');
+      const req = index.getAll(projectId);
+
+      req.onsuccess = () => {
+        const records: ProjectBackupRecord[] = req.result || [];
+        records.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        inMemoryBackupsCache.set(projectId, records);
+        resolve(records);
+      };
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function restoreProjectBackup(backupId: string): Promise<MasonProject | null> {
+  try {
+    const db = await getIDB();
+    let targetRecord: ProjectBackupRecord | null = null;
+
+    if (db && db.objectStoreNames.contains(STORE_BACKUPS)) {
+      targetRecord = await new Promise((resolve) => {
+        const tx = db.transaction(STORE_BACKUPS, 'readonly');
+        const req = tx.objectStore(STORE_BACKUPS).get(backupId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    if (!targetRecord) {
+      for (const [, records] of inMemoryBackupsCache.entries()) {
+        const found = records.find(r => r.id === backupId);
+        if (found) {
+          targetRecord = found;
+          break;
+        }
+      }
+    }
+
+    if (targetRecord && targetRecord.projectSnapshot) {
+      const restored = JSON.parse(JSON.stringify(targetRecord.projectSnapshot)) as MasonProject;
+      restored.updatedAt = new Date().toISOString();
+      saveActiveMasonProject(restored, `Restored version from ${new Date(targetRecord.timestamp).toLocaleTimeString()}`);
+      return restored;
+    }
+  } catch (err) {
+    console.error('Failed to restore project backup:', err);
+  }
+  return null;
+}
+
+export async function deleteProjectBackup(backupId: string): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (db && db.objectStoreNames.contains(STORE_BACKUPS)) {
+      const tx = db.transaction(STORE_BACKUPS, 'readwrite');
+      tx.objectStore(STORE_BACKUPS).delete(backupId);
+    }
+    for (const [projId, records] of inMemoryBackupsCache.entries()) {
+      inMemoryBackupsCache.set(projId, records.filter(r => r.id !== backupId));
+    }
+  } catch (err) {
+    console.warn('Failed to delete backup record:', err);
+  }
 }
 
 export async function idbSaveProject(project: MasonProject): Promise<void> {
@@ -181,9 +601,13 @@ export const loadActiveMasonProject = (): MasonProject => {
 };
 
 /**
- * Saves a project to active storage, memory cache, and library index
+ * Saves a project to active storage, memory cache, differential backups, and library index
  */
-export const saveActiveMasonProject = (project: MasonProject): void => {
+export const saveActiveMasonProject = (
+  project: MasonProject,
+  actionLabel?: string,
+  module?: MasonModuleId
+): void => {
   try {
     project.updatedAt = new Date().toISOString();
     project.engineVersion = MASON_VERSION_DISPLAY;
@@ -194,6 +618,10 @@ export const saveActiveMasonProject = (project: MasonProject): void => {
 
     // 2. Persist asynchronously in IndexedDB
     idbSaveProject(project);
+
+    // 3. Create differential project and file-level backup snapshots asynchronously
+    saveProjectBackup(project, actionLabel, module);
+    savePerFileBackupsForProject(project, actionLabel);
 
     // 3. Update index list in localStorage (lightweight metadata, few kilobytes only)
     try {
@@ -693,12 +1121,19 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
 };
 
 
-export const createNewSpriteInProject = (project: MasonProject, name: string): { project: MasonProject, newFile: SpriteFile } => {
+export const createNewSpriteInProject = (
+  project: MasonProject, 
+  name: string,
+  width: number = 32,
+  height: number = 32
+): { project: MasonProject, newFile: SpriteFile } => {
   const fileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.sprite`;
   const newFile: SpriteFile = {
     id: `sprite_${Date.now()}`,
     name,
     fileName,
+    width,
+    height,
     updatedAt: new Date().toISOString(),
     spriteData: null
   };

@@ -328,11 +328,11 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
 
   // Viewport Settings
   const [showGrid, setShowGrid] = useState<boolean>(true);
-  const [showColliders, setShowColliders] = useState<boolean>(true);
-  const [showPolygons, setShowPolygons] = useState<boolean>(true);
-  const [showLights, setShowLights] = useState<boolean>(true);
+  const [showColliders, setShowColliders] = useState<boolean>(false);
+  const [showPolygons, setShowPolygons] = useState<boolean>(false);
+  const [showLights, setShowLights] = useState<boolean>(false);
   const [showParticles, setShowParticles] = useState<boolean>(true);
-  const [showSockets, setShowSockets] = useState<boolean>(true);
+  const [showSockets, setShowSockets] = useState<boolean>(false);
   const [bgTheme, setBgTheme] = useState<'dark' | 'grid' | 'dungeon' | 'forest' | 'magma'>('dark');
   const [snapToGrid, setSnapToGrid] = useState<boolean>(false);
 
@@ -356,7 +356,7 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
   const [isAddPartModalOpen, setIsAddPartModalOpen] = useState<boolean>(false);
   const [addPartType, setAddPartType] = useState<PrefabPartType>('sprite');
   const [addPartName, setAddPartName] = useState<string>('');
-  const [addPartLayer, setAddPartLayer] = useState<PrefabLayerTarget>('objects');
+  const [addPartZOrder, setAddPartZOrder] = useState<number>(0);
 
   // Add Preset Modal
   const [isPresetModalOpen, setIsPresetModalOpen] = useState<boolean>(false);
@@ -367,7 +367,7 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
 
   // Canvas & Simulation Engine Ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
+  const particleEnginesRef = useRef<Map<string, ParticleEngine>>(new Map());
   const loadedImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const lastTimeRef = useRef<number>(performance.now());
   const animFrameIdRef = useRef<number>(0);
@@ -434,14 +434,9 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
     custom: 50
   };
 
-  // Sort parts for render pipeline (Layer target + Z-order)
+  // Sort parts for render pipeline (Relative Z-layer order)
   const sortedParts = useMemo(() => {
-    return [...parts].sort((a, b) => {
-      const layerA = layerOrderMap[a.targetLayer] ?? 20;
-      const layerB = layerOrderMap[b.targetLayer] ?? 20;
-      if (layerA !== layerB) return layerA - layerB;
-      return (a.zOrder ?? 0) - (b.zOrder ?? 0);
-    });
+    return [...parts].sort((a, b) => (a.zOrder ?? 0) - (b.zOrder ?? 0));
   }, [parts]);
 
   // Active Variant Filter
@@ -623,8 +618,8 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
         type: 'sprite',
         offsetX: 0,
         offsetY: 0,
-        targetLayer: addPartLayer,
-        zOrder: 0,
+        targetLayer: 'objects',
+        zOrder: addPartZOrder,
         visible: true,
         spritesheetId: spritesheets[0]?.id,
         frameIndex: 0,
@@ -639,8 +634,8 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
         type: 'particle',
         offsetX: 0,
         offsetY: 0,
-        targetLayer: addPartLayer,
-        zOrder: 1,
+        targetLayer: 'objects',
+        zOrder: addPartZOrder,
         visible: true,
         particleSystemId: 'campfire_fire',
         rateMultiplier: 1.0,
@@ -654,8 +649,8 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
         type: 'light',
         offsetX: 0,
         offsetY: 0,
-        targetLayer: addPartLayer,
-        zOrder: 2,
+        targetLayer: 'objects',
+        zOrder: addPartZOrder,
         visible: true,
         color: '#ff9922',
         radius: 120,
@@ -670,8 +665,8 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
         type: 'collider',
         offsetX: 0,
         offsetY: 0,
-        targetLayer: addPartLayer,
-        zOrder: 0,
+        targetLayer: 'objects',
+        zOrder: addPartZOrder,
         visible: true,
         shape: 'box',
         isSolid: true,
@@ -1056,6 +1051,7 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
+          ctx.imageSmoothingEnabled = false;
           const width = canvas.width;
           const height = canvas.height;
 
@@ -1211,6 +1207,13 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             // ----------------------------------------------------
             if (part.type === 'particle' && showParticles) {
               const particlePart = part as PrefabParticlePart;
+
+              let engine = particleEnginesRef.current.get(part.id);
+              if (!engine) {
+                engine = new ParticleEngine();
+                particleEnginesRef.current.set(part.id, engine);
+              }
+
               // Resolve particle system data
               let sysData: ParticleSystemData | undefined;
               if (particlePart.particleSystemId && BUILTIN_PARTICLE_PRESETS[particlePart.particleSystemId]) {
@@ -1228,12 +1231,16 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
                 const rate = (sysData.emitter.emissionRate || 20) * (particlePart.rateMultiplier || 1.0);
                 const countToSpawn = Math.max(1, Math.floor(rate * dt));
                 if (Math.random() < (rate * dt) % 1) {
-                  particleEngineRef.current.spawnParticles(1, sysData, { x: px, y: py });
+                  engine.spawnParticles(1, sysData, { x: px, y: py });
                 }
                 if (countToSpawn > 1) {
-                  particleEngineRef.current.spawnParticles(countToSpawn - 1, sysData, { x: px, y: py });
+                  engine.spawnParticles(countToSpawn - 1, sysData, { x: px, y: py });
                 }
               }
+
+              // Update & Draw live particles in exact z-order layer position
+              engine.update(dt, { collideWithMapSolids: false }, 9999, 0);
+              engine.render(ctx, { x: 0, y: 0 }, 1, null, false);
 
               // Gizmo marker for particle emitter locus
               if (isSelected || showSockets) {
@@ -1339,13 +1346,7 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             }
           });
 
-          // 5. Update & Draw Live Particle Simulation
-          if (showParticles) {
-            particleEngineRef.current.update(dt, { collideWithMapSolids: false }, 9999, 0);
-            particleEngineRef.current.render(ctx, { x: 0, y: 0 }, 1, null, false);
-          }
-
-          // 6. Base Capsule Collider Overlay
+          // 5. Base Capsule Collider Overlay
           if (showColliders && capsule) {
             const cx = capsule.offsetX || 0;
             const cy = capsule.offsetY || 0;
@@ -1908,10 +1909,14 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
                               {part.name}
                             </h4>
                             <div className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-400">
-                              <span className="capitalize px-1 rounded bg-neutral-900 border border-neutral-800">
-                                {part.targetLayer}
+                              <span className="px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300 font-bold">
+                                {part.zOrder === 0 && 'Main (0)'}
+                                {part.zOrder === 1 && 'In Front (+1)'}
+                                {part.zOrder === -1 && 'Behind (-1)'}
+                                {part.zOrder === 2 && 'Top (+2)'}
+                                {part.zOrder === -2 && 'Far Back (-2)'}
+                                {![ -2, -1, 0, 1, 2 ].includes(part.zOrder) && `Z: ${part.zOrder > 0 ? `+${part.zOrder}` : part.zOrder}`}
                               </span>
-                              <span className="text-neutral-500">Z:{part.zOrder >= 0 ? `+${part.zOrder}` : part.zOrder}</span>
                               {part.socketTagId && (
                                 <span className="text-sky-400 flex items-center gap-0.5">
                                   <Anchor size={8} /> {part.socketTagId}
@@ -2498,26 +2503,31 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-neutral-400 font-bold block">Target Layer</label>
+                  <label className="text-neutral-400 font-bold block">Relative Layer</label>
                   <select
-                    value={selectedPart.targetLayer}
-                    onChange={(e) => updatePart(selectedPart.id, p => ({ ...p, targetLayer: e.target.value as any }))}
+                    value={selectedPart.zOrder}
+                    onChange={(e) => updatePart(selectedPart.id, p => ({ ...p, zOrder: Number(e.target.value) }))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-white font-mono mt-1"
                   >
-                    <option value="background">Background</option>
-                    <option value="ground">Ground</option>
-                    <option value="objects">Objects / Solids</option>
-                    <option value="overlay">Overlay / Canopy</option>
-                    <option value="foreground">Foreground</option>
+                    <option value={-2}>-2 : Far Back</option>
+                    <option value={-1}>-1 : Behind Base</option>
+                    <option value={0}>0 : Main / Base Layer</option>
+                    <option value={1}>+1 : In Front</option>
+                    <option value={2}>+2 : Top Overlay</option>
+                    {![ -2, -1, 0, 1, 2 ].includes(selectedPart.zOrder) && (
+                      <option value={selectedPart.zOrder}>
+                        {selectedPart.zOrder > 0 ? `+${selectedPart.zOrder}` : selectedPart.zOrder} : Custom Layer
+                      </option>
+                    )}
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-neutral-400 font-bold block">Z-Order ({selectedPart.zOrder})</label>
+                  <label className="text-neutral-400 font-bold block">Z-Order Value</label>
                   <input
                     type="number"
-                    min={-10}
-                    max={10}
+                    min={-20}
+                    max={20}
                     value={selectedPart.zOrder}
                     onChange={(e) => updatePart(selectedPart.id, p => ({ ...p, zOrder: Number(e.target.value) }))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-white font-mono mt-1"
@@ -3208,17 +3218,17 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
               </div>
 
               <div>
-                <label className="text-neutral-400 font-bold block">Render Layer Destination</label>
+                <label className="text-neutral-400 font-bold block">Relative Layer Depth</label>
                 <select
-                  value={addPartLayer}
-                  onChange={(e) => setAddPartLayer(e.target.value as any)}
+                  value={addPartZOrder}
+                  onChange={(e) => setAddPartZOrder(Number(e.target.value))}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono mt-1"
                 >
-                  <option value="objects">Objects / Solids (Default Game Plane)</option>
-                  <option value="overlay">Overlay / Canopy (Above Player & Objects)</option>
-                  <option value="foreground">Foreground (HUD / Topmost Overlay)</option>
-                  <option value="ground">Ground / Floor Plane</option>
-                  <option value="background">Background Layer</option>
+                  <option value={-2}>-2 : Far Back (Shadows, Background Auras)</option>
+                  <option value={-1}>-1 : Behind Base (Back Arm, Back Cape)</option>
+                  <option value={0}>0 : Main / Base Layer (Torso, Primary Body)</option>
+                  <option value={1}>+1 : In Front (Front Arm, Held Items, Belts)</option>
+                  <option value={2}>+2 : Top Overlay (Visors, Foreground Effects)</option>
                 </select>
               </div>
             </div>

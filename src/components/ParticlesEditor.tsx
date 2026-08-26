@@ -934,6 +934,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     offscreen.height = canvasSize;
     const oCtx = offscreen.getContext('2d');
     if (!oCtx) return offscreen;
+    oCtx.imageSmoothingEnabled = false;
 
     const center = canvasSize / 2;
     const baseSize = 36; // Inner drawing dimension leaving margin for glow
@@ -1975,6 +1976,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         animId = requestAnimationFrame(renderLoop);
         return;
       }
+      ctx.imageSmoothingEnabled = false;
 
       const width = canvas.width;
       const height = canvas.height;
@@ -2303,6 +2305,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     cvs.height = totalH;
     const ctx = cvs.getContext('2d');
     if (ctx) {
+      ctx.imageSmoothingEnabled = false;
       const total = cols * rows;
       for (let i = 0; i < total; i++) {
         const x = i * tw;

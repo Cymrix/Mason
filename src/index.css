@@ -1,10 +1,16 @@
 @import "tailwindcss";
 
 /* Mason Pixel Art Scaling Standard (Nearest-Neighbor) */
-canvas, img, svg, .pixel-art {
+*,
+canvas,
+img,
+svg,
+video,
+.pixel-art {
   image-rendering: pixelated !important;
   image-rendering: crisp-edges !important;
   image-rendering: -moz-crisp-edges !important;
+  image-rendering: -webkit-optimize-contrast !important;
   -ms-interpolation-mode: nearest-neighbor !important;
 }
 

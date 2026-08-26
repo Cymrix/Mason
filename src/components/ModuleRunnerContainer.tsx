@@ -20,7 +20,7 @@ interface ModuleRunnerContainerProps {
   onBackToProjectInfo: () => void;
   onOpenModulesModal: () => void;
   onOpenExplorer: () => void;
-  onNavigateToModule?: (moduleId: string, fileOptions?: { prefabFileName?: string }) => void;
+  onNavigateToModule?: (moduleId: string, fileOptions?: { behaviorFileName?: string; prefabFileName?: string; spriteFileName?: string }) => void;
 }
 
 export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
@@ -108,6 +108,7 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
             onUpdateProject={onUpdateProject}
             onOpenFiles={onOpenExplorer}
             onBackToDashboard={onBackToProjectInfo}
+            onNavigateToModule={onNavigateToModule}
           />
         )}
         {moduleId === 'particles' && (

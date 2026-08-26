@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createOrLinkImageAndSpriteProject } from '../utils/spriteUtils';
 import { 
   MasonProject, 
+  SpriteFile,
   PrefabFile, 
   PrefabData, 
   PrefabSpritesheet,
@@ -26,6 +28,7 @@ import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { SpritesheetSliceModal, SpritesheetSliceResult } from './shared/spritesheet';
 import { ViewportHUD } from './shared/viewport';
 import { PrefabCompositionStudio } from './shared/PrefabCompositionStudio';
+import { PrefabBoneIKStudio } from './shared/PrefabBoneIKStudio';
 import { SpriteEditorModal, SpriteSaveResult } from './SpriteEditorModal';
 import { 
   Paintbrush,
@@ -51,6 +54,7 @@ import {
   Key, 
   Shield, 
   Sword, 
+  Target,
   Maximize2,
   Sparkles,
   Upload,
@@ -145,6 +149,9 @@ const createDefaultTrigger = (type: TriggerType, availableVars?: BehaviorVariabl
       return { type: 'solid_detection', direction: 'below', detectionDistancePx: 4, checkMode: 'touching' };
     case 'physics_state':
       return { type: 'physics_state', stateKind: 'jump_peak', velocityThreshold: 0.5 };
+    case 'on_spawn':
+    case 'spawn':
+      return { type: 'on_spawn', spawnDelayMs: 0, triggerOnce: true };
     default:
       return { type: 'sight', sensoryTag: 'head_eyes', visionRadiusPx: 200, visionAngleDeg: 120, requireLineOfSight: true, targetFilter: 'player' };
   }
@@ -219,13 +226,15 @@ interface CharacterEditorProps {
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
   onOpenFiles?: () => void;
   onBackToDashboard?: () => void;
+  onNavigateToModule?: (moduleId: string, options?: { behaviorFileName?: string; prefabFileName?: string; spriteFileName?: string }) => void;
 }
 
 export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   project,
   onUpdateProject,
   onOpenFiles,
-  onBackToDashboard
+  onBackToDashboard,
+  onNavigateToModule
 }) => {
   // Toast notification state for Prefab Module
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -235,6 +244,29 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   const [isSpriteStudioOpen, setIsSpriteStudioOpen] = useState<boolean>(false);
   const [editingSheetIdForStudio, setEditingSheetIdForStudio] = useState<string | null>(null);
 
+  // Helper to switch to Image Editor module with relative sprite sheet & sliced animation frames
+  const handleEditSpriteSheetInStudio = async (sheet: PrefabSpritesheet) => {
+    const cleanName = (sheet.name || `Spritesheet #${sheet.id}`).trim();
+    const imageSrc = sheet.imageUrl || sheet.dataUrl || '';
+
+    const { updatedProject, spriteFile } = await createOrLinkImageAndSpriteProject(project, {
+      name: cleanName,
+      imageSrc,
+      cols: sheet.cols || 1,
+      rows: sheet.rows || 1,
+      tileWidth: sheet.tileWidth || 32,
+      tileHeight: sheet.tileHeight || 32
+    });
+
+    onUpdateProject(() => updatedProject);
+
+    if (onNavigateToModule) {
+      onNavigateToModule('sprites', { spriteFileName: spriteFile.fileName });
+    } else if (onBackToDashboard) {
+      onBackToDashboard();
+    }
+  };
+
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ text, type });
@@ -243,8 +275,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     }, 3200);
   };
 
-  // Primary Studio View Tabs: 'composition' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'
-  const [activeTab, setActiveTab] = useState<'composition' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'>('composition');
+  // Primary Studio View Tabs: 'composition' | 'bones_ik' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'
+  const [activeTab, setActiveTab] = useState<'composition' | 'bones_ik' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'>('composition');
 
   // Behavior Rules Accordion State (Collapsed by default!)
   const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(new Set());
@@ -1002,6 +1034,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     cvs.height = tileH * rows;
     const ctx = cvs.getContext('2d');
     if (!ctx) return '';
+    ctx.imageSmoothingEnabled = false;
 
     const total = cols * rows;
     for (let i = 0; i < total; i++) {
@@ -1575,6 +1608,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
 
     const width = canvas.width;
     const height = canvas.height;
@@ -2285,10 +2319,49 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           <Brain size={13} className={activeTab === 'behaviors' ? 'text-white' : 'text-amber-400'} />
           <span>Behaviors ({rulesList.length})</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('bones_ik')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${
+            activeTab === 'bones_ik' ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30' : 'bg-neutral-900 text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Target size={13} className={activeTab === 'bones_ik' ? 'text-white' : 'text-amber-400'} />
+          <span>Bones & IK ({((char.skeleton?.bones || []).length)})</span>
+        </button>
       </div>
 
       {/* 4. SCROLLABLE TAB WORKSPACE CONTENT */}
       <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4">
+
+        {/* ========================================================================= */}
+        {/* TAB 0: COMPOSITE PARTS (PREFAB COMPOSITION STUDIO) */}
+        {/* ========================================================================= */}
+        {activeTab === 'composition' && (
+          <PrefabCompositionStudio
+            project={project}
+            char={char}
+            onUpdateCharacter={updateCharacter}
+            onUpdateProject={onUpdateProject}
+            showToast={showToast}
+          />
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 0.5: 2D BONES & INVERSE KINEMATICS (IK) STUDIO */}
+        {/* ========================================================================= */}
+        {activeTab === 'bones_ik' && (
+          <div className="h-[760px] rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl">
+            <PrefabBoneIKStudio
+              project={project}
+              char={char}
+              onUpdateCharacter={updateCharacter}
+              onUpdateProject={onUpdateProject}
+              showToast={showToast}
+            />
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* TAB 1: ANIMATION STUDIO (SPRITESHEET ANIMATION & TIMELINE) */}
@@ -3731,17 +3804,6 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    setEditingSheetIdForStudio(null);
-                    setIsSpriteStudioOpen(true);
-                  }}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/30"
-                >
-                  <Paintbrush size={14} />
-                  <span>Paint Sprite in Studio</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
                     const newSheet: PrefabSpritesheet = {
                       id: `sheet_${Date.now().toString().slice(-4)}`,
                       name: `Spritesheet Slot #${spritesheetsList.length + 1}`,
@@ -3814,6 +3876,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                   cvs.height = totalH;
                   const ctx = cvs.getContext('2d');
                   if (ctx) {
+                    ctx.imageSmoothingEnabled = false;
                     const total = cols * rows;
                     for (let i = 0; i < total; i++) {
                       const c = i % cols;
@@ -3949,33 +4012,48 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                       </label>
                     </div>
 
-                    {/* Slicer & Configurator Action Trigger */}
-                    {sheet.imageUrl || sheet.dataUrl ? (
+                    {/* Action Triggers: Edit Sprite & Configure / Slice Grid */}
+                    <div className="flex items-center gap-2 w-full">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSliceModalConfig({
-                            isOpen: true,
-                            sheetId: sheet.id,
-                            sheetLabel: sheet.name,
-                            initialImage: {
-                              url: sheet.imageUrl || sheet.dataUrl || '',
-                              name: sheet.name,
-                              tileWidth: sheet.tileWidth,
-                              tileHeight: sheet.tileHeight,
-                              cols: sheet.cols,
-                              rows: sheet.rows,
-                              splitMode: sheet.splitMode
-                            }
-                          });
+                          handleEditSpriteSheetInStudio(sheet);
                         }}
-                        className="w-full py-2 px-3 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                        className="flex-1 py-2 px-2.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                        title="Edit this sprite sheet in the Image & Sprite Studio module"
                       >
-                        <Grid size={13} className="text-purple-400" />
-                        <span>✂️ Configure & Slice Grid</span>
+                        <Paintbrush size={13} className="text-emerald-400" />
+                        <span>Edit Sprite</span>
                       </button>
-                    ) : null}
+
+                      {sheet.imageUrl || sheet.dataUrl ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSliceModalConfig({
+                              isOpen: true,
+                              sheetId: sheet.id,
+                              sheetLabel: sheet.name,
+                              initialImage: {
+                                url: sheet.imageUrl || sheet.dataUrl || '',
+                                name: sheet.name,
+                                tileWidth: sheet.tileWidth,
+                                tileHeight: sheet.tileHeight,
+                                cols: sheet.cols,
+                                rows: sheet.rows,
+                                splitMode: sheet.splitMode
+                              }
+                            });
+                          }}
+                          className="flex-1 py-2 px-2.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                        >
+                          <Grid size={13} className="text-purple-400" />
+                          <span>Configure & Slice</span>
+                        </button>
+                      ) : null}
+                    </div>
 
                     {/* Quick Sample Presets */}
                     <div className="flex items-center justify-between text-[10px] text-neutral-400">
@@ -5640,10 +5718,16 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     keyboard_key: '⌨️ Key Press',
                     listener: '📡 Signal Listener',
                     solid_detection: '🧱 Solid Detection',
-                    physics_state: '⚛️ Physics & Gravity'
+                    physics_state: '⚛️ Physics & Gravity',
+                    on_spawn: '🌱 On Spawn',
+                    spawn: '🌱 On Spawn'
                   };
 
                   const getSingleTriggerSummary = (t: BehaviorTrigger): string => {
+                    if (t.type === 'on_spawn' || t.type === 'spawn') {
+                      const delay = (t as any).spawnDelayMs;
+                      return `On Spawn${delay ? ` (+${delay}ms)` : ''}`;
+                    }
                     if (t.type === 'state') {
                       return `State: ${t.requiredState || 'Any'}${t.stateMode && t.stateMode !== 'is_state' ? ` (${t.stateMode})` : ''}`;
                     }
@@ -5888,6 +5972,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           }}
                                           className="bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1 text-xs text-amber-300 font-mono"
                                         >
+                                          <option value="on_spawn">🌱 On Spawn (Instance Created / Instantiated)</option>
                                           <option value="solid_detection">🧱 Solid Detection (Left / Right / Above / Below)</option>
                                           <option value="physics_state">⚛️ Physics & Gravity (Jump Peak / Falling / Low-G)</option>
                                           <option value="state">⚡ State Active / Event</option>
@@ -5918,6 +6003,43 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
                                     {/* Dynamic Trigger Fields */}
                                     <div className="text-xs space-y-2">
+                                      
+                                      {/* 0. ON SPAWN TRIGGER */}
+                                      {(trig.type === 'on_spawn' || trig.type === 'spawn') && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-neutral-950/70 p-3 rounded-xl border border-amber-950/60">
+                                          <div>
+                                            <label className="text-[10px] text-amber-400 font-bold block mb-1">
+                                              Spawn Delay (ms)
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              step={50}
+                                              value={(trig as any).spawnDelayMs ?? 0}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  spawnDelayMs: Math.max(0, Number(e.target.value))
+                                                } as any);
+                                              }}
+                                              placeholder="0 (Immediate)"
+                                              className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-500 rounded px-2.5 py-1.5 text-amber-300 font-mono text-xs"
+                                            />
+                                            <span className="text-[10px] text-neutral-500 mt-1 block">
+                                              0ms fires immediately upon entity placement or instantiation
+                                            </span>
+                                          </div>
+                                          <div className="flex flex-col justify-center bg-neutral-900/80 border border-neutral-800 rounded-lg p-2.5">
+                                            <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs mb-1">
+                                              <span>🌱</span>
+                                              <span>Lifecycle Event</span>
+                                            </div>
+                                            <p className="text-[11px] text-neutral-300 leading-relaxed">
+                                              Fires automatically once when this prefab instance is instantiated or spawned into the scene.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )}
                                       
                                       {/* 1. SOLID DETECTION TRIGGER */}
                                       {trig.type === 'solid_detection' && (
@@ -6588,7 +6710,23 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               if (r.id === rule.id) {
                                                 return {
                                                   ...r,
-                                                  actions: (r.actions || []).map(a => a.id === action.id ? { ...a, actionType: newActType } : a)
+                                                  actions: (r.actions || []).map(a => {
+                                                    if (a.id === action.id) {
+                                                      const isRand = newActType === 'set_random_frame';
+                                                      return { 
+                                                        ...a, 
+                                                        actionType: newActType,
+                                                        ...(newActType === 'set_frame' || newActType === 'set_random_frame' ? {
+                                                          frameMode: isRand ? 'random_range' : (a.frameMode || 'fixed'),
+                                                          targetFrameIndex: a.targetFrameIndex ?? 0,
+                                                          minFrameIndex: a.minFrameIndex ?? 0,
+                                                          maxFrameIndex: a.maxFrameIndex ?? 3,
+                                                          pauseOnFrame: a.pauseOnFrame !== undefined ? a.pauseOnFrame : true
+                                                        } : {})
+                                                      };
+                                                    }
+                                                    return a;
+                                                  })
                                                 };
                                               }
                                               return r;
@@ -6600,6 +6738,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                         <option value="none">🚫 None (No Action / Gate Only)</option>
                                         <option value="state_change">⚡ Transition FSM State</option>
                                         <option value="animation">🎬 Play Animation</option>
+                                        <option value="set_frame">🖼️ Set Animation Frame (Static / Random in Range)</option>
+                                        <option value="set_random_frame">🎲 Set Random Frame in Range</option>
                                         <option value="camera">🎥 Camera Locus (Track/Shake)</option>
                                         <option value="move">🏃 Kinematic Move</option>
                                         <option value="hero_impulse">🚀 Physics Impulse (Jump/Dash)</option>
@@ -6684,6 +6824,300 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                       </div>
                                     </div>
                                   )}
+
+                                  {/* Set Frame / Random Frame Action Config */}
+                                  {(action.actionType === 'set_frame' || action.actionType === 'set_random_frame') && (() => {
+                                    const getAnimFrameCount = (anim?: PrefabAnimationConfig | null): number => {
+                                      if (!anim) return 1;
+                                      if (Array.isArray(anim.keyframes) && anim.keyframes.length > 0) {
+                                        return anim.keyframes.length;
+                                      }
+                                      if (typeof anim.startFrameIndex === 'number' && typeof anim.endFrameIndex === 'number') {
+                                        return Math.max(1, Math.abs(anim.endFrameIndex - anim.startFrameIndex) + 1);
+                                      }
+                                      if (Array.isArray((anim as any).frames) && (anim as any).frames.length > 0) {
+                                        return (anim as any).frames.length;
+                                      }
+                                      if (typeof (anim as any).frameCount === 'number' && (anim as any).frameCount > 0) {
+                                        return (anim as any).frameCount;
+                                      }
+                                      if (typeof (anim as any).totalFrames === 'number' && (anim as any).totalFrames > 0) {
+                                        return (anim as any).totalFrames;
+                                      }
+                                      return 1;
+                                    };
+
+                                    const currentTargetAnim = action.targetAnimationState || action.animState || animationsList[0]?.stateId || 'idle';
+                                    const activeAnimObj = animationsList.find(a => a.stateId === currentTargetAnim);
+                                    const frameCount = getAnimFrameCount(activeAnimObj);
+                                    const currentMode = action.actionType === 'set_random_frame' ? (action.frameMode || 'random_range') : (action.frameMode || 'fixed');
+                                    const isPaused = action.pauseOnFrame !== false;
+
+                                    return (
+                                      <div className="space-y-3 bg-neutral-950/70 p-3 rounded-xl border border-cyan-950/70 text-xs pt-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          {/* Target Animation Clip */}
+                                          <div>
+                                            <label className="text-[10px] text-cyan-400 font-bold block mb-1">
+                                              Target Animation Clip
+                                            </label>
+                                            <select
+                                              value={currentTargetAnim}
+                                              onChange={(e) => {
+                                                const nextAnimState = e.target.value;
+                                                const nextObj = animationsList.find(a => a.stateId === nextAnimState);
+                                                const nextFrames = getAnimFrameCount(nextObj);
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                    ...r,
+                                                    actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                      ...a,
+                                                      targetAnimationState: nextAnimState,
+                                                      animState: nextAnimState,
+                                                      targetFrameIndex: Math.min(a.targetFrameIndex ?? 0, Math.max(0, nextFrames - 1)),
+                                                      maxFrameIndex: Math.min(a.maxFrameIndex ?? Math.max(0, nextFrames - 1), Math.max(0, nextFrames - 1))
+                                                    } : a)
+                                                  } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-700 focus:border-cyan-500 rounded px-2.5 py-1.5 text-white font-mono text-xs"
+                                            >
+                                              <option value="*">✨ Active / Current Playing Animation</option>
+                                              {animationsList.map(a => {
+                                                const count = getAnimFrameCount(a);
+                                                return (
+                                                  <option key={a.stateId} value={a.stateId}>
+                                                    🎬 {a.label || a.stateId} ({count} {count === 1 ? 'frame' : 'frames'})
+                                                  </option>
+                                                );
+                                              })}
+                                            </select>
+                                          </div>
+
+                                          {/* Frame Selection Mode */}
+                                          <div>
+                                            <label className="text-[10px] text-cyan-400 font-bold block mb-1">
+                                              Frame Selection Mode
+                                            </label>
+                                            <select
+                                              value={currentMode}
+                                              onChange={(e) => {
+                                                const nextMode = e.target.value as any;
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                    ...r,
+                                                    actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                      ...a,
+                                                      frameMode: nextMode,
+                                                      minFrameIndex: a.minFrameIndex ?? 0,
+                                                      maxFrameIndex: a.maxFrameIndex ?? Math.max(0, frameCount - 1)
+                                                    } : a)
+                                                  } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-700 focus:border-cyan-500 rounded px-2.5 py-1.5 text-cyan-300 font-mono text-xs"
+                                            >
+                                              <option value="fixed">🎯 Specific Fixed Frame (Static)</option>
+                                              <option value="random_range">🎲 Random Frame in Range (Min → Max)</option>
+                                              <option value="random_all">🌟 Random Frame (Any in Animation Clip)</option>
+                                              <option value="variable">📊 From Prefab Variable Value</option>
+                                            </select>
+                                          </div>
+                                        </div>
+
+                                        {/* Frame Parameters Based on Mode */}
+                                        {currentMode === 'fixed' && (
+                                          <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                              <label className="text-[10px] text-neutral-300 font-bold block">
+                                                Target Frame Index (0-Indexed)
+                                              </label>
+                                              <span className="text-[10px] text-cyan-400 font-mono">
+                                                Selected: Frame #{action.targetFrameIndex ?? 0} (Total {frameCount} {frameCount === 1 ? 'frame' : 'frames'})
+                                              </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                max={Math.max(0, frameCount - 1)}
+                                                value={action.targetFrameIndex ?? 0}
+                                                onChange={(e) => {
+                                                  const val = Math.min(Math.max(0, Number(e.target.value)), Math.max(0, frameCount - 1));
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                      ...r,
+                                                      actions: (r.actions || []).map(a => a.id === action.id ? { ...a, targetFrameIndex: val } : a)
+                                                    } : r)
+                                                  }));
+                                                }}
+                                                className="w-24 bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1 text-white font-mono text-xs"
+                                              />
+
+                                              {/* Quick Frame Chips */}
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                {Array.from({ length: Math.min(16, frameCount) }).map((_, fIdx) => (
+                                                  <button
+                                                    key={fIdx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                      updateCharacter(c => ({
+                                                        ...c,
+                                                        rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                          ...r,
+                                                          actions: (r.actions || []).map(a => a.id === action.id ? { ...a, targetFrameIndex: fIdx } : a)
+                                                        } : r)
+                                                      }));
+                                                    }}
+                                                    className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                                                      (action.targetFrameIndex ?? 0) === fIdx
+                                                        ? 'bg-cyan-600 text-white font-bold shadow-sm shadow-cyan-600/40'
+                                                        : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700'
+                                                    }`}
+                                                  >
+                                                    #{fIdx}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {currentMode === 'random_range' && (
+                                          <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                              <label className="text-[10px] text-neutral-300 font-bold block">
+                                                Random Frame Range (Min → Max Inclusive)
+                                              </label>
+                                              <span className="text-[10px] text-cyan-400 font-mono">
+                                                Range: [{action.minFrameIndex ?? 0} .. {action.maxFrameIndex ?? Math.max(0, frameCount - 1)}]
+                                              </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 block mb-0.5">Min Frame (Start)</label>
+                                                <input
+                                                  type="number"
+                                                  min={0}
+                                                  value={action.minFrameIndex ?? 0}
+                                                  onChange={(e) => {
+                                                    const minVal = Math.max(0, Number(e.target.value));
+                                                    updateCharacter(c => ({
+                                                      ...c,
+                                                      rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                        ...r,
+                                                        actions: (r.actions || []).map(a => a.id === action.id ? { ...a, minFrameIndex: minVal } : a)
+                                                      } : r)
+                                                    }));
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1 text-white font-mono text-xs"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 block mb-0.5">Max Frame (End)</label>
+                                                <input
+                                                  type="number"
+                                                  min={action.minFrameIndex ?? 0}
+                                                  value={action.maxFrameIndex ?? Math.max(0, frameCount - 1)}
+                                                  onChange={(e) => {
+                                                    const maxVal = Math.max(0, Number(e.target.value));
+                                                    updateCharacter(c => ({
+                                                      ...c,
+                                                      rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                        ...r,
+                                                        actions: (r.actions || []).map(a => a.id === action.id ? { ...a, maxFrameIndex: maxVal } : a)
+                                                      } : r)
+                                                    }));
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1 text-white font-mono text-xs"
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="text-[10px] text-cyan-400/80 flex items-center gap-1.5 pt-0.5">
+                                              <span>🎲 Dynamically selects a pseudo-random integer index from {action.minFrameIndex ?? 0} to {action.maxFrameIndex ?? Math.max(0, frameCount - 1)} upon trigger execution.</span>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {currentMode === 'random_all' && (
+                                          <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800 text-xs text-neutral-300">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-cyan-400 font-bold">🎲</span>
+                                              <span>Will randomly select any frame from <strong>Frame #0</strong> to <strong>Frame #{Math.max(0, frameCount - 1)}</strong> ({frameCount} total frames).</span>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {currentMode === 'variable' && (
+                                          <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800 space-y-1.5">
+                                            <label className="text-[10px] text-neutral-300 font-bold block">
+                                              Select Prefab Numeric Variable for Frame Index
+                                            </label>
+                                            <select
+                                              value={action.frameVariableId || variablesList[0]?.id || ''}
+                                              onChange={(e) => {
+                                                const varId = e.target.value;
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                    ...r,
+                                                    actions: (r.actions || []).map(a => a.id === action.id ? { ...a, frameVariableId: varId } : a)
+                                                  } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-cyan-300 font-mono text-xs"
+                                            >
+                                              {variablesList.length === 0 ? (
+                                                <option value="">No Variables Defined</option>
+                                              ) : (
+                                                variablesList.map(v => (
+                                                  <option key={v.id} value={v.id}>
+                                                    {v.name} ({v.id}) [{v.type}] = {String(v.value ?? v.defaultValue ?? 0)}
+                                                  </option>
+                                                ))
+                                              )}
+                                            </select>
+                                          </div>
+                                        )}
+
+                                        {/* Playback Freeze / Static Frame Toggle */}
+                                        <div className="pt-1">
+                                          <label className="flex items-center gap-2 p-2.5 rounded-lg bg-neutral-900/90 border border-neutral-800 cursor-pointer hover:bg-neutral-800/60 transition">
+                                            <input
+                                              type="checkbox"
+                                              checked={isPaused}
+                                              onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                    ...r,
+                                                    actions: (r.actions || []).map(a => a.id === action.id ? { ...a, pauseOnFrame: checked } : a)
+                                                  } : r)
+                                                }));
+                                              }}
+                                              className="rounded text-cyan-500 focus:ring-cyan-500 bg-neutral-950 border-neutral-700"
+                                            />
+                                            <div>
+                                              <span className="text-white font-medium block">
+                                                Freeze / Hold on this Frame (Static Visual View)
+                                              </span>
+                                              <span className="text-[10px] text-neutral-400 block">
+                                                {isPaused
+                                                  ? 'Sprite holds this frame permanently without advancing (perfect for randomized visual props, statues, different item variants).'
+                                                  : 'Jumps directly to this frame and continues normal continuous playback.'}
+                                              </span>
+                                            </div>
+                                          </label>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
 
                                   {/* Camera Action Config */}
                                   {action.actionType === 'camera' && (

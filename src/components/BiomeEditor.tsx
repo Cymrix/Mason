@@ -143,6 +143,7 @@ export const BiomeEditor: React.FC<BiomeEditorProps> = ({
     if (!canvas || !selectedBiome) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
 
     const size = 16;
     const tileSize = 16;

@@ -208,6 +208,7 @@ export const ParallaxLayersEditor: React.FC<ParallaxLayersEditorProps> = ({
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
+          ctx.imageSmoothingEnabled = false;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           // Render background base

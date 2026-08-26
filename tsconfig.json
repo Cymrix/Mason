@@ -24,7 +24,6 @@
     "noEmit": true
   },
   "exclude": [
-    "palette-spray-studio/**/*",
     "node_modules",
     "dist"
   ]

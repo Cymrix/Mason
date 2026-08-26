@@ -600,9 +600,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
       return;
     }
     const targetFile = biomeFiles.find(f => f.fileName === fileName) || currentBiomeFile;
-    if (!window.confirm(`Are you sure you want to delete "${targetFile.name}" (${targetFile.fileName})? This action cannot be undone.`)) {
-      return;
-    }
+    const isDeletingActive = targetFile.fileName === (localActiveFileName || currentBiomeFile.fileName);
 
     const remainingFiles = biomeFiles.filter(f => f.fileName !== targetFile.fileName);
     const nextActive = remainingFiles[0]?.fileName || '';
@@ -612,7 +610,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         ...p,
         activeFiles: {
           ...p.activeFiles,
-          biomeFileName: nextActive
+          biomeFileName: isDeletingActive ? nextActive : (p.activeFiles.biomeFileName || nextActive)
         },
         fileSystem: {
           ...p.fileSystem,
@@ -622,8 +620,11 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
     } else if (propOnUpdateBiomes && propBiomes) {
       propOnUpdateBiomes(propBiomes.filter(b => b.id !== targetFile.id));
     }
-    setLocalActiveFileName(nextActive);
-    setSelectedTileTypeIndex(0);
+
+    if (isDeletingActive) {
+      setLocalActiveFileName(nextActive);
+      setSelectedTileTypeIndex(0);
+    }
   };
 
   const handleRenameBiomeFile = (oldFileName: string, newName: string) => {

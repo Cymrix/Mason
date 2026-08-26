@@ -94,7 +94,13 @@ export interface BehaviorSkill {
   triggerInputId?: string; // Links to MappedInput ID
 }
 
-export type TriggerType = 'sight' | 'sound' | 'proximity' | 'health' | 'timer' | 'state' | 'collision' | 'input_press' | 'player_condition' | 'keyboard_key' | 'listener' | 'mapped_input' | 'possession' | 'variable_condition' | 'dialogue_trigger' | 'solid_detection' | 'physics_state';
+export type TriggerType = 'sight' | 'sound' | 'proximity' | 'health' | 'timer' | 'state' | 'collision' | 'input_press' | 'player_condition' | 'keyboard_key' | 'listener' | 'mapped_input' | 'possession' | 'variable_condition' | 'dialogue_trigger' | 'solid_detection' | 'physics_state' | 'on_spawn' | 'spawn';
+
+export interface SpawnTrigger {
+  type: 'on_spawn' | 'spawn';
+  spawnDelayMs?: number; // Optional delay in ms after instantiation before executing (default: 0)
+  triggerOnce?: boolean; // Only trigger once upon instantiation (default: true)
+}
 
 export interface SightTrigger {
   type: 'sight';
@@ -231,7 +237,8 @@ export type BehaviorTrigger =
   | VariableConditionTrigger
   | DialogueTrigger
   | SolidDetectionTrigger
-  | PhysicsStateTrigger;
+  | PhysicsStateTrigger
+  | SpawnTrigger;
 
 export type ActionType = 
   | 'none' 
@@ -240,6 +247,8 @@ export type ActionType =
   | 'state_change' 
   | 'emit_signal' 
   | 'animation' 
+  | 'set_frame'
+  | 'set_random_frame'
   | 'camera' 
   | 'hero_impulse' 
   | 'variable_modify' 
@@ -261,6 +270,18 @@ export interface BehaviorAction {
   signalType?: 'emit_sound' | 'alert_icon' | 'call_allies';
   signalRadiusPx?: number;
   animState?: 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'hurt' | 'death' | string;
+  
+  // Frame Action Configuration (Set Frame / Random Frame in Range)
+  frameMode?: 'fixed' | 'random_range' | 'random_all' | 'variable';
+  targetAnimationState?: string; // target animation state e.g. 'idle', 'walk', '*' for active
+  targetFrameIndex?: number; // for 'fixed' mode (e.g. 0, 1, 4)
+  minFrameIndex?: number; // for 'random_range' mode (e.g. 0)
+  maxFrameIndex?: number; // for 'random_range' mode (e.g. 7)
+  frameVariableId?: string; // for 'variable' mode
+  pauseOnFrame?: boolean; // freeze/pause on this frame (default: true)
+  targetVisualScope?: 'prefab_sprite' | 'composite_part' | 'all';
+  compositePartId?: string; // optional composite part id
+
   cameraMode?: 'focus_target' | 'zoom_in' | 'shake' | 'track_self';
   cameraZoom?: number;
   cameraSmoothing?: number;
@@ -533,6 +554,69 @@ export interface PrefabSocket {
   visualMarkerColor?: string;
 }
 
+// ==========================================
+// 3.6.1 2D BONES & INVERSE KINEMATICS (IK) SCHEMA
+// ==========================================
+export interface PrefabBone {
+  id: string;
+  name: string;
+  parentBoneId?: string | null; // null/undefined for root / independent bone
+  length: number; // Bone length in pixels (e.g. 24px)
+  localAngleDeg: number; // Relative angle to parent in degrees (-180 to 180)
+  color?: string; // Visual color for bone diamond rendering
+  width?: number; // Visual thickness on canvas (e.g. 6)
+  minAngleDeg?: number; // Minimum rotation constraint (-180 to 180)
+  maxAngleDeg?: number; // Maximum rotation constraint (-180 to 180)
+  attachedPartId?: string; // Bound composite part ID (from char.parts)
+  attachedSpriteFileName?: string; // Optional direct sprite / image link
+  partOffsetPx?: { x: number; y: number }; // Offset of the sprite part relative to bone
+  partRotationOffsetDeg?: number; // Rotation offset of sprite relative to bone
+  inheritScale?: boolean;
+}
+
+export interface PrefabIKTarget {
+  id: string;
+  name: string;
+  chainRootBoneId: string; // Top ancestor bone of the IK chain
+  endEffectorBoneId: string; // Tip bone of the IK chain
+  targetX: number; // Current IK goal X in local space (relative to prefab origin)
+  targetY: number; // Current IK goal Y in local space (relative to prefab origin)
+  poleVectorX?: number; // Optional bend direction hint / pole vector
+  poleVectorY?: number;
+  flipBend?: boolean; // Flip knee / elbow bend direction in 2-bone analytical IK
+  maxIterations?: number; // For CCD / FABRIK multi-bone solver (default 15)
+  weight?: number; // 0.0 to 1.0
+  enabled: boolean;
+  color?: string;
+}
+
+export interface PrefabBoneKeyframe {
+  id?: string;
+  frameIndex: number;
+  timeMs?: number;
+  name?: string;
+  boneRotations: Record<string, number>; // boneId -> localAngleDeg
+  ikPositions?: Record<string, { x: number; y: number; flipBend?: boolean }>; // ikId -> {x, y, flipBend}
+}
+
+export interface PrefabBoneAnimationTrack {
+  id: string;
+  name: string;
+  durationFrames: number;
+  frameRateFps: number;
+  loop: boolean;
+  keyframes: PrefabBoneKeyframe[];
+}
+
+export interface PrefabSkeleton {
+  rootX: number;
+  rootY: number;
+  bones: PrefabBone[];
+  ikTargets: PrefabIKTarget[];
+  animationTracks?: PrefabBoneAnimationTrack[];
+  activeTrackId?: string;
+}
+
 export interface PrefabSpritesheet {
   id: string;
   name: string;
@@ -689,6 +773,7 @@ export interface PrefabData {
 
   // Composite Parts, Sockets, Equipment & Variants
   parts?: PrefabPart[];
+  skeleton?: PrefabSkeleton;
   equipmentSlots?: PrefabEquipmentSlot[];
   variants?: PrefabVariant[];
   activeVariantId?: string;
@@ -1311,7 +1396,20 @@ export interface ParticleSystemFile {
 // ==========================================
 // 6. MASON MASTER PROJECT CONTAINER
 // ==========================================
-export type MasonModuleId = 'maps' | 'biomes' | 'prefabs' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles';
+export type MasonModuleId = 'maps' | 'biomes' | 'prefabs' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles' | 'sprites' | 'images';
+
+export interface SpriteExportMetadata {
+  exportMode?: 'flattened' | 'spritesheet' | 'gif' | 'layers' | string;
+  targetFileName?: string;
+  cols?: number;
+  rows?: number;
+  tileWidth?: number;
+  tileHeight?: number;
+  frameCount?: number;
+  layerCount?: number;
+  description?: string;
+  updatedAt?: string;
+}
 
 export interface SpriteFile {
   id: string;
@@ -1319,7 +1417,55 @@ export interface SpriteFile {
   fileName: string;
   createdAt?: string;
   updatedAt: string;
-  spriteData: any; // Raw JSON export from Palette Spray Studio
+  spriteData?: any; // Raw JSON export from Palette Spray Studio
+  imageUrl?: string;
+  dataUrl?: string;
+  width?: number;
+  height?: number;
+  exportSettings?: SpriteExportMetadata;
+  linkedImageFileNames?: string[];
+}
+
+export interface ImageFile {
+  id: string;
+  name: string;
+  fileName: string; // e.g. "player_hero.png"
+  createdAt?: string;
+  updatedAt: string;
+  dataUrl: string; // "data:image/png;base64,..."
+  width?: number;
+  height?: number;
+  sourceSpriteFileName?: string;
+  exportSettings?: SpriteExportMetadata;
+}
+
+export interface ProjectBackupRecord {
+  id: string;
+  projectId: string;
+  timestamp: string;
+  module: MasonModuleId | 'general' | 'save';
+  actionLabel: string;
+  fileCountsSummary?: {
+    maps: number;
+    biomes: number;
+    prefabs: number;
+    sprites: number;
+    images: number;
+    behaviors: number;
+  };
+  projectSnapshot: MasonProject;
+}
+
+export interface FileBackupRecord {
+  id: string;
+  projectId: string;
+  fileCategory: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'behaviors' | 'particles' | 'sprites' | 'images';
+  fileName: string;
+  timestamp: string;
+  actionLabel: string;
+  fileSnapshot: any;
+  fileSizeEstimate?: number;
+  isCurrent?: boolean;
 }
 
 export interface MasonFileSystem {
@@ -1331,6 +1477,7 @@ export interface MasonFileSystem {
   behaviors: BehaviorFile[];
   particles?: ParticleSystemFile[];
   sprites?: SpriteFile[];
+  images?: ImageFile[];
 }
 
 export interface MasonProject {

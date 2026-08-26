@@ -304,7 +304,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                             borderColor: spritesDef?.hex,
                             color: spritesDef?.hex
                           }}
-                          title={`Image Editor (.png): ${spritesDef?.name}`}
+                          title={`Image & Sprite Studio (.sprite): ${spritesDef?.name}`}
                         >
                           <span className="text-[8px] opacity-70">IMG</span>
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: spritesDef?.hex }} />
@@ -483,7 +483,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         <Paintbrush size={15} />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-neutral-200">Image Editor Module (.png)</div>
+                        <div className="text-xs font-bold text-neutral-200">Image & Sprite Studio (.sprite)</div>
                         <div className="text-[10px] text-neutral-400">Pixel art studio, spray brush & sprite frame editing</div>
                       </div>
                     </div>

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MasonProject, 
   MasonModuleId,
   MapFile,
   BiomeFile,
   UIThemeFile,
-  GameStructureFile
+  GameStructureFile,
+  FileBackupRecord
 } from '../engine/masonProjectSchema';
 import { 
   exportMapFile, 
@@ -16,8 +17,13 @@ import {
   createNewMapInProject,
   createNewBiomeInProject,
   createNewUIThemeInProject,
-  createNewGameStructureInProject
+  createNewGameStructureInProject,
+  saveActiveMasonProject,
+  getFileBackups,
+  restoreFileVersion,
+  deleteFileBackup
 } from '../utils/masonStorage';
+import { createOrLinkImageAndSpriteProject } from '../utils/spriteUtils';
 import { 
   Folder, 
   FolderOpen, 
@@ -39,7 +45,12 @@ import {
   TreePine,
   Users,
   Layout,
-  Compass
+  Compass,
+  Image as ImageIcon,
+  History,
+  RotateCcw,
+  Clock,
+  Check
 } from 'lucide-react';
 
 interface ProjectExplorerModalProps {
@@ -58,7 +69,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
   onNavigateToModule
 }) => {
   const [selectedFile, setSelectedFile] = useState<{
-    subfolder: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game';
+    subfolder: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'sprites' | 'images';
     file: any;
   } | null>(null);
 
@@ -67,16 +78,166 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
     biomes: true,
     prefabs: true,
     ui: true,
-    game: true
+    game: true,
+    sprites: true,
+    images: true
   });
 
   const [newFileInput, setNewFileInput] = useState<{ subfolder: string; name: string } | null>(null);
   const [showRawJson, setShowRawJson] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+
+  const [fileBackups, setFileBackups] = useState<FileBackupRecord[]>([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [isRestoringVersion, setIsRestoringVersion] = useState(false);
+  const [confirmingDeleteBackupId, setConfirmingDeleteBackupId] = useState<string | null>(null);
+  const [previewBackup, setPreviewBackup] = useState<FileBackupRecord | null>(null);
+  const [restoreSuccessMsg, setRestoreSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setConfirmingDeleteBackupId(null);
+    if (selectedFile && project && project.id) {
+      setIsLoadingBackups(true);
+      getFileBackups(project.id, selectedFile.file.fileName).then((records) => {
+        setFileBackups(records);
+        setIsLoadingBackups(false);
+      }).catch(() => {
+        setFileBackups([]);
+        setIsLoadingBackups(false);
+      });
+    } else {
+      setFileBackups([]);
+    }
+    setPreviewBackup(null);
+  }, [selectedFile?.file?.fileName, project.id, project.updatedAt]);
 
   if (!isOpen) return null;
 
+  const handleRestoreVersion = async (backupId: string) => {
+    setIsRestoringVersion(true);
+    try {
+      const result = await restoreFileVersion(project, backupId);
+      if (result) {
+        onUpdateProject(() => result.updatedProject);
+        
+        // Update currently selected file preview if it matches restored or linked file
+        if (selectedFile) {
+          const refreshedFile = (result.updatedProject.fileSystem as any)[selectedFile.subfolder]?.find(
+            (f: any) => f.fileName === selectedFile.file.fileName
+          );
+          if (refreshedFile) {
+            setSelectedFile({
+              subfolder: selectedFile.subfolder,
+              file: refreshedFile
+            });
+          }
+        }
+
+        setRestoreSuccessMsg(`Restored ${result.restoredFileName} to version!`);
+        setTimeout(() => setRestoreSuccessMsg(null), 4000);
+        if (project.id && selectedFile?.file?.fileName) {
+          const refreshed = await getFileBackups(project.id, selectedFile.file.fileName);
+          setFileBackups(refreshed);
+        }
+      }
+    } finally {
+      setIsRestoringVersion(false);
+    }
+  };
+
+  const handleDeleteBackup = async (backupId: string) => {
+    if (!project.id || !selectedFile?.file?.fileName) return;
+    await deleteFileBackup(backupId);
+    if (previewBackup?.id === backupId) {
+      setPreviewBackup(null);
+    }
+    const refreshed = await getFileBackups(project.id, selectedFile.file.fileName);
+    setFileBackups(refreshed);
+  };
+
   const toggleFolder = (folder: string) => {
     setExpandedFolders(prev => ({ ...prev, [folder]: !prev[folder] }));
+  };
+
+  const handleDeleteSelectedFile = () => {
+    if (!selectedFile) return;
+    const { subfolder, file } = selectedFile;
+    const fName = file.fileName;
+
+    onUpdateProject(p => {
+      if (subfolder === 'maps') {
+        const remaining = p.fileSystem.maps.filter(m => m.fileName !== fName);
+        if (remaining.length === 0) return p;
+        return {
+          ...p,
+          activeFiles: {
+            ...p.activeFiles,
+            mapFileName: p.activeFiles.mapFileName === fName ? remaining[0].fileName : p.activeFiles.mapFileName
+          },
+          fileSystem: { ...p.fileSystem, maps: remaining }
+        };
+      } else if (subfolder === 'biomes') {
+        const remaining = p.fileSystem.biomes.filter(b => b.fileName !== fName);
+        if (remaining.length === 0) return p;
+        return {
+          ...p,
+          activeFiles: {
+            ...p.activeFiles,
+            biomeFileName: p.activeFiles.biomeFileName === fName ? remaining[0].fileName : p.activeFiles.biomeFileName
+          },
+          fileSystem: { ...p.fileSystem, biomes: remaining }
+        };
+      } else if (subfolder === 'prefabs') {
+        const remaining = (p.fileSystem.prefabs || []).filter(c => c.fileName !== fName);
+        if (remaining.length === 0) return p;
+        return {
+          ...p,
+          activeFiles: {
+            ...p.activeFiles,
+            prefabFileName: p.activeFiles.prefabFileName === fName ? remaining[0]?.fileName || '' : p.activeFiles.prefabFileName
+          },
+          fileSystem: { ...p.fileSystem, prefabs: remaining }
+        };
+      } else if (subfolder === 'ui') {
+        const remaining = p.fileSystem.ui.filter(u => u.fileName !== fName);
+        if (remaining.length === 0) return p;
+        return {
+          ...p,
+          activeFiles: {
+            ...p.activeFiles,
+            uiFileName: p.activeFiles?.uiFileName === fName ? remaining[0].fileName : p.activeFiles?.uiFileName
+          },
+          fileSystem: { ...p.fileSystem, ui: remaining }
+        };
+      } else if (subfolder === 'game') {
+        const remaining = p.fileSystem.game.filter(g => g.fileName !== fName);
+        if (remaining.length === 0) return p;
+        return {
+          ...p,
+          activeFiles: {
+            ...p.activeFiles,
+            gameStructureFileName: p.activeFiles?.gameStructureFileName === fName ? remaining[0].fileName : p.activeFiles?.gameStructureFileName
+          },
+          fileSystem: { ...p.fileSystem, game: remaining }
+        };
+      } else if (subfolder === 'sprites') {
+        const remaining = (p.fileSystem.sprites || []).filter(s => s.fileName !== fName);
+        return {
+          ...p,
+          fileSystem: { ...p.fileSystem, sprites: remaining }
+        };
+      } else if (subfolder === 'images') {
+        const remaining = (p.fileSystem.images || []).filter(i => i.fileName !== fName);
+        return {
+          ...p,
+          fileSystem: { ...p.fileSystem, images: remaining }
+        };
+      }
+      return p;
+    });
+
+    setSelectedFile(null);
+    setIsConfirmingDelete(false);
   };
 
   const handleCreateFileSubmit = (e: React.FormEvent) => {
@@ -157,10 +318,30 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
     setNewFileInput(null);
   };
 
-  // Import custom JSON file
+  // Import custom JSON or Image file
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.type.startsWith('image/') || file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg')) {
+      const imgReader = new FileReader();
+      imgReader.onload = async (event) => {
+        const dataUrl = event.target?.result as string;
+        if (!dataUrl) return;
+        const cleanName = file.name.replace(/\.[^/.]+$/, '');
+        const { updatedProject } = await createOrLinkImageAndSpriteProject(project, {
+          name: cleanName,
+          imageSrc: dataUrl,
+          cols: 1,
+          rows: 1,
+          tileWidth: 32,
+          tileHeight: 32
+        });
+        onUpdateProject(() => updatedProject);
+      };
+      imgReader.readAsDataURL(file);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -169,7 +350,12 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
         const parsed = JSON.parse(text);
 
         // Determine file type by structure or file extension
-        if (file.name.endsWith('.map') || parsed.cells) {
+        if (file.name.endsWith('.sprite') || parsed.spriteData) {
+          onUpdateProject(p => ({
+            ...p,
+            fileSystem: { ...p.fileSystem, sprites: [...(p.fileSystem.sprites || []), parsed] }
+          }));
+        } else if (file.name.endsWith('.map') || parsed.cells) {
           onUpdateProject(p => ({
             ...p,
             fileSystem: { ...p.fileSystem, maps: [...p.fileSystem.maps, parsed] }
@@ -484,6 +670,76 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
               )}
             </div>
 
+            {/* FOLDER 6: /sprites/ (.sprite) */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
+                <button
+                  type="button"
+                  onClick={() => toggleFolder('sprites')}
+                  className="flex items-center gap-2 text-xs font-bold text-neutral-200"
+                >
+                  {expandedFolders.sprites ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
+                  <Folder size={15} className="text-pink-400" />
+                  <span>sprites/</span>
+                  <span className="text-[10px] font-mono text-neutral-500">({(project.fileSystem.sprites || []).length})</span>
+                </button>
+              </div>
+
+              {expandedFolders.sprites && (
+                <div className="pl-6 space-y-0.5">
+                  {(project.fileSystem.sprites || []).map(s => (
+                    <button
+                      key={s.fileName}
+                      type="button"
+                      onClick={() => setSelectedFile({ subfolder: 'sprites', file: s })}
+                      className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
+                        selectedFile?.file?.fileName === s.fileName
+                          ? 'bg-pink-950/60 text-pink-200 border border-pink-500/40'
+                          : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+                      }`}
+                    >
+                      <span className="truncate">{s.fileName}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* FOLDER 7: /images/ (.png) */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
+                <button
+                  type="button"
+                  onClick={() => toggleFolder('images')}
+                  className="flex items-center gap-2 text-xs font-bold text-neutral-200"
+                >
+                  {expandedFolders.images ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
+                  <Folder size={15} className="text-amber-400" />
+                  <span>images/</span>
+                  <span className="text-[10px] font-mono text-neutral-500">({(project.fileSystem.images || []).length})</span>
+                </button>
+              </div>
+
+              {expandedFolders.images && (
+                <div className="pl-6 space-y-0.5">
+                  {(project.fileSystem.images || []).map(img => (
+                    <button
+                      key={img.fileName}
+                      type="button"
+                      onClick={() => setSelectedFile({ subfolder: 'images', file: img })}
+                      className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
+                        selectedFile?.file?.fileName === img.fileName
+                          ? 'bg-amber-950/60 text-amber-200 border border-amber-500/40'
+                          : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+                      }`}
+                    >
+                      <span className="truncate">{img.fileName}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* RIGHT: SELECTED FILE INSPECTOR */}
@@ -513,7 +769,8 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                           selectedFile.subfolder === 'maps' ? 'maps' :
                           selectedFile.subfolder === 'biomes' ? 'biomes' :
                           selectedFile.subfolder === 'prefabs' ? 'prefabs' :
-                          selectedFile.subfolder === 'ui' ? 'ui' : 'gamestructure';
+                          selectedFile.subfolder === 'ui' ? 'ui' :
+                          selectedFile.subfolder === 'sprites' || selectedFile.subfolder === 'images' ? 'sprites' : 'gamestructure';
 
                         onNavigateToModule(targetModule, selectedFile.file.fileName);
                         onClose();
@@ -521,7 +778,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                       className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-cyan-600/30"
                     >
                       <ExternalLink size={14} />
-                      <span>Open in {selectedFile.subfolder.toUpperCase()} Module</span>
+                      <span>Open in {selectedFile.subfolder === 'images' ? 'IMAGE EDITOR' : selectedFile.subfolder.toUpperCase()} Module</span>
                     </button>
 
                     <button
@@ -531,7 +788,12 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                         else if (selectedFile.subfolder === 'biomes') exportBiomeFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'ui') exportUIThemeFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'game') exportGameStructureFile(selectedFile.file);
-                        else {
+                        else if (selectedFile.subfolder === 'images' && selectedFile.file.dataUrl) {
+                          const a = document.createElement('a');
+                          a.href = selectedFile.file.dataUrl;
+                          a.download = selectedFile.file.fileName;
+                          a.click();
+                        } else {
                           const jsonStr = JSON.stringify(selectedFile.file, null, 2);
                           const blob = new Blob([jsonStr], { type: 'application/json' });
                           const url = URL.createObjectURL(blob);
@@ -546,6 +808,35 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                     >
                       <Download size={15} />
                     </button>
+
+                    {isConfirmingDelete ? (
+                      <div className="flex items-center gap-1.5 bg-rose-950/90 border border-rose-500/60 rounded-xl p-1 animate-in fade-in zoom-in-95 duration-150">
+                        <span className="text-[11px] text-rose-300 font-bold px-1">Delete file?</span>
+                        <button
+                          type="button"
+                          onClick={handleDeleteSelectedFile}
+                          className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition shadow"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsConfirmingDelete(false)}
+                          className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs transition"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsConfirmingDelete(true)}
+                        className="p-2 bg-neutral-800 hover:bg-rose-950/80 border border-neutral-700 hover:border-rose-500/50 text-neutral-400 hover:text-rose-300 rounded-xl text-xs transition"
+                        title={`Delete ${selectedFile.file.fileName}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -567,6 +858,39 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                   <pre className="bg-neutral-950 p-4 rounded-2xl border border-neutral-800 text-[11px] font-mono text-cyan-300 max-h-96 overflow-y-auto">
                     {JSON.stringify(selectedFile.file, null, 2)}
                   </pre>
+                ) : selectedFile.subfolder === 'images' && selectedFile.file.dataUrl ? (
+                  <div className="bg-neutral-950 p-6 rounded-2xl border border-neutral-800 flex flex-col items-center justify-center space-y-3">
+                    <img 
+                      src={selectedFile.file.dataUrl} 
+                      alt={selectedFile.file.name} 
+                      className="max-h-72 object-contain rounded-xl border border-neutral-800 bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:10px_10px] p-2" 
+                    />
+                    <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                      <span className="text-amber-400 font-bold">PNG Image Asset</span>
+                      {selectedFile.file.width && <span className="text-neutral-400 font-mono">• {selectedFile.file.width} × {selectedFile.file.height} px</span>}
+                      
+                      {/* Linked Sprite Badge */}
+                      {(() => {
+                        const sourceSpriteName = selectedFile.file.sourceSpriteFileName;
+                        const linkedSprite = sourceSpriteName
+                          ? (project.fileSystem.sprites || []).find(s => s.fileName === sourceSpriteName)
+                          : (project.fileSystem.sprites || []).find(s => (s.linkedImageFileNames || []).includes(selectedFile.file.fileName));
+
+                        if (linkedSprite) {
+                          return (
+                            <span className="px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold flex items-center gap-1.5">
+                              <span>🔗 Linked to: {linkedSprite.name} ({linkedSprite.fileName})</span>
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="px-2.5 py-1 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono text-[11px] font-bold flex items-center gap-1.5">
+                            <span>⚠️ Unlinked Image (Not associated with any .sprite)</span>
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 ) : (
                   <div className="bg-neutral-950 p-5 rounded-2xl border border-neutral-800 space-y-3">
                     <div className="grid grid-cols-2 gap-4 text-xs">
@@ -581,6 +905,166 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* PREVIOUS VERSIONS & DIFFERENTIAL CHECKPOINTS */}
+                <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <History size={18} className="text-indigo-400" />
+                      <div>
+                        <h4 className="text-xs font-bold text-neutral-100 uppercase tracking-wider">
+                          Previous Versions & Checkpoints
+                        </h4>
+                        <p className="text-[11px] text-neutral-400">
+                          Differential file-level history stored in local database
+                        </p>
+                      </div>
+                      <span className="ml-2 text-[10px] font-mono px-2 py-0.5 bg-indigo-950 text-indigo-300 rounded-full border border-indigo-500/30">
+                        {fileBackups.length}/10 retained
+                      </span>
+                    </div>
+
+                    {restoreSuccessMsg && (
+                      <div className="text-[11px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 px-3 py-1 rounded-lg flex items-center gap-1.5 animate-in fade-in">
+                        <Check size={13} />
+                        <span>{restoreSuccessMsg}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {isLoadingBackups ? (
+                    <div className="py-6 text-center text-xs text-neutral-500 font-mono">
+                      Searching differential file history...
+                    </div>
+                  ) : fileBackups.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-neutral-500 bg-neutral-950/60 rounded-xl border border-dashed border-neutral-800 p-4">
+                      No previous file versions recorded yet. Checkpoints are automatically captured each time this file is modified and saved.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {fileBackups.map((bk, idx) => {
+                        const isCurrentVersion = bk.isCurrent || (!fileBackups.some(b => b.isCurrent) && idx === 0);
+                        return (
+                          <div
+                            key={bk.id}
+                            className={`bg-neutral-950 border ${
+                              isCurrentVersion
+                                ? 'border-emerald-500/50 bg-emerald-950/10'
+                                : previewBackup?.id === bk.id
+                                ? 'border-indigo-500 bg-indigo-950/20'
+                                : 'border-neutral-800 hover:border-neutral-700'
+                            } rounded-xl p-3 flex items-center justify-between gap-3 text-xs font-mono transition`}
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-indigo-400 shrink-0">
+                                <Clock size={15} />
+                              </div>
+                              <div className="truncate">
+                                <div className="text-neutral-200 font-bold flex items-center gap-2">
+                                  <span>{new Date(bk.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                                  <span className="text-[10px] font-normal text-neutral-500">
+                                    {new Date(bk.timestamp).toLocaleDateString()}
+                                  </span>
+                                  {isCurrentVersion && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 bg-emerald-950 text-emerald-300 rounded border border-emerald-500/30">
+                                      Current
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-neutral-400 truncate mt-0.5">
+                                  {bk.actionLabel}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewBackup(previewBackup?.id === bk.id ? null : bk)}
+                                className="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-[11px] font-bold flex items-center gap-1 transition"
+                                title="Preview snapshot data"
+                              >
+                                <Eye size={13} />
+                                <span>{previewBackup?.id === bk.id ? 'Hide' : 'Preview'}</span>
+                              </button>
+
+                              {isCurrentVersion ? (
+                                <span className="px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 rounded-lg text-[11px] font-bold flex items-center gap-1">
+                                  <Check size={13} />
+                                  <span>Active</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={isRestoringVersion}
+                                  onClick={() => handleRestoreVersion(bk.id)}
+                                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition shadow-sm shadow-indigo-600/30 disabled:opacity-50"
+                                  title="Restore file to this version"
+                                >
+                                  <RotateCcw size={13} />
+                                  <span>Restore</span>
+                                </button>
+                              )}
+
+                              {confirmingDeleteBackupId === bk.id ? (
+                                <div className="flex items-center gap-1.5 bg-rose-950/90 border border-rose-500/60 rounded-lg p-1 animate-in fade-in zoom-in-95 duration-150 shrink-0">
+                                  <span className="text-[10px] text-rose-300 font-bold px-1 whitespace-nowrap">Delete?</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleDeleteBackup(bk.id);
+                                      setConfirmingDeleteBackupId(null);
+                                    }}
+                                    className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-[10px] font-bold transition shadow"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmingDeleteBackupId(null)}
+                                    className="px-1.5 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-[10px] transition"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmingDeleteBackupId(bk.id)}
+                                  className="p-1.5 bg-neutral-900 hover:bg-rose-950/80 text-neutral-400 hover:text-rose-300 border border-neutral-800 hover:border-rose-500/50 rounded-lg transition shrink-0"
+                                  title="Delete this restore point"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {previewBackup && (
+                    <div className="mt-3 bg-neutral-950 border border-indigo-500/50 rounded-xl p-3.5 space-y-2 animate-in fade-in">
+                      <div className="flex items-center justify-between text-xs font-bold text-indigo-300">
+                        <span className="flex items-center gap-1.5">
+                          <Eye size={13} />
+                          Previewing Version from {new Date(previewBackup.timestamp).toLocaleString()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewBackup(null)}
+                          className="text-neutral-500 hover:text-white p-1"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <pre className="text-[10px] font-mono text-cyan-300 max-h-52 overflow-y-auto bg-black/60 p-3 rounded-lg border border-neutral-800">
+                        {JSON.stringify(previewBackup.fileSnapshot, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center text-neutral-500 space-y-3">

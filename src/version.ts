@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.145';
-export const MASON_VERSION_DISPLAY = 'v0.145';
-export const MASON_FULL_VERSION = 'v0.145';
+export const MASON_VERSION = '0.166';
+export const MASON_VERSION_DISPLAY = 'v0.166';
+export const MASON_FULL_VERSION = 'v0.166';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,173 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.166',
+    date: '2026-08-26',
+    changes: [
+      'Decompressed and restored clean uncorrupted Image & Sprite Editor engine bundle (/modules/sprites/index.html), resolving syntax errors and restoring full canvas click & tool responsiveness.',
+      'Bumped Mason release version to v0.166.'
+    ]
+  },
+  {
+    version: 'v0.165',
+    date: '2026-08-26',
+    changes: [
+      'Fixed temporary Ctrl key tool switching behavior: releasing Ctrl or moving over canvas continuously restores the previously selected tool on keyup and pointermove.',
+      'Added Frequency Threshold Color Reduction mode in Reduce Colors popup: filters out rare colors below pixel count threshold, remapping canvas pixels and/or trimming main palette.',
+      'Bumped Mason release version to v0.165.'
+    ]
+  },
+  {
+    version: 'v0.164',
+    date: '2026-08-26',
+    changes: [
+      'Added temporary Ctrl key color selection shortcut: holding Ctrl while hovering over the canvas switches to colorpick mode and restores previous tool on release.',
+      'Bumped Mason release version to v0.164.'
+    ]
+  },
+  {
+    version: 'v0.163',
+    date: '2026-08-26',
+    changes: [
+      'Replaced all native browser confirm() and alert() calls across Sprite Editor iframe modules with custom iframe-safe modal dialogs (asyncConfirm & showCustomAlert).',
+      'Bumped Mason release version to v0.163 across package manifest, version constants, and release history log.'
+    ]
+  },
+  {
+    version: 'v0.162',
+    date: '2026-08-26',
+    changes: [
+      'Cleaned up and consolidated repository workspace: removed 117 leftover temporary scripts (_tmp_script_*, patch_*, fix_*, test_*, rewrite_*, etc.) and temporary build directories.',
+      'Audited root file tree down to production-essential configuration and application assets.'
+    ]
+  },
+  {
+    version: 'v0.161',
+    date: '2026-08-26',
+    changes: [
+      'Added canvas dimension & size preset controls to the Create New Sprite modal across the top bar button and subfolder dropdown menu.',
+      'Removed legacy /palette-spray-studio and /public/palette-spray-studio directories to fully consolidate sprite engine assets into /public/modules/sprites/.',
+      'Cleaned up export submenu by removing redundant standalone heightmap and roughness map export items in favor of the full PNG & Maps export suite.',
+      'Streamlined FileSubfolderHeader with aspect ratio linking, preset resolution chips (16×16 to 256×256), and dynamic pixel counter.'
+    ]
+  },
+  {
+    version: 'v0.160',
+    date: '2026-08-26',
+    changes: [
+      'Fixed the Sprite & Image Editor black screen root cause by reintroducing the safe DOM Proxy shim (Script 0) to prevent unhandled TypeErrors from missing optional elements during engine startup.',
+      'Embedded the bidirectional postMessage iframe bridge directly into the Sprite Editor main IIFE execution scope, guaranteeing access to layers, frames, resetProjectToDefaults, and render.',
+      'Synchronized SpriteEditor message handling in SpriteEditorWrapper for SPRITE_STATUS and SPRITE_STATUS_UPDATE payloads.',
+      'Ensured full asset and canvas parity across /modules/sprites/index.html and /palette-spray-studio/index.html.'
+    ]
+  },
+  {
+    version: 'v0.159',
+    date: '2026-08-26',
+    changes: [
+      'Resolved Sprite & Image Editor black screen regression by consolidating the postMessage iframe bridge directly into the primary application execution scope.',
+      'Exposed core SpriteEditor methods (render, resetProjectToDefaults, loadProjectData, buildProjectData, centerCanvas, fitCanvasToScreen) to window scope so message listeners execute synchronously without closure isolation.',
+      'Guaranteed active layer rendering, grid overlay generation, canvas centering, and screen fitting on fresh sprite and project loads.',
+      'Eliminated disconnected duplicate scripts and unified dirty-state tracking across strokes, undo/redo history, and project saves.'
+    ]
+  },
+  {
+    version: 'v0.158',
+    date: '2026-08-25',
+    changes: [
+      'Resolved Image & Sprite Editor canvas and tool interaction blockage by decompressing internal binary stream artifacts in the HTML bundle.',
+      'Removed conflicting dummy DOM Proxy overrides that disrupted standard document query lookups and element event attachment.',
+      'Restored seamless bidirectional iframe message bridge for sprite file loading, saving, rendering, and active dirty state tracking.',
+      'Enhanced Project Explorer module routing to accurately activate target sprite files when opened directly from the image explorer.'
+    ]
+  },
+  {
+    version: 'v0.157',
+    date: '2026-08-25',
+    changes: [
+      'Added inline confirmation dialog when deleting file restore points in the Project Explorer modal.'
+    ]
+  },
+  {
+    version: 'v0.154',
+    date: '2026-08-25',
+    changes: [
+      'Synchronized PNG image files and Sprite files on canvas saves so visual previews always reflect the latest saved drawing.',
+      'Normalized per-file differential backup comparison to prevent creating duplicate checkpoints when restoring files.',
+      'Added bidirectional restoration and instant UI preview refresh when restoring historical file versions.'
+    ]
+  },
+  {
+    version: 'v0.153',
+    date: '2026-08-25',
+    changes: [
+      'Fixed sprite canvas reload loop when painting or editing canvas layers in Image & Sprite Studio.',
+      'Added lastLoadedSpriteFileNameRef to prevent state updates from re-sending LOAD_PROJECT during drawing sessions.'
+    ]
+  },
+  {
+    version: 'v0.152',
+    date: '2026-08-25',
+    changes: [
+      'Transitioned differential backups to per-file tracking in IndexedDB.',
+      'Implemented "Previous Versions & Checkpoints" viewer and restorer in the Virtual File Explorer.',
+      'Added live snapshot previews and one-click file version restoration for maps, biomes, prefabs, sprites, and assets.'
+    ]
+  },
+  {
+    version: 'v0.151',
+    date: '2026-08-25',
+    changes: [
+      'Implemented automatic spritesheet animation frame slicing when editing spritesheet assets.',
+      'Added export settings persistence (mode, dimensions, tiles, frame counts) linked across Sprite and Image project files.',
+      'Streamlined sprite export options by removing height/roughness map buttons.',
+      'Integrated differential project backup snapshots into IndexedDB for persistent project recovery.'
+    ]
+  },
+  {
+    version: 'v0.150',
+    date: '2026-08-25',
+    changes: [
+      'Disabled direct browser auto-downloads during image export in favor of dedicated top bar export/download buttons.',
+      'All image exports save silently and cleanly directly to the project /images/ subfolder with toast feedback.'
+    ]
+  },
+  {
+    version: 'v0.149',
+    date: '2026-08-25',
+    changes: [
+      'Integrated PNG image export directly into project storage (/images/ subfolder).',
+      'Cleaned Image Editor menu by eliminating redundant New/Load/Save/Save As iframe actions in favor of Mason top bar navigation.',
+      'Updated Project Explorer to track and display /sprites/ and /images/ subfolders with full deletion and file inspection capabilities.',
+      'Updated Project Dashboard with live counts and badges for .png image assets alongside .sprite files.'
+    ]
+  },
+  {
+    version: 'v0.148',
+    date: '2026-08-25',
+    changes: [
+      'Updated Project Dashboard to track .sprite files directly from project storage instead of counting prefab spritesheets.',
+      'Updated dashboard card extension badge to .sprite and included sprite files in total project file metrics.'
+    ]
+  },
+  {
+    version: 'v0.147',
+    date: '2026-08-25',
+    changes: [
+      'Fixed file deletion across Image/Sprite Studio, Biome Editor, Map Editor, and Project Explorer.',
+      'Removed blocking double window.confirm calls that prevented deletion after inline UI confirmation.',
+      'Added full file deletion capabilities inside Project Explorer Modal with immediate state and storage sync.'
+    ]
+  },
+  {
+    version: 'v0.146',
+    date: '2026-08-25',
+    changes: [
+      'Implemented custom interactive modal dialog for unsaved changes confirmation when switching image files, creating or duplicating sprites, or exiting to dashboard.',
+      'Added immediate Save & Continue, Discard Changes, and Cancel handling to ensure user edits are never lost unintentionally.'
+    ]
+  },
   {
     version: 'v0.145',
     date: '2026-08-25',

@@ -1,14 +1,23 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { MasonProject, SpriteFile } from '../engine/masonProjectSchema';
+import { MasonProject, SpriteFile, ImageFile, SpriteExportMetadata } from '../engine/masonProjectSchema';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { createNewSpriteInProject, saveActiveMasonProject } from '../utils/masonStorage';
-import { Image as ImageIcon } from 'lucide-react';
+import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
+import { VirtualExportImageModal, PendingExportData } from './VirtualExportImageModal';
+import { Image as ImageIcon, AlertTriangle, Save, Trash2, X } from 'lucide-react';
 
 interface SpriteEditorWrapperProps {
   project: MasonProject;
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
   onBackToDashboard: () => void;
   onShowToast?: (text: string, type?: 'success' | 'info' | 'error') => void;
+}
+
+interface UnsavedAction {
+  type: 'select' | 'new' | 'duplicate' | 'back' | 'custom';
+  targetFileName?: string;
+  newName?: string;
+  onProceed?: () => Promise<void> | void;
 }
 
 export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
@@ -21,6 +30,13 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
   const isIframeReadyRef = useRef<boolean>(false);
   const projectRef = useRef<MasonProject>(project);
   projectRef.current = project;
+
+  // Pending export modal data state
+  const [pendingExportData, setPendingExportData] = useState<PendingExportData | null>(null);
+
+  // Pending action state when unsaved changes exist
+  const [pendingUnsavedAction, setPendingUnsavedAction] = useState<UnsavedAction | null>(null);
+  const [isSavingPending, setIsSavingPending] = useState(false);
 
   // Fallback local toast if parent doesn't provide one
   const [localToast, setLocalToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -98,24 +114,104 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     }
   }, []);
 
+  const lastLoadedSpriteFileNameRef = useRef<string | null>(null);
+  const lastLoadedSpriteUpdatedAtRef = useRef<string | null>(null);
+
   // Load a specific sprite file into the iframe
-  const sendLoadFileToIframe = useCallback((file: SpriteFile) => {
+  const sendLoadFileToIframe = useCallback(async (file: SpriteFile) => {
     if (!iframeRef.current?.contentWindow) return;
+    lastLoadedSpriteFileNameRef.current = file.fileName;
+    lastLoadedSpriteUpdatedAtRef.current = file.updatedAt || null;
     if (file.spriteData) {
       postToIframe({
         type: 'LOAD_PROJECT',
         projectData: file.spriteData,
         projectName: file.name
       });
+    } else if (file.imageUrl || file.dataUrl) {
+      // Slicing spritesheet into animation frames if spriteData is not present
+      const cols = file.exportSettings?.cols || 1;
+      const rows = file.exportSettings?.rows || 1;
+      const tw = file.exportSettings?.tileWidth || file.width || 32;
+      const th = file.exportSettings?.tileHeight || file.height || 32;
+      const imageSrc = file.imageUrl || file.dataUrl || '';
+
+      const sliced = await sliceSpritesheetToFrames(imageSrc, cols, rows, tw, th);
+      const projData = {
+        version: 1,
+        width: sliced.width,
+        height: sliced.height,
+        layers: sliced.frames[0]?.layers || [{ name: 'Layer 1', data: '' }],
+        frames: sliced.frames,
+        currentFrameIndex: 0,
+        exportSettings: file.exportSettings || {
+          exportMode: cols > 1 || rows > 1 ? 'spritesheet' : 'flattened',
+          targetFileName: `${file.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.png`,
+          cols,
+          rows,
+          tileWidth: sliced.width,
+          tileHeight: sliced.height,
+          frameCount: sliced.frames.length
+        }
+      };
+
+      // Persist generated spriteData onto file
+      onUpdateProject(prev => {
+        const list = prev.fileSystem.sprites || [];
+        const idx = list.findIndex(s => s.fileName === file.fileName);
+        if (idx !== -1) {
+          const updated = [...list];
+          updated[idx] = {
+            ...updated[idx],
+            spriteData: projData,
+            width: sliced.width,
+            height: sliced.height
+          };
+          const updatedProj = {
+            ...prev,
+            fileSystem: { ...prev.fileSystem, sprites: updated }
+          };
+          saveActiveMasonProject(updatedProj, `Loaded and sliced sprite frames for ${file.name}`);
+          return updatedProj;
+        }
+        return prev;
+      });
+
+      postToIframe({
+        type: 'LOAD_PROJECT',
+        projectData: projData,
+        projectName: file.name
+      });
     } else {
       postToIframe({
         type: 'LOAD_SPRITE',
-        width: 32,
-        height: 32,
+        width: file.width || 32,
+        height: file.height || 32,
         projectName: file.name
       });
     }
-  }, [postToIframe]);
+  }, [postToIframe, onUpdateProject]);
+
+  // Reactively synchronize external spriteFileName selection (e.g. from PrefabEditor or Project Explorer)
+  useEffect(() => {
+    const externalFileName = project.activeFiles?.spriteFileName || activeFileName;
+    if (externalFileName) {
+      const list = project.fileSystem.sprites || [];
+      const targetFile = list.find(f => f.fileName === externalFileName);
+      if (targetFile) {
+        const isFileChanged = lastLoadedSpriteFileNameRef.current !== externalFileName ||
+          (targetFile.updatedAt && targetFile.updatedAt !== lastLoadedSpriteUpdatedAtRef.current);
+
+        if (isFileChanged) {
+          setActiveFileName(externalFileName);
+          activeFileNameRef.current = externalFileName;
+          if (isIframeReadyRef.current) {
+            sendLoadFileToIframe(targetFile);
+          }
+        }
+      }
+    }
+  }, [project.activeFiles?.spriteFileName, activeFileName, sendLoadFileToIframe, project.fileSystem.sprites]);
 
   // Request saving sprite canvas state directly and update project storage
   const saveActiveSprite = useCallback((targetFileName?: string): Promise<boolean> => {
@@ -146,27 +242,83 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
 
           const spriteData = e.data.data;
           const targetName = fileToSave;
+          const canvasDataUrl = e.data.spritesheetUrl || e.data.dataUrl || e.data.imageDataUrl;
 
           let savedFileDisplayName = 'Sprite';
           onUpdateProject(prev => {
             const list = prev.fileSystem.sprites || [];
             const idx = list.findIndex(f => f.fileName === targetName);
+            
+            let updatedSprites = [...list];
+            let linkedImagesToUpdate: string[] = [];
+
             if (idx !== -1) {
-              savedFileDisplayName = list[idx].name || targetName;
-              const updated = [...list];
-              updated[idx] = {
-                ...updated[idx],
-                updatedAt: new Date().toISOString(),
-                spriteData
+              const activeSprite = list[idx];
+              savedFileDisplayName = activeSprite.name || targetName;
+              const nowIso = new Date().toISOString();
+              
+              lastLoadedSpriteUpdatedAtRef.current = nowIso;
+
+              const updatedSpriteFile: SpriteFile = {
+                ...activeSprite,
+                updatedAt: nowIso,
+                spriteData,
+                ...(canvasDataUrl ? { dataUrl: canvasDataUrl, imageUrl: canvasDataUrl } : {})
               };
-              const updatedProject = {
-                ...prev,
-                fileSystem: { ...prev.fileSystem, sprites: updated }
-              };
-              saveActiveMasonProject(updatedProject);
-              return updatedProject;
+              updatedSprites[idx] = updatedSpriteFile;
+              linkedImagesToUpdate = activeSprite.linkedImageFileNames || [];
             }
-            return prev;
+
+            // Sync corresponding ImageFile (.png) in fileSystem.images so PNG visuals stay 100% updated!
+            const currentImages = prev.fileSystem.images || [];
+            const cleanBase = targetName.replace(/\.sprite$/, '');
+            const defaultPngName = `${cleanBase}.png`;
+
+            let hasPngMatch = currentImages.some(img =>
+              img.fileName === defaultPngName ||
+              linkedImagesToUpdate.includes(img.fileName) ||
+              img.sourceSpriteFileName === targetName
+            );
+
+            let updatedImages = currentImages.map(img => {
+              const isMatch = img.fileName === defaultPngName ||
+                linkedImagesToUpdate.includes(img.fileName) ||
+                img.sourceSpriteFileName === targetName;
+
+              if (isMatch && canvasDataUrl) {
+                return {
+                  ...img,
+                  updatedAt: new Date().toISOString(),
+                  dataUrl: canvasDataUrl
+                };
+              }
+              return img;
+            });
+
+            if (!hasPngMatch && canvasDataUrl) {
+              const newPngFile: ImageFile = {
+                id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                fileName: defaultPngName,
+                name: `${cleanBase}.png`,
+                dataUrl: canvasDataUrl,
+                width: 32,
+                height: 32,
+                updatedAt: new Date().toISOString(),
+                sourceSpriteFileName: targetName
+              };
+              updatedImages = [...updatedImages, newPngFile];
+            }
+
+            const updatedProject = {
+              ...prev,
+              fileSystem: {
+                ...prev.fileSystem,
+                sprites: updatedSprites,
+                images: updatedImages
+              }
+            };
+            saveActiveMasonProject(updatedProject);
+            return updatedProject;
           });
 
           setIsDirty(false);
@@ -196,25 +348,10 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     });
   }, [postToIframe, onUpdateProject, triggerToast]);
 
-  // When a file is selected from the header
-  const handleSelectFile = async (targetFileName: string) => {
-    if (targetFileName === activeFileNameRef.current) return;
-
-    if (isDirtyRef.current) {
-      const currentTargetFile = spriteFiles.find(f => f.fileName === activeFileNameRef.current);
-      const choice = window.confirm(
-        `You have unsaved changes in "${currentTargetFile?.name || activeFileNameRef.current}".\n\nClick OK to Save before switching, or Cancel to Discard changes.`
-      );
-      if (choice) {
-        await saveActiveSprite(activeFileNameRef.current);
-      } else {
-        setIsDirty(false);
-        postToIframe({ type: 'MARK_CLEAN' });
-      }
-    } else {
-      setIsDirty(false);
-      postToIframe({ type: 'MARK_CLEAN' });
-    }
+  // Actual actions
+  const doSwitchToFile = useCallback((targetFileName: string) => {
+    setIsDirty(false);
+    postToIframe({ type: 'MARK_CLEAN' });
 
     onUpdateProject(prev => ({
       ...prev,
@@ -226,24 +363,13 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     if (targetFile) {
       sendLoadFileToIframe(targetFile);
     }
-  };
+  }, [postToIframe, onUpdateProject, sendLoadFileToIframe, spriteFiles]);
 
-  // Create a new sprite file
-  const handleNewFile = async (name: string) => {
-    if (isDirtyRef.current) {
-      const currentTargetFile = spriteFiles.find(f => f.fileName === activeFileNameRef.current);
-      const choice = window.confirm(
-        `You have unsaved changes in "${currentTargetFile?.name || activeFileNameRef.current}".\n\nClick OK to Save before creating a new sprite, or Cancel to Discard changes.`
-      );
-      if (choice) {
-        await saveActiveSprite(activeFileNameRef.current);
-      } else {
-        setIsDirty(false);
-        postToIframe({ type: 'MARK_CLEAN' });
-      }
-    }
+  const doCreateNewFile = useCallback((name: string, width: number = 32, height: number = 32) => {
+    setIsDirty(false);
+    postToIframe({ type: 'MARK_CLEAN' });
 
-    const { project: updatedProj, newFile } = createNewSpriteInProject(projectRef.current, name);
+    const { project: updatedProj, newFile } = createNewSpriteInProject(projectRef.current, name, width, height);
 
     const finalProject = {
       ...updatedProj,
@@ -254,23 +380,12 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     saveActiveMasonProject(finalProject);
     setActiveFileName(newFile.fileName);
     sendLoadFileToIframe(newFile);
-    setIsDirty(false);
-    triggerToast(`Created new sprite "${name}"`, 'success');
-  };
+    triggerToast(`Created new sprite "${name}" (${width}×${height})`, 'success');
+  }, [postToIframe, onUpdateProject, sendLoadFileToIframe, triggerToast]);
 
-  // Duplicate the active or specified sprite file
-  const handleDuplicateFile = async (fileName: string) => {
-    if (fileName === activeFileNameRef.current && isDirtyRef.current) {
-      const choice = window.confirm(
-        `You have unsaved changes in "${activeFile?.name || fileName}".\n\nClick OK to Save before duplicating, or Cancel to duplicate last saved version.`
-      );
-      if (choice) {
-        await saveActiveSprite(activeFileNameRef.current);
-      } else {
-        setIsDirty(false);
-        postToIframe({ type: 'MARK_CLEAN' });
-      }
-    }
+  const doDuplicateFile = useCallback((fileName: string) => {
+    setIsDirty(false);
+    postToIframe({ type: 'MARK_CLEAN' });
 
     const currentSprites = projectRef.current.fileSystem.sprites || spriteFiles;
     const target = currentSprites.find(f => f.fileName === fileName) || activeFile;
@@ -306,8 +421,53 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
 
     setActiveFileName(dupeFileName);
     sendLoadFileToIframe(dupeFile);
-    setIsDirty(false);
     triggerToast(`Duplicated to "${dupeName}"`, 'success');
+  }, [activeFile, onUpdateProject, postToIframe, sendLoadFileToIframe, spriteFiles, triggerToast]);
+
+  // When a file is selected from the header
+  const handleSelectFile = async (targetFileName: string) => {
+    if (targetFileName === activeFileNameRef.current) return;
+
+    if (isDirtyRef.current) {
+      setPendingUnsavedAction({
+        type: 'select',
+        targetFileName,
+        onProceed: () => doSwitchToFile(targetFileName)
+      });
+      return;
+    }
+
+    doSwitchToFile(targetFileName);
+  };
+
+  // Create a new sprite file
+  const handleNewFile = async (name: string, dimensions?: { width: number; height: number }) => {
+    const w = dimensions?.width || 32;
+    const h = dimensions?.height || 32;
+    if (isDirtyRef.current) {
+      setPendingUnsavedAction({
+        type: 'new',
+        newName: name,
+        onProceed: () => doCreateNewFile(name, w, h)
+      });
+      return;
+    }
+
+    doCreateNewFile(name, w, h);
+  };
+
+  // Duplicate the active or specified sprite file
+  const handleDuplicateFile = async (fileName: string) => {
+    if (fileName === activeFileNameRef.current && isDirtyRef.current) {
+      setPendingUnsavedAction({
+        type: 'duplicate',
+        targetFileName: fileName,
+        onProceed: () => doDuplicateFile(fileName)
+      });
+      return;
+    }
+
+    doDuplicateFile(fileName);
   };
 
   // Delete a sprite file
@@ -321,20 +481,24 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     const targetToDelete = currentSprites.find(f => f.fileName === fileName);
     const targetName = targetToDelete?.name || fileName;
 
-    if (!window.confirm(`Are you sure you want to delete sprite file "${targetName}" (${fileName})?`)) {
-      return;
-    }
-
     const newRemaining = currentSprites.filter(f => f.fileName !== fileName);
     const nextFile = newRemaining[0];
+    const isDeletingActive = fileName === activeFileNameRef.current;
+
+    if (isDeletingActive) {
+      setIsDirty(false);
+      isDirtyRef.current = false;
+      postToIframe({ type: 'MARK_CLEAN' });
+    }
 
     onUpdateProject(prev => {
       const updatedList = (prev.fileSystem.sprites || []).filter(f => f.fileName !== fileName);
+      const nextActiveFileName = isDeletingActive ? (nextFile?.fileName || '') : (prev.activeFiles.spriteFileName || '');
       const updatedProject = {
         ...prev,
         activeFiles: {
           ...prev.activeFiles,
-          spriteFileName: nextFile?.fileName || ''
+          spriteFileName: nextActiveFileName
         },
         fileSystem: {
           ...prev.fileSystem,
@@ -345,8 +509,9 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       return updatedProject;
     });
 
-    if (fileName === activeFileNameRef.current && nextFile) {
+    if (isDeletingActive && nextFile) {
       setActiveFileName(nextFile.fileName);
+      activeFileNameRef.current = nextFile.fileName;
       sendLoadFileToIframe(nextFile);
     }
     triggerToast(`Deleted sprite "${targetName}"`, 'info');
@@ -404,6 +569,83 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     };
   }, [saveActiveSprite]);
 
+  // Save exported PNG images into project.fileSystem.images and link to active sprite
+  const saveImageToProject = useCallback((
+    pngFileName: string,
+    dataUrl: string,
+    displayName?: string,
+    exportSettings?: SpriteExportMetadata
+  ) => {
+    onUpdateProject(prev => {
+      const currentImages = prev.fileSystem.images || [];
+      const isGif = pngFileName.toLowerCase().endsWith('.gif');
+      const cleanFileName = (pngFileName.endsWith('.png') || isGif) ? pngFileName : `${pngFileName}.png`;
+
+      const cleanBase = activeFileNameRef.current.replace(/\.sprite$/, '');
+      const defaultPngName = `${cleanBase}.png`;
+      const activeSprite = (prev.fileSystem.sprites || []).find(s => s.fileName === activeFileNameRef.current);
+      const linkedList = activeSprite?.linkedImageFileNames || [];
+
+      let existingIdx = currentImages.findIndex(img =>
+        img.fileName === cleanFileName ||
+        img.fileName === defaultPngName ||
+        img.sourceSpriteFileName === activeFileNameRef.current ||
+        linkedList.includes(img.fileName)
+      );
+
+      const targetFileName = existingIdx !== -1 ? currentImages[existingIdx].fileName : cleanFileName;
+      const targetName = displayName || (existingIdx !== -1 ? currentImages[existingIdx].name : cleanFileName.replace(/\.(png|gif)$/i, ''));
+
+      const newImgFile: ImageFile = {
+        id: existingIdx !== -1 ? currentImages[existingIdx].id : `img_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        name: targetName,
+        fileName: targetFileName,
+        createdAt: existingIdx !== -1 ? currentImages[existingIdx].createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        dataUrl,
+        width: spriteDimensions.w,
+        height: spriteDimensions.h,
+        sourceSpriteFileName: activeFileNameRef.current,
+        exportSettings
+      };
+
+      let updatedList: ImageFile[];
+      if (existingIdx !== -1) {
+        updatedList = [...currentImages];
+        updatedList[existingIdx] = newImgFile;
+      } else {
+        updatedList = [...currentImages, newImgFile];
+      }
+
+      // Also link exportSettings & exported image on active SpriteFile
+      const currentSprites = prev.fileSystem.sprites || [];
+      const activeSpriteIdx = currentSprites.findIndex(s => s.fileName === activeFileNameRef.current);
+      let updatedSprites = [...currentSprites];
+
+      if (activeSpriteIdx !== -1) {
+        const sprite = currentSprites[activeSpriteIdx];
+        const newLinkedList = Array.from(new Set([...(sprite.linkedImageFileNames || []), targetFileName]));
+        updatedSprites[activeSpriteIdx] = {
+          ...sprite,
+          updatedAt: new Date().toISOString(),
+          exportSettings: exportSettings || sprite.exportSettings,
+          linkedImageFileNames: newLinkedList
+        };
+      }
+
+      const updatedProj = {
+        ...prev,
+        fileSystem: {
+          ...prev.fileSystem,
+          images: updatedList,
+          sprites: updatedSprites
+        }
+      };
+      saveActiveMasonProject(updatedProj, `Saved exported image "${targetFileName}"`);
+      return updatedProj;
+    });
+  }, [onUpdateProject, spriteDimensions]);
+
   // Handle postMessages from iframe
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -412,19 +654,44 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       if (e.data.type === 'SPRITE_SAVED') {
         const dataUrl = e.data.spritesheetUrl || e.data.dataUrl;
         if (dataUrl) {
-          const link = document.createElement('a');
-          const cleanName = (e.data.projectName || activeFileRef.current?.name || 'sprite').toLowerCase().replace(/[^a-z0-9]/g, '_');
-          link.download = `${cleanName}.png`;
-          link.href = dataUrl;
-          link.click();
-          triggerToast(`Exported "${cleanName}.png"`, 'success');
+          const cleanName = (e.data.projectName || activeFile?.name || 'sprite').toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const pngFileName = `${cleanName}.png`;
+
+          saveImageToProject(pngFileName, dataUrl, e.data.projectName || activeFile?.name, e.data.exportSettings);
+
+          triggerToast(`Saved "${pngFileName}" to /images/`, 'success');
         }
-      } else if (e.data.type === 'SPRITE_STATUS_UPDATE') {
+      } else if (e.data.type === 'IMAGE_EXPORTED') {
+        const dataUrl = e.data.dataUrl;
+        if (dataUrl) {
+          const rawName = e.data.filename || `${activeFile?.name || 'export'}.png`;
+          const activeSpriteName = activeFile?.name || 'Sprite';
+          const cleanActiveBase = activeSpriteName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          
+          let defaultFileName = rawName.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+          if (defaultFileName.includes('untitled') || !defaultFileName) {
+            defaultFileName = `${cleanActiveBase}.png`;
+          }
+
+          setPendingExportData({
+            dataUrl,
+            defaultFileName,
+            defaultDisplayName: activeSpriteName,
+            exportSettings: e.data.exportSettings,
+            exportType: e.data.exportType || 'Rendered Image Export',
+            width: spriteDimensions.w,
+            height: spriteDimensions.h
+          });
+        }
+      } else if (e.data.type === 'SPRITE_STATUS_UPDATE' || e.data.type === 'SPRITE_STATUS') {
         if (typeof e.data.width === 'number' && typeof e.data.height === 'number') {
           setSpriteDimensions({ w: e.data.width, h: e.data.height });
         }
         if (typeof e.data.frameCount === 'number') {
           setSpriteFrameCount(e.data.frameCount);
+        }
+        if (typeof e.data.isDirty === 'boolean') {
+          setIsDirty(e.data.isDirty);
         }
       } else if (e.data.type === 'SPRITE_NAME_CHANGED') {
         if (e.data.name && typeof e.data.name === 'string') {
@@ -455,21 +722,55 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [onUpdateProject, triggerToast]);
+  }, [onUpdateProject, triggerToast, activeFile]);
 
   const handleBackToDashboard = async () => {
     if (isDirtyRef.current) {
-      const choice = window.confirm(
-        `You have unsaved changes in "${activeFile?.name || activeFileName}".\n\nClick OK to Save before leaving, or Cancel to Discard changes.`
-      );
-      if (choice) {
-        await saveActiveSprite(activeFileName);
-      } else {
-        setIsDirty(false);
-        postToIframe({ type: 'MARK_CLEAN' });
-      }
+      setPendingUnsavedAction({
+        type: 'back',
+        onProceed: () => {
+          setIsDirty(false);
+          postToIframe({ type: 'MARK_CLEAN' });
+          onBackToDashboard();
+        }
+      });
+      return;
     }
     onBackToDashboard();
+  };
+
+  const handleConfirmSaveAction = async () => {
+    if (!pendingUnsavedAction) return;
+    setIsSavingPending(true);
+    try {
+      const savedOk = await saveActiveSprite(activeFileNameRef.current);
+      if (savedOk) {
+        const action = pendingUnsavedAction;
+        setPendingUnsavedAction(null);
+        if (action.onProceed) {
+          await action.onProceed();
+        }
+      }
+    } catch (err) {
+      triggerToast('Failed to save sprite before switching', 'error');
+    } finally {
+      setIsSavingPending(false);
+    }
+  };
+
+  const handleConfirmDiscardAction = async () => {
+    if (!pendingUnsavedAction) return;
+    setIsDirty(false);
+    postToIframe({ type: 'MARK_CLEAN' });
+    const action = pendingUnsavedAction;
+    setPendingUnsavedAction(null);
+    if (action.onProceed) {
+      await action.onProceed();
+    }
+  };
+
+  const handleCancelUnsavedAction = () => {
+    setPendingUnsavedAction(null);
   };
 
   return (
@@ -479,6 +780,9 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         subfolderName="sprites"
         extension=".sprite"
         accentColor="emerald"
+        showDimensions={true}
+        defaultWidth={32}
+        defaultHeight={32}
         onBackToDashboard={handleBackToDashboard}
         files={spriteFiles.map(f => ({
           id: f.id,
@@ -538,6 +842,78 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
           }}
         />
       </div>
+
+      {/* Unsaved Changes Prompt Modal */}
+      {pendingUnsavedAction && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-neutral-900 border border-amber-500/40 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  Unsaved Changes in Image
+                </h3>
+                <p className="text-xs text-neutral-300 leading-relaxed">
+                  You have unsaved changes in <span className="font-semibold text-amber-300">"{activeFile?.name || activeFileName}"</span>.
+                  Would you like to save before switching?
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 border-t border-neutral-800">
+              <button
+                type="button"
+                onClick={handleCancelUnsavedAction}
+                disabled={isSavingPending}
+                className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-750 text-neutral-300 text-xs font-semibold transition border border-neutral-700/60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDiscardAction}
+                disabled={isSavingPending}
+                className="px-4 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 border border-rose-500/40 text-xs font-semibold transition flex items-center justify-center gap-1.5"
+              >
+                <Trash2 size={13} />
+                <span>Discard Changes</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSaveAction}
+                disabled={isSavingPending}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-1.5"
+              >
+                {isSavingPending ? (
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Save size={13} />
+                )}
+                <span>Save & Continue</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Virtual Image Destination Picker Export Modal */}
+      {pendingExportData && (
+        <VirtualExportImageModal
+          project={project}
+          activeSpriteFileName={activeFileName}
+          exportData={pendingExportData}
+          onSaveExport={(targetFileName, displayName, dataUrl, exportSettings) => {
+            saveImageToProject(targetFileName, dataUrl, displayName, exportSettings);
+            triggerToast(`Saved "${targetFileName}" to /images/`, 'success');
+            setPendingExportData(null);
+          }}
+          onClose={() => setPendingExportData(null)}
+          onUpdateProject={onUpdateProject}
+          onShowToast={triggerToast}
+        />
+      )}
 
       {/* Local Toast Notice */}
       {localToast && (

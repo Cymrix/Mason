@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mason-v0.123';
+const CACHE_NAME = 'mason-v0.167';
 const ASSETS_TO_CACHE = [
   '.',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS_TO_CACHE = [
   './icon-512.png',
   './icon-maskable.png',
   './screenshot-desktop.png',
+  './modules/sprites/index.html',
   './modules/maps/index.html',
   './modules/biomes/index.html',
   './modules/archetypes/index.html',

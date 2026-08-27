@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.168';
-export const MASON_VERSION_DISPLAY = 'v0.168';
-export const MASON_FULL_VERSION = 'v0.168';
+export const MASON_VERSION = '0.171';
+export const MASON_VERSION_DISPLAY = 'v0.171';
+export const MASON_FULL_VERSION = 'v0.171';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,37 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.171',
+    date: '2026-08-26',
+    changes: [
+      'Fixed asynchronous loadProjectData promise handling so iframe wait for full layer, frame, and stamp decoding before rendering and returning status.',
+      'Added canvas render, grid overlay, centering, and size sync inside loadProjectData completion handler.',
+      'Removed premature promise resolution on layer roughness decoding.',
+      'Guarded pointerDown interaction handlers against undefined layers/activeLayer state.',
+      'Bumped Mason release version to v0.171 and ServiceWorker cache to mason-v0.171.'
+    ]
+  },
+  {
+    version: 'v0.170',
+    date: '2026-08-26',
+    changes: [
+      'Resolved layer data loading freeze in Image & Sprite Editor by handling empty/missing layer image data and adding fallback onerror promise resolution in decodeLayersData.',
+      'Fixed cursor paint preview alignment and centered canvas view offsets by anchoring cursorPreviewCanvas and marginFadeCanvas CSS, guarding canvasCoords scale calculations, and handling ResizeObserver container layout updates.',
+      'Restored brush and eraser hover cursor previews on canvas mousemove when in idle hover state.',
+      'Bumped Mason release version to v0.170 and ServiceWorker cache to mason-v0.170.'
+    ]
+  },
+  {
+    version: 'v0.169',
+    date: '2026-08-26',
+    changes: [
+      'Removed makeDummy document proxy monkey-patch from /public/modules/sprites/index.html to restore native DOM event listener binding on canvas and controls.',
+      'Updated PWA ServiceWorker (sw.js) fetch navigation fallback to prevent module sub-apps (/modules/...) from accidentally serving the root SPA React index.html.',
+      'Added explicit SPRITE_READY postMessage handling in SpriteEditorWrapper and SpriteEditorModal to guarantee iframe sprite project loads after script initialization.',
+      'Bumped Mason release version to v0.169 and ServiceWorker cache to mason-v0.169.'
+    ]
+  },
   {
     version: 'v0.168',
     date: '2026-08-26',

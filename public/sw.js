@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mason-v0.168';
+const CACHE_NAME = 'mason-v0.171';
 const ASSETS_TO_CACHE = [
   '.',
   './index.html',
@@ -67,7 +67,7 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseToCache);
@@ -76,8 +76,12 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch((error) => {
-          // If offline and request is navigation, return cached root or index
+          // If offline and request is navigation, return cached root or index for main app,
+          // but NEVER serve root SPA index.html into embedded module sub-app iframes!
           if (event.request.mode === 'navigate') {
+            if (url.pathname.includes('/modules/')) {
+              return cachedResponse;
+            }
             return caches.match('./index.html') || cachedResponse;
           }
           return cachedResponse;

@@ -39,7 +39,9 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
       const data = event.data;
       if (!data || typeof data !== 'object') return;
 
-      if (data.type === 'SPRITE_SAVED') {
+      if (data.type === 'SPRITE_READY') {
+        handleIframeLoad();
+      } else if (data.type === 'SPRITE_SAVED') {
         if (onSave) {
           onSave({
             dataUrl: data.dataUrl,

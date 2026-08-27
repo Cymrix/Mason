@@ -106,6 +106,10 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       }];
 
   const activeFile = spriteFiles.find(f => f.fileName === activeFileName) || spriteFiles[0];
+  const activeFileRef = useRef(activeFile);
+  useEffect(() => {
+    activeFileRef.current = activeFile;
+  }, [activeFile]);
 
   // Helper to safely post message to iframe
   const postToIframe = useCallback((message: any) => {
@@ -651,7 +655,13 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     const handleMessage = (e: MessageEvent) => {
       if (!e.data || typeof e.data !== 'object') return;
 
-      if (e.data.type === 'SPRITE_SAVED') {
+      if (e.data.type === 'SPRITE_READY') {
+        isIframeReadyRef.current = true;
+        if (activeFileRef.current) {
+          sendLoadFileToIframe(activeFileRef.current);
+        }
+        postToIframe({ type: 'REQUEST_STATUS' });
+      } else if (e.data.type === 'SPRITE_SAVED') {
         const dataUrl = e.data.spritesheetUrl || e.data.dataUrl;
         if (dataUrl) {
           const cleanName = (e.data.projectName || activeFile?.name || 'sprite').toLowerCase().replace(/[^a-z0-9]/g, '_');

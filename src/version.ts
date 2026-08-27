@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.186';
-export const MASON_VERSION_DISPLAY = 'v0.186';
-export const MASON_FULL_VERSION = 'v0.186';
+export const MASON_VERSION = '0.171';
+export const MASON_VERSION_DISPLAY = 'v0.171';
+export const MASON_FULL_VERSION = 'v0.171';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,128 +30,6 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
-  {
-    version: 'v0.186',
-    date: '2026-08-27',
-    changes: [
-      'Fixed runtime ReferenceError: Cannot access rgbToHex before initialization.',
-      'Reordered color utility function declarations (hexToRgb, rgbToHex) in palettes.ts prior to module-level palette instantiation.'
-    ]
-  },
-  {
-    version: 'v0.185',
-    date: '2026-08-27',
-    changes: [
-      'Completed Stage 5 of the native React rewrite of Palette Spray Studio.',
-      'Replaced legacy iframe embedding in SpriteEditorModal with native NativePaletteSprayStudio React component.',
-      'Wired real-time sprite saving, image exports, and cross-component state synchronization natively in React without iframe sandbox messaging latency.'
-    ]
-  },
-  {
-    version: 'v0.184',
-    date: '2026-08-27',
-    changes: [
-      'Completed Stage 4 of the native React rewrite of Palette Spray Studio.',
-      'Created NativePaletteSprayStudio.tsx integrating the spray physics engine, 3x3 seamless viewport, spray settings panel, palette studio panel, layers stack, animation timeline, undo/redo history, and resize/export modal dialogs.',
-      'Exported all native spray components cleanly in sprite-editor/index.ts.'
-    ]
-  },
-  {
-    version: 'v0.183',
-    date: '2026-08-27',
-    changes: [
-      'Completed Stage 3 of the native React rewrite of Palette Spray Studio.',
-      'Created SpraySettingsPanel.tsx containing authentic controls for spray modes (Paint, Flow, Blur, Eraser, Colorize), power-law falloffs, density, dab shapes, jitter variations, rotation dials, and stroke tapers.',
-      'Created PaletteStudioPanel.tsx with grouped palette swatches, multi-color spray selections, custom group creator, active color tuner, and gradient ramp generator.'
-    ]
-  },
-  {
-    version: 'v0.182',
-    date: '2026-08-27',
-    changes: [
-      'Completed Stage 2 of the native React rewrite of Palette Spray Studio.',
-      'Created SprayPhysicsEngine.ts with authentic power-law spray distributions, jitter parameters, aspect ratios, continuous flow loops, and gradient ramps.',
-      'Created ViewportCanvas.tsx with real-time multi-layer compositing, blend modes, 3x3 seamless tiling simulation, symmetry guide lines, and responsive brush preview halos.'
-    ]
-  },
-  {
-    version: 'v0.181',
-    date: '2026-08-27',
-    changes: [
-      'Initiated staged full native React rewrite of Palette Spray Studio.',
-      'Deconstructed and extracted authentic mathematical engine: power-law radial spray distributions, jitter parameters, dab geometries, and color group sequencing.',
-      'Established the multi-stage roadmap from core mathematical hooks to native canvas compositing and React UI panels.'
-    ]
-  },
-  {
-    version: 'v0.180',
-    date: '2026-08-27',
-    changes: [
-      'Connected the authentic Palette Spray Studio engine directly in SpriteEditorWrapper and SpriteEditorModal.',
-      'Active sprite and image assets synchronize bidirectionally via SPRITE_READY, LOAD_PROJECT, LOAD_SPRITE, and REQUEST_SAVE postMessage protocols.',
-      'Ensured full Palette Spray brush mechanics, gradient ramps, animation frames, layers, and 3x3 seamless tiling modes are active and visible.'
-    ]
-  },
-  {
-    version: 'v0.179',
-    date: '2026-08-27',
-    changes: [
-      'Deconstructed and faithfully reconstructed Palette Spray Studio engine with original uncompressed assets.',
-      'Preserved full palette group spray mechanics, 3x3 seamless tiling modes, and gradient ramp algorithms.',
-      'Maintained robust bidirectional project synchronization between Mason file system and sprite state.'
-    ]
-  },
-  {
-    version: 'v0.178',
-    date: '2026-08-27',
-    changes: [
-      'Resolved React "Maximum update depth exceeded" infinite re-render loop in NativeSpriteEditor and SpriteEditorWrapper.',
-      'Stabilized dimension change notification hooks with value-equality deduplication and ref-backed callback wrappers.',
-      'Eliminated unstable object references in active file and external project synchronization effects.'
-    ]
-  },
-  {
-    version: 'v0.177',
-    date: '2026-08-27',
-    changes: [
-      'Implemented Option 2: Full native React architecture for the Pixel Art & Sprite Studio editor.',
-      'Constructed high-performance in-memory Canvas rasterization pipeline with Bresenham line drawing, pixel-perfect smoothing, 4-way symmetry, and Bayer matrix dithering.',
-      'Built interactive multi-layer management with blend modes, opacity controls, layer reordering, duplicate, merge down, and lock toggles.',
-      'Integrated animation frame timeline with onion skinning (previous/next frame ghosting), variable FPS controller, and multiple loop modes (Loop, Ping-Pong, Once).',
-      'Added comprehensive color palette management with classic presets (PICO-8, DB32, Sweetie16, GameBoy, etc.), custom user palette persistence, and secondary color swatches.',
-      'Added canvas resize dialog with anchor positioning and resample scaling, plus direct spritesheet export with resolution scaling into Mason /images/ storage.'
-    ]
-  },
-  {
-    version: 'v0.176',
-    date: '2026-08-27',
-    changes: [
-      'Configured network-first service worker fetching for all sub-app HTML modules (/modules/*) to prevent stale cached versions in the live web deployment.',
-      'Added explicit version query parameters to sprite module iframe sources to bypass browser and CDN cache locks.',
-      'Ensured immediate client claiming and previous cache bucket deletion on service worker activation.',
-      'Verified interactive painting, color palette selection, layer management, and canvas pointer event handling.'
-    ]
-  },
-  {
-    version: 'v0.175',
-    date: '2026-08-27',
-    changes: [
-      'Resolved Sprite Studio editor stalling by fixing duplicate closing braces and syntax errors in the legacy JS engine script.',
-      'Restored complete layer initialization, frame sequencing, and timeline rendering in the NativeSpriteEditor container.',
-      'Verified bidirectional postMessage protocol and global project hooks (masonRequestSpriteSave) for seamless project persistence.',
-      'Ensured full offline and local serving compatibility for all layered canvas tools, color palettes, and animation timelines.'
-    ]
-  },
-  {
-    version: 'v0.174',
-    date: '2026-08-27',
-    changes: [
-      'Ported the exact HTML5/JS/CSS Image & Sprite Studio engine directly into a native Mason React container (NativeSpriteEditor).',
-      'Embedded the monolithic Sprite Studio runtime directly in memory via srcDoc, eliminating external asset subpath 404s on GitHub Pages and custom deployments.',
-      'Refactored SpriteEditorWrapper and SpriteEditorModal to use NativeSpriteEditor with asynchronous save and load file handling.',
-      'Maintained full compatibility with the postMessage communication protocol, layer synchronization, animation frame slicing, and export systems.'
-    ]
-  },
   {
     version: 'v0.171',
     date: '2026-08-26',

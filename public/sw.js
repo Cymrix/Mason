@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mason-v0.178';
+const CACHE_NAME = 'mason-v0.173';
 const ASSETS_TO_CACHE = [
   '.',
   './index.html',
@@ -17,7 +17,7 @@ const ASSETS_TO_CACHE = [
   './modules/macro/index.html'
 ];
 
-// Install Event - Pre-cache assets and force immediate activation
+// Install Event
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -29,7 +29,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate Event - Clean all old caches and claim clients immediately
+// Activate Event - Clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -45,14 +45,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Message Event - Support explicit skipWaiting
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
-
-// Fetch Event - Network-First for HTML modules, API, and navigation; Cache-first with network fallback for static assets
+// Fetch Event - Stale-while-revalidate for assets, Network-First for dynamic calls
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -69,33 +62,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network First for all embedded module sub-apps (/modules/*) and navigations
-  // This guarantees live web users get latest code fixes immediately without stale cache locks
-  if (url.pathname.includes('/modules/') || event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request);
-          if (cached) return cached;
-          if (event.request.mode === 'navigate' && !url.pathname.includes('/modules/')) {
-            return caches.match('./index.html');
-          }
-          return new Response('Network offline and asset not in cache', { status: 503 });
-        })
-    );
-    return;
-  }
-
-  // Stale-while-revalidate for static assets (images, icons, styles)
+  // Stale-while-revalidate for static files & mini-app HTML modules
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
@@ -108,7 +75,17 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => cachedResponse);
+        .catch((error) => {
+          // If offline and request is navigation, return cached root or index for main app,
+          // but NEVER serve root SPA index.html into embedded module sub-app iframes!
+          if (event.request.mode === 'navigate') {
+            if (url.pathname.includes('/modules/')) {
+              return cachedResponse;
+            }
+            return caches.match('./index.html') || cachedResponse;
+          }
+          return cachedResponse;
+        });
 
       return cachedResponse || fetchPromise;
     })

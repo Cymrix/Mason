@@ -134,7 +134,7 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
       <div className="flex-1 w-full h-full relative overflow-hidden bg-neutral-900">
         <iframe
           ref={iframeRef}
-          src="./modules/sprites/index.html"
+          src="/modules/sprites/index.html"
           className="w-full h-full border-none"
           title="Palette Spray Studio"
           onLoad={handleIframeLoad}

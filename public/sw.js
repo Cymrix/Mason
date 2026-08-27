@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mason-v0.173';
+const CACHE_NAME = 'mason-v0.172';
 const ASSETS_TO_CACHE = [
   '.',
   './index.html',
@@ -45,7 +45,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Stale-while-revalidate for assets, Network-First for dynamic calls
+// Fetch Event - Network-First for HTML/module requests, Stale-while-revalidate for assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -54,15 +54,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network first for API/RPC requests
-  if (url.pathname.startsWith('/api/')) {
+  // Network first for API/RPC requests, HTML documents, and embedded module sub-apps
+  const isHtmlOrModule = url.pathname.endsWith('.html') ||
+                         url.pathname.includes('/modules/') ||
+                         url.pathname === '/' ||
+                         event.request.mode === 'navigate';
+
+  if (url.pathname.startsWith('/api/') || isHtmlOrModule) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // Stale-while-revalidate for static files & mini-app HTML modules
+  // Stale-while-revalidate for static assets (images, fonts, js/css chunks)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
@@ -75,17 +88,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch((error) => {
-          // If offline and request is navigation, return cached root or index for main app,
-          // but NEVER serve root SPA index.html into embedded module sub-app iframes!
-          if (event.request.mode === 'navigate') {
-            if (url.pathname.includes('/modules/')) {
-              return cachedResponse;
-            }
-            return caches.match('./index.html') || cachedResponse;
-          }
-          return cachedResponse;
-        });
+        .catch(() => cachedResponse);
 
       return cachedResponse || fetchPromise;
     })

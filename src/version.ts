@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.171';
-export const MASON_VERSION_DISPLAY = 'v0.171';
-export const MASON_FULL_VERSION = 'v0.171';
+export const MASON_VERSION = '0.175';
+export const MASON_VERSION_DISPLAY = 'v0.175';
+export const MASON_FULL_VERSION = 'v0.175';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,26 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.175',
+    date: '2026-08-27',
+    changes: [
+      'Resolved Sprite Studio editor stalling by fixing duplicate closing braces and syntax errors in the legacy JS engine script.',
+      'Restored complete layer initialization, frame sequencing, and timeline rendering in the NativeSpriteEditor container.',
+      'Verified bidirectional postMessage protocol and global project hooks (masonRequestSpriteSave) for seamless project persistence.',
+      'Ensured full offline and local serving compatibility for all layered canvas tools, color palettes, and animation timelines.'
+    ]
+  },
+  {
+    version: 'v0.174',
+    date: '2026-08-27',
+    changes: [
+      'Ported the exact HTML5/JS/CSS Image & Sprite Studio engine directly into a native Mason React container (NativeSpriteEditor).',
+      'Embedded the monolithic Sprite Studio runtime directly in memory via srcDoc, eliminating external asset subpath 404s on GitHub Pages and custom deployments.',
+      'Refactored SpriteEditorWrapper and SpriteEditorModal to use NativeSpriteEditor with asynchronous save and load file handling.',
+      'Maintained full compatibility with the postMessage communication protocol, layer synchronization, animation frame slicing, and export systems.'
+    ]
+  },
   {
     version: 'v0.171',
     date: '2026-08-26',

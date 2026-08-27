@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { X, Sparkles, Check, Paintbrush, Layers, RotateCcw } from 'lucide-react';
+import { NativeSpriteEditor, NativeSpriteEditorHandle } from './sprite-editor';
+import { SpriteFile } from '../engine/masonProjectSchema';
 
 export interface SpriteSaveResult {
   dataUrl: string;
@@ -30,59 +32,40 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
   initialHeight = 32,
   title = 'Palette Spray Studio — Pixel & Sprite Editor'
 }) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const editorRef = useRef<NativeSpriteEditorHandle>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const mockFile: SpriteFile = useMemo(() => {
+    return {
+      id: `modal_sprite_${Date.now()}`,
+      name: title.includes('—') ? title.split('—')[0].trim() : 'Sprite',
+      fileName: 'active_sprite.sprite',
+      updatedAt: new Date().toISOString(),
+      width: initialWidth,
+      height: initialHeight,
+      dataUrl: initialImageDataUrl,
+      imageUrl: initialImageDataUrl
+    };
+  }, [title, initialWidth, initialHeight, initialImageDataUrl]);
 
-    const handleMessage = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data || typeof data !== 'object') return;
-
-      if (data.type === 'SPRITE_READY') {
-        handleIframeLoad();
-      } else if (data.type === 'SPRITE_SAVED') {
+  const handleRequestExport = async () => {
+    if (editorRef.current) {
+      const res = await editorRef.current.save();
+      if (res.success && res.dataUrl) {
         if (onSave) {
           onSave({
-            dataUrl: data.dataUrl,
-            spritesheetUrl: data.spritesheetUrl || data.dataUrl,
-            width: data.width || initialWidth,
-            height: data.height || initialHeight,
-            frameCount: data.frameCount || 1,
-            fps: data.fps || 12,
-            projectName: data.projectName || 'Sprite'
+            dataUrl: res.dataUrl,
+            spritesheetUrl: res.dataUrl,
+            width: initialWidth,
+            height: initialHeight,
+            frameCount: res.spriteData?.frames?.length || 1,
+            fps: 12,
+            projectName: mockFile.name
           });
         }
         onClose();
-      } else if (data.type === 'SPRITE_CANCEL') {
-        onClose();
+        return;
       }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [isOpen, onSave, onClose, initialWidth, initialHeight]);
-
-  const handleIframeLoad = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'LOAD_SPRITE',
-          imageDataUrl: initialImageDataUrl,
-          width: initialWidth,
-          height: initialHeight,
-          projectName: title.includes('—') ? title.split('—')[0].trim() : 'Sprite'
-        },
-        '*'
-      );
-    }
-  };
-
-  const handleRequestExport = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ type: 'REQUEST_EXPORT' }, '*');
+      editorRef.current.requestExport();
     }
   };
 
@@ -100,7 +83,7 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               {title}
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold border border-emerald-500/30">
-                Embedded Studio
+                Native Studio
               </span>
             </h2>
             <p className="text-[11px] text-neutral-400">
@@ -132,14 +115,27 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
 
       {/* Embedded Application Viewport */}
       <div className="flex-1 w-full h-full relative overflow-hidden bg-neutral-900">
-        <iframe
-          ref={iframeRef}
-          src="./modules/sprites/index.html"
+        <NativeSpriteEditor
+          ref={editorRef}
+          activeFile={mockFile}
+          onExportImage={(exportData) => {
+            if (onSave) {
+              onSave({
+                dataUrl: exportData.dataUrl,
+                spritesheetUrl: exportData.dataUrl,
+                width: exportData.width || initialWidth,
+                height: exportData.height || initialHeight,
+                frameCount: exportData.frameCount || 1,
+                fps: exportData.fps || 12,
+                projectName: exportData.suggestedName || mockFile.name
+              });
+            }
+            onClose();
+          }}
           className="w-full h-full border-none"
-          title="Palette Spray Studio"
-          onLoad={handleIframeLoad}
         />
       </div>
     </div>
   );
 };
+

@@ -4,6 +4,7 @@ import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { createNewSpriteInProject, saveActiveMasonProject } from '../utils/masonStorage';
 import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
 import { VirtualExportImageModal, PendingExportData } from './VirtualExportImageModal';
+import { NativeSpriteEditor, NativeSpriteEditorHandle } from './sprite-editor';
 import { Image as ImageIcon, AlertTriangle, Save, Trash2, X } from 'lucide-react';
 
 interface SpriteEditorWrapperProps {
@@ -26,8 +27,8 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
   onBackToDashboard,
   onShowToast
 }) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const isIframeReadyRef = useRef<boolean>(false);
+  const nativeEditorRef = useRef<NativeSpriteEditorHandle>(null);
+  const isReadyRef = useRef<boolean>(false);
   const projectRef = useRef<MasonProject>(project);
   projectRef.current = project;
 
@@ -111,90 +112,22 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     activeFileRef.current = activeFile;
   }, [activeFile]);
 
-  // Helper to safely post message to iframe
+  // Helper to safely post message to native editor
   const postToIframe = useCallback((message: any) => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(message, '*');
-    }
+    nativeEditorRef.current?.postMessage(message);
   }, []);
 
   const lastLoadedSpriteFileNameRef = useRef<string | null>(null);
   const lastLoadedSpriteUpdatedAtRef = useRef<string | null>(null);
 
-  // Load a specific sprite file into the iframe
+  // Load a specific sprite file into the native editor
   const sendLoadFileToIframe = useCallback(async (file: SpriteFile) => {
-    if (!iframeRef.current?.contentWindow) return;
     lastLoadedSpriteFileNameRef.current = file.fileName;
     lastLoadedSpriteUpdatedAtRef.current = file.updatedAt || null;
-    if (file.spriteData) {
-      postToIframe({
-        type: 'LOAD_PROJECT',
-        projectData: file.spriteData,
-        projectName: file.name
-      });
-    } else if (file.imageUrl || file.dataUrl) {
-      // Slicing spritesheet into animation frames if spriteData is not present
-      const cols = file.exportSettings?.cols || 1;
-      const rows = file.exportSettings?.rows || 1;
-      const tw = file.exportSettings?.tileWidth || file.width || 32;
-      const th = file.exportSettings?.tileHeight || file.height || 32;
-      const imageSrc = file.imageUrl || file.dataUrl || '';
-
-      const sliced = await sliceSpritesheetToFrames(imageSrc, cols, rows, tw, th);
-      const projData = {
-        version: 1,
-        width: sliced.width,
-        height: sliced.height,
-        layers: sliced.frames[0]?.layers || [{ name: 'Layer 1', data: '' }],
-        frames: sliced.frames,
-        currentFrameIndex: 0,
-        exportSettings: file.exportSettings || {
-          exportMode: cols > 1 || rows > 1 ? 'spritesheet' : 'flattened',
-          targetFileName: `${file.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.png`,
-          cols,
-          rows,
-          tileWidth: sliced.width,
-          tileHeight: sliced.height,
-          frameCount: sliced.frames.length
-        }
-      };
-
-      // Persist generated spriteData onto file
-      onUpdateProject(prev => {
-        const list = prev.fileSystem.sprites || [];
-        const idx = list.findIndex(s => s.fileName === file.fileName);
-        if (idx !== -1) {
-          const updated = [...list];
-          updated[idx] = {
-            ...updated[idx],
-            spriteData: projData,
-            width: sliced.width,
-            height: sliced.height
-          };
-          const updatedProj = {
-            ...prev,
-            fileSystem: { ...prev.fileSystem, sprites: updated }
-          };
-          saveActiveMasonProject(updatedProj, `Loaded and sliced sprite frames for ${file.name}`);
-          return updatedProj;
-        }
-        return prev;
-      });
-
-      postToIframe({
-        type: 'LOAD_PROJECT',
-        projectData: projData,
-        projectName: file.name
-      });
-    } else {
-      postToIframe({
-        type: 'LOAD_SPRITE',
-        width: file.width || 32,
-        height: file.height || 32,
-        projectName: file.name
-      });
+    if (nativeEditorRef.current) {
+      await nativeEditorRef.current.loadFile(file);
     }
-  }, [postToIframe, onUpdateProject]);
+  }, []);
 
   // Reactively synchronize external spriteFileName selection (e.g. from PrefabEditor or Project Explorer)
   useEffect(() => {
@@ -209,7 +142,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         if (isFileChanged) {
           setActiveFileName(externalFileName);
           activeFileNameRef.current = externalFileName;
-          if (isIframeReadyRef.current) {
+          if (isReadyRef.current) {
             sendLoadFileToIframe(targetFile);
           }
         }
@@ -218,139 +151,107 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
   }, [project.activeFiles?.spriteFileName, activeFileName, sendLoadFileToIframe, project.fileSystem.sprites]);
 
   // Request saving sprite canvas state directly and update project storage
-  const saveActiveSprite = useCallback((targetFileName?: string): Promise<boolean> => {
+  const saveActiveSprite = useCallback(async (targetFileName?: string): Promise<boolean> => {
     const fileToSave = targetFileName || activeFileNameRef.current;
-    return new Promise((resolve) => {
-      if (!iframeRef.current?.contentWindow) {
-        return resolve(false);
+    if (!nativeEditorRef.current) {
+      return false;
+    }
+
+    setIsSavingPending(true);
+    const res = await nativeEditorRef.current.save(fileToSave);
+    setIsSavingPending(false);
+
+    if (!res.success || !res.spriteData) {
+      triggerToast(`Failed to save sprite: ${res.error || 'Unknown error'}`, 'error');
+      return false;
+    }
+
+    const spriteData = res.spriteData;
+    const targetName = fileToSave;
+    const canvasDataUrl = res.dataUrl;
+
+    let savedFileDisplayName = 'Sprite';
+    onUpdateProject(prev => {
+      const list = prev.fileSystem.sprites || [];
+      const idx = list.findIndex(f => f.fileName === targetName);
+      
+      let updatedSprites = [...list];
+      let linkedImagesToUpdate: string[] = [];
+
+      if (idx !== -1) {
+        const activeSprite = list[idx];
+        savedFileDisplayName = activeSprite.name || targetName;
+        const nowIso = new Date().toISOString();
+        
+        lastLoadedSpriteUpdatedAtRef.current = nowIso;
+
+        const updatedSpriteFile: SpriteFile = {
+          ...activeSprite,
+          updatedAt: nowIso,
+          spriteData,
+          ...(canvasDataUrl ? { dataUrl: canvasDataUrl, imageUrl: canvasDataUrl } : {})
+        };
+        updatedSprites[idx] = updatedSpriteFile;
+        linkedImagesToUpdate = activeSprite.linkedImageFileNames || [];
       }
 
-      const saveId = `save_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-      let resolved = false;
+      // Sync corresponding ImageFile (.png) in fileSystem.images so PNG visuals stay 100% updated!
+      const currentImages = prev.fileSystem.images || [];
+      const cleanBase = targetName.replace(/\.sprite$/, '');
+      const defaultPngName = `${cleanBase}.png`;
 
-      const handler = (e: MessageEvent) => {
-        if (e.data && e.data.type === 'SAVE_PROJECT_DATA_ERROR' && (e.data.saveId === saveId || !e.data.saveId)) {
-          if (resolved) return;
-          resolved = true;
-          window.removeEventListener('message', handler);
-          if (timeoutId) clearTimeout(timeoutId);
-          triggerToast(`Failed to save sprite: ${e.data.error || 'Unknown error'}`, 'error');
-          resolve(false);
-          return;
+      let hasPngMatch = currentImages.some(img =>
+        img.fileName === defaultPngName ||
+        linkedImagesToUpdate.includes(img.fileName) ||
+        img.sourceSpriteFileName === targetName
+      );
+
+      let updatedImages = currentImages.map(img => {
+        const isMatch = img.fileName === defaultPngName ||
+          linkedImagesToUpdate.includes(img.fileName) ||
+          img.sourceSpriteFileName === targetName;
+
+        if (isMatch && canvasDataUrl) {
+          return {
+            ...img,
+            updatedAt: new Date().toISOString(),
+            dataUrl: canvasDataUrl
+          };
         }
-        if (e.data && e.data.type === 'SAVE_PROJECT_DATA' && (e.data.saveId === saveId || !e.data.saveId)) {
-          if (resolved) return;
-          resolved = true;
-          window.removeEventListener('message', handler);
-          if (timeoutId) clearTimeout(timeoutId);
-
-          const spriteData = e.data.data;
-          const targetName = fileToSave;
-          const canvasDataUrl = e.data.spritesheetUrl || e.data.dataUrl || e.data.imageDataUrl;
-
-          let savedFileDisplayName = 'Sprite';
-          onUpdateProject(prev => {
-            const list = prev.fileSystem.sprites || [];
-            const idx = list.findIndex(f => f.fileName === targetName);
-            
-            let updatedSprites = [...list];
-            let linkedImagesToUpdate: string[] = [];
-
-            if (idx !== -1) {
-              const activeSprite = list[idx];
-              savedFileDisplayName = activeSprite.name || targetName;
-              const nowIso = new Date().toISOString();
-              
-              lastLoadedSpriteUpdatedAtRef.current = nowIso;
-
-              const updatedSpriteFile: SpriteFile = {
-                ...activeSprite,
-                updatedAt: nowIso,
-                spriteData,
-                ...(canvasDataUrl ? { dataUrl: canvasDataUrl, imageUrl: canvasDataUrl } : {})
-              };
-              updatedSprites[idx] = updatedSpriteFile;
-              linkedImagesToUpdate = activeSprite.linkedImageFileNames || [];
-            }
-
-            // Sync corresponding ImageFile (.png) in fileSystem.images so PNG visuals stay 100% updated!
-            const currentImages = prev.fileSystem.images || [];
-            const cleanBase = targetName.replace(/\.sprite$/, '');
-            const defaultPngName = `${cleanBase}.png`;
-
-            let hasPngMatch = currentImages.some(img =>
-              img.fileName === defaultPngName ||
-              linkedImagesToUpdate.includes(img.fileName) ||
-              img.sourceSpriteFileName === targetName
-            );
-
-            let updatedImages = currentImages.map(img => {
-              const isMatch = img.fileName === defaultPngName ||
-                linkedImagesToUpdate.includes(img.fileName) ||
-                img.sourceSpriteFileName === targetName;
-
-              if (isMatch && canvasDataUrl) {
-                return {
-                  ...img,
-                  updatedAt: new Date().toISOString(),
-                  dataUrl: canvasDataUrl
-                };
-              }
-              return img;
-            });
-
-            if (!hasPngMatch && canvasDataUrl) {
-              const newPngFile: ImageFile = {
-                id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                fileName: defaultPngName,
-                name: `${cleanBase}.png`,
-                dataUrl: canvasDataUrl,
-                width: 32,
-                height: 32,
-                updatedAt: new Date().toISOString(),
-                sourceSpriteFileName: targetName
-              };
-              updatedImages = [...updatedImages, newPngFile];
-            }
-
-            const updatedProject = {
-              ...prev,
-              fileSystem: {
-                ...prev.fileSystem,
-                sprites: updatedSprites,
-                images: updatedImages
-              }
-            };
-            saveActiveMasonProject(updatedProject);
-            return updatedProject;
-          });
-
-          setIsDirty(false);
-          postToIframe({ type: 'MARK_CLEAN' });
-          triggerToast(`Saved sprite "${savedFileDisplayName}" (${targetName})`, 'success');
-          resolve(true);
-        }
-      };
-
-      window.addEventListener('message', handler);
-
-      postToIframe({
-        type: 'REQUEST_SAVE',
-        saveId,
-        targetFileName: fileToSave,
-        isExplicitSave: true
+        return img;
       });
 
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          window.removeEventListener('message', handler);
-          triggerToast(`Failed to save sprite: Request timed out`, 'error');
-          resolve(false);
+      if (!hasPngMatch && canvasDataUrl) {
+        const newPngFile: ImageFile = {
+          id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          fileName: defaultPngName,
+          name: `${cleanBase}.png`,
+          dataUrl: canvasDataUrl,
+          width: 32,
+          height: 32,
+          updatedAt: new Date().toISOString(),
+          sourceSpriteFileName: targetName
+        };
+        updatedImages = [...updatedImages, newPngFile];
+      }
+
+      const updatedProject = {
+        ...prev,
+        fileSystem: {
+          ...prev.fileSystem,
+          sprites: updatedSprites,
+          images: updatedImages
         }
-      }, 3000);
+      };
+      saveActiveMasonProject(updatedProject);
+      return updatedProject;
     });
-  }, [postToIframe, onUpdateProject, triggerToast]);
+
+    setIsDirty(false);
+    nativeEditorRef.current?.markClean();
+    triggerToast(`Saved sprite "${savedFileDisplayName}" (${targetName})`, 'success');
+    return true;
+  }, [onUpdateProject, triggerToast]);
 
   // Actual actions
   const doSwitchToFile = useCallback((targetFileName: string) => {
@@ -656,7 +557,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       if (!e.data || typeof e.data !== 'object') return;
 
       if (e.data.type === 'SPRITE_READY') {
-        isIframeReadyRef.current = true;
+        isReadyRef.current = true;
         if (activeFileRef.current) {
           sendLoadFileToIframe(activeFileRef.current);
         }
@@ -836,20 +737,29 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
 
       {/* Embedded Sprite Editor Engine Workspace */}
       <div className="flex-1 w-full relative overflow-hidden">
-        <iframe
-          ref={iframeRef}
-          src="./modules/sprites/index.html"
-          className="w-full h-full border-none bg-neutral-950"
-          title="Image & Sprite Studio"
-          onLoad={() => {
-            isIframeReadyRef.current = true;
-            setTimeout(() => {
-              if (activeFile) {
-                sendLoadFileToIframe(activeFile);
-              }
-              postToIframe({ type: 'REQUEST_STATUS' });
-            }, 80);
+        <NativeSpriteEditor
+          ref={nativeEditorRef}
+          activeFile={activeFile}
+          onDirtyChange={(dirty) => {
+            setIsDirty(dirty);
           }}
+          onDimensionsChange={(dims) => {
+            setSpriteDimensions({ w: dims.width, h: dims.height });
+            setSpriteFrameCount(dims.frameCount);
+          }}
+          onExportImage={(exportData) => {
+            setPendingExportData({
+              defaultFileName: exportData.filename,
+              dataUrl: exportData.dataUrl,
+              defaultDisplayName: exportData.suggestedName,
+              width: exportData.width,
+              height: exportData.height
+            });
+          }}
+          onReady={() => {
+            isReadyRef.current = true;
+          }}
+          className="w-full h-full border-none bg-neutral-950"
         />
       </div>
 

@@ -2,10 +2,8 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { MasonProject, SpriteFile, ImageFile, SpriteExportMetadata } from '../engine/masonProjectSchema';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { createNewSpriteInProject, saveActiveMasonProject } from '../utils/masonStorage';
-import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
 import { VirtualExportImageModal, PendingExportData } from './VirtualExportImageModal';
-import { NativeSpriteEditor, NativeSpriteEditorHandle } from './sprite-editor';
-import { Image as ImageIcon, AlertTriangle, Save, Trash2, X } from 'lucide-react';
+import { Image as ImageIcon, AlertTriangle, Save, Trash2 } from 'lucide-react';
 
 interface SpriteEditorWrapperProps {
   project: MasonProject;
@@ -27,7 +25,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
   onBackToDashboard,
   onShowToast
 }) => {
-  const nativeEditorRef = useRef<NativeSpriteEditorHandle>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const isReadyRef = useRef<boolean>(false);
   const projectRef = useRef<MasonProject>(project);
   projectRef.current = project;
@@ -72,8 +70,10 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
   const [spriteFrameCount, setSpriteFrameCount] = useState<number>(1);
 
   // Initialize a default sprite if empty
+  const hasInitializedSpritesRef = useRef(false);
   useEffect(() => {
-    if (!project.fileSystem.sprites || project.fileSystem.sprites.length === 0) {
+    if ((!project.fileSystem.sprites || project.fileSystem.sprites.length === 0) && !hasInitializedSpritesRef.current) {
+      hasInitializedSpritesRef.current = true;
       const defaultSprite: SpriteFile = {
         id: 'sprite_player_hero',
         name: 'Player Hero',
@@ -94,7 +94,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       }));
       setActiveFileName(defaultSprite.fileName);
     }
-  }, [project.fileSystem.sprites, onUpdateProject]);
+  }, [project.fileSystem.sprites?.length, onUpdateProject]);
 
   const spriteFiles = project.fileSystem.sprites && project.fileSystem.sprites.length > 0
     ? project.fileSystem.sprites
@@ -102,85 +102,132 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         id: 'sprite_player_hero',
         name: 'Player Hero',
         fileName: 'player_hero.sprite',
-        updatedAt: new Date().toISOString(),
+        updatedAt: '2026-01-01T00:00:00.000Z',
         spriteData: null
       }];
 
   const activeFile = spriteFiles.find(f => f.fileName === activeFileName) || spriteFiles[0];
   const activeFileRef = useRef(activeFile);
-  useEffect(() => {
-    activeFileRef.current = activeFile;
-  }, [activeFile]);
+  activeFileRef.current = activeFile;
 
-  // Helper to safely post message to native editor
+  // Helper to safely post message to iframe editor
   const postToIframe = useCallback((message: any) => {
-    nativeEditorRef.current?.postMessage(message);
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(message, '*');
+    }
   }, []);
 
   const lastLoadedSpriteFileNameRef = useRef<string | null>(null);
   const lastLoadedSpriteUpdatedAtRef = useRef<string | null>(null);
 
-  // Load a specific sprite file into the native editor
-  const sendLoadFileToIframe = useCallback(async (file: SpriteFile) => {
+  // Load a specific sprite file into the iframe editor
+  const sendLoadFileToIframe = useCallback((file: SpriteFile) => {
     lastLoadedSpriteFileNameRef.current = file.fileName;
     lastLoadedSpriteUpdatedAtRef.current = file.updatedAt || null;
-    if (nativeEditorRef.current) {
-      await nativeEditorRef.current.loadFile(file);
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      if (file.spriteData) {
+        iframeRef.current.contentWindow.postMessage({
+          type: 'LOAD_PROJECT',
+          projectName: file.name,
+          projectData: file.spriteData
+        }, '*');
+      } else if (file.dataUrl || file.imageUrl) {
+        iframeRef.current.contentWindow.postMessage({
+          type: 'LOAD_SPRITE',
+          projectName: file.name,
+          imageDataUrl: file.dataUrl || file.imageUrl,
+          width: file.width || 32,
+          height: file.height || 32
+        }, '*');
+      } else {
+        iframeRef.current.contentWindow.postMessage({
+          type: 'LOAD_SPRITE',
+          projectName: file.name,
+          width: file.width || 32,
+          height: file.height || 32
+        }, '*');
+      }
     }
   }, []);
 
   // Reactively synchronize external spriteFileName selection (e.g. from PrefabEditor or Project Explorer)
   useEffect(() => {
-    const externalFileName = project.activeFiles?.spriteFileName || activeFileName;
-    if (externalFileName) {
+    const externalFileName = project.activeFiles?.spriteFileName;
+    if (externalFileName && externalFileName !== activeFileNameRef.current) {
       const list = project.fileSystem.sprites || [];
       const targetFile = list.find(f => f.fileName === externalFileName);
       if (targetFile) {
-        const isFileChanged = lastLoadedSpriteFileNameRef.current !== externalFileName ||
-          (targetFile.updatedAt && targetFile.updatedAt !== lastLoadedSpriteUpdatedAtRef.current);
-
-        if (isFileChanged) {
-          setActiveFileName(externalFileName);
-          activeFileNameRef.current = externalFileName;
-          if (isReadyRef.current) {
-            sendLoadFileToIframe(targetFile);
-          }
+        setActiveFileName(externalFileName);
+        activeFileNameRef.current = externalFileName;
+        if (isReadyRef.current) {
+          sendLoadFileToIframe(targetFile);
         }
       }
     }
-  }, [project.activeFiles?.spriteFileName, activeFileName, sendLoadFileToIframe, project.fileSystem.sprites]);
+  }, [project.activeFiles?.spriteFileName, sendLoadFileToIframe]);
 
   // Request saving sprite canvas state directly and update project storage
   const saveActiveSprite = useCallback(async (targetFileName?: string): Promise<boolean> => {
     const fileToSave = targetFileName || activeFileNameRef.current;
-    if (!nativeEditorRef.current) {
+    if (!iframeRef.current || !iframeRef.current.contentWindow) {
       return false;
     }
 
+    const saveId = `save_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     setIsSavingPending(true);
-    const res = await nativeEditorRef.current.save(fileToSave);
+
+    const savePromise = new Promise<{
+      data: any;
+      spritesheetUrl?: string;
+      dataUrl?: string;
+      imageDataUrl?: string;
+    } | null>((resolve) => {
+      const timeout = setTimeout(() => {
+        window.removeEventListener('message', onSaveMsg);
+        resolve(null);
+      }, 4000);
+
+      const onSaveMsg = (e: MessageEvent) => {
+        if (e.data?.type === 'SAVE_PROJECT_DATA' && e.data.saveId === saveId) {
+          clearTimeout(timeout);
+          window.removeEventListener('message', onSaveMsg);
+          resolve(e.data);
+        } else if (e.data?.type === 'SAVE_PROJECT_DATA_ERROR' && e.data.saveId === saveId) {
+          clearTimeout(timeout);
+          window.removeEventListener('message', onSaveMsg);
+          resolve(null);
+        }
+      };
+      window.addEventListener('message', onSaveMsg);
+    });
+
+    iframeRef.current.contentWindow.postMessage({
+      type: 'REQUEST_SAVE',
+      saveId
+    }, '*');
+
+    const result = await savePromise;
     setIsSavingPending(false);
 
-    if (!res.success || !res.spriteData) {
-      triggerToast(`Failed to save sprite: ${res.error || 'Unknown error'}`, 'error');
+    if (!result || !result.data) {
+      triggerToast('Failed to save sprite', 'error');
       return false;
     }
 
-    const spriteData = res.spriteData;
-    const targetName = fileToSave;
-    const canvasDataUrl = res.dataUrl;
-
+    const spriteData = result.data;
+    const canvasDataUrl = result.spritesheetUrl || result.dataUrl || result.imageDataUrl;
     let savedFileDisplayName = 'Sprite';
+
     onUpdateProject(prev => {
       const list = prev.fileSystem.sprites || [];
-      const idx = list.findIndex(f => f.fileName === targetName);
+      const idx = list.findIndex(f => f.fileName === fileToSave);
       
       let updatedSprites = [...list];
       let linkedImagesToUpdate: string[] = [];
 
       if (idx !== -1) {
         const activeSprite = list[idx];
-        savedFileDisplayName = activeSprite.name || targetName;
+        savedFileDisplayName = activeSprite.name || fileToSave;
         const nowIso = new Date().toISOString();
         
         lastLoadedSpriteUpdatedAtRef.current = nowIso;
@@ -197,19 +244,19 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
 
       // Sync corresponding ImageFile (.png) in fileSystem.images so PNG visuals stay 100% updated!
       const currentImages = prev.fileSystem.images || [];
-      const cleanBase = targetName.replace(/\.sprite$/, '');
+      const cleanBase = fileToSave.replace(/\.sprite$/, '');
       const defaultPngName = `${cleanBase}.png`;
 
       let hasPngMatch = currentImages.some(img =>
         img.fileName === defaultPngName ||
         linkedImagesToUpdate.includes(img.fileName) ||
-        img.sourceSpriteFileName === targetName
+        img.sourceSpriteFileName === fileToSave
       );
 
       let updatedImages = currentImages.map(img => {
         const isMatch = img.fileName === defaultPngName ||
           linkedImagesToUpdate.includes(img.fileName) ||
-          img.sourceSpriteFileName === targetName;
+          img.sourceSpriteFileName === fileToSave;
 
         if (isMatch && canvasDataUrl) {
           return {
@@ -227,10 +274,10 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
           fileName: defaultPngName,
           name: `${cleanBase}.png`,
           dataUrl: canvasDataUrl,
-          width: 32,
-          height: 32,
+          width: spriteDimensions.w,
+          height: spriteDimensions.h,
           updatedAt: new Date().toISOString(),
-          sourceSpriteFileName: targetName
+          sourceSpriteFileName: fileToSave
         };
         updatedImages = [...updatedImages, newPngFile];
       }
@@ -248,10 +295,10 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     });
 
     setIsDirty(false);
-    nativeEditorRef.current?.markClean();
-    triggerToast(`Saved sprite "${savedFileDisplayName}" (${targetName})`, 'success');
+    postToIframe({ type: 'MARK_CLEAN' });
+    triggerToast(`Saved sprite "${savedFileDisplayName}" (${fileToSave})`, 'success');
     return true;
-  }, [onUpdateProject, triggerToast]);
+  }, [onUpdateProject, triggerToast, spriteDimensions, postToIframe]);
 
   // Actual actions
   const doSwitchToFile = useCallback((targetFileName: string) => {
@@ -736,30 +783,12 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       />
 
       {/* Embedded Sprite Editor Engine Workspace */}
-      <div className="flex-1 w-full relative overflow-hidden">
-        <NativeSpriteEditor
-          ref={nativeEditorRef}
-          activeFile={activeFile}
-          onDirtyChange={(dirty) => {
-            setIsDirty(dirty);
-          }}
-          onDimensionsChange={(dims) => {
-            setSpriteDimensions({ w: dims.width, h: dims.height });
-            setSpriteFrameCount(dims.frameCount);
-          }}
-          onExportImage={(exportData) => {
-            setPendingExportData({
-              defaultFileName: exportData.filename,
-              dataUrl: exportData.dataUrl,
-              defaultDisplayName: exportData.suggestedName,
-              width: exportData.width,
-              height: exportData.height
-            });
-          }}
-          onReady={() => {
-            isReadyRef.current = true;
-          }}
-          className="w-full h-full border-none bg-neutral-950"
+      <div className="flex-1 w-full relative overflow-hidden bg-[#17181c]">
+        <iframe
+          ref={iframeRef}
+          src="./modules/sprites/index.html"
+          className="w-full h-full border-none bg-[#17181c]"
+          title="Palette Spray Studio"
         />
       </div>
 

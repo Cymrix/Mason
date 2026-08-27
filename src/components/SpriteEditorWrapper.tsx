@@ -828,7 +828,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       <div className="flex-1 w-full relative overflow-hidden">
         <iframe
           ref={iframeRef}
-          src="/modules/sprites/index.html"
+          src="./modules/sprites/index.html"
           className="w-full h-full border-none bg-neutral-950"
           title="Image & Sprite Studio"
           onLoad={() => {

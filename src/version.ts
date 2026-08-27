@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.167';
-export const MASON_VERSION_DISPLAY = 'v0.167';
-export const MASON_FULL_VERSION = 'v0.167';
+export const MASON_VERSION = '0.168';
+export const MASON_VERSION_DISPLAY = 'v0.168';
+export const MASON_FULL_VERSION = 'v0.168';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,15 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.168',
+    date: '2026-08-26',
+    changes: [
+      'Fixed GitHub Pages & PWA subpath 404 error when opening Image & Sprite Editor by updating iframe src from absolute /modules/sprites/index.html to relative ./modules/sprites/index.html across SpriteEditorWrapper, SpriteEditorModal, and modulesRegistry.',
+      'Updated PWA Service Worker (sw.js) cache identifier to mason-v0.168.',
+      'Bumped Mason release version to v0.168.'
+    ]
+  },
   {
     version: 'v0.167',
     date: '2026-08-26',

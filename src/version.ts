@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.175';
-export const MASON_VERSION_DISPLAY = 'v0.175';
-export const MASON_FULL_VERSION = 'v0.175';
+export const MASON_VERSION = '0.177';
+export const MASON_VERSION_DISPLAY = 'v0.177';
+export const MASON_FULL_VERSION = 'v0.177';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,23 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.177',
+    date: '2026-08-27',
+    changes: [
+      'Implemented BASE_URL subpath resolution for embedded iframe src in SpriteEditorWrapper and SpriteEditorModal to fix 404 stalls on GitHub Pages.',
+      'Added handshake ping loop to SpriteEditorModal to prevent postMessage race conditions during high-speed CDN initialization.',
+      'Bumped release version constants, package manifest, and ServiceWorker cache identifier to v0.177.'
+    ]
+  },
+  {
+    version: 'v0.176',
+    date: '2026-08-27',
+    changes: [
+      'Analyzed GitHub Pages iframe loading stall causes (subpath BASE_URL resolution, postMessage race conditions, Service Worker caching scopes).',
+      'Bumped release version constants, package manifest, and ServiceWorker cache identifier to v0.176.'
+    ]
+  },
   {
     version: 'v0.175',
     date: '2026-08-27',

@@ -31,9 +31,29 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
   title = 'Palette Spray Studio — Pixel & Sprite Editor'
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const isLoadedRef = useRef(false);
+
+  const handleIframeLoad = () => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: 'LOAD_SPRITE',
+          imageDataUrl: initialImageDataUrl,
+          width: initialWidth,
+          height: initialHeight,
+          projectName: title.includes('—') ? title.split('—')[0].trim() : 'Sprite'
+        },
+        '*'
+      );
+      isLoadedRef.current = true;
+    }
+  };
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      isLoadedRef.current = false;
+      return;
+    }
 
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
@@ -60,25 +80,21 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
     };
 
     window.addEventListener('message', handleMessage);
+
+    // Handshake ping loop for GitHub Pages latency / rapid CDN load
+    const pingTimer = setInterval(() => {
+      if (!isLoadedRef.current && iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage({ type: 'REQUEST_STATUS' }, '*');
+      } else if (isLoadedRef.current) {
+        clearInterval(pingTimer);
+      }
+    }, 150);
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      clearInterval(pingTimer);
     };
-  }, [isOpen, onSave, onClose, initialWidth, initialHeight]);
-
-  const handleIframeLoad = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'LOAD_SPRITE',
-          imageDataUrl: initialImageDataUrl,
-          width: initialWidth,
-          height: initialHeight,
-          projectName: title.includes('—') ? title.split('—')[0].trim() : 'Sprite'
-        },
-        '*'
-      );
-    }
-  };
+  }, [isOpen, onSave, onClose, initialWidth, initialHeight, initialImageDataUrl, title]);
 
   const handleRequestExport = () => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -134,7 +150,7 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
       <div className="flex-1 w-full h-full relative overflow-hidden bg-neutral-900">
         <iframe
           ref={iframeRef}
-          src="./modules/sprites/index.html"
+          src={`${((import.meta as any).env?.BASE_URL || './').replace(/\/$/, '')}/modules/sprites/index.html`}
           className="w-full h-full border-none"
           title="Palette Spray Studio"
           onLoad={handleIframeLoad}

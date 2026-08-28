@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { X, Sparkles, Check, Paintbrush, Layers, RotateCcw } from 'lucide-react';
+import { getModuleUrl } from '../engine/modulesRegistry';
 
 export interface SpriteSaveResult {
   dataUrl: string;
@@ -152,7 +153,7 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
       <div className="flex-1 w-full h-full relative overflow-hidden bg-neutral-900">
         <iframe
           ref={iframeRef}
-          src={`${((import.meta as any).env?.BASE_URL || './').replace(/\/$/, '')}/modules/sprites/index.html`}
+          src={getModuleUrl('modules/sprites/index.html')}
           className="w-full h-full border-none"
           title="Palette Spray Studio"
           onLoad={handleIframeLoad}

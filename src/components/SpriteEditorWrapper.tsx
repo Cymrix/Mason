@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { MasonProject, SpriteFile, ImageFile, SpriteExportMetadata } from '../engine/masonProjectSchema';
+import { getModuleUrl } from '../engine/modulesRegistry';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { createNewSpriteInProject, saveActiveMasonProject } from '../utils/masonStorage';
 import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
@@ -861,7 +862,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       <div className="flex-1 w-full relative overflow-hidden">
         <iframe
           ref={iframeRef}
-          src={`${((import.meta as any).env?.BASE_URL || './').replace(/\/$/, '')}/modules/sprites/index.html`}
+          src={getModuleUrl('modules/sprites/index.html')}
           className="w-full h-full border-none bg-neutral-950"
           title="Image & Sprite Studio"
           onLoad={() => {

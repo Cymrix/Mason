@@ -1,6 +1,33 @@
 import React from 'react';
 import { MASON_VERSION_DISPLAY } from '../version';
 
+/**
+ * Computes an absolute, environment-agnostic URL for mini-app HTML module entrypoints.
+ * Handles subpath deployments (GitHub Pages), PWA relative paths, and local dev servers.
+ */
+export function getModuleUrl(subpath: string): string {
+  const cleanSubpath = subpath.replace(/^\.\//, '').replace(/^\//, '');
+
+  const envBase = (import.meta as any).env?.BASE_URL;
+  if (envBase && envBase !== './' && envBase !== '/') {
+    const formattedBase = envBase.endsWith('/') ? envBase : `${envBase}/`;
+    return `${formattedBase}${cleanSubpath}`;
+  }
+
+  if (typeof window !== 'undefined' && window.location) {
+    let pathname = window.location.pathname;
+    if (/\.[a-zA-Z0-9]+$/.test(pathname)) {
+      pathname = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+    }
+    if (!pathname.endsWith('/')) {
+      pathname += '/';
+    }
+    return `${window.location.origin}${pathname}${cleanSubpath}`;
+  }
+
+  return `./${cleanSubpath}`;
+}
+
 export interface MasonModuleDefinition {
   id: string;
   name: string;

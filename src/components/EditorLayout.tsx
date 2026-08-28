@@ -966,7 +966,7 @@ export const EditorLayout: React.FC = () => {
 
   return (
     <div 
-      className="flex flex-col h-screen w-screen text-neutral-100 font-sans overflow-hidden select-none transition-colors duration-200"
+      className="flex flex-col h-screen w-full max-w-full text-neutral-100 font-sans overflow-hidden select-none transition-colors duration-200"
       style={{ backgroundColor: bgDef.hex }}
     >
       

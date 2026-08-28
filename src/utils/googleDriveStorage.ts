@@ -1,11 +1,29 @@
 import { ProjectData, parseProjectJson } from './projectStorage';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase App
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
+// Lazy initialize Firebase Auth
+let authInstance: any = null;
+const getFirebaseAuth = () => {
+  if (!authInstance) {
+    try {
+      // Dynamic require/import or safe config check
+      const firebaseConfig = {
+        projectId: "peerless-robot-496902-g9",
+        appId: "1:43198960631:web:65504cd6cb55d79e5cd4f2",
+        apiKey: "AIzaSyCv6OcxA_rs1N-DQIJB4Ye45K3NJQw0Xs8",
+        authDomain: "peerless-robot-496902-g9.firebaseapp.com",
+        storageBucket: "peerless-robot-496902-g9.firebasestorage.app",
+        messagingSenderId: "43198960631"
+      };
+      const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+      authInstance = getAuth(app);
+    } catch (e) {
+      console.warn('Firebase Auth lazy initialization error:', e);
+    }
+  }
+  return authInstance;
+};
 
 const GOOGLE_DRIVE_TOKEN_KEY = 'mourne_gdrive_access_token';
 const GOOGLE_DRIVE_USER_KEY = 'mourne_gdrive_user_info';
@@ -74,7 +92,31 @@ export const getGoogleDriveUser = (): GoogleDriveUser | null => {
 /**
  * Triggers Google OAuth Client Token flow via Firebase Auth Popup or Google Identity Services
  */
-export const authenticateGoogleDrive = async (): Promise<string> => {
+export const authenticateGoogleDrive = async (manualToken?: string, customClientId?: string): Promise<string> => {
+  if (manualToken && manualToken.trim()) {
+    const cleanToken = manualToken.trim();
+    setGoogleDriveToken(cleanToken);
+    try {
+      const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${cleanToken}` }
+      });
+      if (profileRes.ok) {
+        const profile = await profileRes.json();
+        localStorage.setItem(
+          GOOGLE_DRIVE_USER_KEY,
+          JSON.stringify({
+            email: profile.email,
+            name: profile.name,
+            picture: profile.picture
+          })
+        );
+      }
+    } catch (e) {
+      console.warn('Could not fetch user profile:', e);
+    }
+    return cleanToken;
+  }
+
   // Method 1: Try Firebase Auth Popup (uses provisioned OAuth Client in firebase-applet-config.json)
   try {
     const provider = new GoogleAuthProvider();
@@ -82,6 +124,8 @@ export const authenticateGoogleDrive = async (): Promise<string> => {
     provider.addScope('https://www.googleapis.com/auth/userinfo.email');
     provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
 
+    const auth = getFirebaseAuth();
+    if (!auth) throw new Error('Firebase Auth unavailable');
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (credential?.accessToken) {
@@ -103,7 +147,9 @@ export const authenticateGoogleDrive = async (): Promise<string> => {
 
   // Method 2: Google Identity Services (GIS) fallback with provisioned oAuthClientId
   return new Promise((resolve, reject) => {
+    const activeOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     const clientId =
+      customClientId?.trim() ||
       (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
       '966469177467-ovbndg35jpjah5gav69t0v4a41im8j8d.apps.googleusercontent.com';
 
@@ -116,7 +162,15 @@ export const authenticateGoogleDrive = async (): Promise<string> => {
               'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
             callback: async (resp: any) => {
               if (resp.error) {
-                reject(new Error(resp.error_description || resp.error));
+                if (resp.error === 'origin_mismatch' || resp.error_description?.includes('origin')) {
+                  reject(
+                    new Error(
+                      `Origin Mismatch (Error 400): Authorized JavaScript origins in Google Cloud Console must include "${activeOrigin}" for client ID "${clientId}".`
+                    )
+                  );
+                } else {
+                  reject(new Error(resp.error_description || resp.error));
+                }
                 return;
               }
               if (resp.access_token) {

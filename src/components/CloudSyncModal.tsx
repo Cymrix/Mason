@@ -8,8 +8,7 @@ import {
   X, 
   ShieldCheck, 
   FileCode, 
-  Settings, 
-  Key
+  Settings
 } from 'lucide-react';
 import { ProjectData } from '../utils/projectStorage';
 import { 
@@ -67,7 +66,6 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [onedriveLoading, setOnedriveLoading] = useState(false);
   const [onedriveBackup, setOnedriveBackup] = useState(false);
   const [onedriveStatusMsg, setOnedriveStatusMsg] = useState<string | null>(null);
-  const [manualOnedriveTokenInput, setManualOnedriveTokenInput] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -180,11 +178,11 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   };
 
   // OneDrive Handlers
-  const handleConnectOneDrive = async (manualToken?: string) => {
+  const handleConnectOneDrive = async () => {
     setOnedriveLoading(true);
     setOnedriveStatusMsg(null);
     try {
-      await authenticateOneDrive(manualToken);
+      await authenticateOneDrive();
       refreshCloudState();
       setOnedriveStatusMsg('Connected to Microsoft OneDrive!');
     } catch (err: any) {
@@ -335,7 +333,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                 <div className="flex items-center gap-3">
                   {!gdriveToken ? (
                     <button
-                      onClick={handleConnectGDrive}
+                      onClick={() => handleConnectGDrive()}
                       disabled={gdriveLoading}
                       className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20"
                     >
@@ -517,30 +515,6 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                 <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs text-sky-300 flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 shrink-0 text-sky-400" />
                   {onedriveStatusMsg}
-                </div>
-              )}
-
-              {!onedriveToken && (
-                <div className="p-4 rounded-xl bg-stone-950/40 border border-stone-800 space-y-3">
-                  <h4 className="text-xs font-semibold text-stone-300 flex items-center gap-2">
-                    <Key className="w-3.5 h-3.5 text-sky-400" />
-                    Alternative OneDrive Token Login
-                  </h4>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      placeholder="Paste Microsoft Graph Access Token..."
-                      value={manualOnedriveTokenInput}
-                      onChange={(e) => setManualOnedriveTokenInput(e.target.value)}
-                      className="flex-1 px-3 py-1.5 bg-stone-900 border border-stone-800 rounded text-xs text-stone-200 focus:outline-none focus:border-sky-500"
-                    />
-                    <button
-                      onClick={() => handleConnectOneDrive(manualOnedriveTokenInput)}
-                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium rounded"
-                    >
-                      Apply
-                    </button>
-                  </div>
                 </div>
               )}
 

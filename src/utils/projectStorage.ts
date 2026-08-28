@@ -24,6 +24,23 @@ export interface ProjectSettings {
   activeLayout?: string;
 }
 
+export interface ProjectCheckpoint {
+  id: string;
+  name: string;
+  timestamp: string;
+  map: RefinedMapData;
+  biomes?: RefinedBiome[];
+  activeBiomeId?: string;
+  note?: string;
+}
+
+export interface ProjectVersionEntry {
+  id: string;
+  version: string;
+  timestamp: string;
+  summary: string;
+}
+
 export interface ProjectData {
   id: string;
   name: string;
@@ -36,6 +53,10 @@ export interface ProjectData {
   biomes: RefinedBiome[];
   activeBiomeId: string;
   settings?: ProjectSettings;
+  historyStack?: any[];
+  redoStack?: any[];
+  checkpoints?: ProjectCheckpoint[];
+  versionHistory?: ProjectVersionEntry[];
 }
 
 export interface StarterTemplate {
@@ -459,7 +480,11 @@ export const parseProjectJson = (jsonStr: string): ProjectData => {
       brushSize: 1,
       autoScatterEnvironmental: true,
       autoScatterWildlife: true
-    }
+    },
+    historyStack: Array.isArray(parsed.historyStack) ? parsed.historyStack : (Array.isArray(parsed.undoStack) ? parsed.undoStack : []),
+    redoStack: Array.isArray(parsed.redoStack) ? parsed.redoStack : [],
+    checkpoints: Array.isArray(parsed.checkpoints) ? parsed.checkpoints : [],
+    versionHistory: Array.isArray(parsed.versionHistory) ? parsed.versionHistory : []
   };
 };
 

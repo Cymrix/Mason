@@ -105,6 +105,17 @@ export const useUndoHistory = (initialState: HistoryState) => {
     strokeStartRef.current = null;
   }, []);
 
+  /**
+   * Sets or restores history stacks (e.g. when loading project from storage or cloud)
+   */
+  const setHistoryStacks = useCallback((undoHistory: HistoryState[] = [], redoHistory: HistoryState[] = []) => {
+    const clonedUndo = Array.isArray(undoHistory) ? JSON.parse(JSON.stringify(undoHistory)) : [];
+    const clonedRedo = Array.isArray(redoHistory) ? JSON.parse(JSON.stringify(redoHistory)) : [];
+    setUndoStack(clonedUndo);
+    setRedoStack(clonedRedo);
+    strokeStartRef.current = null;
+  }, []);
+
   return {
     pushSnapshot,
     startStroke,
@@ -112,6 +123,9 @@ export const useUndoHistory = (initialState: HistoryState) => {
     undo,
     redo,
     clearHistory,
+    setHistoryStacks,
+    undoStack,
+    redoStack,
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
     undoCount: undoStack.length,

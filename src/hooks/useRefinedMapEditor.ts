@@ -74,11 +74,18 @@ export const useRefinedMapEditor = () => {
     undo,
     redo,
     clearHistory,
+    setHistoryStacks,
+    undoStack,
+    redoStack,
     canUndo,
     canRedo,
     undoCount,
     redoCount
   } = useUndoHistory({ mapData, biomes, activeBiomeId });
+
+  // Project Checkpoints & Version History
+  const [checkpoints, setCheckpoints] = useState<import('../utils/projectStorage').ProjectCheckpoint[]>([]);
+  const [versionHistory, setVersionHistory] = useState<import('../utils/projectStorage').ProjectVersionEntry[]>([]);
 
   // Editor modes & tools
   const [mode, setMode] = useState<ModeType>('paint');
@@ -177,9 +184,13 @@ export const useRefinedMapEditor = () => {
         brushSize,
         autoScatterEnvironmental,
         autoScatterWildlife
-      }
+      },
+      historyStack: undoStack,
+      redoStack: redoStack,
+      checkpoints,
+      versionHistory
     };
-  }, [projectId, projectName, projectDescription, lastSavedTimestamp, mapData, biomes, activeBiomeId, brushSize, autoScatterEnvironmental, autoScatterWildlife]);
+  }, [projectId, projectName, projectDescription, lastSavedTimestamp, mapData, biomes, activeBiomeId, brushSize, autoScatterEnvironmental, autoScatterWildlife, undoStack, redoStack, checkpoints, versionHistory]);
 
   // Save current project to storage
   const saveCurrentProject = useCallback((name?: string, description?: string) => {
@@ -204,14 +215,18 @@ export const useRefinedMapEditor = () => {
         brushSize,
         autoScatterEnvironmental,
         autoScatterWildlife
-      }
+      },
+      historyStack: undoStack,
+      redoStack: redoStack,
+      checkpoints,
+      versionHistory
     };
 
     saveProjectToStorage(projectToSave);
     setHasUnsavedChanges(false);
     setLastSavedTimestamp(projectToSave.updatedAt);
     return projectToSave;
-  }, [projectId, projectName, projectDescription, lastSavedTimestamp, mapData, biomes, activeBiomeId, brushSize, autoScatterEnvironmental, autoScatterWildlife]);
+  }, [projectId, projectName, projectDescription, lastSavedTimestamp, mapData, biomes, activeBiomeId, brushSize, autoScatterEnvironmental, autoScatterWildlife, undoStack, redoStack, checkpoints, versionHistory]);
 
   // Load project into active state
   const loadProject = useCallback((project: ProjectData) => {
@@ -244,13 +259,24 @@ export const useRefinedMapEditor = () => {
       if (project.settings.autoScatterWildlife !== undefined) setAutoScatterWildlife(project.settings.autoScatterWildlife);
     }
 
+    // Restore history stack & redo stack
+    if (Array.isArray(project.historyStack) || Array.isArray(project.redoStack)) {
+      setHistoryStacks(project.historyStack || [], project.redoStack || []);
+    } else {
+      clearHistory();
+    }
+
+    // Restore checkpoints & version history
+    setCheckpoints(Array.isArray(project.checkpoints) ? project.checkpoints : []);
+    setVersionHistory(Array.isArray(project.versionHistory) ? project.versionHistory : []);
+
     const firstTile = project.biomes?.find(b => b.id === validBiomeId)?.tileTypes?.[0]?.id || 'ashen_basalt';
     setSelectedAssetId(firstTile);
     setPaintCategory('tile_type');
 
     setHasUnsavedChanges(false);
     setLastSavedTimestamp(project.updatedAt || new Date().toISOString());
-  }, []);
+  }, [setHistoryStacks, clearHistory]);
 
   // Initialize from storage or starter on first mount
   const initializedRef = useRef(false);
@@ -470,6 +496,37 @@ export const useRefinedMapEditor = () => {
     applyBiomeMatrix(matrix, layoutStyle);
   }, [mapData, biomes, activeBiomeId, pushSnapshot, applyBiomeMatrix]);
 
+  // Manual Checkpoint Creator
+  const createCheckpoint = useCallback((checkpointName?: string) => {
+    const now = new Date().toISOString();
+    const name = checkpointName || `Checkpoint ${new Date().toLocaleTimeString()}`;
+    const newCheckpoint: import('../utils/projectStorage').ProjectCheckpoint = {
+      id: `ckpt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name,
+      timestamp: now,
+      map: JSON.parse(JSON.stringify(mapData)),
+      biomes: JSON.parse(JSON.stringify(biomes)),
+      activeBiomeId
+    };
+
+    setCheckpoints(prev => [newCheckpoint, ...prev]);
+    setHasUnsavedChanges(true);
+    return newCheckpoint;
+  }, [mapData, biomes, activeBiomeId]);
+
+  // Restore Checkpoint State
+  const restoreCheckpoint = useCallback((checkpointId: string) => {
+    const target = checkpoints.find(c => c.id === checkpointId);
+    if (!target) return false;
+
+    pushSnapshot({ mapData, biomes, activeBiomeId });
+    setMapDataState(JSON.parse(JSON.stringify(target.map)));
+    if (target.biomes) setBiomesState(JSON.parse(JSON.stringify(target.biomes)));
+    if (target.activeBiomeId) setActiveBiomeId(target.activeBiomeId);
+    setHasUnsavedChanges(true);
+    return true;
+  }, [checkpoints, pushSnapshot, mapData, biomes, activeBiomeId]);
+
   return {
     projectId,
     projectName,
@@ -512,6 +569,10 @@ export const useRefinedMapEditor = () => {
     canRedo,
     undoCount,
     redoCount,
-    clearHistory
+    clearHistory,
+    checkpoints,
+    createCheckpoint,
+    restoreCheckpoint,
+    versionHistory
   };
 };

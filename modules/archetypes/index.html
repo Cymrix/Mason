@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mason — Hero & Archetype Forge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+  <!-- Module Header Bar -->
+  <header class="h-12 border-b border-neutral-800 bg-neutral-900/90 px-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg bg-blue-950 border border-blue-500/40 flex items-center justify-center text-sm">
+        🛡️
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-neutral-100">Hero & Archetype Forge</span>
+          <span class="text-[10px] font-mono bg-neutral-800 text-blue-400 px-1.5 py-0.5 rounded">modules/archetypes/</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Class & Actions -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 bg-neutral-950 px-3 py-1 rounded-lg border border-neutral-800 text-xs font-mono">
+        <span class="text-neutral-500">Archetype:</span>
+        <span id="hero-name-label" class="text-blue-300 font-bold">Korrath Steelhand</span>
+        <span class="text-neutral-500 text-[10px]">(.arch)</span>
+      </div>
+
+      <button id="btn-save-arch" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition">
+        <span>💾 Save Archetype</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Archetype Inspector -->
+  <div class="flex-1 overflow-y-auto p-6 space-y-5 max-w-4xl mx-auto w-full">
+    <!-- Hero Header -->
+    <div class="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 flex items-center justify-between shadow-xl">
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl bg-blue-950/80 border-2 border-blue-500 flex items-center justify-center text-3xl shadow-lg">
+          🛡️
+        </div>
+        <div>
+          <h2 class="font-black text-lg text-neutral-100">Korrath Steelhand</h2>
+          <p class="text-xs text-neutral-400">Titan Vanguard & Bastion • Slashing/Blunt Affinity</p>
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="text-[10px] font-bold text-neutral-500 uppercase block">Traversal Profile</span>
+        <span class="text-xs font-mono text-cyan-400 font-bold">Double Jump + Wall Cling</span>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 space-y-3">
+      <h3 class="text-xs font-bold text-neutral-300 uppercase tracking-wider">Base Combat Attributes</h3>
+      <div class="grid grid-cols-4 gap-3 text-center">
+        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+          <span class="text-[10px] font-bold text-red-400 uppercase block">Max Health</span>
+          <span class="text-lg font-mono font-bold text-white">140 HP</span>
+        </div>
+        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+          <span class="text-[10px] font-bold text-blue-400 uppercase block">Energy Pool</span>
+          <span class="text-lg font-mono font-bold text-white">40 MP</span>
+        </div>
+        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+          <span class="text-[10px] font-bold text-emerald-400 uppercase block">Stamina Gauge</span>
+          <span class="text-lg font-mono font-bold text-white">90 SP</span>
+        </div>
+        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+          <span class="text-[10px] font-bold text-amber-400 uppercase block">Poise Threshold</span>
+          <span class="text-lg font-mono font-bold text-white">80</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Traversal Tags -->
+    <div class="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 space-y-3">
+      <h3 class="text-xs font-bold text-neutral-300 uppercase tracking-wider">Mobility Mechanics</h3>
+      <div class="grid grid-cols-3 gap-3">
+        <div class="p-3 rounded-xl bg-blue-950/60 border border-blue-500/50 text-blue-200 text-xs">
+          <span class="font-bold block">✓ Aether Double Jump</span>
+          <span class="text-[10px] text-neutral-400">Leap a second time in air</span>
+        </div>
+        <div class="p-3 rounded-xl bg-blue-950/60 border border-blue-500/50 text-blue-200 text-xs">
+          <span class="font-bold block">✓ Vertical Wall Cling</span>
+          <span class="text-[10px] text-neutral-400">Wall kick & slide down masonry</span>
+        </div>
+        <div class="p-3 rounded-xl bg-neutral-950 border border-neutral-800 text-neutral-500 text-xs">
+          <span class="font-bold block">✕ Horizontal Air Dash</span>
+          <span class="text-[10px] text-neutral-600">Requires Cinder Dash upgrade</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('btn-save-arch').addEventListener('click', () => {
+      window.parent.postMessage({
+        type: 'MASON_MODULE_EVENT',
+        module: 'archetypes',
+        event: 'SAVE_FILE'
+      }, '*');
+      const btn = document.getElementById('btn-save-arch');
+      btn.innerText = '✓ Saved!';
+      setTimeout(() => { btn.innerText = '💾 Save Archetype'; }, 1500);
+    });
+  </script>
+</body>
+</html>

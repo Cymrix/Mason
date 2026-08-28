@@ -1,0 +1,2377 @@
+<!DOCTYPE html><html lang=en><head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Palette Spray Studio</title>
+<meta property="og:title" content="Palette Spray Studio">
+<meta property="og:description" content="Layered pixel-art painter with a palette and gradient-driven spray brush.">
+<meta property="og:type" content="website">
+
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" type="image/svg+xml" href="./icon.svg">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="theme-color" content="#17181c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Palette Spray">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root{
+    --bg:#17181c;
+    --panel:#17181c;
+    --panel-2:#25272d;
+    --line:#33353c;
+    --text:#e7e6e2;
+    --text-dim:#9a9ba3;
+    --accent:#d4a017;
+    --accent-dim:#8a6b1c;
+    --danger:#c85c5c;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  [data-theme="light"]{
+    --bg:#f2f1ed;
+    --panel:#f2f1ed;
+    --panel-2:#e9e8e3;
+    --line:#d4d2ca;
+    --text:#22221f;
+    --text-dim:#6b6a63;
+    --accent:#a8760f;
+    --accent-dim:#c9963a;
+    --danger:#b23b3b;
+  }
+  [data-theme="midnight"]{
+    --bg:#05060a;
+    --panel:#05060a;
+    --panel-2:#11141d;
+    --line:#232838;
+    --text:#dbe4f5;
+    --text-dim:#7a86a0;
+    --accent:#4fc3f7;
+    --accent-dim:#2b7fa3;
+    --danger:#e05c5c;
+  }
+  [data-theme="dracula"]{
+    --bg:#282a36;
+    --panel:#282a36;
+    --panel-2:#343746;
+    --line:#6272a4;
+    --text:#f8f8f2;
+    --text-dim:#a0a0b0;
+    --accent:#ff79c6;
+    --accent-dim:#bd93f9;
+    --danger:#ff5555;
+  }
+  [data-theme="monokai"]{
+    --bg:#272822;
+    --panel:#272822;
+    --panel-2:#38372e;
+    --line:#49483e;
+    --text:#f8f8f2;
+    --text-dim:#a5a59e;
+    --accent:#a6e22e;
+    --accent-dim:#e6db74;
+    --danger:#f92672;
+  }
+  [data-theme="nord"]{
+    --bg:#2e3440;
+    --panel:#2e3440;
+    --panel-2:#3b4252;
+    --line:#434c5e;
+    --text:#eceff4;
+    --text-dim:#d8dee9;
+    --accent:#88c0d0;
+    --accent-dim:#81a1c1;
+    --danger:#bf616a;
+  }
+  [data-theme="solarized-dark"]{
+    --bg:#002b36;
+    --panel:#002b36;
+    --panel-2:#0f4350;
+    --line:#2aa198;
+    --text:#93a1a1;
+    --text-dim:#586e75;
+    --accent:#268bd2;
+    --accent-dim:#2aa198;
+    --danger:#dc322f;
+  }
+  [data-theme="solarized-light"]{
+    --bg:#fdf6e3;
+    --panel:#fdf6e3;
+    --panel-2:#eee8d5;
+    --line:#93a1a1;
+    --text:#073642;
+    --text-dim:#657b83;
+    --accent:#268bd2;
+    --accent-dim:#2aa198;
+    --danger:#dc322f;
+  }
+  [data-theme="synthwave"]{
+    --bg:#1a102f;
+    --panel:#1a102f;
+    --panel-2:#281845;
+    --line:#4a2980;
+    --text:#00f0ff;
+    --text-dim:#a880eb;
+    --accent:#ff007f;
+    --accent-dim:#d6006e;
+    --danger:#ff3860;
+  }
+  [data-theme="gruvbox"]{
+    --bg:#282828;
+    --panel:#282828;
+    --panel-2:#32302f;
+    --line:#504945;
+    --text:#ebdbb2;
+    --text-dim:#a89984;
+    --accent:#fe8019;
+    --accent-dim:#fabd2f;
+    --danger:#fb4934;
+  }
+  [data-theme="emerald"]{
+    --bg:#0d1f18;
+    --panel:#0d1f18;
+    --panel-2:#142d23;
+    --line:#234a3b;
+    --text:#e0f2eb;
+    --text-dim:#7ca393;
+    --accent:#2ecc71;
+    --accent-dim:#27ae60;
+    --danger:#e74c3c;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);overflow:hidden;}
+  .app{display:flex;flex-direction:column;height:100vh;}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);
+    flex:0 0 auto;
+  }
+  .brand{font-size:15px;font-weight:600;letter-spacing:.02em;color:var(--accent);}
+  .topbar-actions{display:flex;gap:8px;align-items:center;}
+  .divider{width:1px;height:22px;background:var(--line);margin:0 4px;}
+  .menu-wrap{position:relative;}
+  .dropdown-menu{
+    position:absolute;top:calc(100% + 6px);left:0;z-index:2200;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:6px;min-width:180px;box-shadow:0 12px 30px rgba(0,0,0,.6);
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .menu-item{
+    background:transparent;border:none;color:var(--text);text-align:left;
+    padding:8px 10px;border-radius:6px;font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+    white-space:nowrap;
+  }
+  .menu-item:hover{background:var(--panel-2);}
+  .menu-item-submenu{position:relative;}
+  .submenu-arrow{font-size:10px;color:var(--text-dim);margin-left:auto;}
+  .submenu{
+    position:absolute;top:-6px;left:100%;margin-left:4px;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:6px;min-width:200px;box-shadow:0 12px 30px rgba(0,0,0,.6);
+    display:none;flex-direction:column;gap:2px;z-index:2210;
+  }
+  .submenu::before{
+    content:'';position:absolute;top:-8px;bottom:-8px;left:-8px;width:8px;
+  }
+  .menu-item-submenu:hover > .submenu,
+  .menu-item-submenu.open > .submenu{
+    display:flex;
+  }
+  .menu-row{
+    padding:8px 10px;font-size:13px;color:var(--text);
+    display:flex;align-items:center;width:100%;
+  }
+  .menu-divider{height:1px;background:var(--line);margin:4px 2px;}
+
+  .btn{
+    background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+    padding:7px 12px;border-radius:6px;font-size:13px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{border-color:var(--accent-dim);}
+  .btn:disabled{opacity:.35;cursor:default;}
+  .btn:disabled:hover{border-color:var(--line);}
+  .btn.primary{background:var(--accent);color:#20200f;border-color:var(--accent);font-weight:600;}
+  .btn.primary:hover{background:#e6b52d;}
+  .btn.armed{background:var(--danger);border-color:var(--danger);color:#fff;}
+  .btn.small{padding:4px 8px;font-size:12px;}
+  .btn.danger{color:var(--danger);}
+  .btn.icon{padding:7px 10px;font-weight:600;}
+  .file-btn input{display:none;}
+  .project-name-input{
+    background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:7px 10px;font-size:13px;width:180px;
+  }
+  .project-name-input:focus{outline:none;border-color:var(--accent-dim);}
+  .version-tag{
+    position:fixed;left:8px;bottom:6px;
+    font-size:10px;color:var(--text-dim);opacity:.55;
+    pointer-events:none;z-index:50;
+  }
+
+  .workspace{flex:1 1 auto;display:flex;min-height:0;}
+
+  .panel{background:var(--bg);border-color:var(--line);overflow-y:auto;flex:0 0 auto;}
+  .tools-panel{width:230px;border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:8px;flex:0 0 230px;min-height:0;overflow-y:auto;}
+  .side-panel{width:220px;border-left:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:8px;flex:0 0 220px;min-height:0;overflow-y:auto;}
+  .panel .section{margin-bottom:8px;padding:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;transition:border-color .15s ease, background-color .15s ease, box-shadow .15s ease;}
+  .panel .section.pinned-section{border-color:rgba(255,202,40,.6) !important;background:rgba(255,202,40,.05) !important;box-shadow:0 0 8px rgba(255,202,40,.08);}
+  .panel h3{margin:0 0 6px 0;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);font-weight:600;}
+
+  .sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px;}
+  .sec-hdr-title{display:flex;align-items:center;justify-content:space-between;flex:1;font-weight:600;font-size:11px;color:var(--text);}
+  .sec-hdr-title h3{margin:0 !important;font-size:11px !important;}
+  .sec-hdr-ctrls{display:flex;align-items:center;gap:2px;flex-shrink:0;}
+  .sec-btn{background:transparent;border:1px solid transparent;color:var(--text-dim);font-size:10px;padding:1px 4px;border-radius:3px;cursor:pointer;line-height:1.2;display:inline-flex;align-items:center;justify-content:center;transition:all .12s ease;}
+  .sec-btn:hover{background:var(--panel);border-color:var(--line);color:var(--text);}
+  .sec-btn:disabled{opacity:.25;cursor:default;border-color:transparent !important;background:transparent !important;}
+  .sec-pin-btn.active{color:#ffca28;border-color:rgba(255,202,40,.5);background:rgba(255,202,40,.2);}
+
+  .tool-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .tool-row button{
+    flex:1 1 40%;background:var(--panel);border:1px solid var(--line);color:var(--text);
+    padding:9px 4px;border-radius:6px;font-size:12px;cursor:pointer;
+  }
+  .tool-row button.active{border-color:var(--accent);color:var(--accent);background:#2a2515;}
+  .shape-row{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap;}
+  .shape-row button{
+    flex:1 0 28%;background:var(--panel);border:1px solid var(--line);color:var(--text);
+    padding:6px 2px;border-radius:6px;font-size:11px;cursor:pointer;
+  }
+  .shape-row button.active{border-color:var(--accent);color:var(--accent);background:#2a2515;}
+  .shape-row button:disabled{opacity:.35;cursor:default;}
+  .hint{font-size:10.5px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+
+  label.field{display:block;font-size:12px;color:var(--text-dim);margin-bottom:4px;margin-top:12px;}
+  input[type=range]{width:100%;accent-color:var(--accent);}
+  .stepper-wrap{display:flex;align-items:center;gap:4px;width:100%;}
+  .stepper-wrap input[type=range]{flex:1;}
+  .stepper-btn{
+    flex:0 0 auto;width:20px;height:20px;padding:0;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:4px;font-size:12px;line-height:1;cursor:pointer;
+  }
+  .stepper-btn:hover{border-color:var(--accent-dim);}
+  .field-value{float:right;color:var(--text);}
+
+  .dual-range-wrap {
+    position: relative;
+    width: 100%;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+    margin-bottom: 4px;
+  }
+  .dual-range-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .dual-range-fill {
+    position: absolute;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .dual-range-wrap input[type=range] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background: transparent;
+    pointer-events: none;
+    -webkit-appearance: none;
+    appearance: none;
+    z-index: 2;
+  }
+  .dual-range-wrap input[type=range]::-webkit-slider-runnable-track {
+    background: transparent;
+    border: none;
+  }
+  .dual-range-wrap input[type=range]::-moz-range-track {
+    background: transparent;
+    border: none;
+  }
+  .dual-range-wrap input[type=range]::-webkit-slider-thumb {
+    pointer-events: auto;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--panel);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  .dual-range-wrap input[type=range]::-moz-range-thumb {
+    pointer-events: auto;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--panel);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  .dual-range-wrap input[type=range]:focus {
+    outline: none;
+  }
+
+  select{
+    width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:6px;font-size:12px;
+  }
+
+  .canvas-outer{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;min-width:0;}
+  .timeline-panel{
+    display:flex;flex-direction:column;background:var(--panel);border-top:1px solid var(--line);
+    flex:0 0 auto;height:180px;min-height:80px;max-height:500px;position:relative;z-index:20;
+    transition:height 0.15s ease;
+  }
+  .timeline-panel.resizing{transition:none !important;}
+  .timeline-panel.collapsed{height:36px !important;min-height:36px !important;max-height:36px !important;overflow:hidden;}
+  .timeline-topbar{
+    display:flex;align-items:center;justify-content:flex-start;
+    padding:4px 8px;background:var(--panel-2);border-bottom:1px solid var(--line);
+    flex:0 0 auto;gap:6px 8px;flex-wrap:wrap;min-height:34px;height:auto;box-sizing:border-box;
+  }
+  .timeline-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;min-width:0;}
+  .timeline-controls > *{flex-shrink:0;white-space:nowrap;}
+  .timeline-grid-wrap{flex:1;overflow:auto;padding:6px;background:var(--bg);}
+  .timeline-table{border-collapse:separate;border-spacing:4px;table-layout:fixed;width:max-content;}
+  .timeline-th-corner{
+    position:sticky;left:0;top:0;z-index:12;background:var(--panel-2);
+    color:var(--text-dim);font-size:11px;padding:4px 8px;border-radius:4px;
+    white-space:nowrap;border:1px solid var(--line);text-align:left;
+    width:180px;min-width:180px;max-width:180px;box-sizing:border-box;
+  }
+  .timeline-th-frame{
+    position:sticky;top:0;z-index:10;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);font-size:11px;font-weight:600;padding:4px 2px;border-radius:4px;
+    text-align:center;cursor:pointer;white-space:nowrap;user-select:none;
+    width:56px;min-width:56px;max-width:56px;box-sizing:border-box;
+  }
+  .timeline-th-frame:hover{background:var(--panel);border-color:var(--accent-dim);}
+  .timeline-th-frame.active-frame{
+    background:rgba(79,195,247,0.18);border-color:var(--accent);color:var(--accent);
+  }
+  .timeline-th-frame.playback-active{
+    outline:2px solid #4d9fff;outline-offset:-2px;
+  }
+  }
+  .dragging {
+    opacity: 0.5;
+  }
+  .timeline-td-layer{
+    position:sticky;left:0;z-index:11;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:4px;padding:3px 8px;font-size:11px;white-space:nowrap;
+    display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+    width:180px;min-width:180px;max-width:180px;box-sizing:border-box;height:46px;
+  }
+  .timeline-td-layer:hover{border-color:var(--accent-dim);}
+  .timeline-td-layer.active-layer{
+    border-color:var(--accent);background:#2a2515;color:#fff;
+  }
+  .timeline-cell{
+    width:56px;min-width:56px;max-width:56px;height:46px;padding:0;
+    vertical-align:middle;text-align:center;box-sizing:border-box;
+  }
+  .timeline-cell-inner{
+    width:52px;height:42px;margin:0 auto;border:1px solid var(--line);border-radius:5px;
+    background:var(--panel-2);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;position:relative;transition:all 0.1s ease;box-sizing:border-box;
+  }
+  .timeline-cell-inner:hover{border-color:var(--accent-dim);background:var(--panel);}
+  .timeline-cell.active-cell .timeline-cell-inner{
+    border:2px solid var(--accent);box-shadow:0 0 10px rgba(79,195,247,0.4);
+    background:rgba(79,195,247,0.12);
+  }
+  .timeline-cell-canvas{
+    width:34px;height:34px;image-rendering:pixelated;border-radius:3px;
+    background:repeating-conic-gradient(#222 0% 25%,#111 0% 50%) 50% / 8px 8px;
+  }
+  .timeline-cell-empty-dot{
+    width:6px;height:6px;border-radius:50%;background:var(--line);
+  }
+  .timeline-cell-has-data .timeline-cell-inner::after{
+    content:'';position:absolute;top:3px;right:3px;width:6px;height:6px;
+    border-radius:50%;background:var(--accent);box-shadow:0 0 4px var(--accent);
+  }
+  .resizer{
+    flex:0 0 5px;width:5px;cursor:col-resize;background:var(--line);
+    position:relative;z-index:10;
+  }
+  .resizer::after{
+    content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:3px;height:26px;border-radius:2px;
+    background:repeating-linear-gradient(to bottom, var(--text-dim) 0, var(--text-dim) 2px, transparent 2px, transparent 5px);
+  }
+  .resizer:hover, .resizer.active{background:var(--accent-dim);}
+  .v-resizer{height:8px;margin:4px 0;cursor:row-resize;background:var(--line);border-radius:3px;position:relative;}
+  .v-resizer::after{
+    content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:28px;height:3px;border-radius:2px;
+    background:repeating-linear-gradient(to right, var(--text-dim) 0, var(--text-dim) 2px, transparent 2px, transparent 5px);
+  }
+  .v-resizer:hover, .v-resizer.active{background:var(--accent-dim);}
+  .canvas-area{flex:1;overflow:auto;position:relative;min-width:0;min-height:0;cursor:crosshair;
+    background:
+      linear-gradient(45deg,#1a1a1a 25%,transparent 25%),
+      linear-gradient(-45deg,#1a1a1a 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#1a1a1a 75%),
+      linear-gradient(-45deg,transparent 75%,#1a1a1a 75%);
+    background-size:24px 24px;
+    background-position:0 0,0 12px,12px -12px,-12px 0px;
+    background-color:#141517;
+  }
+  .canvas-inner{
+    display:flex;align-items:center;justify-content:center;
+  }
+  .preview-zone{
+    background-color:#1c1d21;
+    background-image: repeating-linear-gradient(135deg, #35373f 0, #35373f 1.5px, transparent 1.5px, transparent 18px);
+  }
+  #marginFadeCanvas{
+    position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated;z-index:1;
+  }
+  .canvas-stack{position:relative;flex:0 0 auto;
+    background:
+      linear-gradient(45deg,#333 25%,transparent 25%),
+      linear-gradient(-45deg,#333 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#333 75%),
+      linear-gradient(-45deg,transparent 75%,#333 75%);
+    background-size:20px 20px;
+    background-position:0 0,0 10px,10px -10px,-10px 0px;
+    background-color:#3a3a3a;
+  }
+  #canvasBackdrop{
+    position:absolute;top:0;left:0;width:100%;height:100%;
+    z-index:2;
+    pointer-events:none;
+    background:
+      linear-gradient(45deg,#333 25%,transparent 25%),
+      linear-gradient(-45deg,#333 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#333 75%),
+      linear-gradient(-45deg,transparent 75%,#333 75%);
+    background-size:20px 20px;
+    background-position:0 0,0 10px,10px -10px,-10px 0px;
+    background-color:#3a3a3a;
+  }
+  #displayCanvas{
+    box-shadow:0 0 0 1px var(--line), 0 8px 30px rgba(0,0,0,.5);
+    touch-action:none;
+    cursor:crosshair;
+    image-rendering:pixelated;
+    position:relative;
+    display:block;
+    z-index:3;
+  }
+  #displayCanvas.pan-cursor{cursor:grab;}
+  .canvas-area.pan-cursor{cursor:grab;}
+  #displayCanvas.hide-cursor{cursor:none;}
+  .canvas-area.hide-cursor{cursor:none;}
+  .canvas-area.panning{cursor:grabbing;}
+  #displayCanvas.panning{cursor:grabbing;}
+  #gridCanvas, #selectionCanvas, #colorHighlightCanvas{
+    position:absolute;top:0;left:0;
+    pointer-events:none;
+    image-rendering:pixelated;
+    z-index:4;
+  }
+  #cursorPreviewCanvas{
+    position:absolute;top:0;left:0;
+    pointer-events:none;
+    image-rendering:pixelated;
+    z-index:4;
+  }
+  #modalPreviewCanvas{
+    position:absolute;top:0;left:0;
+    pointer-events:none;
+    image-rendering:pixelated;
+    z-index:5;
+  }
+
+  .zoom-hud{
+    position:absolute;right:16px;background:var(--panel);border:1px solid var(--line);
+    border-radius:6px;padding:4px 6px;display:flex;align-items:center;gap:4px;
+    z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  }
+  .zoom-hud button{background:transparent;border:none;color:var(--text);width:24px;height:24px;cursor:pointer;font-size:14px;border-radius:4px;}
+  .zoom-hud button:hover{background:var(--panel-2);}
+  .zoom-hud span{font-size:11px;color:var(--text-dim);min-width:40px;text-align:center;}
+
+  .canvas-top-left-hud{
+    position:absolute;left:16px;top:16px;background:var(--panel);border:1px solid var(--line);
+    border-radius:6px;padding:3px 5px;display:flex;align-items:center;gap:4px;
+    z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.35);
+  }
+  .canvas-hud-btn{
+    background:transparent;border:1px solid transparent;color:var(--text-dim);border-radius:4px;
+    padding:3px 7px;font-size:11px;font-weight:500;cursor:pointer;display:inline-flex;
+    align-items:center;gap:5px;transition:all 0.15s ease;user-select:none;
+  }
+  .canvas-hud-btn:hover{
+    background:var(--panel-2);color:var(--text);border-color:var(--line);
+  }
+  .canvas-hud-btn.active{
+    background:rgba(234, 179, 8, 0.18);
+    border-color:rgba(234, 179, 8, 0.6);
+    color:#fde047;
+    box-shadow:0 0 10px rgba(234, 179, 8, 0.35);
+  }
+
+  .tl-frame-map-badges{
+    display:inline-flex;gap:2px;margin-left:4px;vertical-align:middle;
+  }
+  .tl-map-badge{
+    display:inline-block;font-size:8px;font-weight:800;line-height:1;padding:1.5px 3px;
+    border-radius:3px;text-transform:uppercase;letter-spacing:0.3px;
+  }
+  .tl-cell-badges{
+    position:absolute;bottom:2px;left:2px;display:flex;gap:2px;pointer-events:none;z-index:2;
+  }
+  .tl-cell-badge{
+    font-size:7.5px;font-weight:800;line-height:1;padding:1px 2.5px;border-radius:2px;text-transform:uppercase;box-shadow:0 1px 3px rgba(0,0,0,0.6);
+  }
+  .tl-badge-height{
+    background:rgba(59, 130, 246, 0.85);color:#ffffff;border:1px solid rgba(147, 197, 253, 0.9);
+  }
+  .tl-badge-roughness{
+    background:rgba(234, 179, 8, 0.85);color:#1a1a1a;border:1px solid rgba(253, 224, 71, 0.9);font-weight:900;
+  }
+
+  /* Palette */
+  .swatch-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .swatch{
+    width:26px;height:26px;border-radius:5px;border:2px solid transparent;
+    cursor:pointer;position:relative;
+  }
+  .swatch.multi{border-radius:50%;}
+  .swatch.in-use::after{
+    content:'';position:absolute;bottom:-3px;right:-3px;
+    width:8px;height:8px;border-radius:50%;
+    background:#4ade80;border:1px solid var(--bg);
+  }
+  .swatch .count-badge{
+    position:absolute;top:-6px;left:-6px;
+    background:rgba(0,0,0,.8);color:#fff;
+    font-size:9px;line-height:1.4;padding:0 3px;border-radius:3px;
+    pointer-events:none;white-space:nowrap;
+  }
+  .swatch.ptr-placeholder{
+    background: repeating-conic-gradient(#3a3a3a 0% 25%, #1a1a1a 0% 50%) 0 0 / 8px 8px !important;
+    outline: 2px dashed var(--accent, #4f46e5) !important;
+    outline-offset: -2px;
+    opacity: 0.85;
+  }
+  .timeline-th-frame.ptr-placeholder,
+  .timeline-td-layer.ptr-placeholder {
+    background: repeating-conic-gradient(#3a3a3a 0% 25%, #1a1a1a 0% 50%) 0 0 / 8px 8px !important;
+    outline: 2px dashed var(--accent, #4f46e5) !important;
+    outline-offset: -2px;
+    color: var(--accent) !important;
+    opacity: 0.85;
+  }
+  .timeline-cell.ptr-placeholder .timeline-cell-inner {
+    background: repeating-conic-gradient(#3a3a3a 0% 25%, #1a1a1a 0% 50%) 0 0 / 8px 8px !important;
+    outline: 2px dashed var(--accent, #4f46e5) !important;
+    outline-offset: -2px;
+    opacity: 0.7;
+  }
+  #pbGrid .swatch{
+    width:100%;height:auto;aspect-ratio:1;border-radius:5px;transition:border-radius .12s;
+  }
+  #pbGrid .swatch.locked{border-radius:50%;}
+  #pbGrid .swatch.pb-drag-ghost{opacity:.3;}
+  .drag-ghost{position:fixed;z-index:3000;pointer-events:none;transform:translate(-13px,-13px);width:26px;height:26px;}
+  .drag-ghost-chip{position:absolute;top:0;left:0;width:26px;height:26px;border-radius:5px;border:2px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.5);}
+  .drag-ghost-badge{
+    position:absolute;bottom:-6px;right:-6px;background:var(--accent);color:#20200f;
+    font-size:10px;font-weight:700;border-radius:50%;width:16px;height:16px;
+    display:flex;align-items:center;justify-content:center;z-index:1;
+  }
+  .swatch-grid.delete-armed .swatch:hover{outline:2px solid var(--danger);}
+  .palette-hint{font-size:10.5px;color:var(--text-dim);margin:6px 0 4px 0;line-height:1.4;}
+  .group-card{border:1px solid var(--line);border-radius:6px;padding:8px;margin:10px 0;background:var(--panel-2);}
+  .group-header{display:flex;align-items:center;gap:5px;margin-bottom:8px;flex-wrap:wrap;}
+  .group-toggle-btn{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:11px;width:16px;flex:0 0 auto;padding:0;}
+  .group-name{flex:1;font-size:12px;font-weight:600;cursor:text;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:40px;}
+  .group-count{flex:0 0 auto;font-size:11px;color:var(--text-dim);font-weight:400;}
+  .group-name:hover{color:var(--accent);}
+  .group-cols-label{font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:3px;flex:0 0 auto;}
+  .group-cols-label input{width:32px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:2px;font-size:10px;}
+  .group-header button{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);color:var(--text);width:20px;height:20px;border-radius:4px;font-size:11px;cursor:pointer;padding:0;line-height:1;}
+  .group-header button:hover{border-color:var(--accent-dim);}
+  .group-header button:disabled{opacity:.3;cursor:default;}
+  .group-swatch-grid{display:grid;gap:6px;margin-bottom:8px;}
+  .add-swatch{
+    width:26px;height:26px;border-radius:5px;border:1px dashed var(--line);
+    display:flex;align-items:center;justify-content:center;color:var(--text-dim);
+    cursor:pointer;font-size:16px;background:transparent;position:relative;
+  }
+  .add-swatch input{width:0;height:0;opacity:0;position:absolute;}
+  .fg-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .fg-swatch{width:32px;height:32px;border-radius:6px;border:1px solid var(--line);}
+  .palette-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+
+  /* Gradient / palette-library rows (shared look) */
+  .lib-row{
+    display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;
+    border:1px solid var(--line);margin-bottom:6px;background:var(--panel-2);
+  }
+  .lib-row.active{border-color:var(--accent);}
+  .lib-row .bar{flex:0 0 44px;height:16px;border-radius:3px;border:1px solid var(--line);}
+  .lib-row .lname{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .stamp-invert-label{
+    flex:0 0 auto;display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-dim);
+    cursor:pointer;white-space:nowrap;
+  }
+
+  .gradient-preview{height:20px;border-radius:4px;border:1px solid var(--line);margin-bottom:6px;}
+  .color-edit-popup{
+    position:fixed;z-index:2100;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:14px;width:200px;box-shadow:0 12px 30px rgba(0,0,0,.6);
+    max-height:85vh;overflow-y:auto;
+  }
+  .color-edit-popup input[type=text]{
+    width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:6px 8px;font-size:13px;
+  }
+  .color-edit-popup input[type=color]{width:100%;height:32px;border:1px solid var(--line);border-radius:6px;padding:0;background:none;}
+  .color-edit-actions{display:flex;gap:8px;margin-top:12px;}
+  .color-edit-actions button{flex:1;}
+  .toast-notice{
+    position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel);border:1px solid var(--accent);color:var(--text);
+    padding:10px 18px;border-radius:8px;font-size:13px;
+    opacity:0;pointer-events:none;transition:opacity .2s ease, transform .2s ease;
+    z-index:2000;box-shadow:0 8px 24px rgba(0,0,0,.5);
+  }
+  .toast-notice.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .stamp-thumb{
+    width:36px;height:36px;border-radius:4px;border:1px solid var(--line);
+    flex:0 0 auto;overflow:hidden;cursor:default;
+    background:
+      linear-gradient(45deg,#2a2a2a 25%,transparent 25%),
+      linear-gradient(-45deg,#2a2a2a 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#2a2a2a 75%),
+      linear-gradient(-45deg,transparent 75%,#2a2a2a 75%);
+    background-size:8px 8px;
+    background-position:0 0,0 4px,4px -4px,-4px 0px;
+    background-color:#1a1a1a;
+  }
+  .stamp-hover-preview{
+    position:fixed;z-index:1000;pointer-events:none;
+    border:1px solid var(--line);border-radius:6px;padding:6px;
+    background:var(--panel);box-shadow:0 8px 24px rgba(0,0,0,.5);
+    display:none;
+  }
+  .stamp-hover-preview canvas{
+    display:block;image-rendering:pixelated;
+    background:
+      linear-gradient(45deg,#2a2a2a 25%,transparent 25%),
+      linear-gradient(-45deg,#2a2a2a 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#2a2a2a 75%),
+      linear-gradient(-45deg,transparent 75%,#2a2a2a 75%);
+    background-size:10px 10px;
+    background-position:0 0,0 5px,5px -5px,-5px 0px;
+    background-color:#1a1a1a;
+  }
+  .stop-chips{display:flex;flex-wrap:wrap;gap:4px;min-height:22px;}
+  .stop-chip{width:20px;height:20px;border-radius:4px;border:1px solid var(--line);cursor:grab;}
+  .stop-chip:hover{outline:1px solid var(--danger);}
+  .stop-chip.ptr-placeholder{opacity:.35;}
+  .builder-box{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);}
+
+  /* Layers */
+  .layer-info-btn{
+    flex:0 0 auto;background:var(--panel);border:1px solid var(--accent-dim);color:var(--text);
+    font-weight:bold;width:18px;height:18px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;
+  }
+  .layer-info-btn:hover{background:var(--accent-dim);border-color:var(--accent);color:var(--bg);}
+  .layer-row{
+    display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;
+    border:1px solid var(--line);margin-bottom:6px;background:var(--panel-2);cursor:pointer;
+  }
+  .layer-row:hover{border-color:var(--accent-dim);}
+  .layer-row.active{border-color:var(--accent);background:#2a2515;}
+  .layer-row.playback-active{outline:2px solid #4d9fff;outline-offset:-2px;}
+  .layer-row input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex:0 0 auto;cursor:pointer;}
+  .layer-name{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .layer-thumb{width:24px;height:24px;border-radius:3px;border:1px solid var(--line);flex:0 0 auto;}
+  .layer-actions{display:flex;gap:8px;margin-top:8px;}
+  .layer-list-box{
+    overflow-y:auto;border:1px solid var(--line);border-radius:6px;
+    background:var(--bg);padding:6px;
+  }
+  .layer-opacity{margin-top:6px;}
+  .tiny-label{font-size:10px;color:var(--text-dim);}
+
+  /* Drag and Drop styles */
+  .timeline-td-layer,
+  .layer-row,
+  .timeline-th-frame {
+    cursor: grab;
+    user-select: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .timeline-td-layer:active,
+  .layer-row:active,
+  .timeline-th-frame:active {
+    cursor: grabbing;
+  }
+  .timeline-td-layer.dragging,
+  .layer-row.dragging,
+  .timeline-th-frame.dragging {
+    opacity: 0.5;
+  }
+  .timeline-table tr > * {
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .timeline-td-layer.drag-over,
+  .layer-row.drag-over,
+  .timeline-th-frame.drag-over {
+    background: var(--accent-dim) !important;
+    color: #fff !important;
+    border-color: var(--accent) !important;
+  }
+
+  /* Grid cards */
+  .grid-card{border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px;background:var(--panel-2);}
+  .grid-card-top{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+  .grid-card-top span{flex:1;font-size:12px;}
+  .grid-card label{display:block;font-size:10.5px;color:var(--text-dim);margin-top:6px;}
+  .grid-card .row2{display:flex;gap:6px;margin-top:4px;}
+  .grid-card input[type=number]{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:3px 5px;font-size:11px;}
+  .grid-card input[type=color]{width:100%;height:22px;border:none;background:none;padding:0;}
+  .grid-card input[type=checkbox]{accent-color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stamp-hover-preview" id="stampHoverPreview"><canvas id="stampHoverCanvas"></canvas></div>
+  <div id="canvasOverlayLabel" style="position:fixed;display:none;pointer-events:none;z-index:500;background:rgba(0,0,0,0.75);color:#fff;font-size:13px;font-family:sans-serif;padding:3px 6px;border-radius:3px;transform:translate(-50%,-50%);white-space:nowrap;"></div>
+  <div id="loupeOverlay" style="position:fixed;display:none;pointer-events:none;z-index:99999;filter:drop-shadow(0 10px 24px rgba(0,0,0,0.65));">
+    <canvas id="loupeCanvas" width="320" height="320" style="width:160px;height:160px;border-radius:50%;border:3px solid #38bdf8;display:block;background:#0f172a;"></canvas>
+    <div id="loupeBadge" style="position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);background:#0f172a;border:1px solid #334155;border-radius:12px;padding:3px 10px;color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(0,0,0,0.5);white-space:nowrap;">
+      <span id="loupeSwatch" style="width:12px;height:12px;border-radius:3px;border:1px solid #ffffff;display:inline-block;box-shadow:0 0 2px rgba(0,0,0,0.5);"></span>
+      <span id="loupeHex">#FFFFFF</span>
+    </div>
+  </div>
+  <div class="color-edit-popup" id="colorEditPopup" style="display:none;">
+    <label class="field" style="margin-top:0;">Name</label>
+    <input type="text" id="colorEditName" placeholder="Color name">
+    <label class="field">Color</label>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <div id="colorEditHexSwatch" title="Click to choose a color" style="flex:1;height:32px;border:1px solid var(--line);border-radius:6px;cursor:pointer;"></div>
+      <button class="btn small" id="colorEditPickBtn" title="Pick a color from the canvas">Pick</button>
+    </div>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="colorEditSaveBtn">Save</button>
+      <button class="btn small" id="colorEditCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="colorShiftPopup" style="display:none; width:260px; min-width:220px; min-height:200px; max-width:90vw; max-height:85vh; resize:both; overflow:hidden; z-index:2200; box-shadow:0 12px 30px rgba(0,0,0,.6); flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; cursor:move; padding-bottom:6px; border-bottom:1px solid var(--line); user-select:none; flex:0 0 auto;" id="colorShiftDragHandle">
+      <span style="font-weight:600; font-size:12px; color:var(--text);">Color Shift</span>
+      <button class="btn small" id="colorShiftCloseCross" style="padding:2px 6px; font-size:11px; line-height:1;" title="Close">✕</button>
+    </div>
+    <label class="field" style="margin-top:0; font-size:11px; flex:0 0 auto;">Change selected colors to</label>
+    <div class="swatch-grid" id="colorShiftPaletteGrid" style="display:grid; grid-template-columns:repeat(auto-fill, 26px); gap:6px; flex:1 1 auto; overflow-y:auto; margin-bottom:8px; min-height:60px; align-content:start;"></div>
+    <div class="hint" id="colorShiftSummary" style="margin:4px 0; font-size:11px; flex:0 0 auto;"></div>
+    <label style="font-size:11px; display:flex; align-items:center; gap:6px; margin:4px 0 8px 0; color:var(--text); cursor:pointer; user-select:none; flex:0 0 auto;">
+      <input type="checkbox" id="colorShiftPreviewCheckbox" checked style="accent-color:var(--accent);"> Preview on canvas
+    </label>
+    <div class="color-edit-actions" style="margin-top:auto; padding-top:6px; flex:0 0 auto;">
+      <button class="btn small primary" id="colorShiftApplyBtn" disabled>Apply</button>
+      <button class="btn small" id="colorShiftCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="outlinePopup" style="display:none; width:280px; min-width:240px; min-height:280px; max-width:90vw; max-height:85vh; resize:both; overflow:hidden; z-index:2200; box-shadow:0 12px 30px rgba(0,0,0,.6); flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; cursor:move; padding-bottom:6px; border-bottom:1px solid var(--line); user-select:none; flex:0 0 auto;" id="outlineDragHandle">
+      <span style="font-weight:600; font-size:12px; color:var(--text);">Outline Layer Pixels</span>
+      <button class="btn small" id="outlineCloseCross" style="padding:2px 6px; font-size:11px; line-height:1;" title="Close">✕</button>
+    </div>
+    <div style="flex:1 1 auto; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:2px;">
+      <div>
+        <label class="field" style="margin-top:0; font-size:11px;">Outline Color</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="color" id="outlineColorPicker" value="#000000" style="width:32px; height:26px; border:1px solid var(--line); border-radius:4px; padding:0; background:transparent; cursor:pointer;">
+          <input type="text" id="outlineColorHex" value="#000000" style="flex:1; font-family:monospace; font-size:11px; padding:3px 6px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:4px;">
+          <button class="btn small" id="outlineUseActiveColorBtn" style="font-size:10px; padding:3px 6px;" title="Use current brush color">Active</button>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label class="field" style="margin-top:0; font-size:11px;">Thickness: <span id="outlineThicknessVal" style="color:var(--accent); font-weight:600;">1px</span></label>
+        </div>
+        <input type="range" id="outlineThicknessSlider" min="1" max="8" value="1" style="width:100%; accent-color:var(--accent);">
+      </div>
+
+      <div>
+        <label class="field" style="margin-top:0; font-size:11px;">Placement</label>
+        <select id="outlinePlacementSelect" style="width:100%; font-size:11px; padding:4px 6px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:4px;">
+          <option value="outside" selected>Outside (Around pixels)</option>
+          <option value="inside">Inside (Over edge pixels)</option>
+          <option value="both">Both (Inside & Outside)</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="field" style="margin-top:0; font-size:11px;">Corners / Shape</label>
+        <select id="outlineCornersSelect" style="width:100%; font-size:11px; padding:4px 6px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:4px;">
+          <option value="8way" selected>8-Way (Diagonal + Cardinal)</option>
+          <option value="4way">4-Way (Cardinal / Diamond only)</option>
+        </select>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:6px; margin-top:2px;">
+        <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--text); cursor:pointer; user-select:none;">
+          <input type="checkbox" id="outlinePixelPerfectCheckbox" checked style="accent-color:var(--accent);">
+          <span>Pixel-Perfect (remove L-corners)</span>
+        </label>
+        <div class="hint" style="font-size:10px; margin:0; line-height:1.3;">Removes double-pixel staircase elbows for clean 1-pixel diagonal outlines.</div>
+
+        <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--text); cursor:pointer; user-select:none; margin-top:4px;">
+          <input type="checkbox" id="outlinePreviewCheckbox" checked style="accent-color:var(--accent);">
+          <span>Preview on canvas</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="color-edit-actions" style="margin-top:auto; padding-top:8px; border-top:1px solid var(--line); flex:0 0 auto;">
+      <button class="btn small primary" id="outlineApplyBtn">Apply Outline</button>
+      <button class="btn small" id="outlineCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="colorizeTargetPopup" style="display:none; width:260px; min-width:200px; min-height:160px; max-width:90vw; max-height:85vh; resize:both; overflow:hidden; z-index:2200; box-shadow:0 12px 30px rgba(0,0,0,.6); flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:10px; cursor:move; padding-bottom:6px; border-bottom:1px solid var(--line); user-select:none; flex:0 0 auto;" id="colorizeTargetDragHandle">
+      <div style="font-weight:600; font-size:12px; color:var(--text); text-align:center; width:100%;">Colorize target color</div>
+      <button class="btn small" id="colorizeTargetCloseCross" style="position:absolute; right:0; top:0; padding:2px 6px; font-size:11px; line-height:1;" title="Close">✕</button>
+    </div>
+    <div class="swatch-grid" id="colorizeTargetPaletteGrid" style="display:grid; grid-template-columns:repeat(auto-fill, 26px); gap:6px; flex:1 1 auto; overflow-y:auto; margin-bottom:10px; min-height:48px; align-content:start;"></div>
+    <div class="color-edit-actions" style="margin-top:auto; padding-top:4px; flex:0 0 auto;">
+      <button class="btn small primary" id="colorizeTargetDoneBtn">Done</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="layerInfoPopup" style="display:none;width:200px;">
+    <div class="hint" id="layerInfoContent"></div>
+    <div class="color-edit-actions" style="margin-top:8px;">
+      <button class="btn small" id="layerInfoMergeDownBtn" style="flex:1;">Merge Down</button>
+      <button class="btn small" id="layerInfoCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="aboutPopup" style="display:none;width:260px;">
+    <label class="field" style="margin-top:0;">Palette Spray Studio</label>
+    <div class="hint" id="aboutVersionInfo" style="margin-top:4px;"></div>
+    <div class="hint" style="margin-top:4px;">This app is free and open source</div>
+    <div class="hint" style="margin-top:10px;">
+      <span style="color:var(--accent); font-weight:600;">Mason Image &amp; Sprite Studio</span>
+    </div>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="aboutCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="tilesetTesterPopup" style="display:none; width:520px; height:620px; min-width:380px; min-height:420px; max-width:95vw; max-height:95vh; resize:both; overflow:hidden; z-index:2200; padding:12px; box-shadow:0 16px 40px rgba(0,0,0,0.8); flex-direction:column;">
+    <div class="drag-handle" id="tilesetTesterDragHandle" style="flex:0 0 auto; cursor:move; padding:6px 10px; margin:-12px -12px 10px -12px; background:var(--panel-2); border-bottom:1px solid var(--line); font-weight:bold; font-size:12px; display:flex; justify-content:space-between; align-items:center; border-radius:8px 8px 0 0; user-select:none;">
+      <span>Tileset Tester & Studio</span>
+      <span id="tilesetTesterCloseCross" style="cursor:pointer; padding:2px 6px; font-weight:normal; opacity:0.7;">✕</span>
+    </div>
+    
+    <!-- Controls Toolbar -->
+    <div style="flex:0 0 auto; display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; font-size:11px;">
+      <label style="display:flex; align-items:center; gap:4px; white-space:nowrap;">
+        Tile Size:
+        <select id="tilesetTileSizeSelect" style="background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:2px; font-size:11px;">
+          <option value="8">8 x 8</option>
+          <option value="16">16 x 16</option>
+          <option value="32" selected>32 x 32</option>
+          <option value="48">48 x 48</option>
+          <option value="64">64 x 64</option>
+          <option value="128">128 x 128</option>
+        </select>
+      </label>
+
+      <label style="display:flex; align-items:center; gap:4px; white-space:nowrap;">
+        Tester Grid:
+        <select id="tilesetTesterGridSizeSelect" style="background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:2px; font-size:11px;">
+          <option value="8">8 x 8</option>
+          <option value="12" selected>12 x 12</option>
+          <option value="16">16 x 16</option>
+          <option value="24">24 x 24</option>
+          <option value="32">32 x 32</option>
+        </select>
+      </label>
+
+      <button class="btn small" id="tilesetClearTesterBtn" style="padding:2px 6px; font-size:10px; border-radius:4px;">Clear Grid</button>
+      
+      <div style="display:flex; gap:8px; align-items:center; border-left:1px solid var(--line); padding-left:8px; margin-left:4px;">
+        <label style="display:flex; align-items:center; gap:3px; cursor:pointer;" title="View standard color tiles">
+          <input type="radio" name="tilesetRenderMode" id="tilesetModeColor" checked style="accent-color:var(--accent);"> Color
+        </label>
+        <label style="display:flex; align-items:center; gap:3px; cursor:pointer;" title="Enable 2.5D normal/bump-mapped lighting">
+          <input type="radio" name="tilesetRenderMode" id="tilesetModeLit" style="accent-color:var(--accent);"> Lit
+        </label>
+        <label style="display:flex; align-items:center; gap:3px; cursor:pointer;" title="View height map overlay">
+          <input type="radio" name="tilesetRenderMode" id="tilesetModeHeight" style="accent-color:var(--accent);"> Height
+        </label>
+        <label style="display:flex; align-items:center; gap:3px; cursor:pointer;" title="View roughness map overlay">
+          <input type="radio" name="tilesetRenderMode" id="tilesetModeRoughness" style="accent-color:var(--accent);"> Roughness
+        </label>
+      </div>
+    </div>
+
+    <!-- Painting/Tester Display (Upper Half) -->
+    <div style="flex:1 1 50%; min-height:100px; display:flex; flex-direction:column; overflow:hidden; margin-bottom:4px;">
+      <div style="flex:0 0 auto; font-weight:600; font-size:11px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+        <span>Tester Area (Left-click: paint, Right-click: erase)</span>
+        <label style="font-size:10px; font-weight:normal; display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="tilesetTesterShowGrid" checked style="accent-color:var(--accent);"> Show Grid
+        </label>
+      </div>
+      <div id="tilesetTesterCanvasWrap" style="flex:1 1 auto; width:100%; height:100%; min-height:80px; overflow:auto; background:#0b0c10; border:1px solid var(--line); border-radius:4px; display:flex; align-items:center; justify-content:center; padding:10px; position:relative;">
+        <canvas id="tilesetTesterCanvas" style="background:#0b0c10; cursor:crosshair; display:block; image-rendering:pixelated; box-shadow:0 4px 10px rgba(0,0,0,0.5);"></canvas>
+      </div>
+    </div>
+
+    <!-- Separator -->
+    <div style="flex:0 0 auto; border-top:1px solid var(--line); margin:6px 0;"></div>
+
+    <!-- Tileset Selector Display (Lower Half) -->
+    <div style="flex:1 1 50%; min-height:100px; display:flex; flex-direction:column; overflow:hidden;">
+      <div style="flex:0 0 auto; font-weight:600; font-size:11px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+        <span id="tilesetSelectedInfo">Selected: Tile #0 (0, 0)</span>
+        <label style="font-size:10px; font-weight:normal; display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="tilesetSelectorShowIDs" checked style="accent-color:var(--accent);"> Show IDs
+        </label>
+      </div>
+      <div id="tilesetSelectorCanvasWrap" style="flex:1 1 auto; width:100%; height:100%; min-height:80px; overflow:auto; background:#0b0c10; border:1px solid var(--line); border-radius:4px; display:flex; align-items:center; justify-content:center; padding:10px; position:relative;">
+        <canvas id="tilesetSelectorCanvas" style="background:#0b0c10; cursor:pointer; display:block; image-rendering:pixelated; box-shadow:0 4px 10px rgba(0,0,0,0.5);"></canvas>
+      </div>
+    </div>
+
+    <!-- Actions Footer -->
+    <div class="color-edit-actions" style="flex:0 0 auto; margin-top:8px;">
+      <button class="btn small" id="tilesetCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="appConfirmModalOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.65); backdrop-filter:blur(2px); z-index:3000; align-items:center; justify-content:center;">
+    <div class="color-edit-popup" style="display:block; position:relative; z-index:3001; width:320px; box-shadow:0 16px 40px rgba(0,0,0,0.7);">
+      <label class="field" id="confirmModalTitle" style="margin-top:0; font-weight:700; font-size:14px; color:var(--text);">Confirm Action</label>
+      <div id="confirmModalMsg" style="margin-top:8px; font-size:12px; color:var(--text-dim); line-height:1.4; word-break:break-word;">Are you sure?</div>
+      <div class="color-edit-actions" style="margin-top:16px;">
+        <button class="btn small" id="confirmModalCancelBtn">Cancel</button>
+        <button class="btn small danger" id="confirmModalOkBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Options Modal (Color, Height, Roughness maps) -->
+  <div class="modal-backdrop" id="exportModalOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.65); backdrop-filter:blur(2px); z-index:3000; align-items:center; justify-content:center;">
+    <div class="color-edit-popup" id="exportModalPopup" style="display:flex; flex-direction:column; position:relative; z-index:3001; width:440px; max-width:94vw; max-height:90vh; box-shadow:0 16px 40px rgba(0,0,0,0.7); overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:10px;">
+        <label class="field" style="margin:0; font-weight:700; font-size:14px; color:var(--text);">💾 Export Project & Texture Maps</label>
+        <button class="btn icon small" id="exportModalCloseBtn" style="padding:2px 6px;">✕</button>
+      </div>
+
+      <!-- Preview Area -->
+      <div style="background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:12px; text-align:center;">
+        <div style="display:flex; justify-content:center; gap:6px; margin-bottom:8px;">
+          <button class="btn small primary" id="exportPreviewTabColor" style="padding:3px 10px; font-size:11px;">Color Map</button>
+          <button class="btn small" id="exportPreviewTabHeight" style="padding:3px 10px; font-size:11px;">Height Map</button>
+          <button class="btn small" id="exportPreviewTabRoughness" style="padding:3px 10px; font-size:11px;">Roughness Map</button>
+        </div>
+        <div style="width:100%; height:160px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.25); border-radius:4px; overflow:hidden;">
+          <canvas id="exportModalPreviewCanvas" width="128" height="128" style="max-width:100%; max-height:100%; object-fit:contain; image-rendering:pixelated;"></canvas>
+        </div>
+        <div id="exportPreviewLabel" class="hint" style="margin-top:4px; font-size:11px;">Showing: Composite Color (Albedo) Map</div>
+      </div>
+
+      <!-- Map Selection Checkboxes -->
+      <label class="field" style="margin-top:0; font-weight:600; font-size:12px;">Maps to Export</label>
+      <div style="display:flex; flex-direction:column; gap:6px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:8px; margin-top:4px;">
+        <label style="font-size:12px; display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+          <span style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="exportIncludeColor" checked style="accent-color:var(--accent);">
+            <span><strong>Color / Albedo</strong> (Diffuse)</span>
+          </span>
+          <span class="hint" id="exportFilenameColor" style="font-size:10px; opacity:0.8;">name.png</span>
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+          <span style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="exportIncludeHeight" style="accent-color:var(--accent);">
+            <span><strong>Height Map</strong> (Displacement / Bump)</span>
+          </span>
+          <span class="hint" id="exportFilenameHeight" style="font-size:10px; opacity:0.8;">name_height.png</span>
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+          <span style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="exportIncludeRoughness" style="accent-color:var(--accent);">
+            <span><strong>Roughness Map</strong> (Gloss / PBR)</span>
+          </span>
+          <span class="hint" id="exportFilenameRoughness" style="font-size:10px; opacity:0.8;">name_roughness.png</span>
+        </label>
+      </div>
+
+      <!-- Export Mode Selection -->
+      <label class="field" style="margin-top:10px; font-weight:600; font-size:12px;">Export Target</label>
+      <div style="display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+        <label style="font-size:12px; display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="radio" name="exportTargetMode" value="flattened" checked style="accent-color:var(--accent);">
+          <span><strong>Flattened Image</strong> (Composite of all visible layers)</span>
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="radio" name="exportTargetMode" value="layers" style="accent-color:var(--accent);">
+          <span><strong>Individual Layers</strong> (Export each visible layer as its own file)</span>
+        </label>
+        <label style="font-size:12px; display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="radio" name="exportTargetMode" value="spritesheet" style="accent-color:var(--accent);">
+          <span><strong>Sprite Sheet</strong> (All animation frames horizontal strip)</span>
+        </label>
+      </div>
+
+      <!-- Actions Footer -->
+      <div class="color-edit-actions" style="margin-top:16px; display:flex; gap:6px; justify-content:flex-end;">
+        <button class="btn small" id="exportModalCancelBtn">Cancel</button>
+        <button class="btn small primary" id="exportModalSubmitBtn" style="font-weight:600; padding:4px 14px;">Export Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="newProjectModalOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.55); z-index:2200; align-items:center; justify-content:center;">
+    <div class="color-edit-popup" id="newProjectPopup" style="display:block; position:relative; z-index:2201; width:300px; box-shadow:0 16px 40px rgba(0,0,0,0.7);">
+      <label class="field" style="margin-top:0; font-weight:600; font-size:14px; color:var(--text);">New Project</label>
+      
+      <label class="field" style="margin-top:10px;">Preset Size</label>
+      <select id="newProjPresetSelect" style="width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:13px;">
+        <option value="32">32 × 32</option>
+        <option value="64">64 × 64</option>
+        <option value="96">96 × 96</option>
+        <option value="128">128 × 128</option>
+        <option value="256">256 × 256</option>
+        <option value="512" selected>512 × 512 (Default)</option>
+        <option value="1024">1024 × 1024</option>
+        <option value="custom">Custom</option>
+      </select>
+
+      <div style="display:flex; gap:10px; margin-top:10px; align-items:center;">
+        <div style="flex:1;">
+          <label class="field" style="margin-top:0;">Width (px)</label>
+          <input type="number" id="newProjWidthInput" min="1" max="8192" value="512" style="width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:13px;">
+        </div>
+        <div style="flex:1;">
+          <label class="field" style="margin-top:0;">Height (px)</label>
+          <input type="number" id="newProjHeightInput" min="1" max="8192" value="512" style="width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:13px;">
+        </div>
+      </div>
+
+      <label style="display:flex; align-items:center; gap:6px; margin-top:12px; font-size:12px; color:var(--text); cursor:pointer; user-select:none;">
+        <input type="checkbox" id="newProjLinkCheckbox" checked style="accent-color:var(--accent);">
+        <span>Link Width &amp; Height</span>
+      </label>
+
+      <div class="color-edit-actions" style="margin-top:16px;">
+        <button class="btn small primary" id="newProjCreateBtn">Create Project</button>
+        <button class="btn small" id="newProjCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+    <!-- Instructions Side Panel (displays to the right of the main modal) -->
+    <div class="color-edit-popup" id="cloudInstructionsPanel" style="display:none; position:relative; z-index:2501; width:380px; max-width:92vw; max-height:90vh; overflow-y:auto; box-shadow:0 16px 40px rgba(0,0,0,0.8); border-radius:10px; padding:18px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:14px;">📖</span>
+          <span style="font-weight:700; font-size:14px; color:var(--text);">Cloud Setup &amp; Instructions</span>
+        </div>
+        <button class="btn icon small" id="cloudInstructionsCloseBtn" style="padding:2px 6px;">✕</button>
+      </div>
+
+      <div style="display:flex; gap:6px; margin-bottom:12px; background:var(--panel-2); padding:3px; border-radius:6px; border:1px solid var(--line);">
+        <button id="cloudInstrTabGDrive" class="btn small primary" style="flex:1; font-size:11px; padding:3px 6px;">Google Drive</button>
+        <button id="cloudInstrTabOneDrive" class="btn small" style="flex:1; font-size:11px; padding:3px 6px;">OneDrive</button>
+        <button id="cloudInstrTabBackups" class="btn small" style="flex:1; font-size:11px; padding:3px 6px;">Backups &amp; Sync</button>
+      </div>
+
+      <!-- Google Drive Guide Content -->
+      <div id="cloudInstrContentGDrive" style="font-size:12px; line-height:1.5; color:var(--text);">
+        <div style="font-weight:600; color:var(--accent); margin-bottom:6px;">Google Drive Storage</div>
+        <ol style="margin:0 0 10px 0; padding-left:18px; display:flex; flex-direction:column; gap:6px;">
+          <li><strong>Active Service Toggle</strong>: Use the top slider to switch the active cloud service to Google Drive.</li>
+          <li><strong>Sign In</strong>: Click <em>Sign In</em> to connect your Google account in the secure Google sign-in window.</li>
+          <li><strong>Target Folder</strong>: Projects save into your configured full path (default: <code>/Palette Spray Studio</code>). You can enter any custom path (e.g. <code>/Art/Projects</code>) and click <em>Apply</em>, or navigate subfolders using <em>Browse Folders</em>.</li>
+          <li><strong>Save &amp; Load</strong>: Enter a file name and click <em>Save to Cloud</em> to store your complete artwork project. Click <em>Load</em> on any file in the list to open it directly into the canvas.</li>
+        </ol>
+      </div>
+
+      <!-- OneDrive Guide Content -->
+      <div id="cloudInstrContentOneDrive" style="display:none; font-size:12px; line-height:1.5; color:var(--text);">
+        <div style="font-weight:600; color:var(--accent); margin-bottom:6px;">Microsoft OneDrive Storage</div>
+        <ol style="margin:0 0 10px 0; padding-left:18px; display:flex; flex-direction:column; gap:6px;">
+          <li><strong>Active Service Toggle</strong>: Use the top slider to switch the active cloud service to OneDrive.</li>
+          <li><strong>Sign In</strong>: Click <em>Sign In</em> to connect your Microsoft account.</li>
+          <li><strong>Target Folder</strong>: Projects save into your configured full path (default: <code>/Palette Spray Studio</code>). You can enter any custom path or browse directories directly.</li>
+          <li><strong>Save &amp; Load</strong>: Save or load <code>.pssproj</code> projects seamlessly across your devices.</li>
+        </ol>
+      </div>
+
+      <!-- Backups & Sync Guide Content -->
+      <div id="cloudInstrContentBackups" style="display:none; font-size:12px; line-height:1.5; color:var(--text);">
+        <div style="font-weight:600; color:var(--accent); margin-bottom:6px;">Automatic Cloud Backups &amp; Sync</div>
+        <ul style="margin:0 0 10px 0; padding-left:18px; display:flex; flex-direction:column; gap:6px;">
+          <li><strong>Automatic Cloud Backups</strong>: Check <em>Automatic Cloud Backups</em> to periodically upload project snapshots directly to your target folder on the active cloud service.</li>
+          <li><strong>Active Cloud Association</strong>: Once a project is saved to or loaded from the cloud, pressing <kbd>Ctrl+S</kbd> or clicking Save updates the cloud file directly.</li>
+          <li><strong>Data Security</strong>: Authentication tokens reside only in your local browser session; data transfers travel directly to official Google Drive and Microsoft Graph APIs.</li>
+        </ul>
+      </div>
+    </div>
+
+  <div class="color-edit-popup" id="svgPopup" style="display:none;width:320px;">
+    <label class="field" style="margin-top:0;font-weight:600;">Add Custom SVG Vector Shape</label>
+    <label class="field">Shape Name</label>
+    <input type="text" id="svgNameInput" placeholder="e.g. Starburst" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:4px 8px;font-size:12px;">
+    <label class="field">SVG Markup or Path (d="...")</label>
+    <textarea id="svgCodeInput" rows="5" placeholder='Paste <svg...> tags or path d="M10 80 Q 52.5 10..."' style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:6px;font-size:11px;font-family:monospace;resize:vertical;"></textarea>
+    <div class="hint" style="margin-top:4px;">Paste raw SVG code or SVG path <code>d</code> data. Curves are rasterized into a high-res spray mask template.</div>
+    <div class="color-edit-actions" style="margin-top:12px;">
+      <button class="btn small primary" id="svgAddDoneBtn">Add SVG Shape</button>
+      <button class="btn small" id="svgAddCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="makeSeamlessPopup" style="display:none; width:320px; resize:both; overflow:auto; min-width:280px; min-height:320px; max-width:90vw; max-height:90vh; z-index:2200;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; cursor:move; padding-bottom:6px; border-bottom:1px solid var(--line);" id="makeSeamlessDragHandle">
+      <div style="font-weight:600; font-size:12px; color:var(--text); display:flex; align-items:center; gap:6px;">🧩 Make Seamless (Offset & Blend)</div>
+      <button class="btn small" id="seamlessPopupCloseBtn" style="padding:2px 6px; font-size:11px;">✕</button>
+    </div>
+    <div style="width:100%; aspect-ratio:1/1; min-height:160px; max-height:45vh; display:flex; align-items:center; justify-content:center; background:repeating-conic-gradient(#2a2a2a 0% 25%, #1a1a1a 0% 50%) 50% / 12px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:8px; overflow:hidden;">
+      <canvas id="makeSeamlessPreviewCanvas" style="width:100%; height:100%; object-fit:contain; image-rendering:pixelated;"></canvas>
+    </div>
+    <div class="hint" style="margin-bottom:8px;">Wraps active layer 50% horizontally & vertically, moving edges to center to inspect and blend seams seamlessly.</div>
+    <label class="field">Fade strength <span class="field-value" id="seamlessFadeVal">50%</span></label>
+    <input type="range" id="seamlessFadeSlider" min="0" max="100" value="50">
+    <label class="field">Zoom (widens the fade) <span class="field-value" id="seamlessZoomVal">100%</span></label>
+    <input type="range" id="seamlessZoomSlider" min="100" max="300" value="100">
+    <label class="field" style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;">
+      <input type="checkbox" id="seamlessPalettizeCheckbox" checked style="accent-color:var(--accent);"> Snap to Palette
+    </label>
+    <div class="color-edit-actions" style="margin-top:12px;">
+      <button class="btn small primary" id="seamlessApplyBtn">Apply to Layer</button>
+      <button class="btn small" id="seamlessCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="reduceColorsPopup" style="display:none;width:280px;">
+    <label class="field" id="reduceColorsDragHandle" style="margin-top:0;cursor:move;user-select:none;">&#10239; Reduce Colors</label>
+    <div class="hint" id="reduceColorsCurrentCount"></div>
+    <div class="hint" id="reduceColorsResultCount" style="font-weight:600;"></div>
+    <label class="field">Mode</label>
+    <select id="reduceColorsModeSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      <option value="blend">Blend — merge into new averaged colors</option>
+      <option value="consolidate">Consolidate — keep only original colors</option>
+      <option value="frequency">Frequency Threshold — replace least used colors</option>
+    </select>
+    <div id="reduceBlendControls">
+      <label class="field">Max colors <span class="field-value" id="reduceColorsMaxVal">256</span></label>
+      <input type="range" id="reduceColorsMaxSlider" min="2" max="256" value="256">
+      <div class="hint">Quantizes the active layer's colors down to at most this many, picking the best-fitting set automatically (median cut) and remapping every pixel to its nearest match. Useful after loading a photo or a JPEG-compressed image, which often has thousands of nearly-identical colors from compression artifacts even when it looks flat.</div>
+      <label class="field">Weighted Colors <span style="font-weight:400;color:var(--text-dim);text-transform:none;letter-spacing:0;">(optional)</span></label>
+      <div class="hint">Pick colors to protect from merging (weight above 1x) or reduce more aggressively (below 1x). Also affects similar nearby colors, not just the exact shade picked.</div>
+      <button class="btn small" id="reduceColorsPickWeightBtn" style="width:100%;">+ Pick Color from Canvas</button>
+      <div id="reduceColorsWeightedList" style="margin-top:6px;display:flex;flex-direction:column;gap:6px;"></div>
+      <label class="field">Neighborhood <span class="field-value" id="reduceColorsNeighborhoodVal">40</span></label>
+      <input type="range" id="reduceColorsNeighborhoodSlider" min="5" max="200" value="40">
+      <div class="hint">How far a weighted color's influence reaches — low means only near-identical shades are affected, high spreads the effect across a broader range of similar colors.</div>
+    </div>
+    <div id="reduceConsolidateControls" style="display:none;">
+      <div class="hint">Groups similar colors together and picks ONE existing color from each group to represent it everywhere — never blends or invents a new color, only ever keeps colors already in the image.</div>
+      <label class="field">Hue Tolerance <span class="field-value" id="rcHueTolVal">20</span></label>
+      <input type="range" id="rcHueTolSlider" min="0" max="100" value="20">
+      <label class="field">Hue Curve <span class="field-value" id="rcHueCurveVal">50</span></label>
+      <input type="range" id="rcHueCurveSlider" min="0" max="100" value="50">
+      <div class="hint">Tolerance sets how wide a hue range gets grouped together — low keeps fine distinctions, high consolidates more aggressively. Curve picks where in that range the kept color comes from (50 = the middle; push toward 0 or 100 to favor one end).</div>
+      <label class="field">Saturation Tolerance <span class="field-value" id="rcSatTolVal">20</span></label>
+      <input type="range" id="rcSatTolSlider" min="0" max="100" value="20">
+      <label class="field">Saturation Curve <span class="field-value" id="rcSatCurveVal">50</span></label>
+      <input type="range" id="rcSatCurveSlider" min="0" max="100" value="50">
+      <label class="field">Luminance Tolerance <span class="field-value" id="rcValTolVal">20</span></label>
+      <input type="range" id="rcValTolSlider" min="0" max="100" value="20">
+      <label class="field">Luminance Curve <span class="field-value" id="rcValCurveVal">50</span></label>
+      <input type="range" id="rcValCurveSlider" min="0" max="100" value="50">
+      <div class="hint">E.g. push Luminance Curve toward 100 to favor keeping the lighter shade from each group instead of the middle one.</div>
+    </div>
+    <div id="reduceFrequencyControls" style="display:none;">
+      <div class="hint">Removes or replaces rare colors (used on fewer than N pixels on active layer) by mapping them to the closest frequent color.</div>
+      <label class="field">Pixel Threshold <span class="field-value" id="rcFreqThreshVal">5 px</span></label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="range" id="rcFreqThreshSlider" min="1" max="100" value="5" style="flex:1;">
+        <input type="number" id="rcFreqThreshInput" min="1" max="10000" value="5" style="width:60px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:3px 5px;font-size:11px;">
+      </div>
+      <div class="hint">Colors with fewer than this number of pixels will be replaced by the nearest frequent color or trimmed from the palette.</div>
+      <label class="field" style="margin-top:8px;">Apply To</label>
+      <select id="rcFreqTargetSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:11px;">
+        <option value="both">Both Active Layer & Main Palette</option>
+        <option value="layer">Active Layer Only</option>
+        <option value="palette">Main Palette Only (trim rare colors)</option>
+      </select>
+      <div class="hint" id="rcFreqTargetHint" style="margin-top:4px;">Remaps layer pixels to frequent colors and removes rare colors from your main palette.</div>
+    </div>
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:6px;">
+      <input type="checkbox" id="reduceColorsPreviewCheckbox"> Preview on canvas
+    </label>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="reduceColorsApplyBtn">Apply</button>
+      <button class="btn small" id="reduceColorsCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="paletteTweakPopup" style="display:none;width:320px;">
+    <label class="field" id="paletteTweakDragHandle" style="margin-top:0;cursor:move;user-select:none;">&#10239; Tweak Palette</label>
+    <label class="field">Applies To</label>
+    <select id="ptModeSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      <option value="all">Entire Palette</option>
+      <option value="selected">Selected Colors Only</option>
+    </select>
+    <div class="hint" id="ptModeHint"></div>
+
+    <label class="field">Hue Tint Toward</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div id="ptHueTargetSwatch" title="Click to choose the hue to tint toward" style="width:44px;height:30px;border:1px solid var(--line);border-radius:6px;cursor:pointer;"></div>
+      <div style="flex:1;">
+        <label class="field" style="margin-top:0;">Shift Amount <span class="field-value" id="ptHueAmountVal">0%</span></label>
+        <input type="range" id="ptHueAmountSlider" min="0" max="100" value="0">
+      </div>
+    </div>
+    <div class="hint">0% leaves hues untouched; 100% fully converts every color to the target hue. Pick a warm color to warm the palette, a cool one to cool it.</div>
+
+    <label class="field">Saturation <span class="field-value" id="ptSatVal">0</span></label>
+    <input type="range" id="ptSatSlider" min="-100" max="100" value="0">
+    <div class="hint">Negative mutes toward gray; positive pushes toward more vivid.</div>
+
+    <label class="field">Luminance <span class="field-value" id="ptLumVal">0</span></label>
+    <input type="range" id="ptLumSlider" min="-100" max="100" value="0">
+    <div class="hint">Negative darkens toward black; positive lightens toward white.</div>
+
+    <label class="field">Preview</label>
+    <div id="ptPreviewGrid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:4px;"></div>
+
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="ptApplyBtn">Apply</button>
+      <button class="btn small" id="ptResetBtn">Reset</button>
+      <button class="btn small" id="ptCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="extractPalettePopup" style="display:none;width:300px;">
+    <label class="field" id="extractPaletteDragHandle" style="margin-top:0;cursor:move;user-select:none;">&#10239; Extract Palette from Layer</label>
+    <div class="hint" id="extractPaletteInfo"></div>
+    <div id="extractOverCapControls" style="display:none;">
+      <label class="field">This layer has more colors than fit</label>
+      <select id="extractOverCapModeSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+        <option value="reduce">Reduce the image itself first, then extract</option>
+        <option value="noreduce">Extract only the most representative colors (image unchanged)</option>
+      </select>
+      <div class="hint">Reducing first means the image and the extracted palette match exactly.</div>
+    </div>
+    <label class="field">Add to Palette</label>
+    <select id="extractModeSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      <option value="add">Add to Main Palette</option>
+      <option value="replace">Replace Main Palette</option>
+    </select>
+    <div class="hint" id="extractModeHint"></div>
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:6px;" id="extractNewGroupRow">
+      <input type="checkbox" id="extractNewGroupCheckbox" checked> Also create a new group
+    </label>
+    <input type="text" id="extractGroupNameInput" value="Extracted Palette" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-top:6px;">
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="extractApplyBtn">Extract</button>
+      <button class="btn small" id="extractCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="hslPickerPopup" style="display:none;width:220px;z-index:3000;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:move; padding-bottom:6px; border-bottom:1px solid var(--line);" id="hslPickerDragHandle">
+      <div style="font-weight:600; font-size:11px; color:var(--accent); display:flex; align-items:center; gap:4px;">🎨 Color Picker</div>
+    </div>
+    <label class="field" style="margin-top:0;">Hue</label>
+    <canvas id="hslPickerHueCanvas" width="200" height="24" style="width:100%;height:24px;border-radius:6px;cursor:pointer;display:block;touch-action:none;"></canvas>
+    <label class="field">Saturation <span class="field-value" id="hslPickerSatVal">100%</span></label>
+    <input type="range" id="hslPickerSatSlider" min="0" max="100" value="100">
+    <label class="field">Lightness <span class="field-value" id="hslPickerLumVal">50%</span></label>
+    <input type="range" id="hslPickerLumSlider" min="0" max="100" value="50">
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <div id="hslPickerSwatch" style="width:36px;height:28px;border:1px solid var(--line);border-radius:6px;flex:0 0 auto;"></div>
+      <div class="hint" id="hslPickerHexLabel" style="margin:0;"></div>
+    </div>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="hslPickerActionBtn" style="display:none;"></button>
+      <button class="btn small" id="hslPickerCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="hueTintPickerPopup" style="display:none;width:220px;">
+    <label class="field" style="margin-top:0;">Hue Tint Toward</label>
+    <canvas id="hueTintStripCanvas" width="200" height="30" style="width:100%;height:30px;border-radius:6px;cursor:pointer;display:block;touch-action:none;"></canvas>
+    <div class="hint" id="hueTintValueLabel" style="text-align:center;margin-top:6px;"></div>
+  </div>
+
+  <div class="color-edit-popup" id="paletteBuilderPopup" style="display:none;width:340px;resize:both;overflow:auto;min-width:280px;min-height:320px;max-width:90vw;max-height:90vh;">
+    <label class="field" id="paletteBuilderDragHandle" style="margin-top:0;cursor:move;user-select:none;">&#10239; Build Palette</label>
+    <div class="hint">Click a swatch to lock it in (circle) or unlock it (square) — locked colors influence what Regenerate produces. Drag swatches to reorder before regenerating.</div>
+    <label class="field">Color Count <span class="field-value" id="pbCountVal">16</span></label>
+    <input type="range" id="pbCountSlider" min="2" max="256" value="16">
+    <label class="field">Spread <span class="field-value" id="pbSpreadVal">4</span></label>
+    <input type="range" id="pbSpreadSlider" min="0" max="15" value="4">
+    <div class="hint">How many swatches away a locked color's influence reaches. Beyond that distance, an unlocked swatch isn't influenced by it at all.</div>
+    <label class="field">Jitter <span class="field-value" id="pbJitterVal">50</span></label>
+    <input type="range" id="pbJitterSlider" min="0" max="100" value="50">
+    <div class="hint">How much color variation gets applied around whichever locked color is influencing a swatch — low stays close to it, high explores further.</div>
+    <label class="field">Color Scheme <span style="font-weight:400;color:var(--text-dim);text-transform:none;letter-spacing:0;">(for swatches beyond Spread's reach)</span></label>
+    <select id="pbColorSchemeSelect" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      <option value="none" title="A fully random hue, no relationship to any locked color.">None (fully random)</option>
+      <option value="complementary" title="Directly opposite a locked color on the wheel (180° away) — strong, high-contrast pairing.">Complementary</option>
+      <option value="splitComplementary" title="The two hues flanking a locked color's complement (150°/210° away) — contrast with a bit more harmony than straight complementary.">Split-Complementary</option>
+      <option value="triadic" title="Two hues evenly spaced around the wheel from a locked color (120°/240° away) — vibrant, balanced contrast.">Triadic</option>
+      <option value="tetradic" title="Three hues evenly spaced around the wheel from a locked color (90°/180°/270° away) — rich variety; easy to overdo.">Tetradic (Square)</option>
+      <option value="analogous" title="Hues neighboring a locked color on the wheel (30° either direction) — naturally harmonious, low contrast.">Analogous</option>
+      <option value="monochromatic" title="The same hue as a locked color, varying only in saturation and lightness.">Monochromatic</option>
+    </select>
+    <div class="hint">When a swatch is too far from any locked color for Spread to reach it, it leans toward this relationship to a locked color's hue instead of a fully random one. Hover an option above for a description.</div>
+    <div id="pbGrid" style="display:grid;grid-template-columns:repeat(auto-fill, 34px);gap:4px;margin-top:10px;"></div>
+    <button class="btn small" id="pbRegenerateBtn" style="width:100%;margin-top:8px;">Regenerate Unlocked</button>
+    <label class="field" style="margin-top:10px;">Group Name <span style="font-weight:400;color:var(--text-dim);text-transform:none;letter-spacing:0;">(if creating a group)</span></label>
+    <input type="text" id="pbGroupNameInput" value="Built Palette" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:6px;">
+      <input type="checkbox" id="pbNewGroupCheckbox" checked> Create as a new group
+    </label>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="pbAddBtn">Add to Palette</button>
+      <button class="btn small" id="pbReplaceBtn">Replace Palette</button>
+      <button class="btn small" id="pbCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="sharpenPopup" style="display:none;width:280px;">
+    <label class="field" id="sharpenDragHandle" style="margin-top:0;cursor:move;user-select:none;">&#10239; Sharpen (Remove Antialiasing)</label>
+    <div class="hint">Snaps each block of pixels to its single most common color, removing blur/antialiasing left from scaling or export. Grid Size is how many pixels wide/tall one "true" pixel is in this image.</div>
+    <label class="field">Grid Size <span class="field-value" id="sharpenGridSizeVal">4</span></label>
+    <input type="range" id="sharpenGridSizeSlider" min="1" max="32" value="4">
+    <button class="btn small" id="sharpenAutoDetectBtn" style="width:100%;margin-top:6px;">Auto-Detect Grid Size</button>
+    <label class="field">Offset X <span class="field-value" id="sharpenOffsetXVal">0</span></label>
+    <input type="range" id="sharpenOffsetXSlider" min="0" max="0" value="0">
+    <label class="field">Offset Y <span class="field-value" id="sharpenOffsetYVal">0</span></label>
+    <input type="range" id="sharpenOffsetYSlider" min="0" max="0" value="0">
+    <div class="hint">If the auto-detected grid looks shifted from the actual pixel edges, nudge these until it lines up.</div>
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:6px;">
+      <input type="checkbox" id="sharpenPreviewCheckbox"> Preview on canvas
+    </label>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="sharpenApplyBtn">Apply</button>
+      <button class="btn small" id="sharpenCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="scaleProjectPopup" style="display:none;width:280px;">
+    <label class="field" style="margin-top:0;">Scale Project</label>
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;">
+        <label class="field" style="margin-top:0;">Width</label>
+        <input type="number" id="scaleProjectWidth" min="1" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      </div>
+      <div style="flex:1;">
+        <label class="field" style="margin-top:0;">Height</label>
+        <input type="number" id="scaleProjectHeight" min="1" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      </div>
+    </div>
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:8px;">
+      <input type="checkbox" id="scaleProjectLockAspect" checked> Lock aspect ratio
+    </label>
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:4px;">
+      <input type="checkbox" id="scaleProjectScaleContent" checked> Scale content (pixel-perfect, nearest-neighbor)
+    </label>
+    <div class="hint" id="scaleProjectContentHint">Stretches everything to the new size, keeping hard pixel edges instead of blurring.</div>
+    <label class="field">Anchor</label>
+    <div id="scaleProjectAnchorGrid" style="display:grid;grid-template-columns:repeat(3,32px);grid-template-rows:repeat(3,32px);gap:4px;justify-content:center;margin-top:4px;"></div>
+    <div class="hint" id="scaleProjectAnchorHint">When content isn't scaled, this is where the existing content sits within the new canvas.</div>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="scaleProjectApplyBtn">Apply</button>
+      <button class="btn small" id="scaleProjectCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="color-edit-popup" id="scaleSelectionPopup" style="display:none;width:260px;">
+    <label class="field" style="margin-top:0;">Scale Selection</label>
+    <div style="display:flex;gap:8px;">
+      <div style="flex:1;">
+        <label class="field" style="margin-top:0;">Width</label>
+        <input type="number" id="scaleSelectionWidth" min="1" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      </div>
+      <div style="flex:1;">
+        <label class="field" style="margin-top:0;">Height</label>
+        <input type="number" id="scaleSelectionHeight" min="1" style="width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;">
+      </div>
+    </div>
+    <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:8px;">
+      <input type="checkbox" id="scaleSelectionLockAspect" checked> Lock aspect ratio
+    </label>
+    <div class="hint">Pixel-perfect (nearest-neighbor) — hard edges, no blur. Scales from the selection's top-left corner.</div>
+    <div class="color-edit-actions">
+      <button class="btn small primary" id="scaleSelectionApplyBtn">Apply</button>
+      <button class="btn small" id="scaleSelectionCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- App Settings Movable/Resizable Modal -->
+  <div class="color-edit-popup" id="appSettingsModal" style="display:none; width:280px; resize:both; overflow:auto; min-width:250px; min-height:150px; max-width:90vw; max-height:90vh; z-index:2200;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:move; padding-bottom:6px; border-bottom:1px solid var(--line);" id="appSettingsDragHandle">
+      <div style="font-weight:600; font-size:12px; color:var(--text); display:flex; align-items:center; gap:6px;">⚙️ App Settings</div>
+      <button class="btn small" id="appSettingsCloseBtn" style="padding:2px 6px; font-size:11px;">✕</button>
+    </div>
+
+    <label class="field" style="margin-top:0;">Tooltip Delay <span class="field-value" id="tooltipDelayVal">1.0s</span></label>
+    <input type="range" id="tooltipDelaySlider" min="0" max="3" step="0.1" value="1.0">
+    <div class="hint">How long to wait before showing a hover tooltip.</div>
+
+    <div style="border-top:1px solid var(--line); margin:12px 0; padding-top:10px;"></div>
+
+<!-- Theme Preset Select -->
+    <label class="field" style="margin-top:0; font-size:11px;">Theme Preset</label>
+    <select id="modalThemePresetSelect" style="width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:12px; cursor:pointer; margin-bottom:10px;">
+      <option value="dark">Dark (Default)</option>
+      <option value="light">Light</option>
+      <option value="midnight">Midnight</option>
+      <option value="dracula">Dracula</option>
+      <option value="monokai">Monokai</option>
+      <option value="nord">Nord</option>
+      <option value="solarized-dark">Solarized Dark</option>
+      <option value="solarized-light">Solarized Light</option>
+      <option value="synthwave">Synthwave / Cyberpunk</option>
+      <option value="gruvbox">Gruvbox Dark</option>
+      <option value="emerald">Emerald / Forest</option>
+      <option value="custom">Custom</option>
+    </select>
+
+    <!-- Custom Colors Box -->
+    <div style="padding:10px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-weight:600; font-size:11px; color:var(--text);">Custom Color Palette</span>
+        <label style="font-size:10px; color:var(--text-dim); cursor:pointer; display:flex; align-items:center; gap:4px;">
+          <input type="checkbox" id="themeAdvancedToggle" style="accent-color:var(--accent);"> Advanced
+        </label>
+      </div>
+
+      <!-- 3 Primary Colors -->
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="flex:1; font-size:11px; color:var(--text-dim);">Background Color</div>
+          <div id="themeBgColorInput" style="width:40px; height:26px; border:1px solid var(--line); border-radius:6px; cursor:pointer; background:#17181c; box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Click to choose background color"></div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="flex:1; font-size:11px; color:var(--text-dim);">Section / Card Color</div>
+          <div id="themeSectionColorInput" style="width:40px; height:26px; border:1px solid var(--line); border-radius:6px; cursor:pointer; background:#25272d; box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Click to choose section color"></div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="flex:1; font-size:11px; color:var(--text-dim);">Highlight / Accent Color</div>
+          <div id="themeAccentColorInput" style="width:40px; height:26px; border:1px solid var(--line); border-radius:6px; cursor:pointer; background:#d4a017; box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Click to choose highlight color"></div>
+        </div>
+
+        <!-- Advanced Details (Text & Border Colors) -->
+        <div id="themeAdvancedColorsWrap" style="display:none; border-top:1px dashed var(--line); padding-top:8px; margin-top:4px; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; font-size:11px; color:var(--text-dim);">Text Color</div>
+            <div id="themeTextColorInput" style="width:40px; height:26px; border:1px solid var(--line); border-radius:6px; cursor:pointer; background:#e7e6e2; box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Click to choose text color"></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; font-size:11px; color:var(--text-dim);">Border / Line Color</div>
+            <div id="themeBorderColorInput" style="width:40px; height:26px; border:1px solid var(--line); border-radius:6px; cursor:pointer; background:#33353c; box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Click to choose border/line color"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Custom Theme Section -->
+    <div style="padding:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; margin-bottom:10px;">
+      <label class="field" style="margin-top:0; font-size:11px;">Save Custom Theme</label>
+      <div style="display:flex; gap:6px; margin-top:4px;">
+        <input type="text" id="customThemeNameInput" placeholder="My Theme Name" style="flex:1; font-size:11px; padding:4px 6px;">
+        <button class="btn small primary" id="saveCustomThemeBtn" style="white-space:nowrap; font-size:10px; padding:4px 8px;">Save</button>
+      </div>
+      <div id="savedCustomThemesList" style="margin-top:6px; display:flex; flex-direction:column; gap:4px; max-height:80px; overflow-y:auto;"></div>
+    </div>
+
+    <!-- Export & Import Options -->
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+      <button class="btn small" id="exportThemeJsonBtn" style="flex:1; min-width:80px; font-size:10px;" title="Download current theme as a JSON file">Export JSON</button>
+      <button class="btn small" id="copyThemeJsonBtn" style="flex:1; min-width:80px; font-size:10px;" title="Copy theme JSON to clipboard">Copy JSON</button>
+      <button class="btn small" id="importThemeJsonBtn" style="flex:1; min-width:80px; font-size:10px;" title="Import theme from a JSON file">Import JSON</button>
+      <input type="file" id="importThemeFileInput" accept=".json" style="display:none;">
+    </div>
+    <textarea id="themeJsonPasteArea" placeholder="Or paste theme JSON here..." style="display:none; width:100%; margin-top:6px; font-family:monospace; font-size:10px; height:50px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:4px; resize:vertical;"></textarea>
+    <button class="btn small primary" id="applyPastedThemeBtn" style="display:none; margin-top:4px; width:100%; font-size:10px;">Apply Pasted Theme</button>
+
+    
+
+    <div class="color-edit-actions" style="margin-top:16px;">
+      <button class="btn small primary" id="appSettingsOkBtn">Done</button>
+      <button class="btn small" id="appSettingsCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+    <div class="topbar">
+    <div class="brand" style="display:none;"></div>
+    <div class="menu-wrap" id="fileMenuWrap">
+      <button class="btn icon" id="fileMenuBtn" title="File menu">☰</button>
+      <div class="dropdown-menu" id="fileMenu" style="display:none;">
+        <label class="menu-item file-btn">Load Image<input type="file" id="loadImage" accept="image/*"></label>
+        <div class="menu-divider"></div>
+        <div class="menu-item-submenu">
+          <button class="menu-item submenu-toggle" type="button">
+            <span>Edit</span>
+            <span class="submenu-arrow">▶</span>
+          </button>
+          <div class="submenu">
+            <button class="menu-item" id="cropToSelectionBtn" title="Crop the whole project — every layer, every frame — to the current selection">Crop to Selection</button>
+            <button class="menu-item" id="scaleProjectBtn">Scale Project…</button>
+            <button class="menu-item" id="menuScaleSelectionBtn" title="Resize and transform active selection">Scale Selection…</button>
+            <button class="menu-item" id="menuMergeLayerDownBtn" title="Merge active layer into the layer below">Merge Layer Down</button>
+            <div class="menu-divider"></div>
+            <button class="menu-item" id="flipSelectionHBtn" title="Flip selection horizontally">Flip Selection Horizontal</button>
+            <button class="menu-item" id="flipSelectionVBtn" title="Flip selection vertically">Flip Selection Vertical</button>
+            <button class="menu-item" id="rotateSelection90CWBtn" title="Rotate selection 90° clockwise">Rotate Selection 90° CW</button>
+            <button class="menu-item" id="rotateSelection90CCWBtn" title="Rotate selection 90° counter-clockwise">Rotate Selection 90° CCW</button>
+            <div class="menu-divider"></div>
+            <button class="menu-item" id="flipLayerHBtn" title="Flip active layer horizontally in current frame">Flip Layer Horizontal</button>
+            <button class="menu-item" id="flipLayerVBtn" title="Flip active layer vertically in current frame">Flip Layer Vertical</button>
+            <button class="menu-item" id="rotateLayer90CWBtn" title="Rotate active layer 90° clockwise in current frame">Rotate Layer 90° CW</button>
+            <button class="menu-item" id="rotateLayer90CCWBtn" title="Rotate active layer 90° counter-clockwise in current frame">Rotate Layer 90° CCW</button>
+            <div class="menu-divider"></div>
+            <button class="menu-item" id="flipProjectHBtn" title="Flip every layer in every frame horizontally">Flip Project Horizontal</button>
+            <button class="menu-item" id="flipProjectVBtn" title="Flip every layer in every frame vertically">Flip Project Vertical</button>
+            <button class="menu-item" id="rotateProject90CWBtn" title="Rotate every layer in every frame 90° clockwise and swap canvas dimensions">Rotate Project 90° CW</button>
+            <button class="menu-item" id="rotateProject90CCWBtn" title="Rotate every layer in every frame 90° counter-clockwise and swap canvas dimensions">Rotate Project 90° CCW</button>
+          </div>
+        </div>
+        <div class="menu-item-submenu">
+          <button class="menu-item submenu-toggle" type="button">
+            <span>FX</span>
+            <span class="submenu-arrow">▶</span>
+          </button>
+          <div class="submenu">
+            <button class="menu-item" id="fxOutlineBtn" title="Generate an outline around pixels on the active layer with customizable thickness and pixel-perfect corner cleaning">Outline Layer…</button>
+            <button class="menu-item" id="fxSharpenBtn" title="Snap blurry/antialiased edges back to hard pixel boundaries">Sharpen Layer Edges…</button>
+            <button class="menu-item" id="fxSeamlessBtn" title="Wraps the active layer to help identify and blend seams">Make Seamless…</button>
+          </div>
+        </div>
+        <div class="menu-divider"></div>
+        <div class="menu-item-submenu">
+          <button class="menu-item submenu-toggle" type="button">
+            <span>Export</span>
+            <span class="submenu-arrow">▶</span>
+          </button>
+          <div class="submenu">
+            <button class="menu-item" id="exportBtn">Export PNG & Maps…</button>
+            <button class="menu-item" id="exportSpriteSheetBtn">Export Sprite Sheet</button>
+            <button class="menu-item" id="exportGifBtn">Export Animated GIF</button>
+            <div class="menu-divider"></div>
+            <button class="menu-item" id="tilesetTesterBtn">Tileset Tester…</button>
+          </div>
+        </div>
+        <div class="menu-divider"></div>
+        <button class="menu-item" id="appSettingsBtn">App Settings…</button>
+        <button class="menu-item" id="aboutBtn">About</button>
+      </div>
+    </div>
+    <input type="text" id="projectNameInput" value="Untitled" placeholder="Untitled" class="project-name-input" style="display:none;">
+    <div class="topbar-actions">
+      <button class="btn icon" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+      <button class="btn icon" id="redoBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
+      <div class="divider"></div>
+      <button class="btn icon" id="fullscreenBtn" title="Toggle full screen">⛶</button>
+    </div>
+  </div>
+  <div class="workspace">
+
+    <!-- TOOLS -->
+    <div class="panel tools-panel">
+      <div class="section" data-section-id="seamless">
+        <h3>Seamless</h3>
+        <div id="seamlessPreviewWrap" style="margin-top:6px;">
+          <button class="btn small" id="sidebarSeamlessToggleBtn" title="Tiles the main canvas 3×3 in real time. Paint anywhere across tile edges to create seamless repeating patterns." style="width:100%; font-weight:600; margin-bottom:6px; display:flex; align-items:center; justify-content:center; text-align:center;">
+            3x3 Mode
+          </button>
+          <button class="btn small" id="makeSeamlessBtn" title="Wraps the active layer to help identify and blend seams" style="width:100%; display:flex; align-items:center; justify-content:center; text-align:center;">Make Seamless</button>
+        </div>
+      </div>
+
+      <div class="section" data-section-id="tool">
+        <h3>Tool</h3>
+        <div class="tool-row">
+          <button data-tool="spray" class="active" data-tooltip="Paint (S) — Spray and brush tool">Paint</button>
+          <button data-tool="fill" data-tooltip="Fill (F) — Flood fill connected or unconnected pixels">Fill</button>
+          <button data-tool="colorpick" data-tooltip="Select Color (K) — Click canvas to pick matching color into palette">Select Color</button>
+          <button data-tool="pan" data-tooltip="Pan (H) — Drag canvas view. Hold Space or middle-click anytime to pan">Pan</button>
+          <button data-tool="select" data-tooltip="Select (M) — Rectangular marquee selection tool">Select</button>
+          <button data-tool="measure" data-tooltip="Measure (R) — Click & drag line to measure pixel distance">Measure</button>
+        </div>
+
+        <!-- Fill Tool Options -->
+        <div id="fillOnlyOptions" style="display:none; margin-top:8px;">
+          <label class="field" style="margin-top:0;" data-tooltip="Fill mode: Connected flood-fill or unconnected global matching replace">Fill mode</label>
+          <select id="fillModeSelect" data-tooltip="Fill mode: Connected flood-fill or unconnected global matching replace">
+            <option value="connected">Connected (flood fill)</option>
+            <option value="unconnected">Unconnected (all matching pixels)</option>
+          </select>
+          <label class="field" style="margin-top:6px;" data-tooltip="Tolerance: Threshold for matching similar color shades when filling">Tolerance <span class="field-value" id="fillToleranceVal">0</span></label>
+          <input type="range" id="fillToleranceSlider" min="0" max="100" value="0" data-tooltip="Tolerance: Threshold for matching similar color shades when filling">
+        </div>
+
+        <!-- Select Tool Options -->
+        <div id="selectOnlyOptions" style="display:none; margin-top:8px;">
+          <div id="selectionHint" style="display:none; margin-bottom:6px; font-size:11px; color:var(--accent); font-weight:600;"></div>
+          
+          <!-- Select Mode Buttons -->
+          <label class="field" style="margin-top:0;">Selection Mode</label>
+          <div class="shape-row" id="selectModeGroup" style="margin-bottom:8px;">
+            <button data-select-mode="rect" class="shape-btn active" data-tooltip="Box: Drag a rectangle marquee on canvas">Box</button>
+            <button data-select-mode="color" class="shape-btn" data-tooltip="Pick Color: Click a pixel on canvas to select all pixels of that color">Pick Color</button>
+            <button data-select-mode="palette" class="shape-btn" data-tooltip="Palette: Select all pixels matching your selected palette colors">Palette</button>
+          </div>
+
+          <!-- Color / Palette Selection Options -->
+          <div id="selectColorSubOptions" style="display:none; margin-bottom:8px; padding:8px; background:var(--panel); border:1px solid var(--line); border-radius:6px;">
+            <label style="font-size:11px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none; margin-bottom:6px;">
+              <input type="checkbox" id="selectContiguousCheckbox" style="accent-color:var(--accent);"> Contiguous
+            </label>
+            <div class="hint" id="selectContiguousHint" style="font-size:10px; margin-bottom:6px;">Off = select all matching pixels across layer. On = connected region only.</div>
+
+            <label class="field">Color Tolerance <span class="field-value" id="selectToleranceVal">0%</span></label>
+            <input type="range" id="selectToleranceSlider" min="0" max="100" value="0" style="width:100%;">
+
+            <div class="hint" id="selectColorClickHint" style="margin-top:6px; color:var(--accent); font-weight:500;">Click any pixel on the active layer to select that color.</div>
+
+            <button class="btn small primary" id="selectPaletteColorsBtn" style="display:none; width:100%; margin-top:6px;" data-tooltip="Scan active layer and select all pixels matching your selected palette color(s)">Select Palette Color(s)</button>
+          </div>
+
+          <button class="btn small" id="scaleSelectionBtn" style="width:100%; margin-bottom:6px;" data-tooltip="Scale Selection: Resize and transform current selection floating layer">Scale Selection…</button>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:6px;">
+            <button class="btn small" id="selectFlipHBtn" title="Flip selection horizontally">Flip Sel H</button>
+            <button class="btn small" id="selectFlipVBtn" title="Flip selection vertically">Flip Sel V</button>
+            <button class="btn small" id="selectRotateCWBtn" title="Rotate selection 90° clockwise">Rot Sel CW</button>
+            <button class="btn small" id="selectRotateCCWBtn" title="Rotate selection 90° counter-clockwise">Rot Sel CCW</button>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+            <button class="btn small" id="stampFromSelectionBtn" disabled style="flex:1;" data-tooltip="Convert active selection into a custom stamp mask">Stamp from Selection</button>
+            <button class="btn small danger" id="clearSelectionBtn" disabled style="flex:1;" data-tooltip="Clear/Delete pixels within active selection (Delete key)">Clear Pixels</button>
+            <button class="btn small" id="deselectBtn" style="flex:1;" data-tooltip="Drop active selection marquee (Escape key)">Deselect</button>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button class="btn small" id="copySelectionBtn" style="flex:1;" data-tooltip="Copy the selection to the clipboard (Ctrl+C)">Copy</button>
+            <button class="btn small" id="pasteClipboardBtn" style="flex:1;" data-tooltip="Paste an image from the clipboard as a new layer (Ctrl+V)">Paste</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="sprayOnlyOptions" data-section-id="spray-painter">
+        <h3>Tool Settings</h3>
+
+        <!-- Presets -->
+        <label class="field">Presets</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <select id="sprayPresetSelect" style="flex:1; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:12px; cursor:pointer;" data-tooltip="Select a saved brush & spray preset"></select>
+          <button class="btn small danger" id="deleteSprayPresetBtn" style="display:none; padding:5px 8px; font-size:12px; line-height:1;" data-tooltip="Delete active custom preset" title="Delete preset">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button class="btn small" id="resetSprayPresetBtn" style="flex:1;" data-tooltip="Settings are tied to the active preset. Use Reset to revert tweaks.">Reset</button>
+          <button class="btn small" id="updateSprayPresetBtn" style="flex:1;" data-tooltip="Update saved settings for the currently active preset.">Update Preset</button>
+        </div>
+        <button class="btn small" id="saveSprayPresetBtn" style="width:100%;margin-top:6px;" data-tooltip="Save current brush & spray settings as a new preset">+ Save as New Preset</button>
+
+        <!-- Mode Buttons -->
+        <label class="field" style="margin-top:12px;">Mode</label>
+        <div class="shape-row" id="sprayModeGroup">
+          <button data-spray-mode="paint" class="shape-btn active" data-tooltip="Paint mode: Standard spray/brush painting with chosen dab shape and colors">Paint</button>
+          <button data-spray-mode="path" class="shape-btn" data-tooltip="Path Mode Instructions:<br>• Left-Click to place start point.<br>• Left-Click again to place segment end point.<br>• Move mouse to adjust curve, then Left-Click to commit segment.<br>• Enter to commit as straight line.<br>• Middle-Click or Click Done to apply full path.<br>• Press Escape to cancel path.">Path</button>
+          <button data-spray-mode="colorize" class="shape-btn" data-tooltip="Colorize mode: Recolors existing non-transparent pixels while preserving original shading">Colorize</button>
+          <button data-spray-mode="eraser" class="shape-btn" data-tooltip="Eraser mode: Erases pixels based on brush size, density, and falloff">Eraser</button>
+          <button data-spray-mode="blur" class="shape-btn" data-tooltip="Soften mode: Smooths and fades opacity or edges across brush area">Soften</button>
+        </div>
+
+        <!-- Mode-Specific Options & Sliders (JUST BELOW MODE BUTTONS) -->
+        <div id="softenOptionsGroup" style="display:none; margin-top:8px; padding:8px; background:var(--panel); border:1px solid var(--line); border-radius:6px;">
+          <label class="field" style="margin-top:0; font-weight:600; font-size:11px;">Soften Target</label>
+          <div style="display:flex; gap:6px; margin-top:4px;">
+            <button class="btn small soften-type-btn active primary" data-soften-type="edge" id="softenTypeEdgeBtn" style="flex:1;" data-tooltip="Edge Only: Smooths and fades opacity along boundaries where colored shapes meet transparency.">Edge Only</button>
+            <button class="btn small soften-type-btn" data-soften-type="full" id="softenTypeFullBtn" style="flex:1;" data-tooltip="Full Area: Fades opacity across the entire brush shape, including solid interiors.">Full Area</button>
+          </div>
+
+          <label class="field" style="margin-top:8px;" data-tooltip="Hardness: Controls how steeply opacity fades out across the softening region">
+            Hardness <span class="field-value" id="softenHardnessVal">100%</span>
+          </label>
+          <input type="range" id="softenHardnessSlider" min="0" max="100" value="100" style="width:100%;" data-tooltip="Hardness: Controls how steeply opacity fades out across the softening region">
+          <div id="softenTypeHint" style="display:none;"></div>
+        </div>
+
+        <div id="colorizeOptionsGroup" style="display:none; margin-top:8px; padding:8px; background:var(--panel); border:1px solid var(--line); border-radius:6px;">
+          <label class="field" style="margin-top:0; font-weight:600; font-size:11px;" data-tooltip="Pick a specific color from your palette to act as a mask. The brush will only colorize pixels that match this exact target color.">Target Color Mask</label>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+            <div id="colorizeTargetSwatch" style="width:24px; height:24px; border-radius:4px; border:1px solid var(--line); background:transparent; cursor:pointer;" data-tooltip="Current mask color"></div>
+            <button class="btn small" id="colorizeTargetBtn" style="flex:1;" data-tooltip="Select a specific color from your palette to act as a mask.">Pick Target Color...</button>
+          </div>
+        </div>
+
+        <div id="vineOnlyOptions" style="display:none; margin-top:8px; padding:8px; background:var(--panel); border:1px solid var(--line); border-radius:6px;">
+          <!-- Path Behavior & Modes -->
+          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; border-radius: 6px; margin-bottom: 10px;">
+            <label class="field" style="margin-top:0; font-weight:600; font-size:11px; color:#ffca28;" data-tooltip="Path style determines how lines and path segments are constrained">Path Style</label>
+            <select id="pathStyleSelect" style="width:100%; margin-top:4px; margin-bottom:10px; font-size:12px; padding:4px; background:#444; color:#fff; border:1px solid #555; border-radius:4px;">
+              <option value="default">Default</option>
+              <option value="90">90 degree only (Orthogonal)</option>
+              <option value="45">45 degree only</option>
+              <option value="freehand">Freehand</option>
+            </select>
+            <div style="display: flex; align-items: center; gap: 8px;" data-tooltip="Toggles leaves and stamps along path segments">
+              <input type="checkbox" id="vineEnableDecorationsCheckbox" checked style="cursor: pointer; width: auto; height: auto;">
+              <label for="vineEnableDecorationsCheckbox" style="font-size: 0.85rem; cursor: pointer; user-select: none; font-weight: 600;">Enable leaves & stamps</label>
+            </div>
+          </div>
+
+          <label class="field" data-tooltip="Decoration density: Frequency of leaf/stamp decorations placed along the path">Decoration density <span class="field-value" id="vineDensityVal">50%</span></label>
+          <input type="range" id="vineDensitySlider" min="0" max="100" value="50" data-tooltip="Decoration density: Frequency of leaf/stamp decorations placed along the path">
+
+          <label class="field" data-tooltip="Decoration size: Sets the scale of leaf or stamp decorations">Decoration size <span class="field-value" id="vineDecorSizeVal">14</span></label>
+          <input type="range" id="vineDecorSizeSlider" min="1" max="150" value="14" data-tooltip="Decoration size: Sets the scale of leaf or stamp decorations">
+
+          <label class="field" data-tooltip="Decoration stamp: Choose custom stamp mask for path decorations, or basic shapes/leaf">Decoration stamp</label>
+          <select id="vineStampSourceSelect" style="margin-bottom: 12px;" data-tooltip="Decoration stamp: Choose custom stamp mask for path decorations, or basic shapes/leaf"></select>
+
+          <label class="field" data-tooltip="Rotation jitter: Adds random angle variation to decorations">Rotation jitter <span class="field-value" id="vineRotationJitterVal">30%</span></label>
+          <input type="range" id="vineRotationJitterSlider" min="0" max="100" value="30" data-tooltip="Rotation jitter: Adds random angle variation to decorations">
+
+          <label class="field" data-tooltip="Max turn per step: Caps how sharply the vine can turn from one step to the next to prevent self-looping">Max turn per step <span class="field-value" id="vineMaxTurnVal">100%</span></label>
+          <input type="range" id="vineMaxTurnSlider" min="5" max="100" value="100" data-tooltip="Max turn per step: Caps how sharply the vine can turn from one step to the next to prevent self-looping">
+
+          <label class="field" data-tooltip="Offshoot density: Frequency of side branches growing outwards from main vine stem (Set to 0% to disable)">Offshoot density <span class="field-value" id="vineOffshootDensityVal">20%</span></label>
+          <input type="range" id="vineOffshootDensitySlider" min="0" max="100" value="20" data-tooltip="Offshoot density: Frequency of side branches growing outwards from main vine stem (Set to 0% to disable)">
+
+          <label class="field" data-tooltip="Offshoot length: Maximum pixel length for side offshoot branches">Offshoot length <span class="field-value" id="vineOffshootLengthVal">40</span></label>
+          <input type="range" id="vineOffshootLengthSlider" min="5" max="200" value="40" data-tooltip="Offshoot length: Maximum pixel length for side offshoot branches">
+
+          <label class="field" data-tooltip="Offshoot size: Offshoot branch thickness relative to main stem">Offshoot size <span class="field-value" id="vineOffshootSizeVal">45%</span></label>
+          <input type="range" id="vineOffshootSizeSlider" min="5" max="150" value="45" data-tooltip="Offshoot size: Offshoot branch thickness relative to main stem">
+
+          <label class="field" style="margin-top: 10px;" data-tooltip="Size jitter: Random size variation along the main vine and offshoots">Size jitter <span class="field-value" id="vineSizeJitterVal">0%</span></label>
+          <input type="range" id="vineSizeJitterSlider" min="0" max="100" value="0" data-tooltip="Size jitter: Random size variation along the main vine and offshoots">
+
+          <!-- Freehand Path Detail -->
+          <div id="vineFreehandDetailGroup" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; border-radius: 6px; margin: 10px 0 5px 0;">
+            <label class="field" data-tooltip="Detail: Distance in pixels between placed path nodes during freehand drawing. Smaller values give more detail but denser segments.">Freehand path detail <span class="field-value" id="vineFreehandDetailVal">30px</span></label>
+            <input type="range" id="vineFreehandDetailSlider" min="5" max="250" value="30" data-tooltip="Detail: Distance in pixels between placed path nodes during freehand drawing">
+          </div>
+
+          <!-- Paint Taper Features (Moved inside Path Mode) -->
+          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; border-radius: 6px; margin: 10px 0;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;" data-tooltip="Enables gradual tapering of stroke thickness, spread, or opacity">
+              <input type="checkbox" id="paintTaperEnabledCheckbox" style="cursor: pointer; width: auto; height: auto;">
+              <label for="paintTaperEnabledCheckbox" style="font-size: 0.85rem; cursor: pointer; user-select: none; font-weight: 600; color: #ffca28;">Enable path taper</label>
+            </div>
+            <div id="paintTaperSettingsGroup" style="display: none; margin-top: 6px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;" data-tooltip="Tapers stroke thickness and/or spread gradually at the start of a stroke, path, or line">
+                <input type="checkbox" id="paintTaperStartCheckbox" checked style="cursor: pointer; width: auto; height: auto;">
+                <label for="paintTaperStartCheckbox" style="font-size: 0.85rem; cursor: pointer; user-select: none; font-weight: 500;">Taper start</label>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;" data-tooltip="Tapers stroke thickness and/or spread gradually at the end of a freehand stroke, straight line, or path">
+                <input type="checkbox" id="paintTaperFinishCheckbox" style="cursor: pointer; width: auto; height: auto;">
+                <label for="paintTaperFinishCheckbox" style="font-size: 0.85rem; cursor: pointer; user-select: none; font-weight: 500;">Taper finish</label>
+              </div>
+
+              <label class="field" style="margin-top: 6px;" data-tooltip="Taper length: Number of dabs over which the stroke tapers">Taper length <span class="field-value" id="paintTaperLengthVal">16 dabs</span></label>
+              <input type="range" id="paintTaperLengthSlider" min="1" max="200" value="16" data-tooltip="Taper length: Number of dabs over which the stroke tapers">
+
+              <div id="paintTaperSizeGroup" style="margin-top: 6px; margin-bottom: 6px;">
+                <label class="field" style="font-size:0.75rem;" data-tooltip="Taper size target: Target thickness at the end of the taper (100% means no change, 0% means shrink to point, >100% means grow)">Taper size target <span class="field-value" id="paintTaperSizeVal">100%</span></label>
+                <input type="range" id="paintTaperSizeSlider" min="0" max="200" value="100" step="5" data-tooltip="Taper size target: Target thickness at the end of the taper">
+              </div>
+
+              <div id="paintTaperSpreadGroup" style="margin-top: 6px; margin-bottom: 6px;">
+                <label class="field" style="font-size:0.75rem;" data-tooltip="Taper spread target: Target spray spread at the end of the taper (100% means no change, 0% means shrink, >100% means grow)">Taper spread target <span class="field-value" id="paintTaperSpreadVal">100%</span></label>
+                <input type="range" id="paintTaperSpreadSlider" min="0" max="200" value="100" step="5" data-tooltip="Taper spread target: Target spray spread at the end of the taper">
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px; margin-bottom: 4px;" data-tooltip="Fades opacity gradually along the taper">
+                <input type="checkbox" id="paintTaperOpacityFadeCheckbox" style="cursor: pointer; width: auto; height: auto;">
+                <label for="paintTaperOpacityFadeCheckbox" style="font-size: 0.85rem; cursor: pointer; user-select: none; font-weight: 500;">Taper opacity fade</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shapes Buttons -->
+        <label class="field" style="margin-top:12px;">Shape</label>
+        <div class="shape-row">
+          <button data-shape="circle" class="shape-btn active" data-tooltip="Circle dab shape">Circle</button>
+          <button data-shape="square" class="shape-btn" data-tooltip="Square dab shape">Square</button>
+          <button data-shape="triangle" class="shape-btn" data-tooltip="Triangle dab shape">Triangle</button>
+          <button data-shape="diamond" class="shape-btn" data-tooltip="Diamond dab shape">Diamond</button>
+          <button data-shape="star" class="shape-btn" data-tooltip="Star dab shape">Star</button>
+          <button data-shape="hexagon" class="shape-btn" data-tooltip="Hexagon dab shape">Hexagon</button>
+          <button data-shape="ring" class="shape-btn" data-tooltip="Ring dab shape">Ring</button>
+          <button data-shape="line" class="shape-btn" data-tooltip="Line dab shape">Line</button>
+          <button data-shape="stamp" class="shape-btn" id="stampShapeBtn" disabled data-tooltip="Stamp: Uses imported image mask as dab shape">Stamp</button>
+        </div>
+        <select id="stampSourceSelect" style="margin-top:6px;display:none;" data-tooltip="Select active custom stamp mask"></select>
+
+        <!-- Color Source Dropdown -->
+        <label class="field" style="margin-top:10px;">Color source</label>
+        <select id="sourceKindSelect" data-tooltip="Color source: Choose between selected palette colors or gradient fill">
+          <option value="selected">Selected colors</option>
+          <option value="gradient">Gradient</option>
+        </select>
+        <select id="gradientSourceSelect" style="margin-top:6px;display:none;" data-tooltip="Select active gradient source"></select>
+        
+        <div id="gradientOrderedOptions" style="display:none; margin-top:8px; padding:6px; background:rgba(255, 255, 255, 0.03); border:1px solid rgba(255, 255, 255, 0.08); border-radius:6px;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;" data-tooltip="Paint colors sequentially in order from start to end of the gradient instead of choosing randomly">
+            <input type="checkbox" id="gradientOrderedCheckbox" style="cursor:pointer; width:auto; height:auto;">
+            <label for="gradientOrderedCheckbox" style="font-size:0.8rem; cursor:pointer; user-select:none; font-weight:600;">Sequential gradient colors</label>
+          </div>
+          <div id="gradientOrderedConfig" style="display:none; margin-top:6px;">
+            <label class="field" style="font-size: 0.8rem;">Sequential step behavior</label>
+            <select id="gradientSequentialStepSelect" style="width: 100%; font-size: 11px; padding: 4px; margin-bottom: 6px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 4px;" data-tooltip="Choose whether the gradient transitions by distance drawn, or switches to the next color after a set number of dabs">
+              <option value="distance">Cycle by distance (pixels)</option>
+              <option value="dabs">Switch by dabs (count)</option>
+            </select>
+            <div id="gradientCycleOptions" style="display:none;">
+              <label class="field" style="margin-top:4px; font-size:0.75rem;" data-tooltip="Cycle length: Distance in pixels to complete one full cycle of the gradient colors">Cycle length (px) <span class="field-value" id="gradientCycleLengthVal">200</span></label>
+              <input type="range" id="gradientCycleLengthSlider" min="10" max="2000" value="200" step="5" data-tooltip="Cycle length: Distance in pixels to complete one full cycle of the gradient colors">
+            </div>
+            <div id="gradientDabsOptions" style="display:none;">
+              <label class="field" style="margin-top:4px; font-size:0.75rem;" data-tooltip="Dabs to paint: Number of dabs to paint of each gradient color stop before switching to the next stop in order">Dabs to paint <span class="field-value" id="gradientDabsPerColorVal">1</span></label>
+              <input type="range" id="gradientDabsPerColorSlider" min="1" max="100" value="1" step="1" data-tooltip="Dabs to paint: Number of dabs to paint of each gradient color stop before switching to the next stop in order">
+            </div>
+          </div>
+        </div>
+
+        <div id="spraySourceHint" style="display:none;"></div>
+
+        <label class="field" style="margin-top:8px;" data-tooltip="Choose how overlapping dabs blend with each other and the layer beneath.">Dab Blend Mode
+          <select id="paintBlendModeSelect" style="width:100%; margin-top:4px; font-size:12px; padding:4px; background:#444; color:#fff; border:1px solid #555; border-radius:4px;">
+            <option value="pixel-perfect" selected>Pixel-Perfect (fully opaque pixels, hard edges)</option>
+            <option value="default">Default (replace pixels directly)</option>
+            <option value="combine-same">Combine opacity if same color</option>
+          </select>
+        </label>
+
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:8px;" data-tooltip="When checked, spray interpolates along mouse drag distance. Hold Shift to spray in straight lines.">
+          <input type="checkbox" id="sprayInterpolateCheckbox" checked> Interpolate stroke steps
+        </label>
+
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:8px;" data-tooltip="Snaps each generated dab center to the active grid cell center or nearest pixel.">
+          <input type="checkbox" id="spraySnapGridCheckbox"> Snap dabs to grid
+        </label>
+
+        <label id="spraySnapClearCellRow" style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:4px;margin-left:18px;" data-tooltip="When grid snapping is enabled, clears/erases the entire grid square before placing the dab into it.">
+          <input type="checkbox" id="spraySnapClearCellCheckbox"> Clear grid cell before placing dab
+        </label>
+
+        <!-- Main Options (affecting spray tool in every mode) -->
+        <!-- Spread & Opacity (just above flow slider) -->
+        <label class="field" style="margin-top:12px;" data-tooltip="Spread / Brush Size: Overall spread or radius of the spray brush">
+          <span id="sizeLabelText">Spread</span> <span class="field-value" id="sizeVal">24</span>
+        </label>
+        <input type="range" id="sizeSlider" min="1" max="150" value="24" data-tooltip="Spread / Brush Size: Overall spread or radius of the spray brush">
+
+        <label class="field" style="margin-top:8px;" data-tooltip="Opacity: Overall transparency level of applied paint (0% - 100%)">
+          Opacity <span class="field-value" id="opacityVal">100%</span>
+        </label>
+        <input type="range" id="opacitySlider" min="0" max="100" value="100" data-tooltip="Opacity: Overall transparency level of applied paint (0% - 100%)">
+
+        <!-- Flow -->
+        <label class="field" style="margin-top:8px;" data-tooltip="Flow: Rate at which paint builds up while mouse is held down">
+          Flow <span class="field-value" id="flowVal">100%</span>
+        </label>
+        <input type="range" id="flowSlider" min="1" max="200" value="100" data-tooltip="Flow: Rate at which paint builds up while mouse is held down">
+
+        <!-- Density -->
+        <label class="field" style="margin-top:8px;" data-tooltip="Density: Dab coverage density per step">
+          Density <span class="field-value" id="densityVal">30%</span>
+        </label>
+        <input type="range" id="densitySlider" min="1" max="100" value="30" data-tooltip="Density: Dab coverage density per step">
+
+        <!-- Falloff (moved just below density slider!) -->
+        <label class="field" style="margin-top:8px;" data-tooltip="Falloff: Thins out dab density toward the outer edge of the brush">
+          Falloff <span class="field-value" id="falloffVal">40%</span>
+        </label>
+        <input type="range" id="falloffSlider" min="0" max="100" value="40" data-tooltip="Falloff: Thins out dab density toward the outer edge of the brush">
+
+        <!-- Dab Width & Dab Height + Lock Aspect Ratio -->
+        <label class="field" style="margin-top:10px;" data-tooltip="Dab Width: Width of individual paint dabs">Dab Width <span class="field-value" id="dabWidthVal">8</span></label>
+        <input type="range" id="dabWidthSlider" min="1" max="150" value="8" data-tooltip="Dab Width: Width of individual paint dabs">
+
+        <label class="field" style="margin-top:6px;" data-tooltip="Dab Height: Height of individual paint dabs">Dab Height <span class="field-value" id="dabHeightVal">8</span></label>
+        <input type="range" id="dabHeightSlider" min="1" max="150" value="8" data-tooltip="Dab Height: Height of individual paint dabs">
+
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:4px;" data-tooltip="Lock Width & Height: Keeps dab aspect ratio proportional when resizing">
+          <input type="checkbox" id="dabLockAspectCheckbox" checked> Lock Width & Height
+        </label>
+
+        <!-- Size Jitter Range -->
+        <label class="field" style="margin-top:10px;" data-tooltip="Size Jitter Range: Min and max scale random variation per dab">Size Jitter Range <span class="field-value" id="sizeJitterVal">100% - 100%</span></label>
+        <div class="dual-range-wrap" id="sizeJitterRangeWrap" data-tooltip="Size Jitter Range: Min and max scale random variation per dab">
+          <div class="dual-range-track"></div>
+          <div class="dual-range-fill" id="sizeJitterFill"></div>
+          <input type="range" id="sizeJitterMinSlider" min="10" max="250" value="100">
+          <input type="range" id="sizeJitterMaxSlider" min="10" max="250" value="100">
+        </div>
+
+        <!-- Dab Width Jitter Range -->
+        <label class="field" style="margin-top:10px;" data-tooltip="Dab Width Jitter: Min and max random width multiplier per dab">Dab Width Jitter <span class="field-value" id="dabWidthJitterVal">100% - 100%</span></label>
+        <div class="dual-range-wrap" id="dabWidthJitterRangeWrap" data-tooltip="Dab Width Jitter: Min and max random width multiplier per dab">
+          <div class="dual-range-track"></div>
+          <div class="dual-range-fill" id="dabWidthJitterFill"></div>
+          <input type="range" id="dabWidthJitterMinSlider" min="10" max="250" value="100">
+          <input type="range" id="dabWidthJitterMaxSlider" min="10" max="250" value="100">
+        </div>
+
+        <!-- Dab Height Jitter Range -->
+        <label class="field" style="margin-top:10px;" data-tooltip="Dab Height Jitter: Min and max random height multiplier per dab">Dab Height Jitter <span class="field-value" id="dabHeightJitterVal">100% - 100%</span></label>
+        <div class="dual-range-wrap" id="dabHeightJitterRangeWrap" data-tooltip="Dab Height Jitter: Min and max random height multiplier per dab">
+          <div class="dual-range-track"></div>
+          <div class="dual-range-fill" id="dabHeightJitterFill"></div>
+          <input type="range" id="dabHeightJitterMinSlider" min="10" max="250" value="100">
+          <input type="range" id="dabHeightJitterMaxSlider" min="10" max="250" value="100">
+        </div>
+
+        <!-- Opacity Jitter Range -->
+        <label class="field" style="margin-top:10px;" data-tooltip="Opacity Jitter Range: Min and max random opacity multiplier per dab">Opacity Jitter Range <span class="field-value" id="opacityJitterVal">100% - 100%</span></label>
+        <div class="dual-range-wrap" id="opacityJitterRangeWrap" data-tooltip="Opacity Jitter Range: Min and max random opacity multiplier per dab">
+          <div class="dual-range-track"></div>
+          <div class="dual-range-fill" id="opacityJitterFill"></div>
+          <input type="range" id="opacityJitterMinSlider" min="0" max="100" value="100">
+          <input type="range" id="opacityJitterMaxSlider" min="0" max="100" value="100">
+        </div>
+
+        <!-- Rotation & Anchor Point Settings -->
+        <label class="field" style="margin-top:12px;" data-tooltip="Dab Rotation Mode: Choose fixed/random range angle or rotate toward/away from an anchor point">Dab Rotation Mode</label>
+        <select id="rotationModeSelect" data-tooltip="Dab Rotation Mode: Choose fixed/random range angle or rotate toward/away from an anchor point">
+          <option value="range">Range / Clock Dial</option>
+          <option value="toward">Toward Anchor Point</option>
+          <option value="away">Away from Anchor Point</option>
+        </select>
+
+        <label class="field" style="margin-top:8px;" data-tooltip="Rotation Algorithm: Choose RotSprite for pixel-art rotation with zero dropped edge pixels, Area Sampling, Smooth, or Nearest">Rotation Quality</label>
+        <select id="rotationAlgorithmSelect" data-tooltip="Rotation Algorithm: Choose RotSprite for pixel-art rotation with zero dropped edge pixels, Area Sampling, Smooth, or Nearest">
+          <option value="rotsprite">RotSprite (Pixel-Art Crisp, Edge-Preserving)</option>
+          <option value="areasample">Area Sampling (Super-Sampled Coverage)</option>
+          <option value="smooth">Smooth (Bilinear / Anti-aliased)</option>
+          <option value="nearest">Fast Nearest (Classic 1x)</option>
+        </select>
+
+        <!-- Spray Anchor Point Setup -->
+        <div style="margin-top:8px;padding:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:6px;" data-tooltip="Set Anchor Point: Click canvas or Alt+Click to set rotational direction anchor">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn small" id="setSprayAnchorBtn" style="flex:1;">📍 Set Anchor Point</button>
+            <button class="btn small" id="clearSprayAnchorBtn" style="display:none;padding:2px 8px;">✖ Clear</button>
+          </div>
+          <div id="sprayAnchorStatus" class="hint" style="margin-top:4px;">Anchor: None (Alt+Click on canvas or use button)</div>
+        </div>
+
+        <!-- Clock Dial Widget for Rotation Angle Range -->
+        <div style="margin-top:10px;text-align:center;padding:8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:6px;" data-tooltip="Rotation Range Dial: Set one or multiple rotation ranges (e.g. 4 cardinal directions). Drag hands on the dial or use inputs.">
+          <label class="field" style="margin-top:0;">Rotation Range Dial <span class="field-value" id="rotationRangeVal">0° to 0°</span></label>
+          <div style="position:relative;display:inline-block;margin:6px 0;">
+            <canvas id="rotationDialCanvas" width="136" height="136" style="background:#13131c;border:1px solid #333;border-radius:50%;cursor:pointer;display:block;touch-action:none;"></canvas>
+          </div>
+
+          <!-- Multiple Ranges Chips & Manager -->
+          <div id="rotationRangesList" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:4px;margin-bottom:6px;max-height:80px;overflow-y:auto;"></div>
+          <div style="display:flex;gap:4px;justify-content:center;margin-bottom:6px;">
+            <button class="btn small" id="addRotationRangeBtn" type="button" style="padding:2px 8px;font-size:10px;" data-tooltip="Add another rotation range on the dial">+ Add Range</button>
+            <button class="btn small" id="removeRotationRangeBtn" type="button" style="padding:2px 8px;font-size:10px;display:none;color:#f87171;" data-tooltip="Remove currently active rotation range">✖ Remove Range</button>
+          </div>
+
+          <div style="display:flex;gap:8px;justify-content:center;align-items:center;margin-top:4px;">
+            <label style="font-size:11px;color:var(--text-dim);">Min: <input type="number" id="rotationMinValInput" value="0" min="-360" max="360" style="width:52px;font-size:11px;padding:2px 4px;background:#181824;border:1px solid var(--border);color:#fff;border-radius:3px;">°</label>
+            <label style="font-size:11px;color:var(--text-dim);">Max: <input type="number" id="rotationMaxValInput" value="0" min="-360" max="360" style="width:52px;font-size:11px;padding:2px 4px;background:#181824;border:1px solid var(--border);color:#fff;border-radius:3px;">°</label>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:6px;">
+            <button class="btn small" id="rotPreset0" style="padding:2px 6px;font-size:10px;" data-tooltip="Single range: 0° Fixed">0° (Fixed)</button>
+            <button class="btn small" id="rotPreset15" style="padding:2px 6px;font-size:10px;" data-tooltip="Single range: ±15°">±15°</button>
+            <button class="btn small" id="rotPreset45" style="padding:2px 6px;font-size:10px;" data-tooltip="Single range: ±45°">±45°</button>
+            <button class="btn small" id="rotPreset90" style="padding:2px 6px;font-size:10px;" data-tooltip="Single range: 90° (Right)">90° (Right)</button>
+            <button class="btn small" id="rotPresetFull" style="padding:2px 6px;font-size:10px;" data-tooltip="Single range: Full 360°">Full (360°)</button>
+            <button class="btn small" id="rotPresetCardinal" style="padding:2px 6px;font-size:10px;border-color:var(--accent);" data-tooltip="4 Ranges: North, East, South, West (Cardinal directions with ±15° jitter)">Cardinal (4-Way)</button>
+            <button class="btn small" id="rotPresetDiagonal" style="padding:2px 6px;font-size:10px;" data-tooltip="4 Ranges: NE, SE, SW, NW (Diagonal directions with ±15° jitter)">Diagonal (4-Way)</button>
+            <button class="btn small" id="rotPresetHV" style="padding:2px 6px;font-size:10px;" data-tooltip="2 Ranges: Vertical (0°±15°) and Horizontal (90°±15°)">H/V (2-Way)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" data-section-id="grid">
+        <h3>Grid <label style="float:right;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);"><input type="checkbox" id="gridMasterToggle" style="accent-color:var(--accent);vertical-align:middle;"> Show</label></h3>
+        <div id="gridList"></div>
+        <button class="btn small" id="addGridBtn">+ Add Grid</button>
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-top:8px;">
+          <input type="checkbox" id="snapToGridToggle"> Snap to Grid (Brush, Eraser, Select)
+        </label>
+        <div class="hint" id="snapToGridHint" style="display:none;">Uses the first grid in the list above — add one to enable snapping.</div>
+      </div>
+
+      <div class="section" data-section-id="shortcuts">
+        <h3>Shortcuts</h3>
+        <div class="hint">
+          B / S / E / G / H / M / R — switch tool (G for Path)<br>
+          [ ] — brush size down/up<br>
+          Ctrl+Z / Ctrl+Shift+Z — undo/redo<br>
+          Wheel — zoom (centered on cursor) · 0 — fit · 1 — 100%<br>
+          Middle-click drag / Space-drag — pan<br>
+          Ctrl+click swatch — add/remove from spray selection<br>
+          Shift+click swatch — select range<br>
+          Ctrl+S — export PNG
+        </div>
+      </div>
+    </div>
+
+    <div class="resizer" id="leftResizer"></div>
+
+    <!-- CANVAS -->
+    <div class="canvas-outer">
+      <div class="canvas-top-left-hud">
+        <button id="canvasLightingToggleBtn" class="canvas-hud-btn" title="Toggle Lighting Preview (L)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18h6"></path>
+            <path d="M10 22h4"></path>
+            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="color-edit-popup" id="pathOverlayToolbar" style="display:none; position:fixed; z-index:2200; width:140px; padding:8px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; cursor:move; padding-bottom:4px; border-bottom:1px solid var(--line);" id="pathModalDragHandle">
+          <div style="font-weight:600; font-size:11px; color:var(--accent); display:flex; align-items:center; gap:6px;">Path</div>
+          <button class="btn small" id="pathModalCloseBtn" style="padding:1px 4px; font-size:10px;" title="Cancel path">✕</button>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button id="pathCommitAllBtn" class="btn small primary" style="font-weight:600; flex:1; font-size:11px; padding:4px;">Done</button>
+          <button id="pathCancelAllBtn" class="btn small" style="font-weight:600; flex:1; font-size:11px; padding:4px;">Cancel</button>
+        </div>
+      </div>
+      <div class="canvas-area" id="canvasWrap">
+        <div class="canvas-inner" id="canvasInner">
+          <div class="preview-zone" id="previewZone">
+            <div class="canvas-stack" id="canvasStack">
+              <canvas id="displayCanvas" width="512" height="512"></canvas>
+              <canvas id="marginFadeCanvas" width="768" height="768"></canvas>
+              <div id="canvasBackdrop"></div>
+              <canvas id="gridCanvas" width="512" height="512"></canvas>
+              <canvas id="selectionCanvas" width="512" height="512"></canvas>
+              <canvas id="cursorPreviewCanvas" width="512" height="512"></canvas>
+              <canvas id="colorHighlightCanvas" width="512" height="512"></canvas>
+              <canvas id="canvasLightingCanvas" width="512" height="512" style="display:none; position:absolute; top:0; left:0; pointer-events:none; image-rendering:pixelated; z-index:4;"></canvas>
+              <canvas id="canvasLightingGizmoCanvas" width="512" height="512" style="display:none; position:absolute; top:0; left:0; pointer-events:none; z-index:7;"></canvas>
+              <div id="canvasLightHandle" style="display:none; position:absolute; z-index:20; width:26px; height:26px; margin-left:-13px; margin-top:-13px; border-radius:50%; background:radial-gradient(circle, #ffffff 15%, #facc15 65%, rgba(234,179,8,0) 100%); box-shadow:0 0 10px #facc15, 0 0 18px rgba(234,179,8,0.6); cursor:grab; pointer-events:auto;" title="Drag Light Source">
+                <div style="width:10px;height:10px;border-radius:50%;background:#ffffff;margin:8px auto;border:1.5px solid #ca8a04;"></div>
+              </div>
+              <canvas id="modalPreviewCanvas" width="512" height="512"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="zoom-hud">
+        <button id="zoomOutBtn">−</button>
+        <span id="zoomLabel">100%</span>
+        <button id="zoomInBtn">+</button>
+        <button id="zoomFitBtn" title="Fit to screen">Fit</button>
+      </div>
+
+      <!-- TIMELINE MATRIX PANEL -->
+      <div class="v-resizer" id="timelineResizer" title="Drag to resize timeline" style="margin:0; background:var(--line); border-bottom:1px solid var(--line); z-index:25;"></div>
+      <div id="matrixTimelinePanel" class="timeline-panel">
+        <div class="timeline-topbar">
+          <button class="btn icon small" id="tlToggleCollapseBtn" title="Toggle timeline height" style="font-weight:bold; font-size:12px; padding:2px 8px; height:24px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;">▼</button>
+          <div class="timeline-controls">
+            <button class="btn small primary" id="tlPlayBtn">▶ Play</button>
+            <label style="font-size:11px; color:var(--text-dim); display:flex; align-items:center; gap:4px;">
+              FPS <input type="number" id="tlFpsInput" value="12" min="1" max="60" style="width:40px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:2px 4px; font-size:11px;">
+            </label>
+            <div class="divider" style="height:16px;"></div>
+            <label style="font-size:11px; color:var(--text); display:flex; align-items:center; gap:4px; cursor:pointer;" title="Show onion skinning for adjacent frames">
+              <input type="checkbox" id="tlOnionSkinCheckbox" style="accent-color:var(--accent);"> Onion Skin
+            </label>
+            <label id="tlOnionSkinOpacityWrap" style="font-size:11px; color:var(--text); display:inline-flex; align-items:center; gap:4px;" title="Onion skin opacity">
+              Opacity <input type="range" id="tlOnionSkinOpacitySlider" min="0" max="100" value="50" style="width:55px; vertical-align:middle; accent-color:var(--accent);">
+              <span id="tlOnionSkinOpacityVal" style="font-size:11px; color:var(--text-dim); min-width:28px;">50%</span>
+            </label>
+            <div class="divider" style="height:16px;"></div>
+            <button class="btn small" id="tlAddFrameBtn" title="Add new blank frame">+ Frame</button>
+            <button class="btn small" id="tlDupFrameBtn" title="Duplicate active frame">Dup Frame</button>
+            <button class="btn small danger" id="tlDelFrameBtn" title="Delete active frame">Delete Frame</button>
+            <div class="divider" style="height:16px;"></div>
+            <button class="btn small" id="tlAddLayerBtn" title="Add new layer">+ Layer</button>
+            <button class="btn small" id="tlDupLayerBtn" title="Duplicate active layer">Dup Layer</button>
+            <button class="btn small" id="tlMergeLayerBtn" title="Merge active layer into the layer below">Merge Down</button>
+            <button class="btn small danger" id="tlDelLayerBtn" title="Delete active layer">Delete Layer</button>
+            <div class="divider" style="height:16px;"></div>
+            <label style="font-size:11px; color:var(--text); display:flex; align-items:center; gap:6px; margin-left:auto; flex-shrink:0;" title="Active layer opacity">
+              Opacity <input type="range" id="tlLayerOpacitySlider" min="0" max="100" value="100" style="width:70px; vertical-align:middle; accent-color:var(--accent);">
+              <span id="tlLayerOpacityVal" style="font-size:11px; color:var(--text-dim); min-width:32px;">100%</span>
+            </label>
+          </div>
+        </div>
+        <div class="timeline-grid-wrap" id="timelineGridWrap">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <div class="resizer" id="rightResizer"></div>
+
+    <!-- PALETTE + GRADIENTS + LIBRARY + LAYERS -->
+    <div class="panel side-panel">
+
+      <!-- 1. BRUSH COLOR AT THE VERY TOP -->
+      <div class="section" data-section-id="brush-color" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin:0 0 6px 0;">Active Color</h3>
+        <div class="fg-row" style="padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;gap:8px;margin-top:0;">
+          <div class="fg-swatch" id="fgSwatch" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--line);" title="Active Color"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:1px;justify-content:center;">
+            <div id="fgHexVal" style="font-size:11px;font-weight:600;color:var(--text);font-family:monospace;letter-spacing:0.02em;">#FFFFFF</div>
+            <div id="fgHslVal" style="font-size:10px;color:var(--text-dim);font-family:monospace;">hsl(0, 0%, 100%)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. ACTUAL PALETTE AND GROUPS -->
+      <div class="section" data-section-id="palette" style="padding:8px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h3 style="margin:0;">Palette</h3>
+          <div class="palette-actions" style="margin:0;gap:4px;">
+            <button class="btn small" id="loadDefaultPaletteBtn" style="padding:2px 6px;font-size:10px;" title="Reset to default 99-color palette">Default</button>
+            <label class="btn small file-btn" style="padding:2px 6px;font-size:10px;">Load<input type="file" id="loadPalette" accept=".gpl,.json,.txt"></label>
+            <button class="btn small" id="savePaletteBtn" style="padding:2px 6px;font-size:10px;">Save</button>
+          </div>
+        </div>
+        <div class="palette-hint" style="margin-top:4px;margin-bottom:6px;font-size:10px;line-height:1.3;">Ctrl+click: add/remove swatch from spray selection. Shift+click: select range within group. Click sets brush color.</div>
+
+        <div id="groupsContainer"></div>
+
+        <!-- 3. FUNCTION BUTTONS UNDER PALETTE -->
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <button class="btn small" id="addToGroupBtn" style="padding:4px;font-size:10px;">+ Add Selected</button>
+            <button class="btn small" id="colorShiftBtn" style="padding:4px;font-size:10px;">Color Shift…</button>
+            <button class="btn small" id="highlightOnCanvasBtn" title="Show where selected color(s) appear on active layer" style="padding:4px;font-size:10px;">Highlight</button>
+            <button class="btn small" id="markUsedColorsBtn" title="Scan active layer and mark palette colors present" style="padding:4px;font-size:10px;">Mark Used</button>
+          </div>
+          <label style="font-size:10px;display:flex;align-items:center;gap:6px;margin:2px 0;color:var(--text);cursor:pointer;user-select:none;">
+            <input type="checkbox" id="showPixelCountsToggle" style="accent-color:var(--accent);"> Show pixel count on swatches
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <button class="btn small" id="extractPaletteBtn" title="Scan active layer pixels and build a new group" style="padding:4px;font-size:10px;">Extract Palette</button>
+            <button class="btn small" id="buildPaletteBtn" title="Interactively grow a palette" style="padding:4px;font-size:10px;">Build Palette…</button>
+            <button class="btn small" id="tweakPaletteBtn" title="Adjust hue, saturation, luminance" style="padding:4px;font-size:10px;">Tweak Palette…</button>
+            <button class="btn small" id="reduceColorsBtn" title="Quantize active layer to max colors" style="padding:4px;font-size:10px;">Reduce Colors…</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <button class="btn small" id="outlineBtn" title="Generate outline around layer pixels" style="padding:4px;font-size:10px;">Outline Layer…</button>
+            <button class="btn small" id="sharpenBtn" title="Snap blurry/antialiased edges back to hard pixel boundaries" style="padding:4px;font-size:10px;">Sharpen Edges…</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. PALETTIZE AS IS -->
+      <div class="section" data-section-id="palettize" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin-top:0;margin-bottom:6px;">Palettize</h3>
+        <label class="field" style="margin-top:0;font-size:10px;">Source</label>
+        <select id="palettizeSourceSelect" style="width:100%;font-size:11px;padding:3px 6px;">
+          <option value="full">Full palette (all groups)</option>
+          <option value="selected">Selected colors</option>
+          <option value="gradient">Gradient</option>
+        </select>
+        <select id="palettizeGradientSelect" style="margin-top:4px;display:none;width:100%;font-size:11px;padding:3px 6px;"></select>
+        <label style="font-size:10px;display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;">
+          <input type="checkbox" id="ditherCheckbox" style="accent-color:var(--accent);"> Dither (ordered)
+        </label>
+        <button class="btn small" id="palettizeBtn" style="margin-top:6px;width:100%;padding:4px 6px;font-size:11px;">Palettize Active Layer</button>
+        <div class="hint" style="margin-top:4px;font-size:10px;line-height:1.2;">Snaps active layer pixels to the nearest color in chosen source.</div>
+      </div>
+
+      <!-- 5. GRADIENTS AS IS -->
+      <div class="section" data-section-id="gradients" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin-top:0;margin-bottom:6px;">Gradients</h3>
+        <div id="gradientList" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+        <div style="display:flex;gap:4px;margin-top:6px;">
+          <button class="btn small" id="newGradientBtn" style="flex:1;padding:4px;font-size:10px;">+ New Gradient</button>
+          <button class="btn small" id="newGradientFromSelectionBtn" style="flex:1;padding:4px;font-size:10px;">+ From Selected</button>
+        </div>
+
+        <div class="builder-box" id="gradientBuilder" style="display:none;margin-top:6px;padding:6px;">
+          <div class="gradient-preview" id="gradientPreview"></div>
+          <div class="stop-chips" id="stopChips"></div>
+          <div style="display:flex;gap:4px;align-items:center;margin-top:6px;">
+            <button class="btn small" id="addStopColorBtn" style="padding:2px 6px;font-size:10px;">+ Color</button>
+            <span class="tiny-label" style="font-size:10px;">or click color below</span>
+          </div>
+          <div class="swatch-grid" id="builderPaletteGrid" style="margin-top:6px;"></div>
+          <div style="display:flex;gap:4px;margin-top:6px;">
+            <button class="btn small primary" id="saveGradientBtn" style="flex:1;padding:4px;font-size:10px;">Save</button>
+            <button class="btn small" id="cancelGradientBtn" style="flex:1;padding:4px;font-size:10px;">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. STAMPS AS A DROPDOWN LIST -->
+      <div class="section" data-section-id="stamps" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin-top:0;margin-bottom:6px;">Stamps & Vector SVGs</h3>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <select id="stampSelect" style="flex:1; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:11px; cursor:pointer;" data-tooltip="Select active stamp or SVG shape"></select>
+          <button class="btn small danger" id="deleteStampBtn" style="display:none; padding:3px 6px; font-size:11px; line-height:1;" data-tooltip="Delete active stamp" title="Delete stamp">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+          <label style="font-size:10px;display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--text-dim);user-select:none;">
+            <input type="checkbox" id="stampInvertCheckbox" style="accent-color:var(--accent);"> Invert Alpha
+          </label>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">
+          <label class="btn small file-btn" style="flex:1;white-space:nowrap;padding:4px;font-size:10px;" title="Upload image or SVG vector file(s)">+ Upload File / SVG<input type="file" id="stampUpload" accept="image/*,.svg" multiple></label>
+          <button class="btn small" id="addSvgBtn" style="flex:1;white-space:nowrap;padding:4px;font-size:10px;" title="Add custom SVG shape or path markup">+ Add SVG Path</button>
+        </div>
+
+        <div id="stampLibPivotContainer" style="display:none;margin-top:6px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;text-align:center;">
+          <label class="field" style="margin-top:0;font-size:10px;">Selected Stamp Pivot Point</label>
+          <div style="position:relative;display:inline-block;margin:2px 0;">
+            <canvas id="stampLibPivotCanvas" width="70" height="70" style="background:#13131c;border:1px solid #333;border-radius:4px;cursor:crosshair;display:block;touch-action:none;"></canvas>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:2px;">
+            <button class="btn small" id="stampLibPivotCenterBtn" style="padding:2px 5px;font-size:9px;">Center</button>
+            <button class="btn small" id="stampLibPivotBottomBtn" style="padding:2px 5px;font-size:9px;">Base</button>
+            <button class="btn small" id="stampLibPivotTopBtn" style="padding:2px 5px;font-size:9px;">Top</button>
+          </div>
+        </div>
+
+        <div id="svgStampSettingsContainer" style="display:none;margin-top:6px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;text-align:left;">
+          <label class="field" style="margin-top:0;font-weight:600;color:var(--accent);font-size:10px;">SVG Line Settings</label>
+          <label class="field" style="margin-top:4px;font-size:10px;">Line Width: <span class="field-value" id="svgLineWidthVal">Default</span></label>
+          <input type="range" id="svgLineWidthSlider" min="0" max="20" step="0.5" value="0" style="width:100%;accent-color:var(--accent);">
+          <label style="font-size:10px;display:flex;align-items:center;gap:4px;margin-top:4px;cursor:pointer;color:var(--text);user-select:none;">
+            <input type="checkbox" id="svgNoFillCheckbox" style="accent-color:var(--accent);">
+            <span>No Fill (Outline Only)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 7. LAYER HEIGHTMAP, ROUGHNESS, LIGHTING, HEIGHT PAINT -->
+      <div class="section" data-section-id="layer-heightmap" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin-top:0;margin-bottom:4px;">Layer Heightmap <label style="float:right;font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);"><input type="checkbox" id="editingHeightToggle" style="accent-color:var(--accent);vertical-align:middle;"> Edit</label></h3>
+        <div class="hint" style="font-size:10px;">Black = low, White = high.</div>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="btn small" id="regenHeightBtn" style="flex:1;padding:4px;font-size:10px;">Regen from Color</button>
+          <button class="btn small" id="exportLayerHeightBtn" style="flex:1;padding:4px;font-size:10px;" title="Export heightmap PNG">Export Map</button>
+          <button class="btn small danger" id="clearHeightBtn" style="flex:1;padding:4px;font-size:10px;" title="Clear heightmap for active layer">Clear</button>
+        </div>
+        <label class="field" style="margin-top:6px;font-size:10px;">Height Scale <span class="field-value" id="heightScaleVal">100%</span></label>
+        <input type="range" id="heightScaleSlider" min="0" max="400" value="100">
+      </div>
+
+      <div class="section" data-section-id="layer-roughness" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin-top:0;margin-bottom:4px;">Layer Roughness <label style="float:right;font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);"><input type="checkbox" id="editingRoughnessToggle" style="accent-color:var(--accent);vertical-align:middle;"> Edit</label></h3>
+        <div class="hint" style="font-size:10px;">Black (0) = Mirror Shiny, White (255) = Matte.</div>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="btn small" id="setLayerShinyBtn" style="flex:1;padding:4px;font-size:10px;">Make Shiny (0)</button>
+          <button class="btn small" id="setLayerMatteBtn" style="flex:1;padding:4px;font-size:10px;">Make Matte (255)</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="btn small" id="regenRoughnessBtn" style="flex:1;padding:4px;font-size:10px;">Regen from Color</button>
+          <button class="btn small" id="exportLayerRoughnessBtn" style="flex:1;padding:4px;font-size:10px;" title="Export roughness map PNG">Export Map</button>
+          <button class="btn small danger" id="clearRoughnessBtn" style="flex:1;padding:4px;font-size:10px;" title="Clear roughness map for active layer">Clear</button>
+        </div>
+        <label class="field" style="margin-top:6px;font-size:10px;">Roughness Scale <span class="field-value" id="roughnessScaleVal">100%</span></label>
+        <input type="range" id="roughnessScaleSlider" min="0" max="200" value="100">
+      </div>
+
+      <div class="section" data-section-id="lighting" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin-top:0;margin-bottom:4px;">Lighting <label style="float:right;font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);"><input type="checkbox" id="lightingPreviewEnabled" style="accent-color:var(--accent);vertical-align:middle;"> On</label></h3>
+        <div id="lightingPreviewWrap" style="display:none;">
+          <label class="field" style="margin-top:2px;font-size:10px;">Spot Intensity <span class="field-value" id="spotIntensityVal">100%</span></label>
+          <input type="range" id="spotIntensitySlider" min="0" max="300" value="100">
+
+          <label class="field" style="margin-top:4px;font-size:10px;">Light height <span class="field-value" id="lightHeightVal">150%</span></label>
+          <input type="range" id="lightHeightSlider" min="20" max="400" value="150">
+          
+          <label class="field" style="margin-top:4px;font-size:10px;">Ambient <span class="field-value" id="lightAmbientVal">20%</span></label>
+          <input type="range" id="lightAmbientSlider" min="0" max="100" value="20">
+
+          <label class="field" style="margin-top:6px;font-size:10px;">Lightbox Scenery</label>
+          <select id="lightboxPresetSelect" style="width:100%;font-size:10px;padding:3px;">
+            <option value="none" selected>None</option>
+            <option value="white">Pure White</option>
+            <option value="studio">Studio Softbox</option>
+            <option value="cyberpunk">Cyberpunk Neon</option>
+            <option value="sunset">Sunset / Golden Hour</option>
+            <option value="grid">Tech Grid Light</option>
+            <option value="metallic">Industrial Shop</option>
+            <option value="custom">Custom Image Upload…</option>
+          </select>
+          <input type="file" id="lightboxFileInput" accept="image/*" style="display:none;margin-top:4px;width:100%;font-size:10px;">
+
+          <label class="field" style="margin-top:4px;font-size:10px;">Reflection Intensity <span class="field-value" id="lightboxIntensityVal">100%</span></label>
+          <input type="range" id="lightboxIntensitySlider" min="0" max="200" value="100">
+
+          <label class="field" style="margin-top:4px;font-size:10px;">Specular Boost <span class="field-value" id="specularBoostVal">100%</span></label>
+          <input type="range" id="specularBoostSlider" min="0" max="200" value="100">
+        </div>
+      </div>
+
+      <div class="section" data-section-id="height-paint" style="padding:8px;margin-bottom:8px;">
+        <h3 style="margin-top:0;margin-bottom:4px;">Height Paint <label style="float:right;font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim);"><input type="checkbox" id="heightPaintEnabled" style="accent-color:var(--accent);vertical-align:middle;"> On</label></h3>
+        <div id="heightPaintOptions" style="display:none;">
+          <label class="field" style="margin-top:0;font-size:10px;">Height source layer</label>
+          <select id="heightSourceSelect" style="width:100%;font-size:10px;padding:3px;"></select>
+
+          <label class="field" style="margin-top:4px;font-size:10px;">Mode</label>
+          <select id="heightModeSelect" style="width:100%;font-size:10px;padding:3px;">
+            <option value="range">Range (paint a height band)</option>
+            <option value="gradientLowHigh">Gradient: favor low → high</option>
+            <option value="gradientHighLow">Gradient: favor high → low</option>
+          </select>
+
+          <div id="heightRangeControls">
+            <label class="field" style="margin-top:4px;font-size:10px;">Min height <span class="field-value" id="heightMinVal">0</span></label>
+            <input type="range" id="heightMinSlider" min="0" max="255" value="0">
+            <label class="field" style="margin-top:4px;font-size:10px;">Max height <span class="field-value" id="heightMaxVal">255</span></label>
+            <input type="range" id="heightMaxSlider" min="0" max="255" value="255">
+            <label class="field" style="margin-top:4px;font-size:10px;">Edge softness <span class="field-value" id="heightSoftnessVal">0%</span></label>
+            <input type="range" id="heightSoftnessSlider" min="0" max="100" value="0">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+
+<script src="./sprites.js"></script>
+</body>
+</html>

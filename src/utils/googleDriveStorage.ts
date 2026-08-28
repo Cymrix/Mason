@@ -27,7 +27,18 @@ const getFirebaseAuth = () => {
 
 const GOOGLE_DRIVE_TOKEN_KEY = 'mourne_gdrive_access_token';
 const GOOGLE_DRIVE_USER_KEY = 'mourne_gdrive_user_info';
-const GOOGLE_DRIVE_BACKUP_ENABLED_KEY = 'mourne_gdrive_autobackup_enabled';
+const GOOGLE_DRIVE_FOLDER_ID_KEY = 'mourne_gdrive_folder_id';
+const GOOGLE_DRIVE_FOLDER_NAME_KEY = 'mourne_gdrive_folder_name';
+
+export interface DriveItem {
+  id: string;
+  name: string;
+  isFolder: boolean;
+  mimeType: string;
+  modifiedTime: string;
+  size?: string;
+  isBackup?: boolean;
+}
 
 export interface DriveFileInfo {
   id: string;
@@ -63,18 +74,28 @@ export const setGoogleDriveToken = (token: string | null) => {
 };
 
 /**
- * Checks if Google Drive Auto-Backup is enabled
+ * Checks if Google Drive Auto-Backup is enabled (Always true when connected)
  */
 export const isGoogleDriveBackupEnabled = (): boolean => {
-  return localStorage.getItem(GOOGLE_DRIVE_BACKUP_ENABLED_KEY) === 'true';
+  return true;
 };
 
-/**
- * Sets Google Drive Auto-Backup preference
- */
-export const setGoogleDriveBackupEnabled = (enabled: boolean) => {
-  localStorage.setItem(GOOGLE_DRIVE_BACKUP_ENABLED_KEY, enabled ? 'true' : 'false');
+export const getGoogleDriveSelectedFolder = () => {
+  return {
+    id: localStorage.getItem(GOOGLE_DRIVE_FOLDER_ID_KEY) || null,
+    name: localStorage.getItem(GOOGLE_DRIVE_FOLDER_NAME_KEY) || 'Root Directory'
+  };
 };
+
+export const setGoogleDriveSelectedFolder = (id: string | null, name: string) => {
+  if (id) {
+    localStorage.setItem(GOOGLE_DRIVE_FOLDER_ID_KEY, id);
+  } else {
+    localStorage.removeItem(GOOGLE_DRIVE_FOLDER_ID_KEY);
+  }
+  localStorage.setItem(GOOGLE_DRIVE_FOLDER_NAME_KEY, name);
+};
+
 
 /**
  * Retrieves Google User Info if logged in
@@ -226,11 +247,78 @@ export const authenticateGoogleDrive = async (manualToken?: string, customClient
 export const disconnectGoogleDrive = () => {
   localStorage.removeItem(GOOGLE_DRIVE_TOKEN_KEY);
   localStorage.removeItem(GOOGLE_DRIVE_USER_KEY);
-  localStorage.removeItem(GOOGLE_DRIVE_BACKUP_ENABLED_KEY);
+  localStorage.removeItem(GOOGLE_DRIVE_FOLDER_ID_KEY);
+  localStorage.removeItem(GOOGLE_DRIVE_FOLDER_NAME_KEY);
 };
 
 /**
- * Saves or updates a project file to Google Drive
+ * Lists items (folders and project files) inside a specific Google Drive directory for virtual browser
+ */
+export const listGoogleDriveFolderContents = async (folderId?: string | null): Promise<DriveItem[]> => {
+  const token = getGoogleDriveToken();
+  if (!token) return [];
+
+  const parentId = folderId || 'root';
+  const query = encodeURIComponent(`'${parentId}' in parents and trashed = false`);
+  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType,modifiedTime,size)&orderBy=folder desc,modifiedTime desc`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) disconnectGoogleDrive();
+    return [];
+  }
+
+  const data = await res.json();
+  return (data.files || []).map((f: any) => ({
+    id: f.id,
+    name: f.name,
+    isFolder: f.mimeType === 'application/vnd.google-apps.folder',
+    mimeType: f.mimeType,
+    modifiedTime: f.modifiedTime,
+    size: f.size,
+    isBackup: f.name.startsWith('[BACKUP]')
+  }));
+};
+
+/**
+ * Creates a new folder inside Google Drive
+ */
+export const createGoogleDriveFolder = async (folderName: string, parentFolderId?: string | null): Promise<DriveItem> => {
+  const token = getGoogleDriveToken();
+  if (!token) throw new Error('Not connected to Google Drive.');
+
+  const parentId = parentFolderId || 'root';
+  const metadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+    parents: [parentId]
+  };
+
+  const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,mimeType,modifiedTime', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(metadata)
+  });
+
+  if (!res.ok) throw new Error(`Could not create folder on Google Drive (${res.status})`);
+  const data = await res.json();
+  return {
+    id: data.id,
+    name: data.name,
+    isFolder: true,
+    mimeType: data.mimeType,
+    modifiedTime: data.modifiedTime || new Date().toISOString()
+  };
+};
+
+/**
+ * Saves or updates a full project file to Google Drive
  */
 export const saveProjectToGoogleDrive = async (
   project: ProjectData,
@@ -249,14 +337,16 @@ export const saveProjectToGoogleDrive = async (
   const bodyBlob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
   const mimeType = 'application/json';
 
-  // Check if file already exists in Drive
-  const query = encodeURIComponent(`name = '${fileName}' and trashed = false`);
+  const selectedFolder = getGoogleDriveSelectedFolder();
+  const parentFolderId = selectedFolder.id || 'root';
+
+  // Check if file already exists in target folder
+  const query = encodeURIComponent(`name = '${fileName}' and '${parentFolderId}' in parents and trashed = false`);
   const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
     headers: { Authorization: `Bearer ${token}` }
   });
 
   if (checkRes.status === 401) {
-    // Token expired, re-auth
     token = await authenticateGoogleDrive();
   }
 
@@ -268,11 +358,15 @@ export const saveProjectToGoogleDrive = async (
     }
   }
 
-  const metadata = {
+  const metadata: any = {
     name: fileName,
     mimeType: mimeType,
     description: `Mason Map Editor Level - ${project.name} (${project.id})`
   };
+
+  if (!fileId && parentFolderId) {
+    metadata.parents = [parentFolderId];
+  }
 
   const formData = new FormData();
   formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
@@ -309,36 +403,25 @@ export const saveProjectToGoogleDrive = async (
 };
 
 /**
- * Lists all Mason projects stored on Google Drive
+ * Lists all Mason projects stored on Google Drive in selected folder
  */
 export const listGoogleDriveProjects = async (): Promise<DriveFileInfo[]> => {
   const token = getGoogleDriveToken();
   if (!token) return [];
 
-  const query = encodeURIComponent(`(name contains '.mason' or name contains '.json') and trashed = false`);
-  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType,modifiedTime,size)&orderBy=modifiedTime desc`;
-
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      disconnectGoogleDrive();
-    }
-    return [];
-  }
-
-  const data = await res.json();
-  return (data.files || []).map((f: any) => ({
-    id: f.id,
-    name: f.name,
-    mimeType: f.mimeType,
-    modifiedTime: f.modifiedTime,
-    size: f.size,
-    isBackup: f.name.startsWith('[BACKUP]')
-  }));
+  const items = await listGoogleDriveFolderContents(getGoogleDriveSelectedFolder().id);
+  return items
+    .filter(item => !item.isFolder && (item.name.endsWith('.mason') || item.name.endsWith('.json')))
+    .map(item => ({
+      id: item.id,
+      name: item.name,
+      mimeType: item.mimeType,
+      modifiedTime: item.modifiedTime,
+      size: item.size,
+      isBackup: item.isBackup
+    }));
 };
+
 
 /**
  * Downloads and loads a project from Google Drive

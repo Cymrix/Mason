@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.182';
-export const MASON_VERSION_DISPLAY = 'v0.182';
-export const MASON_FULL_VERSION = 'v0.182';
+export const MASON_VERSION = '0.184';
+export const MASON_VERSION_DISPLAY = 'v0.184';
+export const MASON_FULL_VERSION = 'v0.184';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,28 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.184',
+    date: '2026-08-28',
+    changes: [
+      'Resolved OneDrive OAuth popup redirect and auto-closing handshake via window postMessage.',
+      'Implemented visual toggle switch between active cloud storage providers (Google Drive vs Microsoft OneDrive).',
+      'Added Virtual File & Folder Browser for Google Drive and OneDrive with custom target directory selection.',
+      'Updated cloud storage engine to save full multi-level project structures (.mason).',
+      'Made cloud auto-backup non-optional and auto-active when connected.',
+      'Bumped Mason release version constants to v0.184.'
+    ]
+  },
+  {
+    version: 'v0.183',
+    date: '2026-08-28',
+    changes: [
+      'Configured Google Drive & Microsoft OneDrive OAuth integrations with lazy auth initialization.',
+      'Updated Azure SPA redirect URI matching for OneDrive cloud level synchronization.',
+      'Streamlined Cloud Storage & Sync modal UI.',
+      'Bumped release version constants to v0.183.'
+    ]
+  },
   {
     version: 'v0.182',
     date: '2026-08-28',

@@ -656,8 +656,9 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       if (!e.data || typeof e.data !== 'object') return;
 
       if (e.data.type === 'SPRITE_READY') {
+        const wasReady = isIframeReadyRef.current;
         isIframeReadyRef.current = true;
-        if (activeFileRef.current) {
+        if (!wasReady && activeFileRef.current) {
           sendLoadFileToIframe(activeFileRef.current);
         }
         postToIframe({ type: 'REQUEST_STATUS' });
@@ -694,6 +695,11 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
           });
         }
       } else if (e.data.type === 'SPRITE_STATUS_UPDATE' || e.data.type === 'SPRITE_STATUS') {
+        const wasReady = isIframeReadyRef.current;
+        isIframeReadyRef.current = true;
+        if (!wasReady && activeFileRef.current) {
+          sendLoadFileToIframe(activeFileRef.current);
+        }
         if (typeof e.data.width === 'number' && typeof e.data.height === 'number') {
           setSpriteDimensions({ w: e.data.width, h: e.data.height });
         }

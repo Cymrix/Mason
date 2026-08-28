@@ -1,7 +1,7 @@
 {
   "name": "mason-map-editor",
   "private": true,
-  "version": "0.180",
+  "version": "0.181",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -20,6 +20,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "pngjs": "^7.0.0",
+    "puppeteer": "^25.9.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1"
   },

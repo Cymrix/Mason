@@ -1,4 +1,7 @@
 
+
+
+
 (function(){
   const displayCanvas = document.getElementById('displayCanvas');
   const dctx = displayCanvas.getContext('2d', { willReadFrequently: true });
@@ -1180,6 +1183,7 @@
       selectedColors: Array.from(selectedColors),
       fgColor: fgColor,
       layers: layers.map(l=>({
+        id: l.id,
         name:l.name, visible:l.visible, locked:!!l.locked, opacity:l.opacity,
         colorData: l.colorCanvas.toDataURL(),
         heightData: l.heightCanvas ? l.heightCanvas.toDataURL() : null,
@@ -1213,6 +1217,7 @@
         c.getContext('2d', { willReadFrequently: true }).drawImage(img,0,0);
         const ctx = c.getContext('2d', { willReadFrequently: true });
         const layerObj = {
+          id: ld.id !== undefined ? ld.id : layerIdCounter++,
           name:ld.name, canvas:c, ctx,
           colorCanvas:c, colorCtx:ctx,
           heightCanvas:null, heightCtx:null,
@@ -1359,6 +1364,7 @@
       const ctx = c.getContext('2d', { willReadFrequently: true });
       ctx.drawImage(l.colorCanvas, 0, 0);
       const newLayer = {
+        id: layerIdCounter++,
         name: l.name, canvas: c, ctx,
         colorCanvas: c, colorCtx: ctx,
         heightCanvas: null, heightCtx: null,
@@ -16456,6 +16462,7 @@
       onionSkinOpacity,
       activeLayer,
       layers: layers.map(l=>({
+        id: l.id,
         name:l.name, visible:l.visible, locked:!!l.locked, opacity:l.opacity, data:l.colorCanvas.toDataURL(),
         heightData: l.heightCanvas ? l.heightCanvas.toDataURL() : null,
         roughnessData: l.roughnessCanvas ? l.roughnessCanvas.toDataURL() : null
@@ -16465,6 +16472,7 @@
         name: f.name,
         activeLayer: f.activeLayer,
         layers: f.layers.map(l=>({
+          id: l.id,
           name:l.name, visible:l.visible, locked:!!l.locked, opacity:l.opacity, data:l.colorCanvas.toDataURL(),
           heightData: l.heightCanvas ? l.heightCanvas.toDataURL() : null,
           roughnessData: l.roughnessCanvas ? l.roughnessCanvas.toDataURL() : null
@@ -17162,6 +17170,7 @@
       c.width = w; c.height = h;
       const ctx = c.getContext('2d', { willReadFrequently: true });
       const layerObj = {
+        id: (typeof ld.id === 'number') ? ld.id : layerIdCounter++,
         name: ld.name || 'Layer',
         canvas: c, ctx, colorCanvas: c, colorCtx: ctx,
         heightCanvas: null, heightCtx: null,
@@ -17229,9 +17238,12 @@
     const layerPromise = decodeLayersData(proj.layers, proj.width, proj.height);
     const framesPromise = Array.isArray(proj.frames)
       ? Promise.all(proj.frames.map(fd => decodeLayersData(fd.layers, proj.width, proj.height).then(decodedLayers => ({
+          id: (typeof fd.id === 'number') ? fd.id : frameIdCounter++,
           name: fd.name,
           layers: decodedLayers,
-          activeLayer: fd.activeLayer || 0
+          activeLayer: fd.activeLayer || 0,
+          undoStack: fd.undoStack || [],
+          redoStack: fd.redoStack || []
         }))))
       : Promise.resolve(null);
 
@@ -17294,6 +17306,10 @@
         // layer stack as one frame so everything downstream keeps working unchanged.
         frames = [makeFrame('Frame ' + frameIdCounter, layers, activeLayer)];
         currentFrameIndex = 0;
+        layers = frames[currentFrameIndex].layers;
+        activeLayer = frames[currentFrameIndex].activeLayer;
+        undoStack = frames[currentFrameIndex].undoStack;
+        redoStack = frames[currentFrameIndex].redoStack;
       }
       refreshFramesPanel();
 
@@ -19384,3 +19400,4 @@ window.addEventListener("appinstalled", () => {
   if (pwaInstallBtn) pwaInstallBtn.style.display = "none";
   if (pwaDivider) pwaDivider.style.display = "none";
 });
+

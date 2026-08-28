@@ -1,4 +1,11 @@
 import { ProjectData, parseProjectJson } from './projectStorage';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+// Initialize Firebase App
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const auth = getAuth(app);
 
 const GOOGLE_DRIVE_TOKEN_KEY = 'mourne_gdrive_access_token';
 const GOOGLE_DRIVE_USER_KEY = 'mourne_gdrive_user_info';
@@ -65,62 +72,97 @@ export const getGoogleDriveUser = (): GoogleDriveUser | null => {
 };
 
 /**
- * Triggers Google OAuth Client Token flow or allows token input
+ * Triggers Google OAuth Client Token flow via Firebase Auth Popup or Google Identity Services
  */
 export const authenticateGoogleDrive = async (): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    // Check if Google OAuth Client GIS is loaded
-    if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
-      try {
-        const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '43198960631-apps.googleusercontent.com';
-        const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-          client_id: clientId, // Google Workspace OAuth
-          scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
-          callback: async (resp: any) => {
-            if (resp.error) {
-              reject(new Error(resp.error_description || resp.error));
-              return;
-            }
-            if (resp.access_token) {
-              setGoogleDriveToken(resp.access_token);
-              // Fetch profile info
-              try {
-                const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: { Authorization: `Bearer ${resp.access_token}` }
-                });
-                if (profileRes.ok) {
-                  const profile = await profileRes.json();
-                  localStorage.setItem(GOOGLE_DRIVE_USER_KEY, JSON.stringify({
-                    email: profile.email,
-                    name: profile.name,
-                    picture: profile.picture
-                  }));
-                }
-              } catch (e) {
-                console.warn('Could not fetch user profile:', e);
-              }
-              resolve(resp.access_token);
-            }
-          }
-        });
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      } catch (err: any) {
-        reject(err);
-      }
-    } else {
-      // Fallback: load Google Identity Services script on demand
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.onload = () => {
-        if ((window as any).google?.accounts?.oauth2) {
-          authenticateGoogleDrive().then(resolve).catch(reject);
-        } else {
-          reject(new Error('Google Identity SDK failed to initialize.'));
-        }
-      };
-      script.onerror = () => reject(new Error('Failed to load Google Accounts script.'));
-      document.head.appendChild(script);
+  // Method 1: Try Firebase Auth Popup (uses provisioned OAuth Client in firebase-applet-config.json)
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.addScope('https://www.googleapis.com/auth/userinfo.email');
+    provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      setGoogleDriveToken(credential.accessToken);
+      const user = result.user;
+      localStorage.setItem(
+        GOOGLE_DRIVE_USER_KEY,
+        JSON.stringify({
+          email: user.email,
+          name: user.displayName,
+          picture: user.photoURL
+        })
+      );
+      return credential.accessToken;
     }
+  } catch (firebaseErr: any) {
+    console.warn('Firebase Auth popup failed or was bypassed, trying GIS client fallback:', firebaseErr);
+  }
+
+  // Method 2: Google Identity Services (GIS) fallback with provisioned oAuthClientId
+  return new Promise((resolve, reject) => {
+    const clientId =
+      (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
+      '966469177467-ovbndg35jpjah5gav69t0v4a41im8j8d.apps.googleusercontent.com';
+
+    const triggerGis = () => {
+      if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
+        try {
+          const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope:
+              'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+            callback: async (resp: any) => {
+              if (resp.error) {
+                reject(new Error(resp.error_description || resp.error));
+                return;
+              }
+              if (resp.access_token) {
+                setGoogleDriveToken(resp.access_token);
+                try {
+                  const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${resp.access_token}` }
+                  });
+                  if (profileRes.ok) {
+                    const profile = await profileRes.json();
+                    localStorage.setItem(
+                      GOOGLE_DRIVE_USER_KEY,
+                      JSON.stringify({
+                        email: profile.email,
+                        name: profile.name,
+                        picture: profile.picture
+                      })
+                    );
+                  }
+                } catch (e) {
+                  console.warn('Could not fetch user profile:', e);
+                }
+                resolve(resp.access_token);
+              }
+            }
+          });
+          tokenClient.requestAccessToken({ prompt: 'consent' });
+        } catch (err: any) {
+          reject(err);
+        }
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.onload = () => {
+          if ((window as any).google?.accounts?.oauth2) {
+            triggerGis();
+          } else {
+            reject(new Error('Google Identity SDK failed to initialize.'));
+          }
+        };
+        script.onerror = () => reject(new Error('Failed to load Google Accounts script.'));
+        document.head.appendChild(script);
+      }
+    };
+
+    triggerGis();
   });
 };
 

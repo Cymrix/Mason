@@ -966,7 +966,7 @@ export const EditorLayout: React.FC = () => {
 
   return (
     <div 
-      className="flex flex-col h-screen w-full max-w-full text-neutral-100 font-sans overflow-hidden select-none transition-colors duration-200"
+      className="flex flex-col w-full h-full text-neutral-100 font-sans overflow-hidden select-none transition-colors duration-200"
       style={{ backgroundColor: bgDef.hex }}
     >
       
@@ -978,7 +978,7 @@ export const EditorLayout: React.FC = () => {
           borderColor: `rgba(${primaryDef.rgb}, 0.22)`
         }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           
           {/* Hamburger Menu Navigation */}
           <HamburgerMenu
@@ -1053,7 +1053,7 @@ export const EditorLayout: React.FC = () => {
         </div>
 
         {/* Right Navigation & Action Tools */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1 justify-end overflow-x-auto hide-scrollbar pl-4 min-w-0">
           {project && (
             <>
               {/* Module & Dashboard Direct Icon Bar */}

@@ -6,7 +6,7 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.179';
+export const MASON_VERSION = '0.180';
 export const MASON_VERSION_DISPLAY = 'v0.179';
 export const MASON_FULL_VERSION = 'v0.179';
 

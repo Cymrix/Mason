@@ -77,7 +77,8 @@ export const authenticateOneDrive = async (manualToken?: string, customClientId?
 
   // Popup flow for Microsoft Account OAuth
   return new Promise((resolve, reject) => {
-    const redirectUri = window.location.origin;
+    // Exact page URL without query params or hash fragment for precise Azure SPA matching
+    const redirectUri = window.location.href.split('#')[0].split('?')[0];
     const scopes = encodeURIComponent('files.readwrite user.read offline_access');
     const clientId = customClientId?.trim() || (import.meta as any).env?.VITE_ONEDRIVE_CLIENT_ID || localStorage.getItem('mourne_onedrive_client_id') || 'c1001aef-9d0f-4875-8272-b8cfabcf3afd';
     const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;

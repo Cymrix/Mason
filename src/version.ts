@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.171';
-export const MASON_VERSION_DISPLAY = 'v0.171';
-export const MASON_FULL_VERSION = 'v0.171';
+export const MASON_VERSION = '0.175';
+export const MASON_VERSION_DISPLAY = 'v0.175';
+export const MASON_FULL_VERSION = 'v0.175';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,24 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.175',
+    date: '2026-08-27',
+    changes: [
+      'Repaired corrupted himg/rimg image loading handlers in decodeLayersData preventing layer and height/roughness map initialization.',
+      'Added fallback initApp DOM listener to guarantee immediate 32x32 canvas and layer initialization on iframe load.',
+      'Bumped release version constants, package manifest, and ServiceWorker cache identifier to v0.175.'
+    ]
+  },
+  {
+    version: 'v0.174',
+    date: '2026-08-27',
+    changes: [
+      'Decompressed binary zlib stream in Sprite Editor bundle (/public/modules/sprites/index.html) to fix layer data loading and syntax crashes.',
+      'Created Git milestone repository snapshot and v1.0-milestone tag.',
+      'Bumped release version constants, package manifest, and ServiceWorker cache identifier to v0.174.'
+    ]
+  },
   {
     version: 'v0.171',
     date: '2026-08-26',

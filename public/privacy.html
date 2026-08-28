@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy - Mason 2D Level Editor</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0d0e15;
+      color: #e2e8f0;
+      line-height: 1.6;
+      padding: 2rem 1rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1, h2, h3 {
+      color: #818cf8;
+      margin-top: 1.5rem;
+    }
+    h1 {
+      border-bottom: 2px solid #312e81;
+      padding-bottom: 0.5rem;
+    }
+    a {
+      color: #a5b4fc;
+      text-decoration: underline;
+    }
+    .card {
+      background: #181924;
+      border: 1px solid #312e81;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+    .highlight {
+      background: rgba(99, 102, 241, 0.1);
+      border-left: 4px solid #6366f1;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      border-radius: 4px;
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: 0.875rem;
+      color: #94a3b8;
+      text-align: center;
+      border-top: 1px solid #1e293b;
+      padding-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy for Mason 2D Level Editor</h1>
+  <p><strong>Effective Date:</strong> August 28, 2026</p>
+
+  <div class="card">
+    <p>Mason 2D Level Editor ("Mason", "we", "our", or "us") respects your privacy. This Privacy Policy explains how your information is handled when you use the Mason web application and its optional Google Drive and Microsoft OneDrive integration features.</p>
+  </div>
+
+  <h2>1. Overview & Data Storage</h2>
+  <p>Mason is primarily a client-side web application. All project data, biome configurations, custom tilemaps, and sprite sheets are stored locally in your browser's <code>localStorage</code> / <code>IndexedDB</code> unless you explicitly connect an optional cloud storage provider.</p>
+
+  <div class="highlight">
+    <strong>Google User Data Policy Compliance:</strong> Mason does not store, harvest, sell, or share your personal data or Google Drive files on any third-party external server. All token exchanges and file transactions occur directly between your browser and official Google API endpoints.
+  </div>
+
+  <h2>2. Information Collected & Used</h2>
+  <h3>a. Local Data</h3>
+  <p>Your level designs, map assets, editor preferences, and session state are stored directly in your browser. No level files are transmitted to us.</p>
+
+  <h3>b. Google Drive API Usage</h3>
+  <p>If you choose to log in with Google Drive to back up or sync your level files, Mason requests access to the <code>https://www.googleapis.com/auth/drive.file</code> scope. This restricted permission allows Mason to:</p>
+  <ul>
+    <li>Create, edit, open, and save only the level files (<code>.mason</code>, <code>.map</code>, <code>.json</code>) created by or explicitly opened with Mason inside your Google Drive.</li>
+    <li>Mason <strong>cannot</strong> read, modify, or delete any other files or folders in your Google Drive.</li>
+    <li>OAuth tokens are stored securely in your browser's private local storage session and are used exclusively to authenticate direct client-to-Google API calls.</li>
+  </ul>
+
+  <h3>c. Microsoft OneDrive API Usage</h3>
+  <p>If you connect Microsoft OneDrive, Mason uses the Microsoft Graph API with the delegated <code>Files.ReadWrite.AppFolder</code> scope to save level files inside a dedicated <code>MasonMapEditor</code> folder in your OneDrive.</p>
+
+  <h2>3. Third-Party Services</h2>
+  <p>Mason connects directly to official APIs provided by:</p>
+  <ul>
+    <li><strong>Google OAuth 2.0 & Google Drive API:</strong> <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a></li>
+    <li><strong>Microsoft Graph API & OneDrive:</strong> <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener">Microsoft Privacy Statement</a></li>
+  </ul>
+
+  <h2>4. Data Retention and Deletion</h2>
+  <p>You have complete control over your data:</p>
+  <ul>
+    <li>You can disconnect Google Drive or Microsoft OneDrive at any time using the <strong>Cloud Storage & Sync</strong> menu inside Mason. Disconnecting immediately removes access tokens from your browser storage.</li>
+    <li>You can revoke Mason's access to your Google Account at any time via <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Security Settings</a>.</li>
+    <li>Deleting a file inside Mason's cloud manager removes that file from your Google Drive or OneDrive.</li>
+  </ul>
+
+  <h2>5. Security</h2>
+  <p>All communication with Google Drive and Microsoft OneDrive APIs occurs exclusively over encrypted HTTPS connections using industry-standard OAuth 2.0 protocol authentication.</p>
+
+  <h2>6. Changes to This Privacy Policy</h2>
+  <p>We may update this Privacy Policy periodically to reflect improvements in our app or changes in cloud platform requirements. Updates will be published on this page with a revised effective date.</p>
+
+  <h2>7. Contact Us</h2>
+  <p>If you have any questions about this Privacy Policy or Mason 2D Level Editor, please contact the developer at <a href="mailto:maranojesse@gmail.com">maranojesse@gmail.com</a>.</p>
+
+  <footer>
+    <p>&copy; 2026 Mason 2D Level Editor | <a href="/terms.html">Terms of Service</a> | <a href="/license.html">License</a></p>
+  </footer>
+</body>
+</html>

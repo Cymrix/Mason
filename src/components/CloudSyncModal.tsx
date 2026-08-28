@@ -44,6 +44,8 @@ import {
   setOneDriveSelectedFolder,
   getActiveCloudProvider,
   setActiveCloudProvider,
+  getOneDriveTenant,
+  setOneDriveTenant,
   CloudProvider
 } from '../utils/oneDriveStorage';
 
@@ -80,6 +82,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [onedriveToken, setOnedriveToken] = useState<string | null>(null);
   const [onedriveUser, setOnedriveUser] = useState<any>(null);
   const [onedriveStatusMsg, setOnedriveStatusMsg] = useState<string | null>(null);
+  const [onedriveTenant, setOnedriveTenantState] = useState<string>(getOneDriveTenant());
   const [onedriveCurrentFolder, setOnedriveCurrentFolder] = useState<FolderBreadcrumb>({ id: null, name: 'App Root / MasonMapEditor' });
   const [onedriveSelectedTarget, setOnedriveSelectedTarget] = useState<FolderBreadcrumb>({ id: null, name: 'App Root / MasonMapEditor' });
   const [onedriveFolderItems, setOnedriveFolderItems] = useState<OneDriveItem[]>([]);
@@ -245,16 +248,27 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   };
 
   // OneDrive Handlers
-  const handleConnectOneDrive = async () => {
+  const handleTenantChange = (tenant: string) => {
+    setOnedriveTenantState(tenant);
+    setOneDriveTenant(tenant);
+  };
+
+  const handleConnectOneDrive = async (overrideTenant?: string) => {
     setLoading(true);
     setOnedriveStatusMsg(null);
+    const activeTenant = overrideTenant || onedriveTenant;
     try {
-      await authenticateOneDrive();
+      await authenticateOneDrive(undefined, undefined, activeTenant);
       handleSwitchProvider('onedrive');
       refreshCloudState();
       setOnedriveStatusMsg('Connected to Microsoft OneDrive!');
     } catch (err: any) {
-      setOnedriveStatusMsg(`OneDrive connection error: ${err.message}`);
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('useraudience') && activeTenant === 'common') {
+        // Automatically set tenant to consumers when userAudience error occurs
+        handleTenantChange('consumers');
+      }
+      setOnedriveStatusMsg(`OneDrive connection error: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -647,16 +661,46 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   {!onedriveToken ? (
-                    <button
-                      onClick={() => handleConnectOneDrive()}
-                      disabled={loading}
-                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs flex items-center gap-2 transition-all shadow-lg shadow-sky-600/20"
-                    >
-                      {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
-                      Connect OneDrive
-                    </button>
+                    <>
+                      <div className="flex items-center gap-1 p-1 bg-stone-900 border border-stone-800 rounded-lg text-xs">
+                        <span className="text-[10px] font-bold text-stone-500 uppercase px-1.5">Account:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleTenantChange('consumers')}
+                          className={`px-2 py-1 rounded text-[11px] font-medium transition-all ${
+                            onedriveTenant === 'consumers'
+                              ? 'bg-sky-600 text-white shadow-sm'
+                              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
+                          }`}
+                          title="Personal Microsoft Accounts (@outlook, @hotmail, @live)"
+                        >
+                          Personal (consumers)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTenantChange('common')}
+                          className={`px-2 py-1 rounded text-[11px] font-medium transition-all ${
+                            onedriveTenant === 'common'
+                              ? 'bg-sky-600 text-white shadow-sm'
+                              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
+                          }`}
+                          title="Work or School Accounts (Azure AD / Microsoft 365)"
+                        >
+                          Work/School (common)
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => handleConnectOneDrive()}
+                        disabled={loading}
+                        className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-sky-600/20"
+                      >
+                        {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
+                        Connect OneDrive
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={handleDisconnectOneDrive}
@@ -669,9 +713,31 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               </div>
 
               {onedriveStatusMsg && (
-                <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs text-sky-300 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 shrink-0 text-sky-400" />
-                  {onedriveStatusMsg}
+                <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs text-sky-300 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-sky-400" />
+                    <span className="break-words">{onedriveStatusMsg}</span>
+                  </div>
+                  {onedriveStatusMsg.toLowerCase().includes('useraudience') && (
+                    <div className="mt-2 p-3 rounded-lg bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-amber-100">Personal Microsoft Account Endpoint Required:</p>
+                        <p className="mt-0.5 text-amber-300/90 leading-relaxed">
+                          Microsoft Entra ID rejected the request because the registered app audience is set for Personal accounts (`Consumer`). We have automatically updated your connection endpoint setting to <strong>Personal (consumers)</strong>!
+                        </p>
+                        <button
+                          onClick={() => {
+                            handleTenantChange('consumers');
+                            handleConnectOneDrive('consumers');
+                          }}
+                          className="mt-2.5 px-3.5 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+                        >
+                          <Cloud className="w-3.5 h-3.5" /> Retry Connection (consumers Endpoint)
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

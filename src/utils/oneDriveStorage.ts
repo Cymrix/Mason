@@ -4,6 +4,7 @@ const ONEDRIVE_TOKEN_KEY = 'mourne_onedrive_access_token';
 const ONEDRIVE_USER_KEY = 'mourne_onedrive_user_info';
 const ONEDRIVE_FOLDER_ID_KEY = 'mourne_onedrive_folder_id';
 const ONEDRIVE_FOLDER_NAME_KEY = 'mourne_onedrive_folder_name';
+const ONEDRIVE_TENANT_KEY = 'mourne_onedrive_tenant_endpoint';
 const ACTIVE_CLOUD_PROVIDER_KEY = 'mourne_active_cloud_provider';
 
 export type CloudProvider = 'gdrive' | 'onedrive';
@@ -49,6 +50,17 @@ if (typeof window !== 'undefined' && window.opener) {
         try { window.close(); } catch {}
       }, 100);
     }
+  } else if (hash.includes('error=')) {
+    const urlParams = new URLSearchParams(hash.substring(1));
+    const errorDesc = urlParams.get('error_description') || urlParams.get('error') || 'OAuth authorization failed';
+    try {
+      window.opener.postMessage({ type: 'ONEDRIVE_AUTH_ERROR', error: errorDesc }, '*');
+    } catch (e) {
+      console.warn('Failed to postMessage error to window.opener', e);
+    }
+    setTimeout(() => {
+      try { window.close(); } catch {}
+    }, 100);
   }
 }
 
@@ -58,6 +70,14 @@ export const getActiveCloudProvider = (): CloudProvider => {
 
 export const setActiveCloudProvider = (provider: CloudProvider) => {
   localStorage.setItem(ACTIVE_CLOUD_PROVIDER_KEY, provider);
+};
+
+export const getOneDriveTenant = (): string => {
+  return localStorage.getItem(ONEDRIVE_TENANT_KEY) || 'consumers';
+};
+
+export const setOneDriveTenant = (tenant: string) => {
+  localStorage.setItem(ONEDRIVE_TENANT_KEY, tenant);
 };
 
 export const getOneDriveToken = (): string | null => {
@@ -105,7 +125,11 @@ export const getOneDriveUser = (): OneDriveUser | null => {
 /**
  * Connects to Microsoft OneDrive via OAuth Popup / Access Token Prompt
  */
-export const authenticateOneDrive = async (manualToken?: string, customClientId?: string): Promise<string> => {
+export const authenticateOneDrive = async (
+  manualToken?: string, 
+  customClientId?: string,
+  customTenant?: string
+): Promise<string> => {
   if (manualToken) {
     setOneDriveToken(manualToken);
     try {
@@ -130,8 +154,9 @@ export const authenticateOneDrive = async (manualToken?: string, customClientId?
   return new Promise((resolve, reject) => {
     const redirectUri = window.location.href.split('#')[0].split('?')[0];
     const scopes = encodeURIComponent('files.readwrite user.read offline_access');
+    const tenant = customTenant?.trim() || getOneDriveTenant() || 'consumers';
     const clientId = customClientId?.trim() || (import.meta as any).env?.VITE_ONEDRIVE_CLIENT_ID || localStorage.getItem('mourne_onedrive_client_id') || 'c1001aef-9d0f-4875-8272-b8cfabcf3afd';
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;
+    const authUrl = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;
 
     const width = 600;
     const height = 700;
@@ -176,6 +201,9 @@ export const authenticateOneDrive = async (manualToken?: string, customClientId?
         }
         cleanup();
         resolve(token);
+      } else if (event.data && event.data.type === 'ONEDRIVE_AUTH_ERROR') {
+        cleanup();
+        reject(new Error(event.data.error || 'OneDrive authorization failed.'));
       }
     };
 
@@ -214,11 +242,16 @@ export const authenticateOneDrive = async (manualToken?: string, customClientId?
             cleanup();
             resolve(accessToken);
           }
+        } else if (popup.location.href.includes('#error=') || popup.location.href.includes('?error=')) {
+          const urlParams = new URLSearchParams(popup.location.hash.substring(1) || popup.location.search.substring(1));
+          const errDesc = urlParams.get('error_description') || urlParams.get('error') || 'OAuth authorization failed';
+          cleanup();
+          reject(new Error(errDesc));
         }
       } catch (err) {
         // Cross-origin restriction while popup is on microsoftonline.com
       }
-    }, 400);
+    }, 500);
   });
 };
 

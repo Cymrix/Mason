@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.185';
-export const MASON_VERSION_DISPLAY = 'v0.185';
-export const MASON_FULL_VERSION = 'v0.185';
+export const MASON_VERSION = '0.186';
+export const MASON_VERSION_DISPLAY = 'v0.186';
+export const MASON_FULL_VERSION = 'v0.186';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.186',
+    date: '2026-08-28',
+    changes: [
+      'Updated OneDrive OAuth authorization endpoint to default to /consumers/ for Personal Microsoft Accounts.',
+      'Resolved Azure AD userAudience error when authenticating with personal Outlook/Hotmail/Live accounts.',
+      'Added tenant account switcher in CloudSyncModal to seamlessly toggle between Personal (consumers) and Work/School (common) accounts.',
+      'Added automated detection and quick-fix button for userAudience OAuth configuration mismatches.'
+    ]
+  },
   {
     version: 'v0.185',
     date: '2026-08-28',

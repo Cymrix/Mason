@@ -72,8 +72,9 @@ export const authenticateGoogleDrive = async (): Promise<string> => {
     // Check if Google OAuth Client GIS is loaded
     if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
       try {
+        const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '43198960631-apps.googleusercontent.com';
         const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-          client_id: '43198960631-apps.googleusercontent.com', // Google Workspace OAuth
+          client_id: clientId, // Google Workspace OAuth
           scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
           callback: async (resp: any) => {
             if (resp.error) {

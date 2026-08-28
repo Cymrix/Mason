@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.181';
-export const MASON_VERSION_DISPLAY = 'v0.181';
-export const MASON_FULL_VERSION = 'v0.181';
+export const MASON_VERSION = '0.182';
+export const MASON_VERSION_DISPLAY = 'v0.182';
+export const MASON_FULL_VERSION = 'v0.182';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,15 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.182',
+    date: '2026-08-28',
+    changes: [
+      'Restored standalone Sprite Studio engine scripts and verified palette/layer/drawing tools reactivity.',
+      'Initiated Google Drive and Microsoft OneDrive OAuth cloud synchronization setup milestone.',
+      'Bumped Mason release version constants to v0.182 across engine manifests.'
+    ]
+  },
   {
     version: 'v0.177',
     date: '2026-08-27',

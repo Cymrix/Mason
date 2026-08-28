@@ -79,7 +79,8 @@ export const authenticateOneDrive = async (manualToken?: string): Promise<string
   return new Promise((resolve, reject) => {
     const redirectUri = window.location.origin;
     const scopes = encodeURIComponent('files.readwrite user.read offline_access');
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=d35907ce-6188-4447-9269-8dd3353e6d87&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;
+    const clientId = (import.meta as any).env?.VITE_ONEDRIVE_CLIENT_ID || localStorage.getItem('mourne_onedrive_client_id') || 'd35907ce-6188-4447-9269-8dd3353e6d87';
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;
 
     const width = 600;
     const height = 700;

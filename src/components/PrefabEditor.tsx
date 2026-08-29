@@ -1,3 +1,4 @@
+ï»¿// UTF-8 encoded file for Mason Prefab Editor
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createOrLinkImageAndSpriteProject } from '../utils/spriteUtils';
 import { 
@@ -599,7 +600,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
       id: 'char_korrath',
       name: 'Korrath Steelhand',
       prefabType: 'player_hero' as const,
-      avatarIcon: 'ğŸ›¡ï¸',
+      avatarIcon: '\\ud83d\\udee1',
       spriteWidth: 64,
       spriteHeight: 64,
       tintColor: '#06b6d4',
@@ -755,21 +756,21 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     return (
       <>
         {localVars.length > 0 && (
-          <optgroup label="âš¡ Local Variables (Rule Scope)">
+          <optgroup label="\\u26a1 Local Variables (Rule Scope)">
             {localVars.map(v => (
               <option key={v.id} value={v.id}>
-                âš¡ [Local] {v.name} ({v.id}) = {String(v.value)}
+                {'\\u26a1'} [Local] {v.name} ({v.id}) = {String(v.value)}
               </option>
             ))}
           </optgroup>
         )}
-        <optgroup label="ğŸ“Š Prefab Variables (Persistent)">
+        <optgroup label="\\ud83d\\udcca Prefab Variables (Persistent)">
           {prefabVars.length === 0 ? (
             <option value="" disabled>No Prefab Variables Defined</option>
           ) : (
             prefabVars.map(v => (
               <option key={v.id} value={v.id}>
-                ğŸ“Š {v.name} ({v.id}) = {String(v.value)}
+                {'\\ud83d\\udcca'} {v.name} ({v.id}) = {String(v.value)}
               </option>
             ))
           )}
@@ -1808,7 +1809,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           ctx.font = '28px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(char.avatarIcon || 'ğŸ›¡ï¸', 0, 0);
+          ctx.fillText(char.avatarIcon || '\\ud83d\\udee1', 0, 0);
         }
       }
 
@@ -2214,7 +2215,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         onBackToDashboard={onBackToDashboard}
         centerContent={
           <div className="flex items-center gap-1.5 max-w-full truncate">
-            <span className="text-base leading-none shrink-0" title="Prefab Avatar">{char.avatarIcon || 'ğŸ›¡ï¸'}</span>
+            <span className="text-base leading-none shrink-0" title="Prefab Avatar">{char.avatarIcon || '\\ud83d\\udee1'}</span>
             <input
               type="text"
               value={char.name}
@@ -2266,7 +2267,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
               id: `char_${Date.now()}`,
               name,
               prefabType: 'enemy_mob',
-              avatarIcon: 'ğŸ‘¹',
+              avatarIcon: '\\ud83d\\udc79',
               spriteWidth: 64,
               spriteHeight: 64,
               tintColor: '#f59e0b',
@@ -2514,13 +2515,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <span>{isSelected ? 'â–¶' : 'â€¢'}</span>
+                          <span>{isSelected ? '\\u25b6' : '\\u2022'}</span>
                           <span className="truncate">{a.label || a.stateId}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {kfCount > 0 && (
                             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-500/30" title={`${kfCount} keyframed frame(s)`}>
-                              â—† {kfCount}
+                              {'\\u25c6'} {kfCount}
                             </span>
                           )}
                           <span className="text-[10px] font-mono text-neutral-500">
@@ -3007,7 +3008,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     </span>
                     {isCapsuleKeyframedOnActiveFrame() ? (
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40">
-                        â—† Frame #{activeGlobalFrameIndex}
+                        {'\\u25c6'} Frame #{activeGlobalFrameIndex}
                       </span>
                     ) : (
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-950 text-neutral-400 border border-neutral-800">
@@ -3153,11 +3154,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     </span>
                     {isCurrentFrameKeyframed() ? (
                       <span className="px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono text-[10px] font-bold">
-                        â—† Saved
+                        {'\\u25c6'} Saved
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 text-neutral-500 font-mono text-[10px]">
-                        â—‹ Default
+                        {'\\u25cb'} Default
                       </span>
                     )}
                   </div>
@@ -3269,7 +3270,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                 <div className="w-[28px] h-[28px] flex flex-col items-center justify-center leading-none">
                                   <span className="text-[10px] font-bold">{offset + 1}</span>
                                   {hasKf ? (
-                                    <span className="text-amber-400 text-[8px] leading-none">â—†</span>
+                                    <span className="text-amber-400 text-[8px] leading-none">{'\\u25c6'}</span>
                                   ) : (
                                     <span className="text-[7px] text-neutral-600 font-normal leading-none">{gIdx}</span>
                                   )}
@@ -3308,9 +3309,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                               >
                                 <div className="w-[28px] h-[28px] flex items-center justify-center">
                                   {kfStatus.isKeyframed ? (
-                                    <span className="text-pink-400 font-bold leading-none">â– </span>
+                                    <span className="text-pink-400 font-bold leading-none">{'\\u25a0'}</span>
                                   ) : (
-                                    <span className="text-neutral-700 leading-none hover:text-neutral-500">Â·</span>
+                                    <span className="text-neutral-700 leading-none hover:text-neutral-500">{'\\u00b7'}</span>
                                   )}
                                 </div>
                               </td>
@@ -3345,11 +3346,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                 <div className="w-[28px] h-[28px] flex items-center justify-center">
                                   {kfStatus.isKeyframed ? (
                                     <div className="w-4 h-4 rounded bg-amber-950/90 text-amber-300 border border-amber-500/60 flex items-center justify-center font-bold text-[9px] shadow-sm">
-                                      â—†
+                                      {'\\u25c6'}
                                     </div>
                                   ) : (
                                     <div className="w-3.5 h-3.5 rounded text-neutral-700 flex items-center justify-center text-[9px]">
-                                      â—‹
+                                      {'\\u25cb'}
                                     </div>
                                   )}
                                 </div>
@@ -3413,11 +3414,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     <div className="w-[28px] h-[28px] flex items-center justify-center">
                                       {kfStatus.isKeyframed ? (
                                         <div className="w-4 h-4 rounded bg-cyan-950/90 text-cyan-300 border border-cyan-500/60 flex items-center justify-center font-bold text-[9px] shadow-sm">
-                                          â—†
+                                          {'\\u25c6'}
                                         </div>
                                       ) : (
                                         <div className="w-3.5 h-3.5 rounded text-neutral-700 flex items-center justify-center text-[9px]">
-                                          â—‹
+                                          {'\\u25cb'}
                                         </div>
                                       )}
                                     </div>
@@ -3483,11 +3484,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     <div className="w-[28px] h-[28px] flex items-center justify-center">
                                       {kfStatus.isKeyframed ? (
                                         <div className="w-4 h-4 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 flex items-center justify-center font-bold text-[9px] shadow-sm">
-                                          â—†
+                                          {'\\u25c6'}
                                         </div>
                                       ) : (
                                         <div className="w-3.5 h-3.5 rounded text-neutral-700 flex items-center justify-center text-[9px]">
-                                          â—‹
+                                          {'\\u25cb'}
                                         </div>
                                       )}
                                     </div>
@@ -3620,7 +3621,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
                 <div className="w-full flex items-center justify-between pt-2 text-[9px] text-neutral-500 font-mono">
                   <span>Drag sockets / vertices to keyframe</span>
-                  <span className="text-cyan-400 font-bold">RMB / Space+Drag to pan â€¢ Wheel to zoom</span>
+                  <span className="text-cyan-400 font-bold">RMB / Space+Drag to pan {'\\u2022'} Wheel to zoom</span>
                 </div>
               </div>
 
@@ -3687,9 +3688,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-neutral-400">Keyframe Status:</span>
                           {isKf ? (
-                            <span className="text-amber-300 font-bold">â—† Frame Keyframe</span>
+                            <span className="text-amber-300 font-bold">{'\\u25c6'} Frame Keyframe</span>
                           ) : (
-                            <span className="text-neutral-500">â—‹ Using Base Default</span>
+                            <span className="text-neutral-500">{'\\u25cb'} Using Base Default</span>
                           )}
                         </div>
                       </div>
@@ -3782,9 +3783,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-neutral-400">Keyframe Status:</span>
                           {isKf ? (
-                            <span className="text-amber-300 font-bold">â—† Frame Keyframe</span>
+                            <span className="text-amber-300 font-bold">{'\\u25c6'} Frame Keyframe</span>
                           ) : (
-                            <span className="text-neutral-500">â—‹ Using Base Default</span>
+                            <span className="text-neutral-500">{'\\u25cb'} Using Base Default</span>
                           )}
                         </div>
                       </div>
@@ -4055,7 +4056,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         Spritesheet Size:
                       </span>
                       <span className="text-white font-mono font-bold text-xs bg-purple-950/60 text-purple-200 px-2 py-0.5 rounded border border-purple-500/30">
-                        {sheetW} Ã— {sheetH} px
+                        {sheetW} {'\\u00d7'} {sheetH} px
                       </span>
                     </div>
 
@@ -4069,9 +4070,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                             className="max-h-24 object-contain image-rendering-pixelated rounded"
                           />
                           <div className="text-[10px] text-neutral-400 font-mono mt-1.5 flex items-center gap-2">
-                            <span>{sheet.cols} cols Ã— {sheet.rows} rows</span>
-                            <span>â€¢</span>
-                            <span>{sheet.tileWidth}Ã—{sheet.tileHeight} px/tile</span>
+                            <span>{sheet.cols} cols {'\\u00d7'} {sheet.rows} rows</span>
+                            <span>{'\\u2022'}</span>
+                            <span>{sheet.tileWidth}{'\\u00d7'}{sheet.tileHeight} px/tile</span>
                           </div>
                         </div>
                       ) : (
@@ -4185,7 +4186,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         <label className="text-[10px] text-neutral-400 font-bold block flex items-center justify-between">
                           <span>Split Sheet By:</span>
                           <span className="text-[9px] text-purple-400 font-mono">
-                            {splitMode === 'pixels' ? 'Tile Pixels (WÃ—H)' : 'Columns & Rows'}
+                            {splitMode === 'pixels' ? 'Tile Pixels (W\\u00d7H)' : 'Columns & Rows'}
                           </span>
                         </label>
                         <div className="grid grid-cols-2 gap-1 p-1 bg-neutral-950 border border-neutral-800 rounded-xl">
@@ -4204,7 +4205,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                 : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
                             }`}
                           >
-                            <span>ğŸ“ Tile Pixels</span>
+                            <span>{'\\ud83d\\udccf'} Tile Pixels</span>
                           </button>
                           <button
                             type="button"
@@ -4221,7 +4222,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                 : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
                             }`}
                           >
-                            <span>ğŸ”¢ Columns & Rows</span>
+                            <span>{'\\ud83d\\udd22'} Columns & Rows</span>
                           </button>
                         </div>
                       </div>
@@ -4279,7 +4280,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                           </div>
                           <div className="text-[10px] text-neutral-400 font-mono flex items-center justify-between pt-1 border-t border-neutral-800">
                             <span>Calculated Grid:</span>
-                            <span className="text-purple-300 font-bold">{sheet.cols} cols Ã— {sheet.rows} rows ({sheet.totalFrames} frames)</span>
+                            <span className="text-purple-300 font-bold">{sheet.cols} cols {'\\u00d7'} {sheet.rows} rows ({sheet.totalFrames} frames)</span>
                           </div>
                         </div>
                       ) : (
@@ -4335,7 +4336,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                           </div>
                           <div className="text-[10px] text-neutral-400 font-mono flex items-center justify-between pt-1 border-t border-neutral-800">
                             <span>Calculated Tile Size:</span>
-                            <span className="text-purple-300 font-bold">{sheet.tileWidth} Ã— {sheet.tileHeight} px ({sheet.totalFrames} frames)</span>
+                            <span className="text-purple-300 font-bold">{sheet.tileWidth} {'\\u00d7'} {sheet.tileHeight} px ({sheet.totalFrames} frames)</span>
                           </div>
                         </div>
                       )}
@@ -4668,7 +4669,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                   Prefab State Machine & Transitions Graph
                 </h3>
                 <p className="text-xs text-neutral-400">
-                  Visual FSM: Drag nodes, dictate one-way (<span className="text-indigo-400">â†’</span>) or bidirectional (<span className="text-indigo-400">â†”</span>) transitions, and bind them directly to Behavior triggers.
+                  Visual FSM: Drag nodes, dictate one-way (<span className="text-indigo-400">{'\\u2192'}</span>) or bidirectional (<span className="text-indigo-400">{'\\u2194'}</span>) transitions, and bind them directly to Behavior triggers.
                 </p>
               </div>
 
@@ -4749,9 +4750,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     FSM Canvas
                   </span>
                   <span className="text-neutral-600">|</span>
-                  <span className="text-[11px] text-neutral-400">{stateNodes.length} States â€¢ {stateTransitions.length} Transitions</span>
+                  <span className="text-[11px] text-neutral-400">{stateNodes.length} States {'\\u2022'} {stateTransitions.length} Transitions</span>
                   <span className="text-neutral-600 hidden sm:inline">|</span>
-                  <span className="text-[10px] text-neutral-500 font-mono hidden sm:inline">Right-click/Middle-click drag to pan â€¢ Scroll to zoom</span>
+                  <span className="text-[10px] text-neutral-500 font-mono hidden sm:inline">Right-click/Middle-click drag to pan {'\\u2022'} Scroll to zoom</span>
                 </div>
 
                 <div className="absolute top-4 right-4 z-20 flex items-center gap-1 bg-neutral-950/80 backdrop-blur-md p-1 rounded-xl border border-neutral-800 shadow-lg">
@@ -4999,10 +5000,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                   ? 'bg-red-950/95 border-red-500/80 text-red-300 ring-1 ring-red-500/40 hover:border-red-400 hover:text-white hover:scale-105' 
                                   : 'bg-neutral-900/95 border-neutral-700 text-neutral-300 hover:border-cyan-400 hover:text-white hover:scale-105')
                           }`}
-                          title={`Transition: ${fromNode.name} â†’ ${toNode.name}.${isUnset ? ' [âš ï¸ NO CONDITION SET - Wire is red]' : ` Condition: ${tr.triggerLabel}`}`}
+                          title={`Transition: ${fromNode.name} \\u2192 ${toNode.name}.${isUnset ? ' [\\u26a0 NO CONDITION SET - Wire is red]' : ` Condition: ${tr.triggerLabel}`}`}
                         >
                           <span className={`text-[11px] font-bold ${isSelected ? (isUnset ? 'text-white' : 'text-black') : (isUnset ? 'text-red-400' : 'text-cyan-400')}`}>
-                            {isUnset ? 'âš ï¸' : 'â†’'}
+                            {isUnset ? '\\u26a0' : '\\u2192'}
                           </span>
                           <span className="truncate max-w-[120px]">
                             {isUnset ? 'None (No Condition)' : tr.triggerLabel}
@@ -5295,7 +5296,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                   className="p-2 rounded-xl bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 hover:border-cyan-500/50 flex items-center justify-between text-[11px] cursor-pointer transition group"
                                 >
                                   <div className="truncate flex-1">
-                                    <span className="text-cyan-400 font-mono">â†’</span>{' '}
+                                    <span className="text-cyan-400 font-mono">{'\\u2192'}</span>{' '}
                                     <span className="text-white font-bold">{targetNode?.name || t.toStateId}</span>
                                     <span className="text-neutral-400 text-[10px] ml-1.5 font-mono">({t.triggerLabel || 'Condition'})</span>
                                   </div>
@@ -5394,7 +5395,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                           <span className={`text-sm font-bold px-2.5 py-0.5 rounded bg-neutral-900 border ${
                             isUnset ? 'text-red-400 border-red-500/40' : 'text-cyan-400 border-neutral-800'
                           }`}>
-                            â†’
+                            {'\\u2192'}
                           </span>
                           <span className="text-white font-bold truncate max-w-[90px]" title={toNode?.name || activeTr.toStateId}>
                             {toNode?.name || activeTr.toStateId}
@@ -5436,10 +5437,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                               isUnset ? 'border-red-500/60 focus:border-red-400 text-red-300' : 'border-cyan-500/50 focus:border-cyan-400 text-cyan-200'
                             }`}
                           >
-                            <option value="none">âŒ None (No Condition - Highlighted Red)</option>
+                            <option value="none">{'\\u274c'} None (No Condition - Highlighted Red)</option>
                             {rulesList.map(r => (
                               <option key={r.id} value={r.id}>
-                                âš¡ Behavior: {r.name || r.id}
+                                {'\\u26a1'} Behavior: {r.name || r.id}
                               </option>
                             ))}
                           </select>
@@ -5453,7 +5454,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         {/* Unset Red Notice */}
                         {isUnset && (
                           <div className="p-2 rounded-xl bg-red-950/80 border border-red-500/50 text-red-300 text-[11px] flex items-start gap-2">
-                            <span className="text-red-400 font-bold shrink-0">âš ï¸</span>
+                            <span className="text-red-400 font-bold shrink-0">{'\\u26a0'}</span>
                             <span>Condition is unset. This transition wire & arrows will show in <strong>RED</strong> on the canvas until configured.</span>
                           </div>
                         )}
@@ -5469,7 +5470,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                 className="w-full py-2 px-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 hover:border-indigo-500/50 text-indigo-300 hover:text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
                               >
                                 <Plus size={13} />
-                                <span>Add Return Transition ({toNode?.name || 'Target'} â†’ {fromNode?.name || 'Origin'})</span>
+                                <span>Add Return Transition ({toNode?.name || 'Target'} {'\\u2192'} {fromNode?.name || 'Origin'})</span>
                               </button>
                             );
                           }
@@ -5550,7 +5551,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color || '#38bdf8' }} />
                           <span className="font-bold truncate">{s.name}</span>
-                          {s.isInitial && <span className="text-[9px] text-amber-400 font-mono">â­ Start</span>}
+                          {s.isInitial && <span className="text-[9px] text-amber-400 font-mono">{'\\u2b50'} Start</span>}
                         </div>
                         <span className="text-[10px] text-neutral-500 font-mono">{s.id}</span>
                       </div>
@@ -5612,13 +5613,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <span className="font-bold text-white truncate max-w-[70px]">{fromNode?.name || tr.fromStateId}</span>
-                                <span className={isUnset ? 'text-red-400 font-mono' : 'text-cyan-400 font-mono'}>â†’</span>
+                                <span className={isUnset ? 'text-red-400 font-mono' : 'text-cyan-400 font-mono'}>{'\\u2192'}</span>
                                 <span className="font-bold text-white truncate max-w-[70px]">{toNode?.name || tr.toStateId}</span>
                               </div>
                               <div className="text-[10px] font-mono truncate mt-0.5">
                                 {isUnset ? (
                                   <span className="text-red-400 font-bold bg-red-950/80 px-1.5 py-0.5 rounded border border-red-500/30">
-                                    âš ï¸ Condition: None (Unset)
+                                    {'\\u26a0'} Condition: None (Unset)
                                   </span>
                                 ) : (
                                   <span className="text-neutral-400">
@@ -5783,30 +5784,30 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                   const ruleLogic = rule.triggerLogic || 'AND';
 
                   const triggerTypeLabels: Record<string, string> = {
-                    possession: 'ğŸ® Possession',
-                    mapped_input: 'ğŸ•¹ï¸ Mapped Input',
-                    raw_keyboard: 'âŒ¨ï¸ Raw Keyboard',
-                    raw_mouse: 'ğŸ–±ï¸ Raw Mouse',
-                    raw_gamepad: 'ğŸ® Raw Gamepad',
-                    sight: 'ğŸ‘ï¸ Sight (Sensory)',
-                    sound: 'ğŸ‘‚ Acoustic Hearing',
-                    proximity: 'ğŸ“ Proximity',
-                    health: 'â¤ï¸ Health',
-                    state: 'âš¡ State Active',
-                    variable_condition: 'ğŸ”¢ Variable Condition',
-                    timer: 'â±ï¸ Timer',
-                    dialogue_trigger: 'ğŸ’¬ Dialogue',
-                    collision: 'ğŸ’¥ Physics Collision',
-                    input_press: 'âŒ¨ï¸ Input Press',
-                    player_condition: 'ğŸƒ Player State',
-                    keyboard_key: 'âŒ¨ï¸ Raw Keyboard',
-                    listener: 'ğŸ“¡ Signal Listener',
-                    solid_detection: 'ğŸ§± Solid Detection',
-                    slope_detection: 'ğŸ“ Slope Detection',
-                    slope: 'ğŸ“ Slope Detection',
-                    physics_state: 'âš›ï¸ Physics & Gravity',
-                    on_spawn: 'ğŸŒ± On Spawn',
-                    spawn: 'ğŸŒ± On Spawn'
+                    possession: '\\ud83c\\udfae Possession',
+                    mapped_input: '\\ud83d\\udd79 Mapped Input',
+                    raw_keyboard: '\\u2328 Raw Keyboard',
+                    raw_mouse: '\\ud83d\\uddb1 Raw Mouse',
+                    raw_gamepad: '\\ud83c\\udfae Raw Gamepad',
+                    sight: '\\ud83d\\udc41 Sight (Sensory)',
+                    sound: '\\ud83d\\udc42 Acoustic Hearing',
+                    proximity: '\\ud83d\\udccd Proximity',
+                    health: '\\u2764 Health',
+                    state: '\\u26a1 State Active',
+                    variable_condition: '\\ud83d\\udd22 Variable Condition',
+                    timer: '\\u23f1 Timer',
+                    dialogue_trigger: '\\ud83d\\udcac Dialogue',
+                    collision: '\\ud83d\\udca5 Physics Collision',
+                    input_press: '\\u2328 Input Press',
+                    player_condition: '\\ud83c\\udfc3 Player State',
+                    keyboard_key: '\\u2328 Raw Keyboard',
+                    listener: '\\ud83d\\udce1 Signal Listener',
+                    solid_detection: '\\ud83e\\uddf1 Solid Detection',
+                    slope_detection: '\\ud83d\\udcd0 Slope Detection',
+                    slope: '\\ud83d\\udcd0 Slope Detection',
+                    physics_state: '\\u269b Physics & Gravity',
+                    on_spawn: '\\ud83c\\udf31 On Spawn',
+                    spawn: '\\ud83c\\udf31 On Spawn'
                   };
 
                   const getSingleTriggerSummary = (t: BehaviorTrigger): string => {
@@ -6099,24 +6100,24 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           }}
                                           className="bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1 text-xs text-amber-300 font-mono"
                                         >
-                                          <option value="on_spawn">ğŸŒ± On Spawn (Instance Created / Instantiated)</option>
-                                          <option value="solid_detection">ğŸ§± Solid Detection (Left / Right / Above / Below)</option>
-                                          <option value="slope_detection">ğŸ“ Slope Detection (Ramps / Incline / Ascending / Facing Uphill)</option>
-                                          <option value="physics_state">âš›ï¸ Physics & Gravity (Jump Peak / Falling / Low-G)</option>
-                                          <option value="state">âš¡ State Active / Event</option>
-                                          <option value="possession">ğŸ® Player Takes Possession</option>
-                                          <option value="mapped_input">ğŸ•¹ï¸ Mapped Player Input (UI Mapping)</option>
-                                          <option value="raw_keyboard">âŒ¨ï¸ Raw Keyboard (Direct Key / Modifiers)</option>
-                                          <option value="raw_mouse">ğŸ–±ï¸ Raw Mouse (Buttons / Wheel / Hover)</option>
-                                          <option value="raw_gamepad">ğŸ® Raw Gamepad (Buttons / Sticks / Triggers)</option>
-                                          <option value="sight">ğŸ‘ï¸ Sight Raycast (Sensory Eyes)</option>
-                                          <option value="sound">ğŸ‘‚ Acoustic Hearing (Sensory Ears)</option>
-                                          <option value="proximity">ğŸ“ Proximity Distance</option>
-                                          <option value="health">â¤ï¸ Health Threshold</option>
-                                          <option value="variable_condition">ğŸ”¢ Variable Condition</option>
-                                          <option value="timer">â±ï¸ Timer Interval</option>
-                                          <option value="dialogue_trigger">ğŸ’¬ Dialogue Interaction</option>
-                                          <option value="collision">ğŸ’¥ Physics Collision</option>
+                                          <option value="on_spawn">{'\\ud83c\\udf31'} On Spawn (Instance Created / Instantiated)</option>
+                                          <option value="solid_detection">{'\\ud83e\\uddf1'} Solid Detection (Left / Right / Above / Below)</option>
+                                          <option value="slope_detection">{'\\ud83d\\udcd0'} Slope Detection (Ramps / Incline / Ascending / Facing Uphill)</option>
+                                          <option value="physics_state">{'\\u269b'} Physics & Gravity (Jump Peak / Falling / Low-G)</option>
+                                          <option value="state">{'\\u26a1'} State Active / Event</option>
+                                          <option value="possession">{'\\ud83c\\udfae'} Player Takes Possession</option>
+                                          <option value="mapped_input">{'\\ud83d\\udd79'} Mapped Player Input (UI Mapping)</option>
+                                          <option value="raw_keyboard">{'\\u2328'} Raw Keyboard (Direct Key / Modifiers)</option>
+                                          <option value="raw_mouse">{'\\ud83d\\uddb1'} Raw Mouse (Buttons / Wheel / Hover)</option>
+                                          <option value="raw_gamepad">{'\\ud83c\\udfae'} Raw Gamepad (Buttons / Sticks / Triggers)</option>
+                                          <option value="sight">{'\\ud83d\\udc41'} Sight Raycast (Sensory Eyes)</option>
+                                          <option value="sound">{'\\ud83d\\udc42'} Acoustic Hearing (Sensory Ears)</option>
+                                          <option value="proximity">{'\\ud83d\\udccd'} Proximity Distance</option>
+                                          <option value="health">{'\\u2764'} Health Threshold</option>
+                                          <option value="variable_condition">{'\\ud83d\\udd22'} Variable Condition</option>
+                                          <option value="timer">{'\\u23f1'} Timer Interval</option>
+                                          <option value="dialogue_trigger">{'\\ud83d\\udcac'} Dialogue Interaction</option>
+                                          <option value="collision">{'\\ud83d\\udca5'} Physics Collision</option>
                                         </select>
 
                                         {effectiveTriggers.length > 1 && (
@@ -6162,7 +6163,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           </div>
                                           <div className="flex flex-col justify-center bg-neutral-900/80 border border-neutral-800 rounded-lg p-2.5">
                                             <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs mb-1">
-                                              <span>ğŸŒ±</span>
+                                              <span>{'\\ud83c\\udf31'}</span>
                                               <span>Lifecycle Event</span>
                                             </div>
                                             <p className="text-[11px] text-neutral-300 leading-relaxed">
@@ -6187,12 +6188,12 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
                                             >
-                                              <option value="below">â¬‡ï¸ Below / Ground (Solid floor under feet)</option>
-                                              <option value="above">â¬†ï¸ Above / Ceiling (Solid overhead obstacle)</option>
-                                              <option value="left">â¬…ï¸ Left Wall (Solid barrier to the left)</option>
-                                              <option value="right">â¡ï¸ Right Wall (Solid barrier to the right)</option>
-                                              <option value="wall_forward">â© Forward Wall (Facing direction solid)</option>
-                                              <option value="wall_backward">âª Backward Wall (Behind prefab)</option>
+                                              <option value="below">{'\\u2b07'} Below / Ground (Solid floor under feet)</option>
+                                              <option value="above">{'\\u2b06'} Above / Ceiling (Solid overhead obstacle)</option>
+                                              <option value="left">{'\\u2b05'} Left Wall (Solid barrier to the left)</option>
+                                              <option value="right">{'\\u27a1'} Right Wall (Solid barrier to the right)</option>
+                                              <option value="wall_forward">{'\\u23e9'} Forward Wall (Facing direction solid)</option>
+                                              <option value="wall_backward">{'\\u23ea'} Backward Wall (Behind prefab)</option>
                                             </select>
                                           </div>
 
@@ -6236,7 +6237,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                       {(trig.type === 'slope_detection' || trig.type === 'slope') && (
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-neutral-950/70 p-3 rounded-xl border border-sky-950/60">
                                           <div>
-                                            <label className="text-[10px] text-sky-400 font-bold block">ğŸ“ Slope Condition</label>
+                                            <label className="text-[10px] text-sky-400 font-bold block">{'\\ud83d\\udcd0'} Slope Condition</label>
                                             <select
                                               value={(trig as any).slopeCondition || 'on_any_slope'}
                                               onChange={(e) => {
@@ -6247,18 +6248,18 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
                                             >
-                                              <option value="on_any_slope">â›°ï¸ Any Slope (45Â° Floor or Ceiling)</option>
-                                              <option value="on_floor_ramp">ğŸ¦¶ Standing on Floor Ramp (â—¢ or â—£)</option>
-                                              <option value="on_ceiling_slope">ğŸ§¢ Touching Ceiling Slope (â—¥ or â—¤)</option>
-                                              <option value="ascending_slope">ğŸ§— Ascending Slope (Walking Uphill)</option>
-                                              <option value="descending_slope">â›·ï¸ Descending Slope (Walking Downhill)</option>
-                                              <option value="facing_uphill">â›°ï¸ Facing Uphill (Incline Ahead)</option>
-                                              <option value="facing_downhill">ğŸ“‰ Facing Downhill (Decline Ahead)</option>
-                                              <option value="slope_up_right">â—¢ Slope 45Â° Up-Right</option>
-                                              <option value="slope_up_left">â—£ Slope 45Â° Up-Left</option>
-                                              <option value="slope_down_right">â—¥ Slope 45Â° Down-Right</option>
-                                              <option value="slope_down_left">â—¤ Slope 45Â° Down-Left</option>
-                                              <option value="no_slope">ğŸš« Flat Ground / Air (No Slope)</option>
+                                              <option value="on_any_slope">{'\\u26f0'} Any Slope (45{'\\u00b0'} Floor or Ceiling)</option>
+                                              <option value="on_floor_ramp">{'\\ud83e\\uddb6'} Standing on Floor Ramp ({'\\u25e2'} or {'\\u25e3'})</option>
+                                              <option value="on_ceiling_slope">{'\\ud83e\\udde2'} Touching Ceiling Slope ({'\\u25e5'} or {'\\u25e4'})</option>
+                                              <option value="ascending_slope">{'\\ud83e\\uddd7'} Ascending Slope (Walking Uphill)</option>
+                                              <option value="descending_slope">{'\\u26f7'} Descending Slope (Walking Downhill)</option>
+                                              <option value="facing_uphill">{'\\u26f0'} Facing Uphill (Incline Ahead)</option>
+                                              <option value="facing_downhill">{'\\ud83d\\udcc9'} Facing Downhill (Decline Ahead)</option>
+                                              <option value="slope_up_right">{'\\u25e2'} Slope 45{'\\u00b0'} Up-Right</option>
+                                              <option value="slope_up_left">{'\\u25e3'} Slope 45{'\\u00b0'} Up-Left</option>
+                                              <option value="slope_down_right">{'\\u25e5'} Slope 45{'\\u00b0'} Down-Right</option>
+                                              <option value="slope_down_left">{'\\u25e4'} Slope 45{'\\u00b0'} Down-Left</option>
+                                              <option value="no_slope">{'\\ud83d\\udeab'} Flat Ground / Air (No Slope)</option>
                                             </select>
                                           </div>
 
@@ -6274,10 +6275,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
                                             >
-                                              <option value="feet">ğŸ¦¶ Feet / Floor Contact (Default)</option>
-                                              <option value="head">ğŸ§¢ Head / Ceiling Contact</option>
-                                              <option value="ahead">â© Ahead in Facing Direction</option>
-                                              <option value="any">ğŸŒ Anywhere (Feet, Head, or Ahead)</option>
+                                              <option value="feet">{'\\ud83e\\uddb6'} Feet / Floor Contact (Default)</option>
+                                              <option value="head">{'\\ud83e\\udde2'} Head / Ceiling Contact</option>
+                                              <option value="ahead">{'\\u23e9'} Ahead in Facing Direction</option>
+                                              <option value="any">{'\\ud83c\\udf10'} Anywhere (Feet, Head, or Ahead)</option>
                                             </select>
                                           </div>
 
@@ -6313,17 +6314,17 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
                                             >
-                                              <option value="jump_peak">ğŸ”ï¸ Jump Peak (Apex reached / vy â‰ˆ 0)</option>
-                                              <option value="falling">ğŸª‚ Falling (Pulled down by gravity / vy &gt; 0)</option>
-                                              <option value="rising">ğŸš€ Rising Upward (Ascending / vy &lt; 0)</option>
-                                              <option value="grounded">ğŸ¦¶ Grounded (Standing on floor)</option>
-                                              <option value="airborne">ğŸ•Šï¸ Airborne (In mid-air)</option>
-                                              <option value="wall_sliding">ğŸ§— Wall Sliding (Clinging to wall)</option>
-                                              <option value="moving_horizontally">ğŸƒ Moving Horizontally (|vx| &gt; 0)</option>
-                                              <option value="stopped">ğŸ›‘ Stopped / Zero Velocity</option>
-                                              <option value="weightless_environment">ğŸŒŒ Weightless / Zero-G Environment</option>
-                                              <option value="high_velocity">âš¡ High Velocity (Terminal speed)</option>
-                                              <option value="direction_change">ğŸ”„ Direction Turn Fired</option>
+                                              <option value="jump_peak">{'\\ud83c\\udfd4'} Jump Peak (Apex reached / vy {'\\u2248'} 0)</option>
+                                              <option value="falling">{'\\ud83e\\ude82'} Falling (Pulled down by gravity / vy &gt; 0)</option>
+                                              <option value="rising">{'\\ud83d\\ude80'} Rising Upward (Ascending / vy &lt; 0)</option>
+                                              <option value="grounded">{'\\ud83e\\uddb6'} Grounded (Standing on floor)</option>
+                                              <option value="airborne">{'\\ud83d\\udd4a'} Airborne (In mid-air)</option>
+                                              <option value="wall_sliding">{'\\ud83e\\uddd7'} Wall Sliding (Clinging to wall)</option>
+                                              <option value="moving_horizontally">{'\\ud83c\\udfc3'} Moving Horizontally (|vx| &gt; 0)</option>
+                                              <option value="stopped">{'\\ud83d\\uded1'} Stopped / Zero Velocity</option>
+                                              <option value="weightless_environment">{'\\ud83c\\udf0c'} Weightless / Zero-G Environment</option>
+                                              <option value="high_velocity">{'\\u26a1'} High Velocity (Terminal speed)</option>
+                                              <option value="direction_change">{'\\ud83d\\udd04'} Direction Turn Fired</option>
                                             </select>
                                           </div>
 
@@ -6389,7 +6390,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                   const to = stateNodes.find(s => s.id === tr.toStateId)?.name || tr.toStateId;
                                                   return (
                                                     <option key={tr.id} value={tr.id}>
-                                                      {from} {tr.isBidirectional ? 'â†”' : 'â†’'} {to} ({tr.triggerLabel || 'Transition'})
+                                                      {from} {tr.isBidirectional ? '\\u2194' : '\\u2192'} {to} ({tr.triggerLabel || 'Transition'})
                                                     </option>
                                                   );
                                                 })}
@@ -6407,7 +6408,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               >
                                                 {stateNodes.map(st => (
                                                   <option key={st.id} value={st.name}>
-                                                    â— {st.name} ({st.id}){st.isInitial ? ' [Initial]' : ''}
+                                                    {'\\u25cf'} {st.name} ({st.id}){st.isInitial ? ' [Initial]' : ''}
                                                   </option>
                                                 ))}
                                               </select>
@@ -6443,7 +6444,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                         <div className="bg-neutral-950/70 p-3 rounded-xl border border-amber-950/60">
                                           <div>
                                             <div className="flex items-center justify-between mb-1">
-                                              <label className="text-[10px] text-amber-400 font-bold block">ğŸ•¹ï¸ Mapped Player Input Action</label>
+                                              <label className="text-[10px] text-amber-400 font-bold block">{'\\ud83d\\udd79'} Mapped Player Input Action</label>
                                               <span className="text-[9px] text-neutral-400 font-mono">Mode configured in Input Mappings tab</span>
                                             </div>
                                             {(() => {
@@ -6471,7 +6472,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                   >
                                                     {availableInputMappings.map(m => (
                                                       <option key={m.id} value={m.id}>
-                                                        {m.label || m.name} ({m.keys?.join('/') || 'No key'}) [{m.category || 'action'}] â€¢ Mode: {m.triggerMode || 'hold'}
+                                                        {m.label || m.name} ({m.keys?.join('/') || 'No key'}) [{m.category || 'action'}] {'\\u2022'} Mode: {m.triggerMode || 'hold'}
                                                       </option>
                                                     ))}
                                                   </select>
@@ -6517,10 +6518,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                   <option value="KeyA">KeyA (A / Left)</option>
                                                   <option value="KeyS">KeyS (S / Down)</option>
                                                   <option value="KeyD">KeyD (D / Right)</option>
-                                                  <option value="ArrowUp">ArrowUp (â†‘)</option>
-                                                  <option value="ArrowLeft">ArrowLeft (â†)</option>
-                                                  <option value="ArrowDown">ArrowDown (â†“)</option>
-                                                  <option value="ArrowRight">ArrowRight (â†’)</option>
+                                                  <option value="ArrowUp">ArrowUp ({'\\u2191'})</option>
+                                                  <option value="ArrowLeft">ArrowLeft ({'\\u2190'})</option>
+                                                  <option value="ArrowDown">ArrowDown ({'\\u2193'})</option>
+                                                  <option value="ArrowRight">ArrowRight ({'\\u2192'})</option>
                                                 </optgroup>
                                                 <optgroup label="Actions & Combat">
                                                   <option value="KeyE">KeyE (Interact)</option>
@@ -6799,10 +6800,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                   className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-amber-300 font-mono mt-1 text-xs"
                                                 >
                                                   <optgroup label="Face Buttons">
-                                                    <option value="button_a">Button A / Cross âœ• (South)</option>
-                                                    <option value="button_b">Button B / Circle â—¯ (East)</option>
-                                                    <option value="button_x">Button X / Square â–¢ (West)</option>
-                                                    <option value="button_y">Button Y / Triangle â–³ (North)</option>
+                                                    <option value="button_a">Button A / Cross {'\\u2715'} (South)</option>
+                                                    <option value="button_b">Button B / Circle {'\\u25ef'} (East)</option>
+                                                    <option value="button_x">Button X / Square {'\\u25a2'} (West)</option>
+                                                    <option value="button_y">Button Y / Triangle {'\\u25b3'} (North)</option>
                                                   </optgroup>
                                                   <optgroup label="Shoulders & Triggers">
                                                     <option value="left_bumper">Left Bumper (LB / L1)</option>
@@ -6811,10 +6812,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                     <option value="right_trigger">Right Trigger (RT / R2)</option>
                                                   </optgroup>
                                                   <optgroup label="D-Pad">
-                                                    <option value="dpad_up">D-Pad Up â¬†</option>
-                                                    <option value="dpad_down">D-Pad Down â¬‡</option>
-                                                    <option value="dpad_left">D-Pad Left â¬…</option>
-                                                    <option value="dpad_right">D-Pad Right â¡</option>
+                                                    <option value="dpad_up">D-Pad Up {'\\u2b06'}</option>
+                                                    <option value="dpad_down">D-Pad Down {'\\u2b07'}</option>
+                                                    <option value="dpad_left">D-Pad Left {'\\u2b05'}</option>
+                                                    <option value="dpad_right">D-Pad Right {'\\u27a1'}</option>
                                                   </optgroup>
                                                   <optgroup label="Stick Clicks & System">
                                                     <option value="left_stick_click">Left Stick Click (L3)</option>
@@ -6843,10 +6844,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                   }}
                                                   className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
                                                 >
-                                                  <option value="left_stick_x">Left Stick X (Horizontal â†”)</option>
-                                                  <option value="left_stick_y">Left Stick Y (Vertical â†•)</option>
-                                                  <option value="right_stick_x">Right Stick X (Horizontal â†”)</option>
-                                                  <option value="right_stick_y">Right Stick Y (Vertical â†•)</option>
+                                                  <option value="left_stick_x">Left Stick X (Horizontal {'\\u2194'})</option>
+                                                  <option value="left_stick_y">Left Stick Y (Vertical {'\\u2195'})</option>
+                                                  <option value="right_stick_x">Right Stick X (Horizontal {'\\u2194'})</option>
+                                                  <option value="right_stick_y">Right Stick Y (Vertical {'\\u2195'})</option>
                                                 </select>
                                               </div>
 
@@ -6862,8 +6863,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                   }}
                                                   className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
                                                 >
-                                                  <option value="positive">Positive (Right â¡ / Down â¬‡)</option>
-                                                  <option value="negative">Negative (Left â¬… / Up â¬†)</option>
+                                                  <option value="positive">Positive (Right {'\\u27a1'} / Down {'\\u2b07'})</option>
+                                                  <option value="negative">Negative (Left {'\\u2b05'} / Up {'\\u2b06'})</option>
                                                   <option value="any_movement">Any Tilt (|tilt| &gt; deadzone)</option>
                                                 </select>
                                               </div>
@@ -6966,7 +6967,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                             />
                                           </div>
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Cone Angle (Â°)</label>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Cone Angle ({'\\u00b0'})</label>
                                             <input
                                               type="number"
                                               value={trig.visionAngleDeg || 120}
@@ -7140,7 +7141,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               >
                                                 {variablesList.map(v => (
                                                   <option key={v.id} value={v.id}>
-                                                    {v.type === 'boolean' ? 'ğŸ”˜' : v.type === 'enum' ? 'ğŸ“‹' : v.type === 'string' ? 'ğŸ”¤' : 'ğŸ”¢'} {v.name} ({v.id}) [{v.type}]
+                                                    {v.type === 'boolean' ? '\\ud83d\\udd18' : v.type === 'enum' ? '\\ud83d\\udccb' : v.type === 'string' ? '\\ud83d\\udd24' : '\\ud83d\\udd22'} {v.name} ({v.id}) [{v.type}]
                                                   </option>
                                                 ))}
                                               </select>
@@ -7371,7 +7372,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
                                 {rule.localVariables.map((lv, lvIdx) => (
                                   <div key={lv.id || lvIdx} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs">
-                                    <span className="text-[10px] font-mono font-bold text-amber-400 shrink-0" title="Rule Local Variable">âš¡</span>
+                                    <span className="text-[10px] font-mono font-bold text-amber-400 shrink-0" title="Rule Local Variable">{'\\u26a1'}</span>
                                     <input
                                       type="text"
                                       value={lv.name}
@@ -7559,23 +7560,23 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                         }}
                                         className="bg-neutral-950 border border-neutral-700 rounded px-2 py-0.5 text-xs text-cyan-300 font-mono"
                                       >
-                                        <option value="none">ğŸš« None (No Action / Gate Only)</option>
-                                        <option value="state_change">âš¡ Transition FSM State</option>
-                                        <option value="animation">ğŸ¬ Play Animation</option>
-                                        <option value="set_frame">ğŸ–¼ï¸ Set Animation Frame (Static / Random in Range)</option>
-                                        <option value="set_random_frame">ğŸ² Set Random Frame in Range</option>
-                                        <option value="camera">ğŸ¥ Camera Locus (Track/Shake)</option>
-                                        <option value="move">ğŸƒ Kinematic Move (Direction / Angle / Velocity / Stop)</option>
-                                        <option value="ai_action">ğŸ¤– AI Actions / Automation (Patrol / Chase / Flee / Sine Wave)</option>
-                                        <option value="hero_impulse">ğŸš€ Physics Impulse (Jump/Dash)</option>
-                                        <option value="set_gravity">ğŸª Override Biome Gravity</option>
-                                        <option value="set_traversal_angle">ğŸ“ Set Allowed Traversal Angle (Slope & Incline)</option>
-                                        <option value="attack">âš”ï¸ Attack / Telegraph</option>
-                                        <option value="math_operation">ğŸ§® Math Calculator & Local Variables (Multiply / Modifiers / Arithmetic)</option>
-                                        <option value="variable_modify">ğŸ”¢ Modify Variable / Math</option>
-                                        <option value="audio">ğŸ”Š Play Audio SFX</option>
-                                        <option value="dialogue">ğŸ’¬ Speak Dialogue</option>
-                                        <option value="emit_signal">ğŸ“¡ Emit Signal</option>
+                                        <option value="none">{'\\ud83d\\udeab'} None (No Action / Gate Only)</option>
+                                        <option value="state_change">{'\\u26a1'} Transition FSM State</option>
+                                        <option value="animation">{'\\ud83c\\udfac'} Play Animation</option>
+                                        <option value="set_frame">{'\\ud83d\\uddbc'} Set Animation Frame (Static / Random in Range)</option>
+                                        <option value="set_random_frame">{'\\ud83c\\udfb2'} Set Random Frame in Range</option>
+                                        <option value="camera">{'\\ud83c\\udfa5'} Camera Locus (Track/Shake)</option>
+                                        <option value="move">{'\\ud83c\\udfc3'} Kinematic Move (Direction / Angle / Velocity / Stop)</option>
+                                        <option value="ai_action">{'\\ud83e\\udd16'} AI Actions / Automation (Patrol / Chase / Flee / Sine Wave)</option>
+                                        <option value="hero_impulse">{'\\ud83d\\ude80'} Physics Impulse (Jump/Dash)</option>
+                                        <option value="set_gravity">{'\\ud83e\\ude90'} Override Biome Gravity</option>
+                                        <option value="set_traversal_angle">{'\\ud83d\\udcd0'} Set Allowed Traversal Angle (Slope & Incline)</option>
+                                        <option value="attack">{'\\u2694'} Attack / Telegraph</option>
+                                        <option value="math_operation">{'\\ud83e\\uddee'} Math Calculator & Local Variables (Multiply / Modifiers / Arithmetic)</option>
+                                        <option value="variable_modify">{'\\ud83d\\udd22'} Modify Variable / Math</option>
+                                        <option value="audio">{'\\ud83d\\udd0a'} Play Audio SFX</option>
+                                        <option value="dialogue">{'\\ud83d\\udcac'} Speak Dialogue</option>
+                                        <option value="emit_signal">{'\\ud83d\\udce1'} Emit Signal</option>
                                       </select>
 
                                       <button
@@ -7597,7 +7598,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                   {/* None (Gate Only) Action */}
                                   {(!action.actionType || action.actionType === 'none') && (
                                     <div className="p-2.5 bg-neutral-950/80 border border-neutral-800 rounded-xl text-neutral-400 text-xs flex items-center gap-2">
-                                      <span className="text-cyan-400 font-bold shrink-0">â„¹ï¸</span>
+                                      <span className="text-cyan-400 font-bold shrink-0">{'\\u2139'}</span>
                                       <span>No action will be executed. This rule acts purely as a conditional gate for FSM state transitions.</span>
                                     </div>
                                   )}
@@ -7619,7 +7620,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                         >
                                           {stateNodes.map(st => (
                                             <option key={st.id} value={st.name}>
-                                              â— {st.name} ({st.id})
+                                              {'\\u25cf'} {st.name} ({st.id})
                                             </option>
                                           ))}
                                         </select>
@@ -7710,12 +7711,12 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-700 focus:border-cyan-500 rounded px-2.5 py-1.5 text-white font-mono text-xs"
                                             >
-                                              <option value="*">âœ¨ Active / Current Playing Animation</option>
+                                              <option value="*">{'\\u2728'} Active / Current Playing Animation</option>
                                               {animationsList.map(a => {
                                                 const count = getAnimFrameCount(a);
                                                 return (
                                                   <option key={a.stateId} value={a.stateId}>
-                                                    ğŸ¬ {a.label || a.stateId} ({count} {count === 1 ? 'frame' : 'frames'})
+                                                    {'\\ud83c\\udfac'} {a.label || a.stateId} ({count} {count === 1 ? 'frame' : 'frames'})
                                                   </option>
                                                 );
                                               })}
@@ -7746,10 +7747,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-700 focus:border-cyan-500 rounded px-2.5 py-1.5 text-cyan-300 font-mono text-xs"
                                             >
-                                              <option value="fixed">ğŸ¯ Specific Fixed Frame (Static)</option>
-                                              <option value="random_range">ğŸ² Random Frame in Range (Min â†’ Max)</option>
-                                              <option value="random_all">ğŸŒŸ Random Frame (Any in Animation Clip)</option>
-                                              <option value="variable">ğŸ“Š From Prefab Variable Value</option>
+                                              <option value="fixed">{'\\ud83c\\udfaf'} Specific Fixed Frame (Static)</option>
+                                              <option value="random_range">{'\\ud83c\\udfb2'} Random Frame in Range (Min {'\\u2192'} Max)</option>
+                                              <option value="random_all">{'\\ud83c\\udf1f'} Random Frame (Any in Animation Clip)</option>
+                                              <option value="variable">{'\\ud83d\\udcca'} From Prefab Variable Value</option>
                                             </select>
                                           </div>
                                         </div>
@@ -7818,7 +7819,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800 space-y-2">
                                             <div className="flex items-center justify-between">
                                               <label className="text-[10px] text-neutral-300 font-bold block">
-                                                Random Frame Range (Min â†’ Max Inclusive)
+                                                Random Frame Range (Min {'\\u2192'} Max Inclusive)
                                               </label>
                                               <span className="text-[10px] text-cyan-400 font-mono">
                                                 Range: [{action.minFrameIndex ?? 0} .. {action.maxFrameIndex ?? Math.max(0, frameCount - 1)}]
@@ -7866,7 +7867,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               </div>
                                             </div>
                                             <div className="text-[10px] text-cyan-400/80 flex items-center gap-1.5 pt-0.5">
-                                              <span>ğŸ² Dynamically selects a pseudo-random integer index from {action.minFrameIndex ?? 0} to {action.maxFrameIndex ?? Math.max(0, frameCount - 1)} upon trigger execution.</span>
+                                              <span>{'\\ud83c\\udfb2'} Dynamically selects a pseudo-random integer index from {action.minFrameIndex ?? 0} to {action.maxFrameIndex ?? Math.max(0, frameCount - 1)} upon trigger execution.</span>
                                             </div>
                                           </div>
                                         )}
@@ -7874,7 +7875,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                         {currentMode === 'random_all' && (
                                           <div className="bg-neutral-900/80 p-2.5 rounded-lg border border-neutral-800 text-xs text-neutral-300">
                                             <div className="flex items-center gap-2">
-                                              <span className="text-cyan-400 font-bold">ğŸ²</span>
+                                              <span className="text-cyan-400 font-bold">{'\\ud83c\\udfb2'}</span>
                                               <span>Will randomly select any frame from <strong>Frame #0</strong> to <strong>Frame #{Math.max(0, frameCount - 1)}</strong> ({frameCount} total frames).</span>
                                             </div>
                                           </div>
@@ -8019,7 +8020,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     <div className="space-y-3 bg-neutral-950/70 p-3 rounded-xl border border-amber-950/60 text-xs">
                                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                                         <div>
-                                          <label className="text-[10px] text-amber-400 font-bold block">ğŸƒ Kinematic Move Mode</label>
+                                          <label className="text-[10px] text-amber-400 font-bold block">{'\\ud83c\\udfc3'} Kinematic Move Mode</label>
                                           <select
                                             value={action.moveMode || 'move_right'}
                                             onChange={(e) => {
@@ -8030,19 +8031,19 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                             }}
                                             className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
                                           >
-                                            <option value="move_left">â¬…ï¸ Move Left (Vx = -Speed)</option>
-                                            <option value="move_right">â¡ï¸ Move Right (Vx = +Speed)</option>
-                                            <option value="move_up">â¬†ï¸ Move Up / Ascend (Vy = -Speed)</option>
-                                            <option value="move_down">â¬‡ï¸ Move Down / Fast Fall (Vy = +Speed)</option>
-                                            <option value="move_forward">â© Move Forward (Facing Direction)</option>
-                                            <option value="move_backward">âª Move Backward (Opposite Facing)</option>
-                                            <option value="move_angle">ğŸ§­ Move at Angle (Direction Vector)</option>
-                                            <option value="set_velocity">ğŸ¯ Set Velocity (Direct Vx, Vy)</option>
-                                            <option value="add_velocity">ğŸ“ˆ Add Velocity Impulse (Î”Vx, Î”Vy)</option>
-                                            <option value="stop">ğŸ›‘ Stop / Brake (Zero All Velocity)</option>
-                                            <option value="stop_x">â¹ï¸ Stop Horizontal Only (Zero Vx)</option>
-                                            <option value="stop_y">â¹ï¸ Stop Vertical Only (Zero Vy)</option>
-                                            <option value="crouch">ğŸ§˜ Duck / Crouch (Modify Capsule & Halt)</option>
+                                            <option value="move_left">{'\\u2b05'} Move Left (Vx = -Speed)</option>
+                                            <option value="move_right">{'\\u27a1'} Move Right (Vx = +Speed)</option>
+                                            <option value="move_up">{'\\u2b06'} Move Up / Ascend (Vy = -Speed)</option>
+                                            <option value="move_down">{'\\u2b07'} Move Down / Fast Fall (Vy = +Speed)</option>
+                                            <option value="move_forward">{'\\u23e9'} Move Forward (Facing Direction)</option>
+                                            <option value="move_backward">{'\\u23ea'} Move Backward (Opposite Facing)</option>
+                                            <option value="move_angle">{'\\ud83e\\udded'} Move at Angle (Direction Vector)</option>
+                                            <option value="set_velocity">{'\\ud83c\\udfaf'} Set Velocity (Direct Vx, Vy)</option>
+                                            <option value="add_velocity">{'\\ud83d\\udcc8'} Add Velocity Impulse ({'\\u0394'}Vx, {'\\u0394'}Vy)</option>
+                                            <option value="stop">{'\\ud83d\\uded1'} Stop / Brake (Zero All Velocity)</option>
+                                            <option value="stop_x">{'\\u23f9'} Stop Horizontal Only (Zero Vx)</option>
+                                            <option value="stop_y">{'\\u23f9'} Stop Vertical Only (Zero Vy)</option>
+                                            <option value="crouch">{'\\ud83e\\uddd8'} Duck / Crouch (Modify Capsule & Halt)</option>
                                           </select>
                                         </div>
 
@@ -8062,8 +8063,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                 }}
                                                 className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-emerald-400 font-mono mt-1"
                                               >
-                                                <option value="fixed">ğŸ”¢ Constant Number</option>
-                                                <option value="variable">ğŸ“Š Prefab Variable</option>
+                                                <option value="fixed">{'\\ud83d\\udd22'} Constant Number</option>
+                                                <option value="variable">{'\\ud83d\\udcca'} Prefab Variable</option>
                                               </select>
                                             </div>
 
@@ -8119,11 +8120,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
                                             >
-                                              <option value="match_movement">ğŸ”„ Match Movement Vector</option>
-                                              <option value="none">ğŸ”’ Keep Current Facing</option>
-                                              <option value="left">â¬…ï¸ Force Left</option>
-                                              <option value="right">â¡ï¸ Force Right</option>
-                                              <option value="reverse">ğŸ”„ Invert / Flip Facing</option>
+                                              <option value="match_movement">{'\\ud83d\\udd04'} Match Movement Vector</option>
+                                              <option value="none">{'\\ud83d\\udd12'} Keep Current Facing</option>
+                                              <option value="left">{'\\u2b05'} Force Left</option>
+                                              <option value="right">{'\\u27a1'} Force Right</option>
+                                              <option value="reverse">{'\\ud83d\\udd04'} Invert / Flip Facing</option>
                                             </select>
                                           </div>
                                         )}
@@ -8133,7 +8134,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                       {action.moveMode === 'move_angle' && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800/80">
                                           <div>
-                                            <label className="text-[10px] text-amber-400 font-bold block">Angle (0Â° = Right, 90Â° = Down, 180Â° = Left, 270Â° = Up)</label>
+                                            <label className="text-[10px] text-amber-400 font-bold block">Angle (0{'\\u00b0'} = Right, 90{'\\u00b0'} = Down, 180{'\\u00b0'} = Left, 270{'\\u00b0'} = Up)</label>
                                             <input
                                               type="number"
                                               min={0}
@@ -8150,14 +8151,14 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           </div>
                                           <div className="flex flex-wrap gap-1.5 items-end">
                                             {[
-                                              { label: 'â¡ï¸ 0Â°', deg: 0 },
-                                              { label: 'â†˜ï¸ 45Â°', deg: 45 },
-                                              { label: 'â¬‡ï¸ 90Â°', deg: 90 },
-                                              { label: 'â†™ï¸ 135Â°', deg: 135 },
-                                              { label: 'â¬…ï¸ 180Â°', deg: 180 },
-                                              { label: 'â†–ï¸ 225Â°', deg: 225 },
-                                              { label: 'â¬†ï¸ 270Â°', deg: 270 },
-                                              { label: 'â†—ï¸ 315Â°', deg: 315 }
+                                              { label: '\\u27a1 0\\u00b0', deg: 0 },
+                                              { label: '\\u2198 45\\u00b0', deg: 45 },
+                                              { label: '\\u2b07 90\\u00b0', deg: 90 },
+                                              { label: '\\u2199 135\\u00b0', deg: 135 },
+                                              { label: '\\u2b05 180\\u00b0', deg: 180 },
+                                              { label: '\\u2196 225\\u00b0', deg: 225 },
+                                              { label: '\\u2b06 270\\u00b0', deg: 270 },
+                                              { label: '\\u2197 315\\u00b0', deg: 315 }
                                             ].map(preset => (
                                               <button
                                                 key={preset.deg}
@@ -8181,7 +8182,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                       {(action.moveMode === 'set_velocity' || action.moveMode === 'add_velocity') && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800/80">
                                           <div>
-                                            <label className="text-[10px] text-amber-400 font-bold block">{action.moveMode === 'set_velocity' ? 'Set Velocity X (px/tick)' : 'Add Impulse X (Î”Vx)'}</label>
+                                            <label className="text-[10px] text-amber-400 font-bold block">{action.moveMode === 'set_velocity' ? 'Set Velocity X (px/tick)' : 'Add Impulse X (\\u0394Vx)'}</label>
                                             <input
                                               type="number"
                                               step="0.1"
@@ -8196,7 +8197,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                             />
                                           </div>
                                           <div>
-                                            <label className="text-[10px] text-amber-400 font-bold block">{action.moveMode === 'set_velocity' ? 'Set Velocity Y (px/tick)' : 'Add Impulse Y (Î”Vy)'}</label>
+                                            <label className="text-[10px] text-amber-400 font-bold block">{action.moveMode === 'set_velocity' ? 'Set Velocity Y (px/tick)' : 'Add Impulse Y (\\u0394Vy)'}</label>
                                             <input
                                               type="number"
                                               step="0.1"
@@ -8246,7 +8247,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     <div className="space-y-3 bg-neutral-950/70 p-3 rounded-xl border border-indigo-950/60 text-xs">
                                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                                         <div>
-                                          <label className="text-[10px] text-indigo-400 font-bold block">ğŸ¤– AI Routine / Automation</label>
+                                          <label className="text-[10px] text-indigo-400 font-bold block">{'\\ud83e\\udd16'} AI Routine / Automation</label>
                                           <select
                                             value={action.aiMode || 'ground_patrol'}
                                             onChange={(e) => {
@@ -8257,12 +8258,12 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                             }}
                                             className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
                                           >
-                                            <option value="ground_patrol">ğŸ›¡ï¸ Ground Ledge Patrol (Auto Turn)</option>
-                                            <option value="towards_target">ğŸ¯ Chase Target (Pursue Target)</option>
-                                            <option value="away_from_target">ğŸƒ Flee Threat (Flee Target)</option>
-                                            <option value="flight_sine">ğŸŒŠ Flying Sine Wave (Aerial Patrol)</option>
-                                            <option value="wander">ğŸ² Random Roam / Wander</option>
-                                            <option value="circle_target">ğŸ”„ Orbit / Circle Target</option>
+                                            <option value="ground_patrol">{'\\ud83d\\udee1'} Ground Ledge Patrol (Auto Turn)</option>
+                                            <option value="towards_target">{'\\ud83c\\udfaf'} Chase Target (Pursue Target)</option>
+                                            <option value="away_from_target">{'\\ud83c\\udfc3'} Flee Threat (Flee Target)</option>
+                                            <option value="flight_sine">{'\\ud83c\\udf0a'} Flying Sine Wave (Aerial Patrol)</option>
+                                            <option value="wander">{'\\ud83c\\udfb2'} Random Roam / Wander</option>
+                                            <option value="circle_target">{'\\ud83d\\udd04'} Orbit / Circle Target</option>
                                           </select>
                                         </div>
 
@@ -8279,8 +8280,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                             }}
                                             className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-emerald-400 font-mono mt-1"
                                           >
-                                            <option value="fixed">ğŸ”¢ Constant Number</option>
-                                            <option value="variable">ğŸ“Š Prefab Variable</option>
+                                            <option value="fixed">{'\\ud83d\\udd22'} Constant Number</option>
+                                            <option value="variable">{'\\ud83d\\udcca'} Prefab Variable</option>
                                           </select>
                                         </div>
 
@@ -8402,8 +8403,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           }}
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-cyan-400 font-mono mt-1"
                                         >
-                                          <option value="fixed">ğŸ”¢ Constant Force</option>
-                                          <option value="variable">ğŸ“Š Prefab Variable (e.g. jump_force)</option>
+                                          <option value="fixed">{'\\ud83d\\udd22'} Constant Force</option>
+                                          <option value="variable">{'\\ud83d\\udcca'} Prefab Variable (e.g. jump_force)</option>
                                         </select>
                                       </div>
 
@@ -8466,13 +8467,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           }}
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-300 font-semibold mt-1"
                                         >
-                                          <option value="zero_g">ğŸŒŒ Weightless / Zero-G (0.0x)</option>
-                                          <option value="low_g">ğŸŒ™ Low Gravity (0.3x)</option>
-                                          <option value="normal">ğŸŒ Standard Gravity (1.0x)</option>
-                                          <option value="heavy_g">ğŸ‹ï¸ Heavy Gravity (1.8x)</option>
-                                          <option value="inverted">ğŸ”„ Inverted Gravity (-1.0x)</option>
-                                          <option value="custom">âš™ï¸ Custom Scale Value</option>
-                                          <option value="reset_to_biome">ğŸ”„ Revert / Reset to Biome</option>
+                                          <option value="zero_g">{'\\ud83c\\udf0c'} Weightless / Zero-G (0.0x)</option>
+                                          <option value="low_g">{'\\ud83c\\udf19'} Low Gravity (0.3x)</option>
+                                          <option value="normal">{'\\ud83c\\udf0d'} Standard Gravity (1.0x)</option>
+                                          <option value="heavy_g">{'\\ud83c\\udfcb'} Heavy Gravity (1.8x)</option>
+                                          <option value="inverted">{'\\ud83d\\udd04'} Inverted Gravity (-1.0x)</option>
+                                          <option value="custom">{'\\u2699'} Custom Scale Value</option>
+                                          <option value="reset_to_biome">{'\\ud83d\\udd04'} Revert / Reset to Biome</option>
                                         </select>
                                       </div>
 
@@ -8489,8 +8490,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           }}
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-400 font-mono mt-1"
                                         >
-                                          <option value="fixed">ğŸ”¢ Preset / Fixed Value</option>
-                                          <option value="variable">ğŸ“Š Prefab / Local Variable</option>
+                                          <option value="fixed">{'\\ud83d\\udd22'} Preset / Fixed Value</option>
+                                          <option value="variable">{'\\ud83d\\udcca'} Prefab / Local Variable</option>
                                         </select>
                                       </div>
 
@@ -8553,9 +8554,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               </div>
                                             </div>
                                             <div className="text-right">
-                                              <span className="text-sm font-bold font-mono text-emerald-400">{currentAngle}Â°</span>
+                                              <span className="text-sm font-bold font-mono text-emerald-400">{currentAngle}{'\\u00b0'}</span>
                                               <span className="block text-[9px] text-neutral-400 font-mono">
-                                                {currentAngle === 0 ? 'Flat ground only' : currentAngle <= 30 ? 'Gentle slopes' : currentAngle <= 45 ? 'Standard 45Â° slopes' : currentAngle <= 60 ? 'Steep 60Â° slopes' : currentAngle < 90 ? 'High incline scramble' : 'Full 90Â° vertical climb'}
+                                                {currentAngle === 0 ? 'Flat ground only' : currentAngle <= 30 ? 'Gentle slopes' : currentAngle <= 45 ? 'Standard 45\\u00b0 slopes' : currentAngle <= 60 ? 'Steep 60\\u00b0 slopes' : currentAngle < 90 ? 'High incline scramble' : 'Full 90\\u00b0 vertical climb'}
                                               </span>
                                             </div>
                                           </div>
@@ -8585,9 +8586,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               })()}
                                               <line x1="10" y1="60" x2="150" y2="60" stroke="#525252" strokeWidth="1.5" strokeDasharray="3,3" />
                                               <circle cx="80" cy="60" r="4" fill="#10b981" />
-                                              <text x="145" y="64" fill="#a3a3a3" fontSize="9" fontFamily="monospace">0Â°</text>
-                                              <text x="75" y="10" fill="#a3a3a3" fontSize="9" fontFamily="monospace">90Â°</text>
-                                              <text x="125" y="24" fill="#a3a3a3" fontSize="8" fontFamily="monospace">45Â°</text>
+                                              <text x="145" y="64" fill="#a3a3a3" fontSize="9" fontFamily="monospace">0{'\\u00b0'}</text>
+                                              <text x="75" y="10" fill="#a3a3a3" fontSize="9" fontFamily="monospace">90{'\\u00b0'}</text>
+                                              <text x="125" y="24" fill="#a3a3a3" fontSize="8" fontFamily="monospace">45{'\\u00b0'}</text>
                                             </svg>
                                           </div>
                                         </div>
@@ -8597,12 +8598,12 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           <label className="text-[10px] text-neutral-400 font-bold block">Quick Traversal Presets</label>
                                           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                                             {[
-                                              { label: '0Â° Flat', angle: 0, desc: 'Flat only' },
-                                              { label: '30Â° Gentle', angle: 30, desc: 'Gentle incline' },
-                                              { label: '45Â° Std', angle: 45, desc: 'Standard 1:1' },
-                                              { label: '60Â° Steep', angle: 60, desc: 'Steep incline' },
-                                              { label: '75Â° Peak', angle: 75, desc: 'High scramble' },
-                                              { label: '90Â° Climb', angle: 90, desc: 'Vertical climb' },
+                                              { label: '0\\u00b0 Flat', angle: 0, desc: 'Flat only' },
+                                              { label: '30\\u00b0 Gentle', angle: 30, desc: 'Gentle incline' },
+                                              { label: '45\\u00b0 Std', angle: 45, desc: 'Standard 1:1' },
+                                              { label: '60\\u00b0 Steep', angle: 60, desc: 'Steep incline' },
+                                              { label: '75\\u00b0 Peak', angle: 75, desc: 'High scramble' },
+                                              { label: '90\\u00b0 Climb', angle: 90, desc: 'Vertical climb' },
                                             ].map(preset => (
                                               <button
                                                 key={preset.angle}
@@ -8758,9 +8759,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono text-xs"
                                             >
-                                              <option value="block">ğŸ›‘ Wall Obstruction (Treat as Solid Wall)</option>
-                                              <option value="slide_down">â›·ï¸ Slide Downhill (Slide on Steep Slopes)</option>
-                                              <option value="slow_down">ğŸ¢ Slow Incline Struggle (Traverse at 35% Speed)</option>
+                                              <option value="block">{'\\ud83d\\uded1'} Wall Obstruction (Treat as Solid Wall)</option>
+                                              <option value="slide_down">{'\\u26f7'} Slide Downhill (Slide on Steep Slopes)</option>
+                                              <option value="slow_down">{'\\ud83d\\udc22'} Slow Incline Struggle (Traverse at 35% Speed)</option>
                                             </select>
                                           </div>
                                         </div>
@@ -8854,7 +8855,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     let formulaStr = '';
                                     if (currentOp === 'multiply') {
                                       computedResult = valA * valB;
-                                      formulaStr = `${valA} Ã— ${valB}`;
+                                      formulaStr = `${valA} \\u00d7 ${valB}`;
                                     } else if (currentOp === 'add') {
                                       computedResult = valA + valB;
                                       formulaStr = `${valA} + ${valB}`;
@@ -8863,7 +8864,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                       formulaStr = `${valA} - ${valB}`;
                                     } else if (currentOp === 'divide') {
                                       computedResult = valB !== 0 ? valA / valB : 0;
-                                      formulaStr = `${valA} Ã· ${valB}`;
+                                      formulaStr = `${valA} \\u00f7 ${valB}`;
                                     } else if (currentOp === 'modulo') {
                                       computedResult = valB !== 0 ? valA % valB : 0;
                                       formulaStr = `${valA} % ${valB}`;
@@ -8899,7 +8900,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     } else if (currentOp === 'lerp') {
                                       const t = Number(action.lerpFactorT ?? 0.5);
                                       computedResult = valA + (valB - valA) * t;
-                                      formulaStr = `lerp(${valA} â” ${valB}, t=${t})`;
+                                      formulaStr = `lerp(${valA} \\u2794 ${valB}, t=${t})`;
                                     } else if (currentOp === 'random_range') {
                                       formulaStr = `random(${valA} .. ${valB})`;
                                       computedResult = valA + (valB - valA) * 0.5;
@@ -8949,7 +8950,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                 }`}
                                               >
                                                 <Sparkles size={12} />
-                                                <span>âš¡ Local Var</span>
+                                                <span>{'\\u26a1'} Local Var</span>
                                               </button>
 
                                               <button
@@ -8976,7 +8977,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                 }`}
                                               >
                                                 <Database size={12} />
-                                                <span>ğŸ“Š Prefab Var</span>
+                                                <span>{'\\ud83d\\udcca'} Prefab Var</span>
                                               </button>
                                             </div>
                                           </div>
@@ -8985,7 +8986,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           <div>
                                             <div className="flex items-center justify-between mb-1">
                                               <label className="text-[10px] text-neutral-400 font-bold block">
-                                                {currentScope === 'local' ? 'âš¡ Local Variable Name' : 'ğŸ“Š Prefab Target Variable'}
+                                                {currentScope === 'local' ? '\\u26a1 Local Variable Name' : '\\ud83d\\udcca Prefab Target Variable'}
                                               </label>
                                               {currentScope === 'local' && (
                                                 <button
@@ -9030,68 +9031,30 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                       } : r)
                                                     }));
                                                   }}
-                                                  className="w-full bg-neutral-900 border border-neutral-700 focus:border-amber-500 rounded px-2.5 py-1.5 text-amber-300 font-mono text-xs"
-                                                />
-                                                {rule.localVariables && rule.localVariables.length > 0 && (
-                                                  <select
-                                                    value={action.localVariableName || action.variableId || ''}
-                                                    onChange={(e) => {
-                                                      const val = e.target.value;
-                                                      updateCharacter(c => ({
-                                                        ...c,
-                                                        rules: (c.rules || []).map(r => r.id === rule.id ? {
-                                                          ...r,
-                                                          actions: (r.actions || []).map(a => a.id === action.id ? {
-                                                            ...a,
-                                                            variableScope: 'local',
-                                                            localVariableName: val,
-                                                            variableId: val
-                                                          } : a)
-                                                        } : r)
-                                                      }));
-                                                    }}
-                                                    className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-neutral-400 text-xs"
-                                                    title="Pick existing local variable"
-                                                  >
-                                                    <option value="" disabled>Existing Local Vars</option>
-                                                    {rule.localVariables.map(lv => (
-                                                      <option key={lv.id} value={lv.name || lv.id}>âš¡ {lv.name || lv.id}</option>
-                                                    ))}
-                                                  </select>
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <select
-                                                value={action.variableId || variablesList[0]?.id || ''}
-                                                onChange={(e) =xœì=[oãØyïù'Îv-¥–|of½¶²ì‰ÕÎŒ–f“t°Ù¥È#‰ŠdHÊ¶Ök`ŠíE4ÛX´IÓ—¾-—æ½ÿdş@òò}çğÎCJ‡¢o³"0cŠä¹~÷Ë9ç€\}‡H_ªeº1é¥×ÑÈ>¡MOq†Ôk+Æ„~T¢Â‰­)mGQ=êÔT²@jeºFH³ÙT×J•t&uwIMm²;òÅäõ'õæX±kvÈiê0Üı}ö!Ş?)5{~'r$¦H @G¦ïª‚]U‚®òë,ë®R¶»„œ+®ôÚU-›î’UÛ¡¥¿ºx…m×ÇÂ’U]“]¢ÔKÆ¢N™¢×õº<‰\_KQÅu_(cº¿rÑLƒô‡“N<G1nl¾åhÔñÿ„o~ o–:qwıêT1;ğÔ±&¦F5b_6¶š;Ä66áóÏ¿Ùf%M¯1¶L‹?¿tW$û} =Î« Ügºë18gì£lö,É…¼¡Óı«s škÂxšÿC¾sxıé·¿üGèeÓX\WcUÕÉë# ‚‰áí’«®çèæ°vŞÔø£±Mòä	Ù¨_Rfë|òı­×emoİ¥U=¹¶¤šÙ[×ôóùë÷?Ÿûû«õï“S›:
-}—ï¾¿>'÷ É8Åà¸ø_Cµ·±IÜñnôs‹»±Ml¯±¹"3q{RÁJJŸñ®1Â|½¹a_~Â‰4 üGıö-C#}ÃRßq_²‡xµİ©§«d<W¼Q4½r}_g—0GGÉ.ûT®N‡šŞ©-K–	Ê‹9„*j´ÜG^Ör¥Ê²3
-Q\¢˜Sy¡QVUV§º5ª¼>uëÚÔ"ºÔˆéÔŞ,)[C ,y-¥5ŸRJSI•©„Â$­.U¥,)ã>ü?C[ºé]TU’eÊjÃ9İÊÔİ6¦+oÿíWä¹ÿ‹ÔZäÿMëäí—_“×´9l’çÖ9%]›ÂXàÕÙÄ„'š>Ğ©óIY=#ÕEÓ ¿ùWÒÒ4ìÁ_†è˜ªCÇÀ‘AZæÄ­ªIwÒ÷+b»¿"]ÿ6Şo[.¶{¤ŒmĞÎàî%5Ã›VÕåºF±¿&GìMÿÿ…À‡.¨lĞÆû§ßşóÿ‚’cİ'­°!D&i¹®>4ıén[ve#êÛ¬éoşø‡_6ş$µ6
-<GÑMÒ§Ş¥€Xpÿ>h—õŠë&6ûË`U×Y@ÃÖ€´ ™C¤bÅ#mª âÊZU.Y«C!µ}8J6ûÔ°,»¤'ãªZuS³ÆŸ:¨†°¹ş=9cğÏpëÌ¶60,ğM¸Aè¯¿$Ïà¦\7©â	
-ˆm À,¼ıÍ×0ı) ÑÁLx•Í¼¥M‹uào‘MÁ¤©¿€ÖÑÏèĞøtUíÙˆP@Áßü¼d¸ıÔoìøÒ¶L ¥ªÚRú.ì¿ş‡´ú®eL`&¹Xû¢õEeH„RËŸ¿3¼'µ ?
-œA8¬nêH0uÿıwÈ8EÔx“GÖ…YU3*6¶òc<ğ#hä•]U&ZsIÒ1Ï©ã‘.ğQRk´ªjÂ³†CƒQõ×¿'=öä¡ePšñ@‚·_}Ôd¸´d“eÌxYC››ÚÏtĞ'ÚŠ¡Nnq?µĞFr¨˜&ŒÙ5¼“jÛúã´æ*hëÛÄKÜ×ÓÆx#½dÿ¡•N~6q=}0m¨y—¤¼çÚ šŒÕıahtó~ É=±Á8V—ÆŒoÔFŞ€Dj\€V Û6áSÌoneQ:/9Ş2ÊmÒÕ°ã´5U”c¯±ÑÜ‘dzŠãy™™µ¶jXªb¬‚­¶ššóp¦WÁ$Y\˜Éw%ü}¯{r‚5ˆÁÕkrÅ­|ì½´›¯€şV	tHÚÅ'Dæ –Û+Wh]Ï¹.İ5T*êĞ7-åÓ
-±RÙ ŞÔ¦ Ã©ÖØÙ«QŒ&as‚˜… ~ÁîjÉšõT¿¤Zm«^ğûŞŞä7eü®òT*çH½=Ï«©¹`p˜}8ñİ°•:_ÇZó5
-^Ú°ŒH-)Øü‘€~[;DvÎ´³ú‚ò€¬ÒsÈŠ 4KFé¦{tìú"-”p¾5 Ïò-— AñKN	¯ò<Ó‰hµIfOAI´×Ÿx¤_È¹@3bÅeãqxYfÛĞÕ7ûWµ’®m¼ªñ/ä¿Õ0ÿbş;	õ/ìtáTÚêZGÅxàs^ âÕúq,ö¯4³Oq~¸^ÏJ',”°@r@Éô€R	q¯÷Õgö%sPÛSTÆCïõ{WIhr}'(*µ`qqÅúTêSşíPÇY`ïF¯W¯?“ïq™ø{€òüvsÌœšif_”Óƒ—Œ>q-ıbô,„­˜^%Œ¾íWgóÁ3ÌÙ\²ö‚«,kAø X{€·ÆÚ¥íç2>R0&gÉ\ÙÔ¶r91aVŒÏofêZòP¯ m&Ìz±LH.ÙÉoOBòMX("û$ÄÉdÍ2=ù¾dÜ”JNv(Æ›¤àÉ¥§,>çÖjo+ßĞAZjè¦=‘Üá.qy#Äõ¨½¿²ÑÜ”/*–V	•ñN%ôd“!HŠ¨RzáRFI\_FU`\eM+À¾¥lÊ\Q6­ßüŒ’ñ°CR2Fq= O5å?‚O¶dÃdWßÕİW¦âLÉûïK
-¶ê"l·c»ƒ(‰C.ZÁÍĞ o˜ù°`Œ>T!EÓØ÷§ƒK1¹´¥i:²XÁ·Af.+ÀsG C	¾äù³ì;–)k±¦W»8¥Æcƒ«×òl¦d|ğDq/î<®È}\µy1ò-;‘u#ß‘#yqWr¨›V5ŒêÆ“¾¬ÄJÒ×Ÿ<©Y ñ…üÌyšKûšKz›¥üÍ‡÷!”XÎã¼@8q‘€âÂ!Å¥d^KÉğ %C%aÆ¨^A ñ0î5ª)Í€K…ó¿•gìKÉ0d¸«HdYÉP:¹Pª‰|D²\L2ŠJæŠoù7ÊÆ%s|½shsø|U:Ç¯JÁ7¬\æÜ”ºrÎMÅf’ÈHZ4xùmË³y8®âr®úPfÙ`f¹pfé€æ¢!Í…‚šy¢.© òwB-õÎe]ÕaÏ¥´+u½Ò®ÊÓÃDt‘
-„·HPu)3ï¯Ì”°J†XK˜rõ—Y˜y|	³V­çXğ¾kË!Î´+­½Ò]^V2T;cYç¬ã,³ÅŞâ!Z>=ş~0Á65l¦ëeW+>èÜ-¶_îMƒ[`.s¶r®eÎV®ÊÂàÉËŒ%±HËN&9å&îÖ!Mß’¢³Ì2‹»ãÚÊ%çÚ¯p—%×V.™å¹dÛy×’mÏÇ¶•Ë%Û~·Ù¶d°w2`Ø†„Oùƒ’ö+º ùRµr»i¡ÑlË6ßFRÛhn §åÇÖÙŒı<”£¼r»}—‘˜‹ÈË±nî_I·±r¹%½ú$Ì;²½L
-fÜ”“C¬Ç,ªæÎmo^­`^np>Çµ°8¡Ï‚ùİÜ üÆ%±”–ª•×;´®ëµyú\ÍÎ:µdf%³ü£…ä#·`~®3#”N6”ú z™jBûU]1½	ë}~zÔzF6wIëèˆ¬“ã£N|Ü:ë´Ÿû/“n¤#ºû±â<·4Å8µ©™TÓ2k2pF¢›.õHâ}CQß¬ÿ îá¯æX6<™8wL>oìlü=şO»ñ(¡KíáF˜ /»“şX÷ö¯@ljí*ç4œ_çoW›ÃdGL¦±ui 6Ñ¸hŒ5âs*»±C‚ULˆ;R4ë?L)yÒ‹•‚~ôE²ûíŒ¹7z”Ù–oh‹Ì&5Î…Ëc¶šéŞ‘â)}ÜğÏÕ?dsç:£÷:–KQÑ]qK<"
-wÂmêî1.<2‡˜Sˆ·ä%;‹,Lëfi„xAúy–<G2£ÏÉ±.ÎŸNåFfv]ãÛ:g9\Ü¶„N\åOgC¦›Lôƒşà:;â,EëÌ[b·Fß2uYeSh×##RkM<«ñCjâéC´À-—kFpĞa«"‘íPE;5©àUplX€xÂÍQŠ•9ø*ÛÙ£Ø+É˜Æ‹ç\ê°¼†bÖÕ²#€\$«Ö‘îÚ†2%ø}õÀùùDw¨(}ÚTéúAı~È‰rIN¨bx£5òW“±M:c{d·Fº¶£›^lÙª¨­´ÙIo‚Ï2f”ËvÎÁ25¦mû¬¬a7}TVIÀë&(­»ŠuV	t™Çñıı©¦µ-gZàe(ğ%c!†îzû+ªßFÃ‡Ôe¦–øû,¶<ÏÑ¿Æµ­q_ñà/HckX!®#…sAãbMx~ÌêÉ`?…,	«BÃYÙyÆ“ĞDÚÓ@o@Ğ]ËX§OŸ¼Àfå Sñ)écBk «:5ÕéÊÁËè‡T% 1Ô\VºüF®°§x0Ú.ş‘*¨2dúa¥Šêæ9èu0ã+à¶¨à>¼¬@lKUÉ!PÉ$= ô"Q°`!EÈ2æ¤Å<w™y²ÆI;×¢‘|î78„]âå?®t—d6Ãß„i÷ùq%øœXz¶ êjNı×9~„ßÎİ2 ¹(Âw9pÿ§$;œøÙ_©¢şÌ¯ø'ÆÓ`^B¶o\?äÂ
-¹t™ ¹¶‰b6Ù¾äX£ñ#bæÇ'_×¶-Õ4Î?æµ0~ÁµuDÕ7}ë2ÏgÈŞSmÿÊo-˜8uæ:ÈæW’Är$¿ù\½ A˜ÁLF&ûaR'â5¶f¼°®G¨ønó´TOÃéOƒä¯¡ÎE0\nÅ±ˆÑ	Ql–6YJÉ’øÔ/ªß%Á(ÄÜ°’WÆÖ?oÈšü­Íü\¶İı›ñ7õ“/ç ëùÙ°ğ©í«rÙ™ØPÌaCş9QÖÕEñ!¨G‚™VÅJÅæã‹ÏğØoP0yßH­3O<æPÓM Æ˜¢Ã¦ÇDsX¨@y˜Ço˜ï¡¦¦hş“I«¸C/-b¤^ıËI?Ö·Ç‘<ÀşP?šíÊm+¦JÓËPòÖ™O‰ËBÙ)Iì‘x\!frot?ÂË8/Ê0ˆbÃà.¨h};ƒÑÙÑc¼%o«–B7vüFr¢'‰¢`ÛÍ‡×¶vIûôåOÈáñIëãÎé9{õì¸KŞ#m]òôìô9i½8íŸ‘öIë¬ÕîÁİ­ÄŞğœà{|+<r]G×º¶â¼Áä•üèZxr¢0¼†(@éH9×-3Øx!Cy73K â·#hfYÓPó5ÛD!6nf¤»ğÀú¾ò,¨Ò2#¨î€v….èh'5ò´ûœ 3ïq‹È>umë%§½^~ùHÀ³¡@'³@­ğË\©#Åá¡Ğø³ff¶ìj¼	ÛYo÷Q	õw/áñİü˜S®£Ï7\V¦u´…¸7oÀ§›)™6¿n&Êƒ90¶„†@–Î„jbÒ»´rĞhöÈñÍ"Ãƒ§:àË?ã9{…~¬7tº¥69Ò¢›Ã© ÒÏó²t’24ÄİM›è	;µNŞ~ùŸäª–ø.‘ÕgPsè®9r‹{\0nQ’R»íİÔ—å9ôÃT˜óæDÓ]ä¢`J~wöN!Ï!Â!ûw˜ö:k
-s4óh?­P5T]İµ@
-éŞÕ19}=¬~.…½3¶-Ç#gŒÜ˜‘UæTÛîLkßN$Å¡ÔìöZ½[ÍŠCŞÕ<7/uó…¥-ãäU÷êŞs
-šCê®›š>´òSã˜2—“Ç@C6a^\ìÑí¦Ä%±ùÛ¡ßWGãPÃŒ¸W¦şó	Üj€Yl»öHŠ“È»Ò	¬[Á%Z`Pxp›O]ÚhÍŒá°0ß*†»ÂüºHà
-°|n}=(Êİ·aMkĞù´¿éYló†¶âÒZ½éP6âÚúëŸ*Ï7~úÉúp¬~ºšb¹	wÄÒ9)ÿÀ[|ëIYïMj`PÙ¨‡kä%ÃTüzB•ó)é"¶Î…¤2iùX÷®¥Vƒ4(‘HKEIÚ–a9ù83×1[ùQûÙñ$l¿0¼áû–íJú½íÇ}mğ8gsR9aµ–‹1>&#ø¦<ä®zL‚{¤É‘Ã	ÚÉ9e4£h½Tæ¡˜,¾‚øş|t ¦†2ñòÎà¸ò#¹ÏÜ¦º
-­m¬‘ê³<ù
-Qpq_Gşr¦ùöbÏ*P3qE-ÈàÀ¥¨SpïŠ™C†í°\~±fí fEF(gG	ôâ6Ç£@IsUÅ ÍM€<";0&oÈ9™!â…ayÉ„w“áäªÎı\ë W{`ÿÖø®šŠQ¹n–•nA†‡)ê\ çÈÅŒœs
-]­€è.ùœ:÷ €ŸiÑxu±ÊŞ%‰÷ÎeFÄµë	„ªUH±°²
-2$|%8•#á?•Î’ÈH,—õÈ÷«İFoj—z˜NáI‡ÙØlØË4Šr–ıÃô/”HCàĞ_¡¯¤s6ªl.ïl“ˆ¥YpŠv™‡¨íP´İDş¡‡•xñ(ãÂíµ^t;½Îé‹ÛôãöBíçş;s£¾.½¹ÒŞÜ–ãXgúpä-àÏtåB§n¨”k7öâv¼4ÿÖxyçPôrÖG¦Kæù,J˜&dô‘¢vêèCİ,Ú×°hiT¿-4!Rx‹©)¬íĞ³+V%{‰:¸>™¬wÄ*¾å$ì]ZOÃàÀš‘†HutœñL·ĞoÏÅpã	ìÇüAÇ$ºbØƒâ¦óìò‹fR h±;³Å™Ğ+çßBzûÕ¿”îWÅ”Ù³ºì1ô½Eºô¬¡Ê°Úw•&9 ¤hr ¸©#K¤)ò]ĞóÙdı±ğaê)jÓaB)ÏZ„›¶eòc£Éè° ı#§/ı„¬š–IWYB¢r®è[¯à'99‰¢MësÏŸË%3›PÃ1„]/Ÿq˜‚|0,L™áçñI˜Ëë&^ß¢oSÉô©±¯Ùj8l¼»–9Ë36ë.1(X›2nHg8™ ¿¾ÀÖó¿NNÖ.Aúè&Õò‹¨Äzl4_Î×¹Ô]
-
-ìŒŞæyå[²³ê€òM-µ Ìsî¶j¼š>"%TÃ«{Bjì&$èÏpìä{ï]AM×ŸñFÁò„ëéüÀ*<œ%¦ °<¨O…‘øy–…’'íP'İ†îš÷Ä“·ÿC.ò
-mûZ’#ÔÙ9™\ÚLG¯Ğú¾cool0SÏÿ$í;òoÁW¢™¤9Gr0ÍÊÁÛÿ'‚Jj/¬o°u´wa–ÎØşLiÃy„»kÎ‘6ìÄ¥œS” üö›ß…2gš)ÇÉÉ.©.İ71:eÌˆ~#oÏaAæ¿hã_®[j¨EkĞ(©¼}•¹ñ42şOĞ5 °¸ĞÑp–\â|õ,bèæhˆíKÓP"âLçùóÉ°K¯/Eı€Ñ ¢FÍt•
-Äû•ñg:c_0…1µÂî€ê×§UÎ€w’DH|pm"¸b¶Š‹‘\[_x+MªîÈp46€î¾ù?şáñpö""HİÅ †ó)ˆHœŞÒm½Iz ö`/ÀjàÚº¬\ø\Pó3v K‚5gÇGáZĞBöÅAõn ¶¨‰Ö-s '0¦f~dD D¦°æˆ‰”u†½[‘XÂ|¾İƒ,:ıºÀJ­"Ø²xv¼l ¦È«Ë¢0)®ˆ)tæ>¬hÌÎ.ÃtOÛ}Ü#§gä¤Ó;<ı19:îµ:Ïº·‘¡|ê;À<îmæ8êã2#¿"ÖĞ¡yñ‚Ø8øc›Á°4vT=oúÍÅ2£Eö€)Œ„ÉêUA€!‰VÂzyğÆRßPÜµÏ°ôt?ìÊ^è^ßºŒ¿ºÍøMáj& É· hSQØİä9ûQédÒ“ãàfİXEËåœ-HY®*ÏQ¾×ÙÉq¤`_Ïïë/Æ‹Ò’77’yÉÉìc;2Io‚zÅI]ouÿæŒÇœª'§9'UÆÛ_(úróª¢i¾Lí)C²NÎ,cÁ@ƒQ†¾oï¤ ‘Ü_Œ¬âw)V6¢Š¶rpÿ“ÚshÓXœPcÌ‚››]^PÅ¶ÌO•ƒçŠn’±Ÿ¤Æ³jN³ØÉ˜W¨¶§ƒª×Ğ­îH§€=µgtP¦J:¥ OO)éb§£]jßšÊÕ4 Ô[9xJÑOóÔ²<</
-ú÷3LUƒºrµ©#êâF¿øwÎw¨«m9T®'İ Ÿw¾0“Ï?7(v,|EºøJ®{Œ€ |K Ö
-÷1Íá’Ë“ŒémìçJ¾:¿ø†Äñ`÷±FÆ’F¬…ÊXRP÷ÃÚ8|>æÄfŠñ  SÜNÔ‡Níˆ*†K”±2”¤“ÑÄá•~<1ğ|
-ŒXŸğgÀ®¨J¡™r5»Œ?±ÍsıŞëQË]áè²ìÁáaB;²*Òã¿Iío,“®i_êcİ+æ`òT)øæáºu%mäwË—;—ß•^’ğº²'ò	îAEóïùMnÜQŠGŠxÔ¡àîââAÜ4í¥Cm?şÁÙdGn*|ûbˆ;!Ù¢Cö”jê® 1<ÖR7,ë4/´ŸW[?-—Æ—¦
-LàÅv	U¬Ö0ê©««)öÏÂqİ‡NËdeÎ8şµÎÏtŠ:{/Æšg9‚BÑËxO÷ÀĞ4„ĞÓ. Q„ZëbH³.AI^A ¬3LLümD€t—óRa†m8)ĞÄóø›tQ?”ôQòCŸ=u9ĞZ_‚óªèãëxËH;!ãíà‹èÃ8ˆpc­WÀ$Ö<Íi;AsOHÍOâöaObût=iºÄÜ'<&JœCÕ-¯…ú“¦½‚1­h5y>%ân4òôx~¤kŞèşUkÖ%ÉöVz$Û[ù#9¡hŒÜ¯¡ğ>IŒ…So‰1|&&Ô·_~M¸Û?î–‡)Tyµ^–ÆüzY‘à9ˆó¼,²­'rìY
-˜g˜ñ0ĞU.'ZÈ­XÈ_0[#&-<Vj`UßQ7ÆeÚ8õğ—¦HÄ£0¨ŠÆşº"›Fb~±m¢ùœóˆˆï…kP<üÅmğd ¸ÈÄ.$f,[h	éŒnDQ§T0m¬åEzÓ ĞÂ5›™Ì+6]1«Ï¨*uİlbf\ù:
-¦€|¸¨“Úf`qÍ%®`A²Õn¦yê8¢„6Şx~µ-JşBp)ûÄm¯&#„±jã›?$tÎXİ1³-S2…,©M]åÍ¸ÈÎŞkãà¶î¨İŠ€Òæux^˜“öS¦ğL/øÄcö‘Í6±AòqâmÎhE7o$}Îå¼ƒJÙI,s&h
-	¶Ä˜g›¼ğ!Èşë¾óg   ÿÿ g?äx
+                                                  className="w-full bg-neutral-900 border border-neutral-7xœì]{WÛ:¶ÿ>…†9÷æ’ ô´Ğ¸—–.B;3·sæÅVí± ‡Ãw¿{K~[v"Ç¼Úd­–ÄiKÚŸöŞ’Úm2°µ‰·Û·]¹M:îÃÿ;í6qí‰¥38·Í­Öq¦ÍMøã³[?xh»ïZ~sl[¶¸që­ü(~6”_¹s'&k™¶FÍ/Ô5hßdùñG"¹Ü2™5ôGä€´ñ‰†r]„ìyÌdš_áMB®©9aûwTóÛJ“ö‘ùıwÜ».Ÿêxquõ¾R}¶ÕQkU6ØÙ? w•Š!D³-ÏGòÉ>a-ŸºCæ·xkşR±Ä‰£SŸy.´˜¹ÉkT¥V«¥­W~YÅÛ%­Å¿aŸıy­5¦NÃEÂÜ–¡“ıı}ÁSğı]å®ˆu«K&A‚İVğ=I2E’iHrÀQÍÉ¦‹ Øº§ÙÛ%«\V+3'F»È¨õĞyªóÂ(ëìºV¹ |İ­úúıÚZ5ñ¼¯¦n4“zÀşJØ´ØÄw©Ù|†A˜“àOtç§Œ]IY•ğ¡WğPek‚ßğM è“¡]vkx¾aÓDÃ\¥`u;…Ÿ=ÛAi,ÁÊ
+Ñ)ĞCÒÎ8iÀĞŞŞ†xºZU2³ÈÕƒyÍumE¦
+[pÅ¦ûwæ5è•ûĞ®Á/+0câÆÁİê?ÿ9ÙzM7WïIşöbí[[«Â¥{Â~«×©\İŞ†n\«Õ³â®:0UIŒ¤GøË;¦üÚşùšŠ@¤" ˆz ¬ƒÔ‰?ªcGÄ‹`'À‹a,Îp\6 ı€F.¬j“«ãÊX ¨€öÿ¦9˜˜&™¤fÚ”Z³&ü™Zæœ&œ)õÈE ²IM™Ó”5´šéG³«¿ÙÖñ¦Q´¾ÂøŞƒã¯‘¯G Óß%w=ßäÑ¸néâÒ¤€¼{GÚk÷?W2²U»ºQ¯fĞ•ªQ4äÁãs?·ñgrî0—rFèñÖà·?oÌOäT™”¿¡úÿkj¶é57‰7Şn‘!ušÛÄñ››+*·§ŒhöLÚgf’4.¦_7ÛÎíÏy¤Ï¥¹o›:ér½"ã¾"…øé¸†?3ßĞÈù@ıQÜ½j´opâ\	2¯M\—Yş¹£*5€,±l'¯õµ¦ê&¤>ŒUa=¾ª®[-‚¬Æ LçÎ.pIÕBÓ)J©Œƒ*A¨Š ª|ROuA§¹ö7#Ãg‹'U¥œñ|Œf9]	|?m¾”ò!¸JbÚmı'¸~¸&~nµ7_ÁÏ¯¬5l‘ö5#=‡A#“Ï^L,¸¥ƒ¹?WE"j©®G„¾İJ:º4şw²SKsÙt8˜CÛšxu‘àMú>êÑ˜ì°^p‰iæˆéÚÒqDÇz–6È'fQÓŸÖE Cg1EØıGüZb ²Ä§<(©¶ŞaaÇ ìÕğÏ€°tÍ>éäªwÁF“çC+­®íÔÖ1 Îc'KĞ[Äá]¼C]4¶.5,ÒgşcÀ²ğıG@+·k5Ñ06¬˜‚`&ğe*jœÙ7 Mìé@¥‡Øzêê“.3L`•Úh ·9Ş ô–4NŒá(MÄ{Ó¶]$ĞOÆuÑàRK·Ç¿¸²CÒßB…ÁÀ?CàÛ”ïÀ´¡3lhLæ:™~ÑÛm ånÀà£.9µ 49¶	ŠÒ2†ü{HúS2 ±‡Şòk+[Ÿ˜v,¬ï¿…2ı_PwR’.Ø˜,O]T8È˜+)Çñ'Î«Pù¿2•ß:¶Â[Wİ´ïÅÍg¼ùŒ¡²ï{¶9QóâÆïßkcN´ÒÒ>¿À;¤ñ8GfÖ×Í”´°›ûmTÑBø¢Ş#ûÆª«.tJ\Z-Ô2aMŸºê±ØD%mO­kæú¤j4šºªòíáĞdÙqÛFmrÉoí·MF¡Rß–$mráPÓc	©âìPuG‡Ä™àªKMmb
+¿Ä{ÛÌFÉ!µ,GçDŞ=‘·o²ø6‚±Ûmâ4·B4Û4‡ ›Ù-ÿ}äßÏ7Ó¦ÆP[*º
+ö<†(ç›x¹&è˜˜8s5ê±„‹‘×XËæ Õº‰èbîúV•€xÅöf†!7H;d¶0ôêN,-ĞØo¶[;ÊÌvqèâày>§’ `F»šéó¨§Waâ¶»}Ó÷*øH¿–RZ¬4ïGl‹²k´Ê¡3— yÊnQ)k‡#»İnƒò¶ëùî}eÒPR0uúôŒ/0âSeöı©Ã cjöØ®_0&™bÌ­	òúGş­‘~¨åÛï[¦7¶Ö00xÉÓÏTñW«Ë­j$ù±<Ö–îÁ¼ÉÃIà¾®Õi=ÖœÖ¡ğ³‘7ÈØŠ¦.h	`ìÆ!*xòÖ´p0Èkr§‹ªQÊ*i´w†ÏÆ^`ä"›ÌOÔuòB>ù
+2(ïaeÁ©àŸ§;‘­6Éì.¨¨€öúßWŒ<ˆj.ÀJüõ*)J¶Õ5íjÿ®±@òg½‰š‹¤i>j’æb)šO’ ¹hz¦-¤´Ó³'®†Y¡¯~¡Í°Ô/‰
+ÚÊ_ÅşØ
+®UN¯X0ártËŠÉ–•R-púWç–;ö)ÂóÈëÿÃ]z4Ş‰a.ÌÁÔ~fX&âêÙ0Şo¯ŞÿªNq•,†3Ôõí†Ğ˜45Gf¿WÃÂKEŸú,ıRô<ôO-¿Eß
+Kªùğæm.U{É§ªj†ğ¨öMµWÈÄV÷šÂdr–Í}šÔî™XëÉsº9Ë´îŠD~?iİ1C‘ÍO"\ÀÖ,“¼ŸK¦R¥o—aT;d
+‘”{Î#v^¥ö±ò”«,2,g¢n4Ä$D¸ÄÕ'!Ïœı•vkSıU¹µJAÆ'µPbÙs!H›¨J¸pi£>/ßFÕ0¹ÊO­ª/J^Ú¦çe›7¼¨²p¥b<ì4Â<Z\G!RsÅğ‘-Õ0Ùİï³Eİ©úöõEØ#ÆöQ6’¹x)‰˜††ùÖÜ?ËpŒÑ'y‰ê:ş|0ğæÈvtİ@+y6ÌOæ/ˆ´ä`(É“"k˜?ÇÓ€m^õj¦ÔElpõ^]ÍTŒ>ƒá"®ãÅÇ5¹—[º|Ÿ[ºØä°Ş¨a\®4nxøeævTş}îÙ2Óß|øB‰U7^©N\$ ¸pHqi¤Ÿ¥ex‘–¡–0c\®$Ğx˜ô5h´«M´¡è·êŠ}iæ±O‰¬j*G#J5QHV‹IÆQÉBó­¾mIõ=0¥¾Ş9Ğ\õ]0kÚó!‚•Ëœ›JŸ—œsSó4I6IZ4xù½åÙ¼Wq5W(³ú.ŠUÂ™•š‹†4
+j™º4@Mï½˜B©Onëê{.­]¥Ï·aíêÌ0=L…A)0%x‹íô¼´™ÏÕf*Ÿ( ¨z•§r
+åWY˜y|½³ZßµMĞbÇ™CìiO)Z{gxâ]ÅPíŒe²³ÊÖ„‹‡hE÷ûÕ„›êğ^«ºZñEçnñmp·Ü:t™³UğYælB<HÈGÜ$/3–æ<9¡ÔnâşÊò­h:«,³x:­Mo…ÖşŒ;»,µ6½å3Ï¥Ú.ú,Õö|j›Ş.Õö·­¶_€ùÎB¾)â{±Û¡âü…¿ºàô¥îyÊã¦…Æ›HòMÜ‚=#I£İjƒ¦ÇÎ:ÙLü<T“¼j»¤W±˜‹ØË±aíß)·1½İ¿S^}Zæö*•™aäÄˆ]òUkçÉ¶…¯×0/7†Ÿã³°9N°Ï‚ùÛÜ8ıÁ-±’V7ªµ—;×hİ¯5æ1èsU;ë´—™…Ìò–PÔŒÂ—$ısŸkäítE™â›éÆ Ú¯ë“ÀMXî‡ó£ÎÙÜ%£#²AN/É—ÎÅiçğì8¸™~áA1¼/Ôı`ëÔ<w˜•†i¹5¸#1,ùÍ6Šxß¤ÚÕÆOğşê®íÀ•‰ÛôÆä·æN›/è	~:ÍW),µ‡›a‚½ìMúcÃß¿³©›¬G¯Y8¿W>ßòM¬dš[·&¢‰æMs¬“@S9Í®bzE¼Õí|0ò”+…tôe9ıævEî^åö…[Ü¢òƒNMjFéò˜-	2İ;¢>íã†ñ`Íûîum!Ğ]‘iK<h÷ÆmŞ1.<²†˜Sˆ_É'~¢[”ÖÍÓñP†ìõ¼x^åZ_c]?ÉÎ<M1tClôœ×pÉ¹Eht’?›™­ZÒÑ{øõ}¾åYŠ2ÕY´Än;Š¾åÊ–ªÊ‚9Né¼&1rzD‰o7ÿÊ,<µ‰•¸å
+§bè°V™ÉvÕÏ-s*¹¾2ts”rĞ±3‡>@Ğ±?Ğ.µ’Œ#\<çÙP†í7©iÚ7LÏ·H2ä2»Xß`cÒ)ÁçëœÿL—ÉÒ× N€æî¯ˆ3`è-9aÔôGëä&c‡œ	ˆİ:é9®aù‰e«²º2£ÍOÈ“<–›Fy|ç|§ÁÑvPÀ:±øùÓ™ó³ò ?ÁDYì*Ç¬
+ì2;+Óûø©
+§uAmwZâe(ñ%”s!¦áùû+ZPGÓ›‡ÌãS-ùóyìø¾k€~ëÚã>õá/Xc{\!/#Ãsaår$<?ç…åä¸OœŞVÀ„u±á¬ì¢É“tŠ´§nÀ¡!†^0:rLŸ=Ï#›•ƒh˜ÊÏ]ÈFâÚC3˜¥MW>Å?”
+Cä²rĞ_Ô^ö©­íá¥5ÎŒ ?ü¯Ò«†u¸z|åà4üZV h`¼$ª@>—ªSC È$— èe*¢dÁBFQeÌ)‹E!á2óURLŠváŒ6!ò…Ï`v‰_ü@ò˜×]’Ûº9ºÜ™àu~”	àìààØÕ‚òïü¾§U@sIDàr>şOEv…ğó¿J¯=¿rœ%S.ƒE	ÙR	|p|(8D
+å2%s9n“Ålò´ÌF“‡ÆÌÏOÖvlƒ—4.>·4~!P‡6bÚUß¾-òòûLß¿†·öFR:dóƒ´°G)¨¾¤3ìÉxÊş:JêD¾×v`/-«À*?DÌy:šçãô§aŠ×P2.7ÈóX¬è¤,6M–ÅŸ2¶$Ùõ‹â»ô0Ê#1òªÌ5¤ƒ_´d$ÿh=?×Üîùõx›zÆ”¯à€ğùÕ°ô\©íœª•jÙ™ÜP®a#ı;FÚ¢ü–£ LëR¥òé×‹gx\: LAiœÇŸ;ÔcÌĞa³V¤DT¨<Ìã7,öP3K´ÿ©¤U<¡—1†—¡Gÿ6%ÒoÂõíI&¹?ÂG³]¹]ji,»¥hyy—x<”‘ï’tË^ÉÛq¦ğF÷c¾Lê¢\Ã(†9¿…mlç8:ßzŒ·mÕRêÆN^ÀHN|%õ@l{øğÚÖ.éú9<>é|9=¿ ŸÏ{äÇ(ÒÖ#ï/Î?ÎÇóË“ãÒ=é\tº—ğíQboxÜñ³	¾•¹Œ®É£k=‡ºW˜¼R]‹ÎR”†×È!ÑkÃv‘1Ãr’÷1³#~A3§l6-j±f›PâˆèæÀµiF†ìã-ß†"m4òˆ. +tAÇ;i¬“÷½‰ø·ˆì3Ï±¯9}yy	¿&ÙP€Él€¾k[Ãƒ;mD]ô ®µr½åÔãMØÎ{È¸ 4Ø½DÄw‹cN…¾`‚àñb0õìT¿´‘÷æøôrof§_åAƒN¶¤¼œIabÚ»´rĞl’îÈóÍ›Í2çƒ÷ğÏ?9{¥~¬+6İ¿ÓZ‚iÑM‹áÔp ²×‹²tÒr6ÄİM[ „ŸÂº	¾…Ç/ß5RÏ§²ûLfıÑ½`r9å%í—%+¹İ¾MÜ¬®©_&p.êİğP›Â”òó¨‘¨E.>Û÷ À£ô×Y]X€Ğã}µ"ˆ/¬IİµÁşa™nŠŸ¸ŸÛõÉ7$ò bNøºğdè};•‡Ö³wÙ¹|Ôì8œÉ³gÑóã8™m}™ §áÿjø ˆoXº1´‹Sä8¨+H’ãCCpl¢ü¸Ä¥ÇMKsó÷ók‹§‰QÃÌ¸Ï–ñŸ	|Õ³ø¶í§e€X'Å¥Z0±ğ}Ğ6¿xĞ´Ñ:N7†ÃÒ¼«ïJóìbƒ+áò¹q{øªpãF%­ñYw~Ë·ù&]ê±ÆZËe¼Å¯ÿ¢ÍßÚÍ·¿ü¼1\'«¿¬…ZÂík€ln`ÎÊ¿–x=9P0ë³I<Eµğp|âœŠ€AO½’rë\Lª’XÌußZŠ`=Lƒ‰t44˜¤k›¶[Ì3s×°U½ŸWÂúKÃŒ1Oğgùî¤Ú~Ó×o
+6)Uã^jµXã2‚QêCáê'à$ønÃ³9²ñ8I=Å±§2Š×M%Ç<2“åİWçŸï àô±Ù¤¿è,» ¢ËùÌky€UX£½N^¯Íòl¢ğ#|ÅËšæÛ“= fòŠV’ÉKR§&ğŞŸ9wt£÷Š_KqÖpV<	ê(Å^bÎñ*iFMÖÜÜ„‘GFãÇ5¹ CD¾@¬(©ği2<Í5„¿kpµóß†Ø]“šµc³¼u3­Ä˜"æ;GnF0É¹f@" bxä7æJÜ„}¦ÇíYÜÔ%
+û–,Ş7—!‘D×§*5ë°bQa5dJ 8“+\UÎ–ÈY,x>»ŞÔó1­"h	I—Ï±y³—éÕfö/Ó/¼PBE‚#mÌ¾ŠÎÙ¸°¹¼³EN"n!$Úã¢®ËpîÆGTâzY	¯r.ÜË‹ÎÇŞéåéùÇÇôã^Fèçù;scZ—Ş\eonÇuí›c8òğçÆX¹Ô©TÆµ›¸ñ¸^	›7^Ş9€^Á:Éì›E>‹
+S2LÑ8w¡a•íoX¶DªÄßM!2|‹)*¼îS©gW%/Se<™.w$
+~ädì]b”LÇƒ5##´êè8^©ß"™“á%1øøƒItÅğåUÍËg,Bš)€bwf›3©W<©¿¥"$²D6ßnI<tóÒW³„^Ú¡|^r6~Dùôí‘Î¨ØoU6Å@)ÉæÀ0q“3.([ä€‹ÕåÚféÅÌUDÕQ‚©Èb„/]ÛÇH“#À²€A×‘ógÿ «–m±U H¯©aòõAÒc˜£(ÛÄ¾ğlğ¹\3³5jCDzõÄÌÈ‡ÍÂÔqş™è„¹¼oòuÂÉ-ûæ9¥Ìš¯ÃÊ×
+×6çõÀ`Ææ} %%k•ÁÖ™{†	8ö#Ö^ütº³v	ÊÿÀ°˜^üŠØ%_-ÚWğtá†u÷„±à{À=°bË@~vH¾¥gö„~.ÜfMÓG¦„bDqïHƒ‰úWl;ùÓwPÒı¯b…£Y²¤üG‹S:ÿ`•Ö’¦ğeõ¡’\•F8’ç[–Z¬cY„¹m~wnÒi‘Ï8Ço¤5Â?7SX;°éèÚx8ˆğ÷v»Í§|Á#YRğ{’õ„ä`Í9’…QhV‚úé•¶zOPPIã£PæMrs_ç¿Ğ[|ß¦’tâXL¢]7çH'v“ÖÎ-MæÔ¾¦›@m¨¿w¡ÚH’Ü‚¬“úÒ€S­ÙÇ\	´‹ö$–¬mŒƒmà–ZÙuœL^¿Æİ{:™‚= è2 ü®ôG,ê%ø`o}›˜†uñ}+ˆ%Öì: ÑNåõ§ˆ¸L û`4ÍĞ˜ÄÜß)“´§só 3+ààh7Y
+åNZ(I0\›8\‰9Œ‡ƒB€$ š†"ŞÈ…áh¶C9|MÛ¥Ár~#–NÃÃˆÆúÍ)ØMìã
+ñZ‹\ÂØ'F÷¦‚¡?Ëƒß õ X%\rq|-hÂYhèRgÅû†	,£¥j·­1œ@ÃZÅa	²Ì°Î70©ê)û¶¢&‰lúâÉêéìí’©k‘˜ÅSçU£3e._¢É8{ƒ(M©§÷e…jvvE¦wŞıßãKr~ANN/ÏÿN/;§g½Ç×0Ñõ§ <mæ8¦q¥Q_6kP½|Õlrø;Æğ~½¨újŠ¶™Ë"¿ÀÆZÂöª$úf+i¹"²ckW·¶Åƒ.}#ˆÉò['†ß·o“·3¸“`¸†LòDtjÊ{š$è`z”d:•Üåäps/o¢ eşrÁ>¥<‘U$0?ëÔå$Sğ§ç ”óÅ9Ë›ítÒr:59à\Fœ¤\yÆ×Â»J=¿>¨úÅiÎNU	”š¾ÂÙy]!¶À¦^Ò!Ù ¶¹à.¡©ÆĞaà°Û-(dş—s/ø[
+ ÕWNàÒø uú0'Ìóˆ§Â˜7Œ:¶õ‹»rğùÿI"åæ„ZåÇ¢â Ú¯¬ŞÈ`À=36¨R$›2ÀÇSFzH”i —´Ç,Ğ[Sµ’Œù+ïúiŞÛ¶‡J}Ÿ0ıT3™§Vš6bîŒp{}—BY]ÛejÅÛ&û´ó1ùí7“!aÑ-ÒÃ[jäqúÄ¾% ­5nvš?ç¥P'™Ó!Î±\+p~ñ]‹“Aò±D®’F¼†ÚTRXöËÚ]|>åÄ{Šë SÜs4Æ£¦Gè˜åd4qE¡_&&baìqÔÓTS­dë'¾Ãn@m¨±‘µ¼P®¡ª‚¸f»£ª"—â7iüŸm±í[cløåL]*%Ï¼\·®âùÛòåÎåwå'œ¤¼®üŠzö{XĞü[
+Æ~“w”â¹#>óFh¸{¸²wVûä²f7ˆˆ“8ù¹œTìqÌ£ I'$_‘È¯Š—Z†'ÉOÔÔ‹^H-^Ú/*-ÉŸÈÎ¶Ç’ë3/M¯íªX'¼bÄ©««õÏcrÃGNËtaî8ù´!VÖœ¢.”›¸|WÏ$/Å7“¯ø†o‡fG=í’!ŠYkC>Òœ$xS”GP€êÌf0LânzˆÂ2<ñÌ'Ê'¶éÁÉM2¹@¬¾É¾„’ş’~0PO=1hïm7xCèªøáûdÍ(;Ñ&ëÁñƒÉ!Â]·>»0&‰êYAİ)™{GA|÷{—ØÄë]Ë‹GÌ{'²jâl:„nE5¬½kHPÄQÑjúKäİ¸åÙöüÍĞıÑóiBkN¶d{+Û’í­â–œ0œŒ<¯¦šÚ"¤·B~•*ß3nó®wq«gÚ>æV•|ÿk–ÊËæ¯…÷À„;íå™n#uîã¥Maš†éCö¢c‚ıJzS7VÃçoÍ´êÛ`òÆ¸–‡ şò µ@T|Ö„‰õ€êü¯‡¡øÒÄˆl3xm›è†Ä$#xãšOŠñš"S(i:‘„T¯%¯B´M¿³‚8ú”	ªõ¢ˆO8ED´°3—–Å»+1ûó&šÆ</Ÿ5…éXVÁ|·;!¬áK”%L¥à;’L¬İ\õÌueÙn¢ò0%®[–†Ãîº¼ ¯{5)L›Ü!"…=e'¦o¹òÓùeiTuWÔã²ùö^
+wW3ÙV"”fGÇæEé1Yeˆç¨4ìq!ƒ¹ÌMVRi˜œ“¬sF-†5°E%ÙC1çmTf¾Ä3hÂjà%I*Ğ<{éEÜÿåÿ  ÿÿ pÜ0¸

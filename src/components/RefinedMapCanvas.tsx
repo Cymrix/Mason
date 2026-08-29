@@ -481,6 +481,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   });
 
   const keysDownRef = useRef<Record<string, boolean>>({});
+  const lastHudUpdateRef = useRef<number>(0);
 
   
 
@@ -510,6 +511,15 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const canvasWidth = viewportSize.width;
   const canvasHeight = viewportSize.height;
   
+  // Synchronize camera pan back into React state whenever exiting play mode
+  const prevModeRef = useRef<ModeType>(mode);
+  useEffect(() => {
+    if (prevModeRef.current === 'play' && mode !== 'play') {
+      setPan({ ...viewport.panRef.current });
+    }
+    prevModeRef.current = mode;
+  }, [mode, setPan, viewport.panRef]);
+
   // Logical map bounds (for things that still need to know how big the active map is)
   const logicalMapWidth = mapData.width * TILE_SIZE;
   const logicalMapHeight = mapData.height * TILE_SIZE;
@@ -1475,30 +1485,34 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         y: prevPan.y + (targetPanY - prevPan.y) * 0.12
       };
 
-      // Update HUD State periodically (Throttled via equality check)
-      const newStam = Math.round(p.stamina);
-      const newMana = Math.round(p.mana);
-      setHudState(prev => {
-        if (
-          prev.health !== p.health ||
-          prev.stamina !== newStam ||
-          prev.mana !== newMana ||
-          prev.isGrounded !== p.isGrounded ||
-          prev.isWallSliding !== p.isWallSliding ||
-          prev.facing !== p.facing
-        ) {
-          return {
-            health: p.health,
-            maxHealth: charConfig.maxHp,
-            stamina: newStam,
-            mana: newMana,
-            isGrounded: p.isGrounded,
-            isWallSliding: p.isWallSliding,
-            facing: p.facing
-          };
-        }
-        return prev;
-      });
+      // Update HUD State periodically (Throttled to 10Hz to prevent React re-render thrashing during 60 FPS play)
+      const nowMs = performance.now();
+      if (nowMs - lastHudUpdateRef.current > 120) {
+        lastHudUpdateRef.current = nowMs;
+        const newStam = Math.round(p.stamina);
+        const newMana = Math.round(p.mana);
+        setHudState(prev => {
+          if (
+            prev.health !== p.health ||
+            Math.abs(prev.stamina - newStam) >= 2 ||
+            Math.abs(prev.mana - newMana) >= 2 ||
+            prev.isGrounded !== p.isGrounded ||
+            prev.isWallSliding !== p.isWallSliding ||
+            prev.facing !== p.facing
+          ) {
+            return {
+              health: p.health,
+              maxHealth: charConfig.maxHp,
+              stamina: newStam,
+              mana: newMana,
+              isGrounded: p.isGrounded,
+              isWallSliding: p.isWallSliding,
+              facing: p.facing
+            };
+          }
+          return prev;
+        });
+      }
       
       particleEngineRef.current.update(dt, {}, mapData.height * 64 + 1000);
       animId = requestAnimationFrame(physicsTick);
@@ -2087,9 +2101,6 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.restore();
     } else if (mode === 'play') {
       // ==========================================
-      if (mode === 'play') {
-        rafId = requestAnimationFrame(renderFrame);
-      }
       // PLAY MODE: RENDER INTERACTIVE TEST CHARACTER
       // ==========================================
       const p = playerRef.current;
@@ -2293,6 +2304,11 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     if (currBiome) {
       renderBiomeFg(currBiome, fadeAlpha);
     }
+
+    // Schedule next frame cleanly if in play mode
+    if (mode === 'play') {
+      rafId = requestAnimationFrame(renderFrame);
+    }
     }; // end renderFrame
 
     if (mode === 'play') {
@@ -2358,9 +2374,11 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const viewX = clientX - rect.left;
     const viewY = clientY - rect.top;
 
-    // Convert to world coordinates
-    const worldX = (viewX - pan.x) / scale;
-    const worldY = (viewY - pan.y) / scale;
+    // Convert to world coordinates using live ref values to guarantee 100% pixel-perfect tile alignment
+    const curPan = viewport.panRef.current;
+    const curScale = viewport.scaleRef.current;
+    const worldX = (viewX - curPan.x) / curScale;
+    const worldY = (viewY - curPan.y) / curScale;
 
     const tileX = Math.floor(worldX / TILE_SIZE);
     const tileY = Math.floor(worldY / TILE_SIZE);

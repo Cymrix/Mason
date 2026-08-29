@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createOrLinkImageAndSpriteProject } from '../utils/spriteUtils';
 import { 
   MasonProject, 
@@ -22,7 +22,9 @@ import {
   EnemyAIConfig,
   PrefabStateNode,
   PrefabStateTransition,
-  PrefabStateMachine
+  PrefabStateMachine,
+  ensureUIConfigDefaults,
+  UNIFIED_INPUT_TEMPLATE
 } from '../engine/masonProjectSchema';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { SpritesheetSliceModal, SpritesheetSliceResult } from './shared/spritesheet';
@@ -60,6 +62,9 @@ import {
   Upload,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
+  Compass,
+  Mountain,
   HelpCircle,
   Minimize2,
   Heart,
@@ -142,11 +147,19 @@ const createDefaultTrigger = (type: TriggerType, availableVars?: BehaviorVariabl
     case 'player_condition':
       return { type: 'player_condition', condition: 'is_grounded' };
     case 'keyboard_key':
-      return { type: 'keyboard_key', key: 'KeyE' };
+    case 'raw_keyboard':
+      return { type: 'raw_keyboard', key: 'KeyE', triggerMode: 'press' };
+    case 'raw_mouse':
+      return { type: 'raw_mouse', button: 'left', action: 'press', targetArea: 'anywhere' };
+    case 'raw_gamepad':
+      return { type: 'raw_gamepad', gamepadIndex: 'any', inputType: 'button', button: 'button_a', buttonMode: 'press' };
     case 'listener':
       return { type: 'listener', channelTag: 'global_event' };
     case 'solid_detection':
       return { type: 'solid_detection', direction: 'below', detectionDistancePx: 4, checkMode: 'touching' };
+    case 'slope_detection':
+    case 'slope':
+      return { type: 'slope_detection', slopeCondition: 'on_any_slope', contactLocation: 'feet', detectionDistancePx: 4 };
     case 'physics_state':
       return { type: 'physics_state', stateKind: 'jump_peak', velocityThreshold: 0.5 };
     case 'on_spawn':
@@ -636,16 +649,20 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
   const char: PrefabData = currentFile.prefabData;
 
-  // Available UI Input Mappings for Player Controls
+  // Available UI Input Mappings for Player Controls (read from active/all UI files in project with full fallback)
   const activeUiFile = project.fileSystem.ui?.find(u => u.fileName === project.activeFiles.uiFileName) || project.fileSystem.ui?.[0];
-  const availableInputMappings: InputMapping[] = activeUiFile?.uiConfig?.inputMappings || [
-    { id: 'inp_jump', name: 'jump', label: 'Jump / Leap', triggerMode: 'press', keys: ['Space', 'KeyW'] },
-    { id: 'inp_move_left', name: 'move_left', label: 'Move Left', triggerMode: 'hold', keys: ['KeyA'] },
-    { id: 'inp_move_right', name: 'move_right', label: 'Move Right', triggerMode: 'hold', keys: ['KeyD'] },
-    { id: 'inp_dash', name: 'dash', label: 'Dash Evade', triggerMode: 'tap', keys: ['ShiftLeft'] },
-    { id: 'inp_attack', name: 'attack', label: 'Primary Attack', triggerMode: 'press', keys: ['KeyJ'] },
-    { id: 'inp_interact', name: 'interact', label: 'Interact / Talk', triggerMode: 'press', keys: ['KeyE'] }
-  ];
+  const activeUiConfig = activeUiFile?.uiConfig ? ensureUIConfigDefaults(activeUiFile.uiConfig) : null;
+  const availableInputMappings: InputMapping[] = useMemo(() => {
+    if (activeUiConfig?.inputMappings && activeUiConfig.inputMappings.length > 0) {
+      return activeUiConfig.inputMappings;
+    }
+    for (const u of (project.fileSystem.ui || [])) {
+      if (u.uiConfig?.inputMappings && u.uiConfig.inputMappings.length > 0) {
+        return u.uiConfig.inputMappings;
+      }
+    }
+    return UNIFIED_INPUT_TEMPLATE;
+  }, [activeUiConfig, project.fileSystem.ui]);
 
   // Helper to safely update current prefab
   const updateCharacter = (updater: (prev: PrefabData) => PrefabData) => {
@@ -683,6 +700,82 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         }
       };
     });
+  };
+
+  // Helper to get combined prefab variables and rule-scoped local variables
+  const getRuleVariablesList = (targetRule?: BehaviorRule) => {
+    const pVars = (char.variables || []).map(v => ({
+      id: v.id,
+      name: v.name,
+      isLocal: false,
+      value: v.value ?? v.defaultValue ?? 0,
+      scope: 'prefab' as const
+    }));
+
+    const lVars: Array<{ id: string; name: string; isLocal: boolean; value: any; scope: 'local' }> = [];
+    
+    if (targetRule?.localVariables) {
+      for (const lv of targetRule.localVariables) {
+        if (!lVars.some(x => x.id === lv.id)) {
+          lVars.push({
+            id: lv.id,
+            name: lv.name || lv.id,
+            isLocal: true,
+            value: lv.defaultValue ?? 0,
+            scope: 'local'
+          });
+        }
+      }
+    }
+
+    // Also collect local variable names declared in any math / variable actions of this rule
+    if (targetRule?.actions) {
+      for (const a of targetRule.actions) {
+        if (a.variableScope === 'local' || a.localVariableName || a.variableId?.startsWith('local_') || a.variableId?.startsWith('local.')) {
+          const id = a.localVariableName || a.variableId || 'local_var';
+          if (!lVars.some(x => x.id === id)) {
+            lVars.push({
+              id,
+              name: a.localVariableName || id,
+              isLocal: true,
+              value: a.variableValue ?? 0,
+              scope: 'local'
+            });
+          }
+        }
+      }
+    }
+
+    return { prefabVars: pVars, localVars: lVars, allVars: [...pVars, ...lVars] };
+  };
+
+  // Helper to render variable select options grouped into Local and Prefab categories
+  const renderVariableSelectOptions = (targetRule?: BehaviorRule) => {
+    const { prefabVars, localVars } = getRuleVariablesList(targetRule);
+    return (
+      <>
+        {localVars.length > 0 && (
+          <optgroup label="‚ö° Local Variables (Rule Scope)">
+            {localVars.map(v => (
+              <option key={v.id} value={v.id}>
+                ‚ö° [Local] {v.name} ({v.id}) = {String(v.value)}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        <optgroup label="üìä Prefab Variables (Persistent)">
+          {prefabVars.length === 0 ? (
+            <option value="" disabled>No Prefab Variables Defined</option>
+          ) : (
+            prefabVars.map(v => (
+              <option key={v.id} value={v.id}>
+                üìä {v.name} ({v.id}) = {String(v.value)}
+              </option>
+            ))
+          )}
+        </optgroup>
+      </>
+    );
   };
 
   // Fast duplicate prefab
@@ -5704,6 +5797,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                   const triggerTypeLabels: Record<string, string> = {
                     possession: 'üéÆ Possession',
                     mapped_input: 'üïπÔ∏è Mapped Input',
+                    raw_keyboard: '‚å®Ô∏è Raw Keyboard',
+                    raw_mouse: 'üñ±Ô∏è Raw Mouse',
+                    raw_gamepad: 'üéÆ Raw Gamepad',
                     sight: 'üëÅÔ∏è Sight (Sensory)',
                     sound: 'üëÇ Acoustic Hearing',
                     proximity: 'üìç Proximity',
@@ -5715,9 +5811,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     collision: 'üí• Physics Collision',
                     input_press: '‚å®Ô∏è Input Press',
                     player_condition: 'üèÉ Player State',
-                    keyboard_key: '‚å®Ô∏è Key Press',
+                    keyboard_key: '‚å®Ô∏è Raw Keyboard',
                     listener: 'üì° Signal Listener',
                     solid_detection: 'üß± Solid Detection',
+                    slope_detection: 'üìê Slope Detection',
+                    slope: 'üìê Slope Detection',
                     physics_state: '‚öõÔ∏è Physics & Gravity',
                     on_spawn: 'üå± On Spawn',
                     spawn: 'üå± On Spawn'
@@ -5728,12 +5826,48 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                       const delay = (t as any).spawnDelayMs;
                       return `On Spawn${delay ? ` (+${delay}ms)` : ''}`;
                     }
+                    if (t.type === 'raw_keyboard' || t.type === 'keyboard_key') {
+                      const k = (t as any).key || 'KeyE';
+                      const mods = [(t as any).requireCtrl && 'Ctrl', (t as any).requireShift && 'Shift', (t as any).requireAlt && 'Alt'].filter(Boolean);
+                      const modStr = mods.length > 0 ? `+${mods.join('+')}` : '';
+                      const mode = (t as any).triggerMode ? ` [${(t as any).triggerMode}]` : '';
+                      return `Key: ${k}${modStr}${mode}`;
+                    }
+                    if (t.type === 'raw_mouse') {
+                      const act = (t as any).action || 'press';
+                      const btn = (t as any).button || 'left';
+                      const area = (t as any).targetArea && (t as any).targetArea !== 'anywhere' ? ` on ${(t as any).targetArea}` : '';
+                      if (act.startsWith('wheel')) {
+                        return `Mouse: ${act === 'wheel_up' ? 'Scroll Up' : 'Scroll Down'}${area}`;
+                      }
+                      if (act === 'hover' || act === 'move') {
+                        return `Mouse: ${act === 'hover' ? 'Hover' : 'Move'}${area}`;
+                      }
+                      return `Mouse: ${btn} [${act}]${area}`;
+                    }
+                    if (t.type === 'raw_gamepad') {
+                      const inp = (t as any).inputType || 'button';
+                      const pad = (t as any).gamepadIndex === 'any' || (t as any).gamepadIndex === undefined ? 'Any Pad' : `Pad ${(t as any).gamepadIndex + 1}`;
+                      if (inp === 'button') {
+                        return `Gamepad: ${pad} ${(t as any).button || 'button_a'} [${(t as any).buttonMode || 'press'}]`;
+                      }
+                      if (inp === 'stick_axis') {
+                        return `Gamepad: ${pad} ${(t as any).axis || 'left_stick_x'} (${(t as any).axisDirection || 'positive'})`;
+                      }
+                      return `Gamepad: ${pad} ${(t as any).axis || 'left_trigger'} Trigger`;
+                    }
                     if (t.type === 'state') {
                       return `State: ${t.requiredState || 'Any'}${t.stateMode && t.stateMode !== 'is_state' ? ` (${t.stateMode})` : ''}`;
                     }
                     if (t.type === 'mapped_input') {
-                      const mapping = availableInputMappings.find(m => m.id === t.inputId);
-                      return `Input: ${mapping?.label || mapping?.name || t.inputId || 'Key'}`;
+                      const mapping = availableInputMappings.find(m => 
+                        m.id === t.inputId || 
+                        m.name === t.inputId || 
+                        (t.inputName && (m.name === t.inputName || m.id === t.inputName || m.label === t.inputName))
+                      );
+                      const keysDisplay = mapping?.keys && mapping.keys.length > 0 ? mapping.keys.join('/') : (t.key || 'Key');
+                      const timing = t.triggerMode && t.triggerMode !== 'hold' ? ` [${t.triggerMode}]` : '';
+                      return `Input: ${mapping?.label || mapping?.name || t.inputName || t.inputId || 'Key'} (${keysDisplay})${timing}`;
                     }
                     if (t.type === 'sight') {
                       return `Sight: ${t.sensoryTag || 'head_eyes'} (${t.visionRadiusPx || 200}px)`;
@@ -5760,6 +5894,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     }
                     if (t.type === 'solid_detection') {
                       return `Solid: ${t.direction || 'below'} (${t.checkMode || 'touching'})`;
+                    }
+                    if (t.type === 'slope_detection' || t.type === 'slope') {
+                      const cond = (t as any).slopeCondition || 'on_any_slope';
+                      const loc = (t as any).contactLocation || 'feet';
+                      return `Slope: ${cond.replace(/_/g, ' ')} (${loc})`;
                     }
                     if (t.type === 'physics_state') {
                       return `Physics: ${t.stateKind || 'jump_peak'}`;
@@ -5974,10 +6113,14 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                         >
                                           <option value="on_spawn">üå± On Spawn (Instance Created / Instantiated)</option>
                                           <option value="solid_detection">üß± Solid Detection (Left / Right / Above / Below)</option>
+                                          <option value="slope_detection">üìê Slope Detection (Ramps / Incline / Ascending / Facing Uphill)</option>
                                           <option value="physics_state">‚öõÔ∏è Physics & Gravity (Jump Peak / Falling / Low-G)</option>
                                           <option value="state">‚ö° State Active / Event</option>
                                           <option value="possession">üéÆ Player Takes Possession</option>
-                                          <option value="mapped_input">üïπÔ∏è Mapped Player Input</option>
+                                          <option value="mapped_input">üïπÔ∏è Mapped Player Input (UI Mapping)</option>
+                                          <option value="raw_keyboard">‚å®Ô∏è Raw Keyboard (Direct Key / Modifiers)</option>
+                                          <option value="raw_mouse">üñ±Ô∏è Raw Mouse (Buttons / Wheel / Hover)</option>
+                                          <option value="raw_gamepad">üéÆ Raw Gamepad (Buttons / Sticks / Triggers)</option>
                                           <option value="sight">üëÅÔ∏è Sight Raycast (Sensory Eyes)</option>
                                           <option value="sound">üëÇ Acoustic Hearing (Sensory Ears)</option>
                                           <option value="proximity">üìç Proximity Distance</option>
@@ -6089,6 +6232,72 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                             <input
                                               type="number"
                                               value={trig.detectionDistancePx ?? 4}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  detectionDistancePx: Number(e.target.value)
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 1.5 SLOPE DETECTION TRIGGER */}
+                                      {(trig.type === 'slope_detection' || trig.type === 'slope') && (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-neutral-950/70 p-3 rounded-xl border border-sky-950/60">
+                                          <div>
+                                            <label className="text-[10px] text-sky-400 font-bold block">üìê Slope Condition</label>
+                                            <select
+                                              value={(trig as any).slopeCondition || 'on_any_slope'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  slopeCondition: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="on_any_slope">‚õ∞Ô∏è Any Slope (45¬∞ Floor or Ceiling)</option>
+                                              <option value="on_floor_ramp">ü¶∂ Standing on Floor Ramp (‚ó¢ or ‚ó£)</option>
+                                              <option value="on_ceiling_slope">üß¢ Touching Ceiling Slope (‚ó• or ‚ó§)</option>
+                                              <option value="ascending_slope">üßó Ascending Slope (Walking Uphill)</option>
+                                              <option value="descending_slope">‚õ∑Ô∏è Descending Slope (Walking Downhill)</option>
+                                              <option value="facing_uphill">‚õ∞Ô∏è Facing Uphill (Incline Ahead)</option>
+                                              <option value="facing_downhill">üìâ Facing Downhill (Decline Ahead)</option>
+                                              <option value="slope_up_right">‚ó¢ Slope 45¬∞ Up-Right</option>
+                                              <option value="slope_up_left">‚ó£ Slope 45¬∞ Up-Left</option>
+                                              <option value="slope_down_right">‚ó• Slope 45¬∞ Down-Right</option>
+                                              <option value="slope_down_left">‚ó§ Slope 45¬∞ Down-Left</option>
+                                              <option value="no_slope">üö´ Flat Ground / Air (No Slope)</option>
+                                            </select>
+                                          </div>
+
+                                          <div>
+                                            <label className="text-[10px] text-sky-400 font-bold block">Contact / Sensor Location</label>
+                                            <select
+                                              value={(trig as any).contactLocation || 'feet'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  contactLocation: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="feet">ü¶∂ Feet / Floor Contact (Default)</option>
+                                              <option value="head">üß¢ Head / Ceiling Contact</option>
+                                              <option value="ahead">‚è© Ahead in Facing Direction</option>
+                                              <option value="any">üåê Anywhere (Feet, Head, or Ahead)</option>
+                                            </select>
+                                          </div>
+
+                                          <div>
+                                            <label className="text-[10px] text-sky-400 font-bold block">Detection Distance (px)</label>
+                                            <input
+                                              type="number"
+                                              value={(trig as any).detectionDistancePx ?? 4}
                                               onChange={(e) => {
                                                 updateSingleTriggerAt(tIdx, {
                                                   ...trig,
@@ -6243,28 +6452,492 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
                                       {/* 5. MAPPED INPUT TRIGGER */}
                                       {trig.type === 'mapped_input' && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="bg-neutral-950/70 p-3 rounded-xl border border-amber-950/60">
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Mapped Input Action</label>
+                                            <div className="flex items-center justify-between mb-1">
+                                              <label className="text-[10px] text-amber-400 font-bold block">üïπÔ∏è Mapped Player Input Action</label>
+                                              <span className="text-[9px] text-neutral-400 font-mono">Mode configured in Input Mappings tab</span>
+                                            </div>
+                                            {(() => {
+                                              const matched = availableInputMappings.find(m => 
+                                                m.id === trig.inputId || 
+                                                m.name === trig.inputId || 
+                                                m.id === trig.inputName || 
+                                                m.name === trig.inputName ||
+                                                m.label === trig.inputName
+                                              );
+                                              const selVal = matched?.id || trig.inputId || availableInputMappings[0]?.id || 'inp_jump';
+                                              return (
+                                                <div className="space-y-1.5">
+                                                  <select
+                                                    value={selVal}
+                                                    onChange={(e) => {
+                                                      const sel = availableInputMappings.find(m => m.id === e.target.value || m.name === e.target.value);
+                                                      updateSingleTriggerAt(tIdx, {
+                                                        ...trig,
+                                                        inputId: sel?.id || e.target.value,
+                                                        inputName: sel?.name || sel?.label || e.target.value
+                                                      });
+                                                    }}
+                                                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono text-xs"
+                                                  >
+                                                    {availableInputMappings.map(m => (
+                                                      <option key={m.id} value={m.id}>
+                                                        {m.label || m.name} ({m.keys?.join('/') || 'No key'}) [{m.category || 'action'}] ‚Ä¢ Mode: {m.triggerMode || 'hold'}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                  {matched && (
+                                                    <div className="flex items-center gap-2 text-[10px] font-mono text-neutral-400">
+                                                      <span className="px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800/60">
+                                                        Keys: {matched.keys?.join(' / ') || 'None'}
+                                                      </span>
+                                                      <span className="px-1.5 py-0.5 rounded bg-neutral-900 text-neutral-300 border border-neutral-800">
+                                                        Trigger Timing: {matched.triggerMode ? matched.triggerMode.toUpperCase() : 'HOLD (Continuous)'}
+                                                      </span>
+                                                      <span className="px-1.5 py-0.5 rounded bg-neutral-900 text-neutral-400 border border-neutral-800">
+                                                        Category: {matched.category || 'Action'}
+                                                      </span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 5b. RAW KEYBOARD TRIGGER */}
+                                      {(trig.type === 'raw_keyboard' || trig.type === 'keyboard_key') && (
+                                        <div className="space-y-3 bg-neutral-950/70 p-3 rounded-xl border border-neutral-800">
+                                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Key Code Preset</label>
+                                              <select
+                                                value={trig.key || 'KeyE'}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    key: e.target.value
+                                                  });
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                              >
+                                                <optgroup label="Movement & Core">
+                                                  <option value="Space">Space (Spacebar)</option>
+                                                  <option value="KeyW">KeyW (W / Up)</option>
+                                                  <option value="KeyA">KeyA (A / Left)</option>
+                                                  <option value="KeyS">KeyS (S / Down)</option>
+                                                  <option value="KeyD">KeyD (D / Right)</option>
+                                                  <option value="ArrowUp">ArrowUp (‚Üë)</option>
+                                                  <option value="ArrowLeft">ArrowLeft (‚Üê)</option>
+                                                  <option value="ArrowDown">ArrowDown (‚Üì)</option>
+                                                  <option value="ArrowRight">ArrowRight (‚Üí)</option>
+                                                </optgroup>
+                                                <optgroup label="Actions & Combat">
+                                                  <option value="KeyE">KeyE (Interact)</option>
+                                                  <option value="KeyF">KeyF (Use / Action)</option>
+                                                  <option value="KeyQ">KeyQ (Ability 1)</option>
+                                                  <option value="KeyR">KeyR (Reload / Reset)</option>
+                                                  <option value="KeyC">KeyC (Crouch / Slide)</option>
+                                                  <option value="KeyJ">KeyJ (Attack)</option>
+                                                  <option value="KeyK">KeyK (Special)</option>
+                                                  <option value="KeyL">KeyL (Block / Guard)</option>
+                                                  <option value="KeyZ">KeyZ (Action 1)</option>
+                                                  <option value="KeyX">KeyX (Action 2)</option>
+                                                  <option value="KeyV">KeyV (Melee / Roll)</option>
+                                                  <option value="KeyU">KeyU (Skill)</option>
+                                                  <option value="KeyI">KeyI (Inventory)</option>
+                                                  <option value="KeyM">KeyM (Map)</option>
+                                                </optgroup>
+                                                <optgroup label="System & Keys">
+                                                  <option value="Enter">Enter / Return</option>
+                                                  <option value="Escape">Escape</option>
+                                                  <option value="Tab">Tab</option>
+                                                  <option value="Backspace">Backspace</option>
+                                                  <option value="ShiftLeft">ShiftLeft</option>
+                                                  <option value="ShiftRight">ShiftRight</option>
+                                                  <option value="ControlLeft">ControlLeft</option>
+                                                  <option value="AltLeft">AltLeft</option>
+                                                </optgroup>
+                                                <optgroup label="Numbers">
+                                                  <option value="Digit1">1 (Digit1)</option>
+                                                  <option value="Digit2">2 (Digit2)</option>
+                                                  <option value="Digit3">3 (Digit3)</option>
+                                                  <option value="Digit4">4 (Digit4)</option>
+                                                  <option value="Digit5">5 (Digit5)</option>
+                                                  <option value="Digit6">6 (Digit6)</option>
+                                                  <option value="Digit7">7 (Digit7)</option>
+                                                  <option value="Digit8">8 (Digit8)</option>
+                                                  <option value="Digit9">9 (Digit9)</option>
+                                                  <option value="Digit0">0 (Digit0)</option>
+                                                </optgroup>
+                                              </select>
+                                            </div>
+
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Custom Key Code</label>
+                                              <input
+                                                type="text"
+                                                value={trig.key || ''}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    key: e.target.value
+                                                  });
+                                                }}
+                                                placeholder="e.g. KeyE, F1, BracketLeft"
+                                                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-amber-300 font-mono mt-1 text-xs"
+                                              />
+                                            </div>
+
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Trigger Timing</label>
+                                              <select
+                                                value={trig.triggerMode || 'press'}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    triggerMode: e.target.value as any
+                                                  });
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                              >
+                                                <option value="press">Press (On Key Down / Initial Hit)</option>
+                                                <option value="hold">Hold (Continuous Key Down)</option>
+                                                <option value="release">Release (On Key Up / Released)</option>
+                                              </select>
+                                            </div>
+                                          </div>
+
+                                          {/* Modifier check boxes */}
+                                          <div className="flex items-center gap-4 pt-1 text-[11px] text-neutral-300">
+                                            <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Required Modifiers:</span>
+                                            <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
+                                              <input
+                                                type="checkbox"
+                                                checked={!!trig.requireShift}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    requireShift: e.target.checked
+                                                  });
+                                                }}
+                                                className="rounded bg-neutral-900 border-neutral-700 text-amber-500 focus:ring-0"
+                                              />
+                                              <span>Shift</span>
+                                            </label>
+                                            <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
+                                              <input
+                                                type="checkbox"
+                                                checked={!!trig.requireCtrl}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    requireCtrl: e.target.checked
+                                                  });
+                                                }}
+                                                className="rounded bg-neutral-900 border-neutral-700 text-amber-500 focus:ring-0"
+                                              />
+                                              <span>Ctrl</span>
+                                            </label>
+                                            <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
+                                              <input
+                                                type="checkbox"
+                                                checked={!!trig.requireAlt}
+                                                onChange={(e) => {
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    requireAlt: e.target.checked
+                                                  });
+                                                }}
+                                                className="rounded bg-neutral-900 border-neutral-700 text-amber-500 focus:ring-0"
+                                              />
+                                              <span>Alt</span>
+                                            </label>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 5c. RAW MOUSE TRIGGER */}
+                                      {trig.type === 'raw_mouse' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-neutral-950/70 p-3 rounded-xl border border-neutral-800">
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Mouse Action</label>
                                             <select
-                                              value={trig.inputId || availableInputMappings[0]?.id || 'inp_jump'}
+                                              value={trig.action || 'press'}
                                               onChange={(e) => {
-                                                const sel = availableInputMappings.find(m => m.id === e.target.value || m.name === e.target.value);
                                                 updateSingleTriggerAt(tIdx, {
                                                   ...trig,
-                                                  inputId: e.target.value,
-                                                  inputName: sel?.name || e.target.value
+                                                  action: e.target.value as any
                                                 });
                                               }}
-                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                              className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
                                             >
-                                              {availableInputMappings.map(m => (
-                                                <option key={m.id} value={m.id}>
-                                                  {m.label || m.name} ({m.keys?.join('/') || 'Key'})
-                                                </option>
-                                              ))}
+                                              <option value="press">Click / Press (Mouse Down)</option>
+                                              <option value="hold">Hold (Continuous Button Down)</option>
+                                              <option value="release">Release (Mouse Button Up)</option>
+                                              <option value="wheel_up">Scroll Wheel Up (Delta &lt; 0)</option>
+                                              <option value="wheel_down">Scroll Wheel Down (Delta &gt; 0)</option>
+                                              <option value="hover">Cursor Hovering Prefab</option>
+                                              <option value="move">Mouse Movement (Any Motion)</option>
                                             </select>
                                           </div>
+
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Mouse Button</label>
+                                            <select
+                                              value={trig.button || 'left'}
+                                              disabled={trig.action?.startsWith('wheel') || trig.action === 'hover' || trig.action === 'move'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  button: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs disabled:opacity-40"
+                                            >
+                                              <option value="left">Left Button (Button 0 / Primary)</option>
+                                              <option value="middle">Middle / Wheel Button (Button 1)</option>
+                                              <option value="right">Right Button (Button 2 / Secondary)</option>
+                                              <option value="button_4">Button 4 (Thumb / Back)</option>
+                                              <option value="button_5">Button 5 (Thumb / Forward)</option>
+                                              <option value="any">Any Mouse Button</option>
+                                            </select>
+                                          </div>
+
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Target Area / Scope</label>
+                                            <select
+                                              value={trig.targetArea || 'anywhere'}
+                                              onChange={(e) => {
+                                                updateSingleTriggerAt(tIdx, {
+                                                  ...trig,
+                                                  targetArea: e.target.value as any
+                                                });
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                            >
+                                              <option value="anywhere">Anywhere On Screen / Canvas</option>
+                                              <option value="on_prefab">Directly On This Prefab Bounds</option>
+                                              <option value="screen_left_half">Left Half of Screen</option>
+                                              <option value="screen_right_half">Right Half of Screen</option>
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* 5d. RAW GAMEPAD TRIGGER */}
+                                      {trig.type === 'raw_gamepad' && (
+                                        <div className="space-y-3 bg-neutral-950/70 p-3 rounded-xl border border-neutral-800">
+                                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Gamepad Controller</label>
+                                              <select
+                                                value={trig.gamepadIndex === undefined ? 'any' : trig.gamepadIndex}
+                                                onChange={(e) => {
+                                                  const val = e.target.value;
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    gamepadIndex: val === 'any' ? 'any' : (Number(val) as 0 | 1 | 2 | 3)
+                                                  });
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                              >
+                                                <option value="any">Any Connected Gamepad</option>
+                                                <option value="0">Gamepad #1 (Player 1 / Pad 0)</option>
+                                                <option value="1">Gamepad #2 (Player 2 / Pad 1)</option>
+                                                <option value="2">Gamepad #3 (Player 3 / Pad 2)</option>
+                                                <option value="3">Gamepad #4 (Player 4 / Pad 3)</option>
+                                              </select>
+                                            </div>
+
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Input Category</label>
+                                              <select
+                                                value={trig.inputType || 'button'}
+                                                onChange={(e) => {
+                                                  const cat = e.target.value as any;
+                                                  updateSingleTriggerAt(tIdx, {
+                                                    ...trig,
+                                                    inputType: cat,
+                                                    ...(cat === 'button' ? { button: trig.button || 'button_a', buttonMode: trig.buttonMode || 'press' } : {}),
+                                                    ...(cat === 'stick_axis' ? { axis: 'left_stick_x', axisDirection: 'positive', axisThreshold: 0.25 } : {}),
+                                                    ...(cat === 'trigger_axis' ? { axis: 'left_trigger', axisDirection: 'greater_than', axisThreshold: 0.3 } : {})
+                                                  });
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                              >
+                                                <option value="button">Gamepad Button / D-Pad</option>
+                                                <option value="stick_axis">Analog Thumbstick Axis</option>
+                                                <option value="trigger_axis">Analog Trigger Axis</option>
+                                              </select>
+                                            </div>
+
+                                            {(trig.inputType === 'button' || !trig.inputType) && (
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 font-bold block">Button Mode</label>
+                                                <select
+                                                  value={trig.buttonMode || 'press'}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      buttonMode: e.target.value as any
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                                >
+                                                  <option value="press">Press (Just Pressed / Down)</option>
+                                                  <option value="hold">Hold (Continuous Pressed)</option>
+                                                  <option value="release">Release (Just Released)</option>
+                                                </select>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Sub-fields depending on Button vs Stick vs Trigger */}
+                                          {(trig.inputType === 'button' || !trig.inputType) && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 font-bold block">Target Button</label>
+                                                <select
+                                                  value={trig.button || 'button_a'}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      button: e.target.value as any
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-amber-300 font-mono mt-1 text-xs"
+                                                >
+                                                  <optgroup label="Face Buttons">
+                                                    <option value="button_a">Button A / Cross ‚úï (South)</option>
+                                                    <option value="button_b">Button B / Circle ‚óØ (East)</option>
+                                                    <option value="button_x">Button X / Square ‚ñ¢ (West)</option>
+                                                    <option value="button_y">Button Y / Triangle ‚ñ≥ (North)</option>
+                                                  </optgroup>
+                                                  <optgroup label="Shoulders & Triggers">
+                                                    <option value="left_bumper">Left Bumper (LB / L1)</option>
+                                                    <option value="right_bumper">Right Bumper (RB / R1)</option>
+                                                    <option value="left_trigger">Left Trigger (LT / L2)</option>
+                                                    <option value="right_trigger">Right Trigger (RT / R2)</option>
+                                                  </optgroup>
+                                                  <optgroup label="D-Pad">
+                                                    <option value="dpad_up">D-Pad Up ‚¨Ü</option>
+                                                    <option value="dpad_down">D-Pad Down ‚¨á</option>
+                                                    <option value="dpad_left">D-Pad Left ‚¨Ö</option>
+                                                    <option value="dpad_right">D-Pad Right ‚û°</option>
+                                                  </optgroup>
+                                                  <optgroup label="Stick Clicks & System">
+                                                    <option value="left_stick_click">Left Stick Click (L3)</option>
+                                                    <option value="right_stick_click">Right Stick Click (R3)</option>
+                                                    <option value="select_back">Select / Back / Share</option>
+                                                    <option value="start_pause">Start / Menu / Options</option>
+                                                    <option value="home_guide">Home / Guide Button</option>
+                                                    <option value="any">Any Gamepad Button</option>
+                                                  </optgroup>
+                                                </select>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {trig.inputType === 'stick_axis' && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 font-bold block">Analog Stick Axis</label>
+                                                <select
+                                                  value={trig.axis || 'left_stick_x'}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      axis: e.target.value as any
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                                >
+                                                  <option value="left_stick_x">Left Stick X (Horizontal ‚Üî)</option>
+                                                  <option value="left_stick_y">Left Stick Y (Vertical ‚Üï)</option>
+                                                  <option value="right_stick_x">Right Stick X (Horizontal ‚Üî)</option>
+                                                  <option value="right_stick_y">Right Stick Y (Vertical ‚Üï)</option>
+                                                </select>
+                                              </div>
+
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 font-bold block">Tilt Direction</label>
+                                                <select
+                                                  value={trig.axisDirection || 'positive'}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      axisDirection: e.target.value as any
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                                >
+                                                  <option value="positive">Positive (Right ‚û° / Down ‚¨á)</option>
+                                                  <option value="negative">Negative (Left ‚¨Ö / Up ‚¨Ü)</option>
+                                                  <option value="any_movement">Any Tilt (|tilt| &gt; deadzone)</option>
+                                                </select>
+                                              </div>
+
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 font-bold block">Deadzone Threshold</label>
+                                                <input
+                                                  type="number"
+                                                  min={0.05}
+                                                  max={0.95}
+                                                  step={0.05}
+                                                  value={trig.axisThreshold ?? 0.25}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      axisThreshold: Math.max(0.05, Math.min(0.95, Number(e.target.value)))
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-amber-300 font-mono mt-1 text-xs"
+                                                />
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {trig.inputType === 'trigger_axis' && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 font-bold block">Analog Trigger</label>
+                                                <select
+                                                  value={trig.axis || 'left_trigger'}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      axis: e.target.value as any
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-white font-mono mt-1 text-xs"
+                                                >
+                                                  <option value="left_trigger">Left Trigger (LT / L2)</option>
+                                                  <option value="right_trigger">Right Trigger (RT / R2)</option>
+                                                </select>
+                                              </div>
+
+                                              <div>
+                                                <label className="text-[10px] text-neutral-400 font-bold block">Pull Threshold (0.1 - 0.9)</label>
+                                                <input
+                                                  type="number"
+                                                  min={0.1}
+                                                  max={0.9}
+                                                  step={0.05}
+                                                  value={trig.axisThreshold ?? 0.3}
+                                                  onChange={(e) => {
+                                                    updateSingleTriggerAt(tIdx, {
+                                                      ...trig,
+                                                      axisThreshold: Math.max(0.1, Math.min(0.9, Number(e.target.value)))
+                                                    });
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-amber-300 font-mono mt-1 text-xs"
+                                                />
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
 
@@ -6663,6 +7336,109 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                             </div>
                           </div>
 
+                          {/* RULE LOCAL VARIABLES MANAGER (RULE SCOPE STATE) */}
+                          <div className="p-3 bg-neutral-950/70 border border-neutral-800/80 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                                  <Sparkles size={13} className="text-amber-400" />
+                                  Rule Local Variables ({(rule.localVariables || []).length})
+                                </span>
+                                <span className="text-[10px] text-neutral-500 hidden sm:inline font-mono">
+                                  (Temporary scoped variables for dynamic modifiers & math results)
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const count = (rule.localVariables || []).length + 1;
+                                  const newLocalVar = {
+                                    id: `local_var_${count}`,
+                                    name: count === 1 ? 'run_speed' : `local_var_${count}`,
+                                    defaultValue: count === 1 ? 6.0 : 0,
+                                    type: 'number' as const
+                                  };
+                                  updateCharacter(c => ({
+                                    ...c,
+                                    rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                      ...r,
+                                      localVariables: [...(r.localVariables || []), newLocalVar]
+                                    } : r)
+                                  }));
+                                }}
+                                className="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 bg-amber-950/40 border border-amber-600/30 px-2 py-0.5 rounded-lg transition hover:bg-amber-900/40"
+                              >
+                                <Plus size={12} />
+                                <span>+ Add Local Var</span>
+                              </button>
+                            </div>
+
+                            {/* List of rule local variables chips */}
+                            {(!rule.localVariables || rule.localVariables.length === 0) ? (
+                              <div className="text-[11px] text-neutral-500 italic py-0.5 flex items-center gap-1.5">
+                                <span>No local variables defined for this rule yet. Click "+ Add Local Var" to create temporary variables like <code className="text-amber-400 font-mono text-[10px]">run_speed</code> or <code className="text-amber-400 font-mono text-[10px]">jump_power</code>.</span>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                                {rule.localVariables.map((lv, lvIdx) => (
+                                  <div key={lv.id || lvIdx} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs">
+                                    <span className="text-[10px] font-mono font-bold text-amber-400 shrink-0" title="Rule Local Variable">‚ö°</span>
+                                    <input
+                                      type="text"
+                                      value={lv.name}
+                                      placeholder="var_name"
+                                      onChange={(e) => {
+                                        const newName = e.target.value;
+                                        updateCharacter(c => ({
+                                          ...c,
+                                          rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                            ...r,
+                                            localVariables: (r.localVariables || []).map((v, i) => i === lvIdx ? { ...v, name: newName } : v)
+                                          } : r)
+                                        }));
+                                      }}
+                                      className="bg-transparent border-b border-transparent hover:border-neutral-700 focus:border-amber-500 text-amber-200 font-mono text-xs w-full focus:outline-none"
+                                    />
+                                    <span className="text-neutral-500 font-mono text-[11px]">=</span>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      value={lv.defaultValue ?? 0}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        updateCharacter(c => ({
+                                          ...c,
+                                          rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                            ...r,
+                                            localVariables: (r.localVariables || []).map((v, i) => i === lvIdx ? { ...v, defaultValue: val } : v)
+                                          } : r)
+                                        }));
+                                      }}
+                                      className="w-14 bg-neutral-950 border border-neutral-800 rounded px-1.5 py-0.5 text-amber-300 font-mono text-[11px]"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        updateCharacter(c => ({
+                                          ...c,
+                                          rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                            ...r,
+                                            localVariables: (r.localVariables || []).filter((_, i) => i !== lvIdx)
+                                          } : r)
+                                        }));
+                                      }}
+                                      className="text-neutral-500 hover:text-red-400 p-0.5 shrink-0"
+                                      title="Delete Local Variable"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
                           {/* THEN ACTION CHAIN SECTION */}
                           <div className="p-3.5 bg-neutral-950/80 border border-neutral-800 rounded-xl space-y-3">
                             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -6694,10 +7470,63 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                             <div className="space-y-2">
                               {(rule.actions || []).map((action, aIdx) => (
                                 <div key={action.id || aIdx} className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-mono text-neutral-400 font-bold">
-                                      Action #{aIdx + 1}
-                                    </span>
+                                  <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2 mb-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] font-mono text-cyan-400 font-bold bg-neutral-950 border border-neutral-800 px-2 py-0.5 rounded">
+                                        Step #{aIdx + 1}
+                                      </span>
+                                      {/* Action Sequence Reorder Controls (Move Up & Move Down) */}
+                                      <div className="flex items-center bg-neutral-950 border border-neutral-800 rounded p-0.5">
+                                        <button
+                                          type="button"
+                                          disabled={aIdx === 0}
+                                          onClick={() => {
+                                            if (aIdx === 0) return;
+                                            updateCharacter(c => ({
+                                              ...c,
+                                              rules: (c.rules || []).map(r => {
+                                                if (r.id === rule.id) {
+                                                  const newActions = [...(r.actions || [])];
+                                                  const temp = newActions[aIdx - 1];
+                                                  newActions[aIdx - 1] = newActions[aIdx];
+                                                  newActions[aIdx] = temp;
+                                                  return { ...r, actions: newActions };
+                                                }
+                                                return r;
+                                              })
+                                            }));
+                                          }}
+                                          className={`p-1 rounded transition ${aIdx === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-cyan-300 hover:bg-neutral-800'}`}
+                                          title="Move Action Up in Sequence"
+                                        >
+                                          <ChevronUp size={13} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={aIdx >= (rule.actions || []).length - 1}
+                                          onClick={() => {
+                                            if (aIdx >= (rule.actions || []).length - 1) return;
+                                            updateCharacter(c => ({
+                                              ...c,
+                                              rules: (c.rules || []).map(r => {
+                                                if (r.id === rule.id) {
+                                                  const newActions = [...(r.actions || [])];
+                                                  const temp = newActions[aIdx + 1];
+                                                  newActions[aIdx + 1] = newActions[aIdx];
+                                                  newActions[aIdx] = temp;
+                                                  return { ...r, actions: newActions };
+                                                }
+                                                return r;
+                                              })
+                                            }));
+                                          }}
+                                          className={`p-1 rounded transition ${aIdx >= (rule.actions || []).length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-cyan-300 hover:bg-neutral-800'}`}
+                                          title="Move Action Down in Sequence"
+                                        >
+                                          <ChevronDown size={13} />
+                                        </button>
+                                      </div>
+                                    </div>
 
                                     <div className="flex items-center gap-2">
                                       <select
@@ -6716,6 +7545,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                                       return { 
                                                         ...a, 
                                                         actionType: newActType,
+                                                        ...(newActType === 'set_traversal_angle' ? {
+                                                          traversalAngleDeg: a.traversalAngleDeg ?? 45,
+                                                          traversalAngleSource: a.traversalAngleSource || 'fixed',
+                                                          steepSlopeBehavior: a.steepSlopeBehavior || 'block',
+                                                          steepSlideSpeed: a.steepSlideSpeed ?? 3.5,
+                                                          allowCeilingTraversal: a.allowCeilingTraversal ?? false
+                                                        } : {}),
                                                         ...(newActType === 'set_frame' || newActType === 'set_random_frame' ? {
                                                           frameMode: isRand ? 'random_range' : (a.frameMode || 'fixed'),
                                                           targetFrameIndex: a.targetFrameIndex ?? 0,
@@ -6741,11 +7577,14 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                         <option value="set_frame">üñºÔ∏è Set Animation Frame (Static / Random in Range)</option>
                                         <option value="set_random_frame">üé≤ Set Random Frame in Range</option>
                                         <option value="camera">üé• Camera Locus (Track/Shake)</option>
-                                        <option value="move">üèÉ Kinematic Move</option>
+                                        <option value="move">üèÉ Kinematic Move (Direction / Angle / Velocity / Stop)</option>
+                                        <option value="ai_action">ü§ñ AI Actions / Automation (Patrol / Chase / Flee / Sine Wave)</option>
                                         <option value="hero_impulse">üöÄ Physics Impulse (Jump/Dash)</option>
                                         <option value="set_gravity">ü™ê Override Biome Gravity</option>
+                                        <option value="set_traversal_angle">üìê Set Allowed Traversal Angle (Slope & Incline)</option>
                                         <option value="attack">‚öîÔ∏è Attack / Telegraph</option>
-                                        <option value="variable_modify">üî¢ Modify Variable</option>
+                                        <option value="math_operation">üßÆ Math Calculator & Local Variables (Multiply / Modifiers / Arithmetic)</option>
+                                        <option value="variable_modify">üî¢ Modify Variable / Math</option>
                                         <option value="audio">üîä Play Audio SFX</option>
                                         <option value="dialogue">üí¨ Speak Dialogue</option>
                                         <option value="emit_signal">üì° Emit Signal</option>
@@ -7187,89 +8026,356 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     </div>
                                   )}
 
-                                  {/* Move Action Config */}
+                                  {/* Manual Kinematic Move Action Config */}
                                   {action.actionType === 'move' && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
-                                      <div>
-                                        <label className="text-[10px] text-neutral-400 font-bold block">Move Mode</label>
-                                        <select
-                                          value={action.moveMode || 'towards_target'}
-                                          onChange={(e) => {
-                                            updateCharacter(c => ({
-                                              ...c,
-                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, moveMode: e.target.value as any } : a) } : r)
-                                            }));
-                                          }}
-                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                        >
-                                          <option value="towards_target">Towards Target</option>
-                                          <option value="away_from_target">Flee from Target</option>
-                                          <option value="ground_patrol">Ground Ledge Patrol</option>
-                                          <option value="flight_sine">Flight Sine Wave</option>
-                                          <option value="stop">Stop / Brake</option>
-                                        </select>
-                                      </div>
+                                    <div className="space-y-3 bg-neutral-950/70 p-3 rounded-xl border border-amber-950/60 text-xs">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                                        <div>
+                                          <label className="text-[10px] text-amber-400 font-bold block">üèÉ Kinematic Move Mode</label>
+                                          <select
+                                            value={action.moveMode || 'move_right'}
+                                            onChange={(e) => {
+                                              updateCharacter(c => ({
+                                                ...c,
+                                                rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, moveMode: e.target.value as any } : a) } : r)
+                                              }));
+                                            }}
+                                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
+                                          >
+                                            <option value="move_left">‚¨ÖÔ∏è Move Left (Vx = -Speed)</option>
+                                            <option value="move_right">‚û°Ô∏è Move Right (Vx = +Speed)</option>
+                                            <option value="move_up">‚¨ÜÔ∏è Move Up / Ascend (Vy = -Speed)</option>
+                                            <option value="move_down">‚¨áÔ∏è Move Down / Fast Fall (Vy = +Speed)</option>
+                                            <option value="move_forward">‚è© Move Forward (Facing Direction)</option>
+                                            <option value="move_backward">‚è™ Move Backward (Opposite Facing)</option>
+                                            <option value="move_angle">üß≠ Move at Angle (Direction Vector)</option>
+                                            <option value="set_velocity">üéØ Set Velocity (Direct Vx, Vy)</option>
+                                            <option value="add_velocity">üìà Add Velocity Impulse (ŒîVx, ŒîVy)</option>
+                                            <option value="stop">üõë Stop / Brake (Zero All Velocity)</option>
+                                            <option value="stop_x">‚èπÔ∏è Stop Horizontal Only (Zero Vx)</option>
+                                            <option value="stop_y">‚èπÔ∏è Stop Vertical Only (Zero Vy)</option>
+                                            <option value="crouch">üßò Duck / Crouch (Modify Capsule & Halt)</option>
+                                          </select>
+                                        </div>
 
-                                      <div>
-                                        <label className="text-[10px] text-neutral-400 font-bold block">Speed Value Source</label>
-                                        <select
-                                          value={action.speedSource || 'fixed'}
-                                          onChange={(e) => {
-                                            const src = e.target.value as 'fixed' | 'variable';
-                                            updateCharacter(c => ({
-                                              ...c,
-                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedSource: src, speedVariableId: src === 'variable' ? (a.speedVariableId || variablesList[0]?.id) : undefined } : a) } : r)
-                                            }));
-                                          }}
-                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-emerald-400 font-mono mt-1"
-                                        >
-                                          <option value="fixed">üî¢ Constant Number</option>
-                                          <option value="variable">üìä Prefab Variable</option>
-                                        </select>
-                                      </div>
+                                        {/* Speed Source (For directional/angle moves) */}
+                                        {action.moveMode !== 'stop' && action.moveMode !== 'stop_x' && action.moveMode !== 'stop_y' && action.moveMode !== 'crouch' && action.moveMode !== 'set_velocity' && action.moveMode !== 'add_velocity' && (
+                                          <>
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Speed Value Source</label>
+                                              <select
+                                                value={action.speedSource || 'fixed'}
+                                                onChange={(e) => {
+                                                  const src = e.target.value as 'fixed' | 'variable';
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedSource: src, speedVariableId: src === 'variable' ? (a.speedVariableId || variablesList[0]?.id) : undefined } : a) } : r)
+                                                  }));
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-emerald-400 font-mono mt-1"
+                                              >
+                                                <option value="fixed">üî¢ Constant Number</option>
+                                                <option value="variable">üìä Prefab Variable</option>
+                                              </select>
+                                            </div>
 
-                                      <div>
-                                        {action.speedSource === 'variable' ? (
-                                          <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Prefab Variable</label>
-                                            <select
-                                              value={action.speedVariableId || variablesList[0]?.id || ''}
-                                              onChange={(e) => {
-                                                updateCharacter(c => ({
-                                                  ...c,
-                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedVariableId: e.target.value } : a) } : r)
-                                                }));
-                                              }}
-                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-emerald-300 font-mono mt-1"
-                                            >
-                                              {variablesList.length === 0 ? (
-                                                <option value="">No Variables Defined</option>
+                                            <div>
+                                              {action.speedSource === 'variable' ? (
+                                                <div>
+                                                  <label className="text-[10px] text-neutral-400 font-bold block">Speed Variable (Prefab or Local)</label>
+                                                  <select
+                                                    value={action.speedVariableId || ''}
+                                                    onChange={(e) => {
+                                                      updateCharacter(c => ({
+                                                        ...c,
+                                                        rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedVariableId: e.target.value } : a) } : r)
+                                                      }));
+                                                    }}
+                                                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-emerald-300 font-mono mt-1"
+                                                  >
+                                                    {renderVariableSelectOptions(rule)}
+                                                  </select>
+                                                </div>
                                               ) : (
-                                                variablesList.map(v => (
-                                                  <option key={v.id} value={v.id}>
-                                                    {v.name} ({v.id}) = {String(v.value ?? v.defaultValue ?? 0)}
-                                                  </option>
-                                                ))
+                                                <div>
+                                                  <label className="text-[10px] text-neutral-400 font-bold block">Speed (px/tick)</label>
+                                                  <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    value={action.speed ?? 4.0}
+                                                    onChange={(e) => {
+                                                      updateCharacter(c => ({
+                                                        ...c,
+                                                        rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speed: Number(e.target.value) } : a) } : r)
+                                                      }));
+                                                    }}
+                                                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
+                                                  />
+                                                </div>
                                               )}
-                                            </select>
-                                          </div>
-                                        ) : (
+                                            </div>
+                                          </>
+                                        )}
+
+                                        {/* Set Facing */}
+                                        {action.moveMode !== 'stop' && action.moveMode !== 'stop_x' && action.moveMode !== 'stop_y' && (
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Speed (px/tick)</label>
-                                            <input
-                                              type="number"
-                                              value={action.speed ?? 4.0}
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Facing Direction</label>
+                                            <select
+                                              value={action.setFacing || 'match_movement'}
                                               onChange={(e) => {
                                                 updateCharacter(c => ({
                                                   ...c,
-                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speed: Number(e.target.value) } : a) } : r)
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, setFacing: e.target.value as any } : a) } : r)
                                                 }));
                                               }}
-                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                            />
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="match_movement">üîÑ Match Movement Vector</option>
+                                              <option value="none">üîí Keep Current Facing</option>
+                                              <option value="left">‚¨ÖÔ∏è Force Left</option>
+                                              <option value="right">‚û°Ô∏è Force Right</option>
+                                              <option value="reverse">üîÑ Invert / Flip Facing</option>
+                                            </select>
                                           </div>
                                         )}
                                       </div>
+
+                                      {/* Specific Angle Settings */}
+                                      {action.moveMode === 'move_angle' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800/80">
+                                          <div>
+                                            <label className="text-[10px] text-amber-400 font-bold block">Angle (0¬∞ = Right, 90¬∞ = Down, 180¬∞ = Left, 270¬∞ = Up)</label>
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              max={360}
+                                              value={action.angleDeg ?? 0}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, angleDeg: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div className="flex flex-wrap gap-1.5 items-end">
+                                            {[
+                                              { label: '‚û°Ô∏è 0¬∞', deg: 0 },
+                                              { label: '‚ÜòÔ∏è 45¬∞', deg: 45 },
+                                              { label: '‚¨áÔ∏è 90¬∞', deg: 90 },
+                                              { label: '‚ÜôÔ∏è 135¬∞', deg: 135 },
+                                              { label: '‚¨ÖÔ∏è 180¬∞', deg: 180 },
+                                              { label: '‚ÜñÔ∏è 225¬∞', deg: 225 },
+                                              { label: '‚¨ÜÔ∏è 270¬∞', deg: 270 },
+                                              { label: '‚ÜóÔ∏è 315¬∞', deg: 315 }
+                                            ].map(preset => (
+                                              <button
+                                                key={preset.deg}
+                                                type="button"
+                                                onClick={() => {
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, angleDeg: preset.deg } : a) } : r)
+                                                  }));
+                                                }}
+                                                className={`px-2 py-1 rounded text-[10px] font-mono border transition ${action.angleDeg === preset.deg ? 'bg-amber-900/60 border-amber-600 text-amber-200' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'}`}
+                                              >
+                                                {preset.label}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Direct Velocity Settings */}
+                                      {(action.moveMode === 'set_velocity' || action.moveMode === 'add_velocity') && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800/80">
+                                          <div>
+                                            <label className="text-[10px] text-amber-400 font-bold block">{action.moveMode === 'set_velocity' ? 'Set Velocity X (px/tick)' : 'Add Impulse X (ŒîVx)'}</label>
+                                            <input
+                                              type="number"
+                                              step="0.1"
+                                              value={action.velocityX ?? 0}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, velocityX: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-amber-400 font-bold block">{action.moveMode === 'set_velocity' ? 'Set Velocity Y (px/tick)' : 'Add Impulse Y (ŒîVy)'}</label>
+                                            <input
+                                              type="number"
+                                              step="0.1"
+                                              value={action.velocityY ?? 0}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, velocityY: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Crouch / Duck Settings */}
+                                      {action.moveMode === 'crouch' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800/80">
+                                          <div>
+                                            <label className="text-[10px] text-amber-400 font-bold block">Capsule Height Multiplier</label>
+                                            <select
+                                              value={action.capsuleHeightMultiplier ?? 0.5}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, capsuleHeightMultiplier: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
+                                            >
+                                              <option value="0.75">0.75x (Slight Duck)</option>
+                                              <option value="0.5">0.50x (Standard Crouch)</option>
+                                              <option value="0.33">0.33x (Low Crawl)</option>
+                                            </select>
+                                          </div>
+                                          <div className="text-[10px] text-neutral-400 flex items-center pt-3">
+                                            <span>Halts horizontal movement and contracts the physics collision capsule down.</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* AI & Automation Action Config */}
+                                  {action.actionType === 'ai_action' && (
+                                    <div className="space-y-3 bg-neutral-950/70 p-3 rounded-xl border border-indigo-950/60 text-xs">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                        <div>
+                                          <label className="text-[10px] text-indigo-400 font-bold block">ü§ñ AI Routine / Automation</label>
+                                          <select
+                                            value={action.aiMode || 'ground_patrol'}
+                                            onChange={(e) => {
+                                              updateCharacter(c => ({
+                                                ...c,
+                                                rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, aiMode: e.target.value as any } : a) } : r)
+                                              }));
+                                            }}
+                                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
+                                          >
+                                            <option value="ground_patrol">üõ°Ô∏è Ground Ledge Patrol (Auto Turn)</option>
+                                            <option value="towards_target">üéØ Chase Target (Pursue Target)</option>
+                                            <option value="away_from_target">üèÉ Flee Threat (Flee Target)</option>
+                                            <option value="flight_sine">üåä Flying Sine Wave (Aerial Patrol)</option>
+                                            <option value="wander">üé≤ Random Roam / Wander</option>
+                                            <option value="circle_target">üîÑ Orbit / Circle Target</option>
+                                          </select>
+                                        </div>
+
+                                        <div>
+                                          <label className="text-[10px] text-neutral-400 font-bold block">Speed Value Source</label>
+                                          <select
+                                            value={action.speedSource || 'fixed'}
+                                            onChange={(e) => {
+                                              const src = e.target.value as 'fixed' | 'variable';
+                                              updateCharacter(c => ({
+                                                ...c,
+                                                rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedSource: src, speedVariableId: src === 'variable' ? (a.speedVariableId || variablesList[0]?.id) : undefined } : a) } : r)
+                                              }));
+                                            }}
+                                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-emerald-400 font-mono mt-1"
+                                          >
+                                            <option value="fixed">üî¢ Constant Number</option>
+                                            <option value="variable">üìä Prefab Variable</option>
+                                          </select>
+                                        </div>
+
+                                        <div>
+                                          {action.speedSource === 'variable' ? (
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Prefab Variable</label>
+                                              <select
+                                                value={action.speedVariableId || variablesList[0]?.id || ''}
+                                                onChange={(e) => {
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speedVariableId: e.target.value } : a) } : r)
+                                                  }));
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-emerald-300 font-mono mt-1"
+                                              >
+                                                {variablesList.length === 0 ? (
+                                                  <option value="">No Variables Defined</option>
+                                                ) : (
+                                                  variablesList.map(v => (
+                                                    <option key={v.id} value={v.id}>
+                                                      {v.name} ({v.id}) = {String(v.value ?? v.defaultValue ?? 0)}
+                                                    </option>
+                                                  ))
+                                                )}
+                                              </select>
+                                            </div>
+                                          ) : (
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Speed (px/tick)</label>
+                                              <input
+                                                type="number"
+                                                step="0.1"
+                                                value={action.speed ?? 3.5}
+                                                onChange={(e) => {
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, speed: Number(e.target.value) } : a) } : r)
+                                                  }));
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1.5 text-white font-mono mt-1"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Extra parameters for Sine Wave */}
+                                      {action.aiMode === 'flight_sine' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800/80">
+                                          <div>
+                                            <label className="text-[10px] text-indigo-400 font-bold block">Wave Frequency (Cycles/tick)</label>
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              value={action.sineFrequency ?? 0.05}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, sineFrequency: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-indigo-400 font-bold block">Wave Amplitude (Vertical px)</label>
+                                            <input
+                                              type="number"
+                                              step="0.5"
+                                              value={action.sineAmplitude ?? 3.0}
+                                              onChange={(e) => {
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, sineAmplitude: Number(e.target.value) } : a) } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
 
@@ -7316,9 +8422,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                       <div>
                                         {action.forceSource === 'variable' ? (
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Prefab Variable</label>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Impulse Variable (Prefab or Local)</label>
                                             <select
-                                              value={action.forceVariableId || variablesList[0]?.id || ''}
+                                              value={action.forceVariableId || ''}
                                               onChange={(e) => {
                                                 updateCharacter(c => ({
                                                   ...c,
@@ -7327,15 +8433,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-cyan-300 font-mono mt-1"
                                             >
-                                              {variablesList.length === 0 ? (
-                                                <option value="">No Variables Defined</option>
-                                              ) : (
-                                                variablesList.map(v => (
-                                                  <option key={v.id} value={v.id}>
-                                                    {v.name} ({v.id}) = {String(v.value ?? v.defaultValue ?? 0)}
-                                                  </option>
-                                                ))
-                                              )}
+                                              {renderVariableSelectOptions(rule)}
                                             </select>
                                           </div>
                                         ) : (
@@ -7404,16 +8502,16 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                           className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-400 font-mono mt-1"
                                         >
                                           <option value="fixed">üî¢ Preset / Fixed Value</option>
-                                          <option value="variable">üìä Prefab Variable</option>
+                                          <option value="variable">üìä Prefab / Local Variable</option>
                                         </select>
                                       </div>
 
                                       <div>
                                         {action.gravitySource === 'variable' ? (
                                           <div>
-                                            <label className="text-[10px] text-neutral-400 font-bold block">Prefab Variable</label>
+                                            <label className="text-[10px] text-neutral-400 font-bold block">Gravity Variable</label>
                                             <select
-                                              value={action.gravityVariableId || variablesList[0]?.id || ''}
+                                              value={action.gravityVariableId || ''}
                                               onChange={(e) => {
                                                 updateCharacter(c => ({
                                                   ...c,
@@ -7422,15 +8520,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                               }}
                                               className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-amber-300 font-mono mt-1"
                                             >
-                                              {variablesList.length === 0 ? (
-                                                <option value="">No Variables Defined</option>
-                                              ) : (
-                                                variablesList.map(v => (
-                                                  <option key={v.id} value={v.id}>
-                                                    {v.name} ({v.id}) = {String(v.value ?? v.defaultValue ?? 0)}
-                                                  </option>
-                                                ))
-                                              )}
+                                              {renderVariableSelectOptions(rule)}
                                             </select>
                                           </div>
                                         ) : (
@@ -7454,700 +8544,549 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                     </div>
                                   )}
 
-                                  {/* Variable Modify Config */}
-                                  {action.actionType === 'variable_modify' && (
-                                    <div className="grid grid-cols-3 gap-2 text-xs pt-1">
-                                      <div>
-                                        <label className="text-[10px] text-neutral-400 font-bold block">Target Variable</label>
-                                        <select
-                                          value={action.variableId || variablesList[0]?.id || ''}
-                                          onChange={(e) => {
-                                            updateCharacter(c => ({
-                                              ...c,
-                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, variableId: e.target.value } : a) } : r)
-                                            }));
-                                          }}
-                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                        >
-                                          {variablesList.map(v => (
-                                            <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
-                                          ))}
-                                        </select>
+                                                                    {/* Set Allowed Traversal Angle Action */}
+                                  {action.actionType === 'set_traversal_angle' && (() => {
+                                    const currentAngle = action.traversalAngleDeg ?? 45;
+                                    const currentSource = action.traversalAngleSource || 'fixed';
+                                    const currentBehavior = action.steepSlopeBehavior || 'block';
+
+                                    return (
+                                      <div className="space-y-3 pt-1">
+                                        {/* Live Incline Angle & Status Gauge Header */}
+                                        <div className="p-3 bg-neutral-950 border border-emerald-500/30 rounded-xl space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                                                <Compass size={16} />
+                                              </div>
+                                              <div>
+                                                <span className="text-xs font-bold text-emerald-300">Allowed Slope Traversal Angle</span>
+                                                <p className="text-[10px] text-neutral-400">Maximum climbable ground incline angle in degrees</p>
+                                              </div>
+                                            </div>
+                                            <div className="text-right">
+                                              <span className="text-sm font-bold font-mono text-emerald-400">{currentAngle}¬∞</span>
+                                              <span className="block text-[9px] text-neutral-400 font-mono">
+                                                {currentAngle === 0 ? 'Flat ground only' : currentAngle <= 30 ? 'Gentle slopes' : currentAngle <= 45 ? 'Standard 45¬∞ slopes' : currentAngle <= 60 ? 'Steep 60¬∞ slopes' : currentAngle < 90 ? 'High incline scramble' : 'Full 90¬∞ vertical climb'}
+                                              </span>
+                                            </div>
+                                          </div>
+
+                                          {/* Incline Wedge SVG Gauge */}
+                                          <div className="flex items-center justify-center py-1">
+                                            <svg width="180" height="70" viewBox="0 0 180 70" className="overflow-visible">
+                                              <path d="M 20 60 A 60 60 0 0 1 140 60" fill="none" stroke="#262626" strokeWidth="6" strokeLinecap="round" />
+                                              {(() => {
+                                                const clamped = Math.min(90, Math.max(0, currentAngle));
+                                                const rad = (clamped * Math.PI) / 180;
+                                                const endX = 80 + Math.cos(Math.PI - rad) * 60;
+                                                const endY = 60 - Math.sin(rad) * 60;
+                                                const d = 'M 80 60 L 140 60 A 60 60 0 0 0 ' + endX + ' ' + endY + ' Z';
+                                                return (
+                                                  <path d={d} fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="2" />
+                                                );
+                                              })()}
+                                              {(() => {
+                                                const clamped = Math.min(90, Math.max(0, currentAngle));
+                                                const rad = (clamped * Math.PI) / 180;
+                                                const endX = 80 + Math.cos(Math.PI - rad) * 62;
+                                                const endY = 60 - Math.sin(rad) * 62;
+                                                return (
+                                                  <line x1="80" y1="60" x2={endX} y2={endY} stroke="#34d399" strokeWidth="3" strokeLinecap="round" />
+                                                );
+                                              })()}
+                                              <line x1="10" y1="60" x2="150" y2="60" stroke="#525252" strokeWidth="1.5" strokeDasharray="3,3" />
+                                              <circle cx="80" cy="60" r="4" fill="#10b981" />
+                                              <text x="145" y="64" fill="#a3a3a3" fontSize="9" fontFamily="monospace">0¬∞</text>
+                                              <text x="75" y="10" fill="#a3a3a3" fontSize="9" fontFamily="monospace">90¬∞</text>
+                                              <text x="125" y="24" fill="#a3a3a3" fontSize="8" fontFamily="monospace">45¬∞</text>
+                                            </svg>
+                                          </div>
+                                        </div>
+
+                                        {/* Quick Angle Presets */}
+                                        <div className="space-y-1">
+                                          <label className="text-[10px] text-neutral-400 font-bold block">Quick Traversal Presets</label>
+                                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                                            {[
+                                              { label: '0¬∞ Flat', angle: 0, desc: 'Flat only' },
+                                              { label: '30¬∞ Gentle', angle: 30, desc: 'Gentle incline' },
+                                              { label: '45¬∞ Std', angle: 45, desc: 'Standard 1:1' },
+                                              { label: '60¬∞ Steep', angle: 60, desc: 'Steep incline' },
+                                              { label: '75¬∞ Peak', angle: 75, desc: 'High scramble' },
+                                              { label: '90¬∞ Climb', angle: 90, desc: 'Vertical climb' },
+                                            ].map(preset => (
+                                              <button
+                                                key={preset.angle}
+                                                type="button"
+                                                onClick={() => {
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                      ...r,
+                                                      actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                        ...a,
+                                                        traversalAngleDeg: preset.angle,
+                                                        traversalAngleSource: 'fixed'
+                                                      } : a)
+                                                    } : r)
+                                                  }));
+                                                }}
+                                                className={`px-2 py-1.5 rounded-lg border text-center transition ${currentAngle === preset.angle && currentSource === "fixed" ? "bg-emerald-600/30 border-emerald-500 text-emerald-300 font-bold shadow-sm" : "bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700"}`}
+                                              >
+                                                <span className="block font-mono text-xs">{preset.label}</span>
+                                                <span className="block text-[8px] text-neutral-500 truncate">{preset.desc}</span>
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+
+                                        {/* Degree Input & Variable Source Config */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                          <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                              <label className="text-[10px] text-neutral-400 font-bold block">Angle Source</label>
+                                              <div className="flex items-center gap-1 text-[10px] text-neutral-400 font-mono">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    updateCharacter(c => ({
+                                                      ...c,
+                                                      rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                        ...r,
+                                                        actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                          ...a,
+                                                          traversalAngleSource: 'fixed'
+                                                        } : a)
+                                                      } : r)
+                                                    }));
+                                                  }}
+                                                  className={`px-1.5 py-0.5 rounded ${currentSource === "fixed" ? "bg-emerald-600 text-white font-bold" : "hover:text-white"}`}
+                                                >
+                                                  Fixed
+                                                </button>
+                                                <span>|</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    updateCharacter(c => ({
+                                                      ...c,
+                                                      rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                        ...r,
+                                                        actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                          ...a,
+                                                          traversalAngleSource: 'variable',
+                                                          traversalAngleVariableId: a.traversalAngleVariableId || variablesList[0]?.id
+                                                        } : a)
+                                                      } : r)
+                                                    }));
+                                                  }}
+                                                  className={`px-1.5 py-0.5 rounded ${currentSource === "variable" ? "bg-emerald-600 text-white font-bold" : "hover:text-white"}`}
+                                                >
+                                                  Variable
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {currentSource === 'fixed' ? (
+                                              <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                  <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={90}
+                                                    step={1}
+                                                    value={currentAngle}
+                                                    onChange={(e) => {
+                                                      const val = Number(e.target.value);
+                                                      updateCharacter(c => ({
+                                                        ...c,
+                                                        rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                          ...r,
+                                                          actions: (r.actions || []).map(a => a.id === action.id ? { ...a, traversalAngleDeg: val } : a)
+                                                        } : r)
+                                                      }));
+                                                    }}
+                                                    className="flex-1 accent-emerald-500"
+                                                  />
+                                                  <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={90}
+                                                    value={currentAngle}
+                                                    onChange={(e) => {
+                                                      const val = Math.max(0, Math.min(90, Number(e.target.value)));
+                                                      updateCharacter(c => ({
+                                                        ...c,
+                                                        rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                          ...r,
+                                                          actions: (r.actions || []).map(a => a.id === action.id ? { ...a, traversalAngleDeg: val } : a)
+                                                        } : r)
+                                                      }));
+                                                    }}
+                                                    className="w-16 bg-neutral-950 border border-neutral-800 focus:border-emerald-500 rounded px-2 py-1 text-white font-mono text-xs text-center"
+                                                  />
+                                                  <span className="text-neutral-400 font-mono text-xs">deg</span>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div>
+                                                <select
+                                                  value={action.traversalAngleVariableId || ''}
+                                                  onChange={(e) => {
+                                                    const varId = e.target.value;
+                                                    updateCharacter(c => ({
+                                                      ...c,
+                                                      rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                        ...r,
+                                                        actions: (r.actions || []).map(a => a.id === action.id ? { ...a, traversalAngleVariableId: varId } : a)
+                                                      } : r)
+                                                    }));
+                                                  }}
+                                                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-emerald-300 font-mono"
+                                                >
+                                                  {renderVariableSelectOptions(rule)}
+                                                </select>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Steep Slope Behavior */}
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block mb-1">
+                                              Steep Slope Incline Behavior (When Exceeding Angle)
+                                            </label>
+                                            <select
+                                              value={currentBehavior}
+                                              onChange={(e) => {
+                                                const beh = e.target.value as any;
+                                                updateCharacter(c => ({
+                                                  ...c,
+                                                  rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                    ...r,
+                                                    actions: (r.actions || []).map(a => a.id === action.id ? { ...a, steepSlopeBehavior: beh } : a)
+                                                  } : r)
+                                                }));
+                                              }}
+                                              className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono text-xs"
+                                            >
+                                              <option value="block">üõë Wall Obstruction (Treat as Solid Wall)</option>
+                                              <option value="slide_down">‚õ∑Ô∏è Slide Downhill (Slide on Steep Slopes)</option>
+                                              <option value="slow_down">üê¢ Slow Incline Struggle (Traverse at 35% Speed)</option>
+                                            </select>
+                                          </div>
+                                        </div>
+
+                                        {/* Advanced Traversal Settings */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1 border-t border-neutral-800/60">
+                                          {currentBehavior === 'slide_down' && (
+                                            <div>
+                                              <label className="text-[10px] text-neutral-400 font-bold block mb-1">
+                                                Downhill Slide Speed (px/frame)
+                                              </label>
+                                              <input
+                                                type="number"
+                                                min="1"
+                                                max="15"
+                                                step="0.5"
+                                                value={action.steepSlideSpeed ?? 3.5}
+                                                onChange={(e) => {
+                                                  const val = Number(e.target.value);
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                      ...r,
+                                                      actions: (r.actions || []).map(a => a.id === action.id ? { ...a, steepSlideSpeed: val } : a)
+                                                    } : r)
+                                                  }));
+                                                }}
+                                                className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono"
+                                              />
+                                            </div>
+                                          )}
+
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block mb-1">
+                                              Ceiling Incline Traversal
+                                            </label>
+                                            <label className="flex items-center gap-2 p-2 rounded bg-neutral-950 border border-neutral-800 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={action.allowCeilingTraversal ?? false}
+                                                onChange={(e) => {
+                                                  const chk = e.target.checked;
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                      ...r,
+                                                      actions: (r.actions || []).map(a => a.id === action.id ? { ...a, allowCeilingTraversal: chk } : a)
+                                                    } : r)
+                                                  }));
+                                                }}
+                                                className="rounded text-emerald-500 focus:ring-emerald-400"
+                                              />
+                                              <span className="text-neutral-300 text-xs">Allow traversing underside ceiling slopes</span>
+                                            </label>
+                                          </div>
+                                        </div>
                                       </div>
-                                      <div>
-                                        <label className="text-[10px] text-neutral-400 font-bold block">Operation</label>
-                                        <select
-                                          value={action.variableOp || 'set'}
-                                          onChange={(e) => {
-                                            updateCharacter(c => ({
-                                              ...c,
-                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, variableOp: e.target.value as any } : a) } : r)
-                                            }));
-                                          }}
-                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                        >
-                                          <option value="set">Set (=)</option>
-                                          <option value="add">Add (+)</option>
-                                          <option value="subtract">Subtract (-)</option>
-                                          <option value="multiply">Multiply (*)</option>
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="text-[10px] text-neutral-400 font-bold block">Value</label>
-                                        <input
-                                          type="number"
-                                          value={action.variableValue ?? 1}
-                                          onChange={(e) => {
-                                            updateCharacter(c => ({
-                                              ...c,
-                                              rules: (c.rules || []).map(r => r.id === rule.id ? { ...r, actions: (r.actions || []).map(a => a.id === action.id ? { ...a, variableValue: Number(e.target.value) } : a) } : r)
-                                            }));
-                                          }}
-                                          className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-white font-mono mt-1"
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
+                                    );
+                                  })()}
 
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+{/* Math Operation / Variable Modify Config */}
+                                  {(action.actionType === 'math_operation' || action.actionType === 'variable_modify') && (() => {
+                                    const currentScope = action.variableScope || (action.variableId?.startsWith('local_') || action.variableId?.startsWith('local.') || action.localVariableName ? 'local' : 'prefab');
+                                    const targetVarId = action.variableId || (currentScope === 'local' ? (action.localVariableName || 'run_speed') : (variablesList[0]?.id || ''));
+                                    const currentOp = action.mathOp || action.variableOp || 'multiply';
+                                    const operandASource = action.operandASource || (action.operandAVariableId ? 'variable' : (action.actionType === 'variable_modify' ? 'variable' : 'variable'));
+                                    const operandBSource = action.operandBSource || (action.operandBVariableId ? 'variable' : 'constant');
+                                    const isUnary = ['abs', 'round', 'floor', 'ceil', 'negate', 'toggle', 'set'].includes(currentOp);
+                                    const isClamp = currentOp === 'clamp';
+                                    const isLerp = currentOp === 'lerp';
 
-                        </div>
-                      )}
+                                    // Helper for live preview calculations
+                                    const getVarVal = (varId?: string, fallback = 0) => {
+                                      if (!varId) return fallback;
+                                      const lv = rule.localVariables?.find(v => v.id === varId || v.name === varId);
+                                      if (lv) return Number(lv.defaultValue ?? 0);
+                                      const pv = char.variables?.find(v => v.id === varId || v.name === varId);
+                                      if (pv) return Number(pv.value ?? pv.defaultValue ?? 0);
+                                      return fallback;
+                                    };
 
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                                    const valA = operandASource === 'variable' 
+                                      ? getVarVal(action.operandAVariableId || targetVarId, 4.0) 
+                                      : Number(action.operandAConstant ?? (action.actionType === 'variable_modify' ? getVarVal(targetVarId, 4.0) : 4.0));
 
-          </div>
-        )}
+                                    const valB = operandBSource === 'variable'
+                                      ? getVarVal(action.operandBVariableId, 1.5)
+                                      : Number(action.operandBConstant ?? (action.variableValue ?? 1.5));
 
-      </div>
+                                    let computedResult: any = valA;
+                                    let formulaStr = '';
+                                    if (currentOp === 'multiply') {
+                                      computedResult = valA * valB;
+                                      formulaStr = `${valA} √ó ${valB}`;
+                                    } else if (currentOp === 'add') {
+                                      computedResult = valA + valB;
+                                      formulaStr = `${valA} + ${valB}`;
+                                    } else if (currentOp === 'subtract') {
+                                      computedResult = valA - valB;
+                                      formulaStr = `${valA} - ${valB}`;
+                                    } else if (currentOp === 'divide') {
+                                      computedResult = valB !== 0 ? valA / valB : 0;
+                                      formulaStr = `${valA} √∑ ${valB}`;
+                                    } else if (currentOp === 'modulo') {
+                                      computedResult = valB !== 0 ? valA % valB : 0;
+                                      formulaStr = `${valA} % ${valB}`;
+                                    } else if (currentOp === 'power') {
+                                      computedResult = Math.pow(valA, valB);
+                                      formulaStr = `${valA} ^ ${valB}`;
+                                    } else if (currentOp === 'min') {
+                                      computedResult = Math.min(valA, valB);
+                                      formulaStr = `min(${valA}, ${valB})`;
+                                    } else if (currentOp === 'max') {
+                                      computedResult = Math.max(valA, valB);
+                                      formulaStr = `max(${valA}, ${valB})`;
+                                    } else if (currentOp === 'clamp') {
+                                      const cMin = Number(action.clampMin ?? 0);
+                                      const cMax = Number(action.clampMax ?? 10);
+                                      computedResult = Math.max(cMin, Math.min(cMax, valA));
+                                      formulaStr = `clamp(${valA}, min=${cMin}, max=${cMax})`;
+                                    } else if (currentOp === 'abs') {
+                                      computedResult = Math.abs(valA);
+                                      formulaStr = `|${valA}|`;
+                                    } else if (currentOp === 'round') {
+                                      computedResult = Math.round(valA);
+                                      formulaStr = `round(${valA})`;
+                                    } else if (currentOp === 'floor') {
+                                      computedResult = Math.floor(valA);
+                                      formulaStr = `floor(${valA})`;
+                                    } else if (currentOp === 'ceil') {
+                                      computedResult = Math.ceil(valA);
+                                      formulaStr = `ceil(${valA})`;
+                                    } else if (currentOp === 'negate') {
+                                      computedResult = -valA;
+                                      formulaStr = `-${valA}`;
+                                    } else if (currentOp === 'lerp') {
+                                      const t = Number(action.lerpFactorT ?? 0.5);
+                                      computedResult = valA + (valB - valA) * t;
+                                      formulaStr = `lerp(${valA} ‚ûî ${valB}, t=${t})`;
+                                    } else if (currentOp === 'random_range') {
+                                      formulaStr = `random(${valA} .. ${valB})`;
+                                      computedResult = valA + (valB - valA) * 0.5;
+                                    } else if (currentOp === 'set') {
+                                      computedResult = valA;
+                                      formulaStr = `${valA}`;
+                                    } else if (currentOp === 'toggle') {
+                                      formulaStr = `toggle`;
+                                      computedResult = 'true/false';
+                                    }
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: ADD / EDIT VARIABLE MODAL */}
-      {/* ========================================================================= */}
-      {isVarModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleSaveVariable} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <Database size={15} className="text-rose-400" />
-                {varForm.isEditing ? 'Edit Prefab Variable' : 'Add Prefab Variable'}
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsVarModalOpen(false)}
-                className="p-1 text-neutral-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
+                                    const targetName = currentScope === 'local' 
+                                      ? (action.localVariableName || targetVarId || 'local_var')
+                                      : (char.variables?.find(v => v.id === targetVarId)?.name || targetVarId);
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-neutral-400 font-bold block">Variable ID (Auto-Generated)</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={varForm.id}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-cyan-400 font-mono mt-1 cursor-not-allowed"
-                />
-              </div>
+                                    return (
+                                      <div className="p-3 bg-neutral-950/90 border border-neutral-800 rounded-xl space-y-3">
+                                        {/* Scope and Target Variable Header */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          {/* Variable Scope Selection */}
+                                          <div>
+                                            <label className="text-[10px] text-neutral-400 font-bold block mb-1">
+                                              Target Variable Scope
+                                            </label>
+                                            <div className="grid grid-cols-2 gap-1 bg-neutral-900 p-1 rounded-lg border border-neutral-800">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const defaultLocalName = action.localVariableName || (rule.localVariables?.[0]?.name || 'run_speed');
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                      ...r,
+                                                      actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                        ...a,
+                                                        variableScope: 'local',
+                                                        localVariableName: defaultLocalName,
+                                                        variableId: defaultLocalName
+                                                      } : a)
+                                                    } : r)
+                                                  }));
+                                                }}
+                                                className={`px-2 py-1 rounded text-xs font-bold transition flex items-center justify-center gap-1 ${
+                                                  currentScope === 'local' 
+                                                    ? 'bg-amber-600 text-white shadow-sm' 
+                                                    : 'text-neutral-400 hover:text-neutral-200'
+                                                }`}
+                                              >
+                                                <Sparkles size={12} />
+                                                <span>‚ö° Local Var</span>
+                                              </button>
 
-              <div>
-                <label className="text-neutral-400 font-bold block">Display Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Max Health, Jump Impulse, Sprint Multiplier"
-                  value={varForm.name}
-                  onChange={(e) => setVarForm({ ...varForm, name: e.target.value })}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono mt-1"
-                />
-              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const defaultPrefabId = variablesList[0]?.id || '';
+                                                  updateCharacter(c => ({
+                                                    ...c,
+                                                    rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                      ...r,
+                                                      actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                        ...a,
+                                                        variableScope: 'prefab',
+                                                        variableId: defaultPrefabId,
+                                                        localVariableName: undefined
+                                                      } : a)
+                                                    } : r)
+                                                  }));
+                                                }}
+                                                className={`px-2 py-1 rounded text-xs font-bold transition flex items-center justify-center gap-1 ${
+                                                  currentScope === 'prefab' 
+                                                    ? 'bg-cyan-600 text-white shadow-sm' 
+                                                    : 'text-neutral-400 hover:text-neutral-200'
+                                                }`}
+                                              >
+                                                <Database size={12} />
+                                                <span>üìä Prefab Var</span>
+                                              </button>
+                                            </div>
+                                          </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-neutral-400 font-bold block">Category</label>
-                  <input
-                    type="text"
-                    list="category-suggestions"
-                    placeholder="e.g. Attribute, Combat, Custom..."
-                    value={varForm.category}
-                    onChange={(e) => setVarForm({ ...varForm, category: e.target.value as any })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                  />
-                  <datalist id="category-suggestions">
-                    <option value="attribute">Attribute</option>
-                    <option value="proficiency">Proficiency</option>
-                    <option value="setting">Setting</option>
-                    <option value="stats">Stats</option>
-                    <option value="combat">Combat</option>
-                    <option value="inventory">Inventory</option>
-                  </datalist>
-                </div>
-                <div>
-                  <label className="text-neutral-400 font-bold block">Data Type</label>
-                  <select
-                    value={varForm.type}
-                    onChange={(e) => {
-                      const t = e.target.value as any;
-                      setVarForm({
-                        ...varForm,
-                        type: t,
-                        defaultValue: t === 'number' ? 100 : t === 'boolean' ? true : 'Default'
-                      });
-                    }}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                  >
-                    <option value="number">Number</option>
-                    <option value="string">String</option>
-                    <option value="boolean">Boolean</option>
-                  </select>
-                </div>
-              </div>
+                                          {/* Target Variable Identifier */}
+                                          <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                              <label className="text-[10px] text-neutral-400 font-bold block">
+                                                {currentScope === 'local' ? '‚ö° Local Variable Name' : 'üìä Prefab Target Variable'}
+                                              </label>
+                                              {currentScope === 'local' && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const nameToAdd = action.localVariableName || 'run_speed';
+                                                    if (!rule.localVariables?.some(v => v.name === nameToAdd || v.id === nameToAdd)) {
+                                                      updateCharacter(c => ({
+                                                        ...c,
+                                                        rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                          ...r,
+                                                          localVariables: [...(r.localVariables || []), { id: nameToAdd, name: nameToAdd, defaultValue: 0, type: 'number' }]
+                                                        } : r)
+                                                      }));
+                                                    }
+                                                  }}
+                                                  className="text-[10px] text-amber-400 hover:underline font-mono"
+                                                >
+                                                  + Register to Rule
+                                                </button>
+                                              )}
+                                            </div>
 
-              <div>
-                <label className="text-neutral-400 font-bold block">Default Value</label>
-                {varForm.type === 'boolean' ? (
-                  <label className="flex items-center gap-2 p-2 rounded bg-neutral-950 border border-neutral-800 cursor-pointer mt-1">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(varForm.defaultValue)}
-                      onChange={(e) => setVarForm({ ...varForm, defaultValue: e.target.checked })}
-                      className="rounded text-rose-600 focus:ring-rose-500"
-                    />
-                    <span className="text-white">Active by default</span>
-                  </label>
-                ) : varForm.type === 'number' ? (
-                  <input
-                    type="number"
-                    value={varForm.defaultValue}
-                    onChange={(e) => setVarForm({ ...varForm, defaultValue: Number(e.target.value) })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono mt-1"
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={varForm.defaultValue}
-                    onChange={(e) => setVarForm({ ...varForm, defaultValue: e.target.value })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono mt-1"
-                  />
-                )}
-              </div>
-
-              <div className="pt-1">
-                <label className="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={varForm.isStatic}
-                    onChange={(e) => setVarForm({ ...varForm, isStatic: e.target.checked })}
-                    className="rounded text-rose-600 focus:ring-rose-500"
-                  />
-                  <span>Lock as Static (Immutable in gameplay)</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
-              <button
-                type="button"
-                onClick={() => setIsVarModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30"
-              >
-                Save Variable
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 2: COPY BEHAVIOR RULES & VARIABLES FROM ANOTHER CHARACTER */}
-      {/* ========================================================================= */}
-      {isCopyModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <Sparkles size={15} className="text-amber-400" />
-                Copy Behavior & Variables
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsCopyModalOpen(false)}
-                className="p-1 text-neutral-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <p className="text-neutral-400">
-                Select a prefab from this project to clone their custom variables, FSM states, and bespoke IFTTT behavior rules into <strong>{char.name}</strong>.
-              </p>
-
-              <div>
-                <label className="text-neutral-300 font-bold block mb-1">Source Prefab</label>
-                <select
-                  value={sourceCharIdToCopy}
-                  onChange={(e) => setSourceCharIdToCopy(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white font-mono"
-                >
-                  <option value="">-- Choose Prefab --</option>
-                  {charFiles.map(c => (
-                    <option key={c.prefabData.id} value={c.prefabData.id}>
-                      {c.prefabData.name} ({c.fileName}) ‚Ä¢ {(c.prefabData.rules || []).length} rules
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
-              <button
-                type="button"
-                onClick={() => setIsCopyModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!sourceCharIdToCopy}
-                onClick={handleCopyBehaviorFromCharacter}
-                className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-amber-600/30"
-              >
-                Import Rules & Vars
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 3: ADD / EDIT FSM STATE MODAL */}
-      {/* ========================================================================= */}
-      {isStateModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleSaveStateNode} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <GitMerge size={15} className="text-indigo-400" />
-                {stateForm.isEditing ? 'Edit State Node' : 'Add State Node'}
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsStateModalOpen(false)}
-                className="p-1 text-neutral-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-neutral-400 font-bold block">State ID (Unique Identifier)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. idle, patrol, attack_slash, stagger"
-                  value={stateForm.id}
-                  disabled={stateForm.isEditing}
-                  onChange={(e) => setStateForm({ ...stateForm, id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-indigo-400 font-mono mt-1 disabled:opacity-60"
-                />
-              </div>
-
-              <div>
-                <label className="text-neutral-400 font-bold block">State Display Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Idle Stance, Patrol Path, Heavy Slash"
-                  value={stateForm.name}
-                  onChange={(e) => setStateForm({ ...stateForm, name: e.target.value })}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-neutral-400 font-bold block">Node Accent Color</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    type="color"
-                    value={stateForm.color || '#38bdf8'}
-                    onChange={(e) => setStateForm({ ...stateForm, color: e.target.value })}
-                    className="w-8 h-8 rounded border border-neutral-700 bg-transparent cursor-pointer"
-                  />
-                  <span className="font-mono text-neutral-400 text-xs">{stateForm.color || '#38bdf8'}</span>
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    {defaultColors.slice(0, 6).map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setStateForm({ ...stateForm, color: c })}
-                        style={{ backgroundColor: c }}
-                        className="w-5 h-5 rounded-full border border-black/40 hover:scale-110 transition"
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-neutral-400 font-bold block">Description / Notes (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Default ground stance when velocity is zero"
-                  value={stateForm.description}
-                  onChange={(e) => setStateForm({ ...stateForm, description: e.target.value })}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono mt-1"
-                />
-              </div>
-
-              <div className="pt-1">
-                <label className="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={stateForm.isInitial}
-                    onChange={(e) => setStateForm({ ...stateForm, isInitial: e.target.checked })}
-                    className="rounded text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="font-semibold text-indigo-300">Set as Initial Starting State</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
-              <button
-                type="button"
-                onClick={() => setIsStateModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30"
-              >
-                {stateForm.isEditing ? 'Save Changes' : 'Create State'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 4: ADD / EDIT FSM TRANSITION MODAL */}
-      {/* ========================================================================= */}
-      {isTransitionModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleSaveTransition} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <ArrowRight size={15} className="text-indigo-400" />
-                {transitionForm.isEditing ? 'Edit State Transition' : 'Add State Transition'}
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsTransitionModalOpen(false)}
-                className="p-1 text-neutral-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <label className="text-neutral-400 font-bold block">From State (Origin)</label>
-                  <select
-                    required
-                    value={transitionForm.fromStateId}
-                    onChange={(e) => setTransitionForm({ ...transitionForm, fromStateId: e.target.value })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                  >
-                    <option value="">-- Choose Origin --</option>
-                    {stateNodes.map(s => (
-                      <option key={s.id} value={s.id}>{s.name || s.id}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="pt-5 flex items-center justify-center text-indigo-400 font-bold text-sm">
-                  ‚Üí
-                </div>
-
-                <div className="flex-1">
-                  <label className="text-neutral-400 font-bold block">To State (Target)</label>
-                  <select
-                    required
-                    value={transitionForm.toStateId}
-                    onChange={(e) => setTransitionForm({ ...transitionForm, toStateId: e.target.value })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                  >
-                    <option value="">-- Choose Target --</option>
-                    {stateNodes.filter(s => s.id !== transitionForm.fromStateId).map(s => (
-                      <option key={s.id} value={s.id}>{s.name || s.id}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Behavior Selector Condition Dropdown - ONLY 'none' and available prefab behaviors */}
-              <div className="space-y-1">
-                <label className="text-neutral-400 font-bold block">Behavior Condition</label>
-                <select
-                  value={transitionForm.behaviorRuleId || 'none'}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'none') {
-                      setTransitionForm(f => ({
-                        ...f,
-                        triggerLabel: 'None',
-                        behaviorRuleId: undefined,
-                        conditionType: 'none'
-                      }));
-                    } else {
-                      const found = rulesList.find(r => r.id === val);
-                      const bName = found ? (found.name || `Rule #${val}`) : val;
-                      setTransitionForm(f => ({
-                        ...f,
-                        triggerLabel: bName,
-                        behaviorRuleId: val,
-                        conditionType: 'behavior'
-                      }));
-                    }
-                  }}
-                  className={`w-full bg-neutral-950 border rounded px-3 py-2 text-white font-mono text-xs ${
-                    isTransitionConditionUnset(transitionForm) ? 'border-red-500/60 text-red-300' : 'border-indigo-500 text-indigo-200'
-                  }`}
-                >
-                  <option value="none">‚ùå None (No Condition - Highlighted Red)</option>
-                  {rulesList.map(r => (
-                    <option key={r.id} value={r.id}>
-                      ‚ö° Behavior: {r.name || r.id}
-                    </option>
-                  ))}
-                </select>
-                {rulesList.length === 0 && (
-                  <p className="text-[10px] text-neutral-500 italic mt-1">
-                    No behavior rules created yet. Add a rule in the Behaviors tab to link it as a transition condition.
-                  </p>
-                )}
-              </div>
-
-              {/* Unset Red Notice */}
-              {isTransitionConditionUnset(transitionForm) && (
-                <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/50 text-red-300 text-[11px] flex items-start gap-2">
-                  <span className="text-red-400 font-bold shrink-0">‚ö†Ô∏è</span>
-                  <span>Condition is currently unset (None). The transition wire and arrows will display in <strong>RED</strong> on the graph until a condition is configured.</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
-              <button
-                type="button"
-                onClick={() => setIsTransitionModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!transitionForm.fromStateId || !transitionForm.toStateId}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-indigo-600/30"
-              >
-                {transitionForm.isEditing ? 'Save Transition' : 'Create Transition'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 5: EDIT SOCKET OR HITBOX DETAILS MODAL */}
-      {/* ========================================================================= */}
-      {editingItem && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleSaveEditingItem} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <Sliders size={15} className={editingItem.type === 'point' ? 'text-sky-400' : 'text-emerald-400'} />
-                {editingItem.type === 'point' ? 'Edit Socket Properties' : 'Edit Hitbox Properties'}
-              </h4>
-              <button
-                type="button"
-                onClick={() => setEditingItem(null)}
-                className="p-1 text-neutral-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-neutral-400 font-bold block">Display Name</label>
-                <input
-                  type="text"
-                  required
-                  value={editingItem.name}
-                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-neutral-400 font-bold block">Color Accent</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    type="color"
-                    value={editingItem.color}
-                    onChange={(e) => setEditingItem({ ...editingItem, color: e.target.value })}
-                    className="w-10 h-8 rounded bg-transparent border-0 cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={editingItem.color}
-                    onChange={(e) => setEditingItem({ ...editingItem, color: e.target.value })}
-                    className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-1.5 text-white font-mono"
-                  />
-                </div>
-              </div>
-
-              {editingItem.type === 'point' && (
-                <div>
-                  <label className="text-neutral-400 font-bold block">Socket Tag / Role</label>
-                  <select
-                    value={editingItem.tagId || 'custom'}
-                    onChange={(e) => setEditingItem({ ...editingItem, tagId: e.target.value })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                  >
-                    <option value="head">Head (Mount / Helmet)</option>
-                    <option value="weapon_r">Main Weapon (Right Hand)</option>
-                    <option value="weapon_l">Offhand / Shield (Left Hand)</option>
-                    <option value="eyes">Eye Sightline (Sensory)</option>
-                    <option value="feet">Feet (Footstep / Particles)</option>
-                    <option value="chest">Chest (Aura / Core)</option>
-                    <option value="projectile_spawn">Muzzle / Projectile Spawn</option>
-                    <option value="custom">Custom Tag</option>
-                  </select>
-                </div>
-              )}
-
-              {editingItem.type === 'polygon' && (
-                <div>
-                  <label className="text-neutral-400 font-bold block">Hitbox Type</label>
-                  <select
-                    value={editingItem.polyType || 'hitbox'}
-                    onChange={(e) => setEditingItem({ ...editingItem, polyType: e.target.value as any })}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-white font-mono mt-1"
-                  >
-                    <option value="hitbox">Offensive Hitbox (Deals Damage)</option>
-                    <option value="hurtbox">Vulnerable Hurtbox (Receives Damage)</option>
-                    <option value="shield">Defensive Shield (Blocks/Parries)</option>
-                    <option value="trigger">Sensor Trigger (Zone/Proximity)</option>
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
-              <button
-                type="button"
-                onClick={() => setEditingItem(null)}
-                className="px-3.5 py-1.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30"
-              >
-                Save Properties
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Spritesheet Slicer & Pre-Configuration Interactive Modal */}
-      {sliceModalConfig.isOpen && (
-        <SpritesheetSliceModal
-          isOpen={sliceModalConfig.isOpen}
-          onClose={() => setSliceModalConfig({ isOpen: false, sheetId: '' })}
-          onConfirm={handleSliceModalConfirm}
-          initialImage={sliceModalConfig.initialImage}
-          sheetLabel={sliceModalConfig.sheetLabel}
-          title="Spritesheet Slicing & Pre-Configuration"
-        />
-      )}
-
-      {/* Palette Spray Studio Modal */}
-      <SpriteEditorModal
-        isOpen={isSpriteStudioOpen}
-        onClose={() => {
-          setIsSpriteStudioOpen(false);
-          setEditingSheetIdForStudio(null);
-        }}
-        onSave={handleSpriteStudioSave}
-        initialImageDataUrl={
-          editingSheetIdForStudio
-            ? (currentFile?.prefabData?.spritesheets?.find(s => s.id === editingSheetIdForStudio)?.imageUrl || '')
-            : ''
-        }
-        initialWidth={
-          editingSheetIdForStudio
-            ? (currentFile?.prefabData?.spritesheets?.find(s => s.id === editingSheetIdForStudio)?.tileWidth || 32)
-            : 32
-        }
-        initialHeight={
-          editingSheetIdForStudio
-            ? (currentFile?.prefabData?.spritesheets?.find(s => s.id === editingSheetIdForStudio)?.tileHeight || 32)
-            : 32
-        }
-        title={
-          editingSheetIdForStudio
-            ? `Palette Spray Studio ‚Äî Edit Sprite Slot #${editingSheetIdForStudio}`
-            : 'Palette Spray Studio ‚Äî Paint Sprite for Prefab'
-        }
-      />
-
-      {/* Toast Notification Alert for Prefab Module */}
-      {toast && (
-        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
-          <div 
-            className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
-              toast.type === 'success'
-                ? 'bg-cyan-950/95 border-cyan-500/60 text-white shadow-cyan-950/50'
-                : toast.type === 'error'
-                ? 'bg-red-950/95 border-red-500/60 text-red-200 shadow-red-950/50'
-                : 'bg-neutral-900/95 border-neutral-700 text-neutral-200 shadow-neutral-950/50'
-            }`}
-          >
-            {toast.type === 'success' && (
-              <CheckCircle2 size={16} className="text-cyan-400 shrink-0" />
-            )}
-            {toast.type === 'error' && <AlertTriangle size={16} className="text-red-400 shrink-0" />}
-            {toast.type === 'info' && <Database size={16} className="text-cyan-400 shrink-0" />}
-            <span>{toast.text}</span>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-};
+                                            {currentScope === 'local' ? (
+                                              <div className="flex items-center gap-1.5">
+                                                <input
+                                                  type="text"
+                                                  placeholder="e.g. run_speed, jump_boost"
+                                                  value={action.localVariableName || action.variableId || ''}
+                                                  onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    updateCharacter(c => ({
+                                                      ...c,
+                                                      rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                        ...r,
+                                                        actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                          ...a,
+                                                          variableScope: 'local',
+                                                          localVariableName: val,
+                                                          variableId: val
+                                                        } : a)
+                                                      } : r)
+                                                    }));
+                                                  }}
+                                                  className="w-full bg-neutral-900 border border-neutral-700 focus:border-amber-500 rounded px-2.5 py-1.5 text-amber-300 font-mono text-xs"
+                                                />
+                                                {rule.localVariables && rule.localVariables.length > 0 && (
+                                                  <select
+                                                    value={action.localVariableName || action.variableId || ''}
+                                                    onChange={(e) => {
+                                                      const val = e.target.value;
+                                                      updateCharacter(c => ({
+                                                        ...c,
+                                                        rules: (c.rules || []).map(r => r.id === rule.id ? {
+                                                          ...r,
+                                                          actions: (r.actions || []).map(a => a.id === action.id ? {
+                                                            ...a,
+                                                            variableScope: 'local',
+                                                            localVariableName: val,
+                                                            variableId: val
+                                                          } : a)
+                                                        } : r)
+                                                      }));
+                                                    }}
+                                                    className="bg-neutral-900 border border-neutral-700 rounded px-2 py-1.5 text-neutral-400 text-xs"
+                                                    title="Pick existing local variable"
+                                                  >
+                                                    <option value="" disabled>Existing Local Vars</option>
+                                                    {rule.localVariables.map(lv => (
+                                                      <option key={lv.id} value={lv.name || lv.id}>‚ö° {lvxúÏ]€r„»yæ˜S¥ÂÕätDÍ4œj%MQî∆b23ö9c;SÎ]híÄ Äí8\UÌEjs®T\oÏ™≠ƒésìõTRÂõ¯>o2/`?Çˇø qhÄl:ÕêU3A†èˇ·˚›]7ï!%_~IåÛ∫Æ]Ì≠[∂ß[Ê¡wHÅOµzU‡ΩΩuóTı‰ÎîÆno]”œÂÍ©í]Rë≠ÜwH∫?Áä1¢˚E≈)®ü+éÆt⁄“p~ÇoÓS›ı^o|ˆ¶ÔØÆ èπe6äŸá™*¥Jˆ»§¿¥©ñÈzƒ§ó4pü–∫ß8}Í’Y'>-P‡»÷èBÀ ÍTTlY•H”©◊ÎÍZ°7ùå1LπZgW8ƒØ?´÷áä]q∞Aé˚˛˛>{Ø=øëN±F¬iÍ‘˝ÎhSl™4’'®ÖÀö´m.	È∑≠Z6›%´∂C{JwuÒ[⁄ÆOÖã∫W™Ö^∆Wù"Ø^U´Ú,r%œÈ™°∏ÓsÒ˚+µﬁ»0H∑_3È»s£ˆ…∆ÈZéFˇO¯À‡óû•é‹]ˇu¨òµ∏ÎX#S£±/k[ıbèkõ«ÉÒÁœl≥7MØ6¥LãﬂøtW$€-Ø	&1Ò»X‡úâè"˙à´@ÚÜé˜'L+Çô})¶ˇÙ€_˛#¥≤éÍˆ
+§+™J^åoóL⁄û£õ˝ y]„∑^aù‰Òc≤QΩ˙¨êZ-™ Â’x1.Uç§Íˆü˚˘…˙˜…©MÖM}õıØæø>#˜† («ıê∏¯_Mµ∑∂I‹·ÓÙÎÈ+vmõÿ^msEf‡ˆ§1Ãû°t©mcÃ◊õˆÂgúIŒo◊24“5,ıv%[àüÜ£{É!ıtï¨ìgä7òØ\€◊Y„%;\Ä˘\Æéáöﬁ©-À%¿*™,;®à‚≈À+çÚPUQLucà™8û∫q4µñ3ù⁄ª@%EKî%/•0Ú)ö
+B¶ÄI.ïñîa˛üÅñ.∫GÖJ≤B9Ä6\“≠fË∂1^9x˜oø"œ¸o§“ ˇˇkrX%Ôæ˙Üº¶ı~ù<≥Œ)i€˙?ùçL∏£È=ù:ü≈â∂(öÕ¯ÕøíÜ¶a˛2l@ÀT:âä‰–2GnYU∫£ÆáRÎ˝i˚ﬂ∞ÚZXy”r±ﬁ#eh:É´‘To\V@óÎ≈¸ö±k6¸ˇ6 o∫Biù¶–ﬂ?˝ˆüˇ@Ùuü4¬äPô§·∫zﬂÙáªiŸ•ı∏kh≥™ø˝„~Aö¯ïTö®E7Iózîa¡ı«Ä.´%U<‘M¨ˆóˇ¿äÆ<µ.Äá≠i@5áÿI≈&äGöT7`äK´Uπdµ˛=vÖTNÙ˛ ^Ì√≤lí>À™’QLÕ~Ó ac˝{r∆n·ü>–÷ôb≠gX–·kpÉ:l¢ø˘ä<ÖKr›§äCZ& €2 è¿(º˚Õ70›1È”¡Hx•çº•çã5‡oQL¡‰©øÄ⁄ê–œË»‰tYıŸHP¿¡ﬂ˛éº`¥ï˝‘ØÏ¯“∂L‡•≤ÍR∫.vÏø˛á4∫Æeå`$πùX˘≤ÒeiDÑZÀø3º&ïÁ0$!Naøº°Î!¿–˝˜ﬂ°H‡Q·UYfY’®¿⁄XÀ◊L¿ó†íóvYUò¥dÕ5IÀ<ßéG⁄ GI•÷(´
+œÍ˜∆’ﬂ¸ûtÿ–áñA®∆sÄﬁ}˝pì·“ÇU1„emnj?’O4C‹‚~b9ÄFr®ò&∞êåŸù6º„∞m˝QπÖ m}{Éÿ`â˚8≠fÙA6“KˆZÈ‰g#◊”{„öJQvI¡{ÆSì≤∫?	çnﬁ4πG6«™‚“àÒçh‰h§⁄†Ÿ∫	bfx˚c+K
+–x…˛&¶!n„ÆÜ-Ë7ê≠©¢>zµç˙ét'ìCÔÃÀÃ¨µU√Rclµ’ƒòá#Ω
+&…Í‘Öˇ≠ÄøÔun+@O∞
+—#∏zE&‹ «÷Kª˘äLﬂ*ÅIª¯ÑƒÃÂˆ∆∆ ¡§«	≠Ì9WÖõÜ∞†§∆Å— m”>≠ê*•â⁄Áçm
+NµÜ6Ë^Ìå∫`4Ò6GHY8≈œŸU%˛P›≥ûËóT´lU1§Ë{{„œÒª s©lÙ¶<Ø¶ÊÇ¡aˆÙ˛»w√ñÍ|jŒ◊@+xI√˛µ§bÛ{¯∂rà‚ú°≥ÍÇ˙&Y•5Ê<êUAIëå⁄M˜Ë–ıUZ®·|k@^/‰[.¿É‚ñfú^ÂyÜ…jìÃÇÇhØ;Ú<I:ˇ†‰dƒ^óç«·«2õÜÆæŸüT
+gî‚_$»£a˛≈˝∑Í_4ÿ‰¬π¥—∂FéäÒ˛¿Áº@ƒZÍ´HÏ_©ßÔ‚¯p\˜
+',î∞@r@¡ÙÄB	QØ˜‰˚í9®Ì1ÇÒ–{˝—$>õÔÑä†,.¨"®O¯∑Cå=∞¿0ﬁù˛ºzıÖ|ããƒﬂ êó∑Î\bê‘ô}Y/}Ï≥Ù˜H–≥∂bz•˙¶_XTÃ˜07fs)⁄s>EE{8Ö˜@¥‘pc¢Ω@±ºèå…Y:˜víígb≠[œFf≠X&$l‰áìê|ä»>	ir]≥LOæ+7ÖíìäÒÊÄ(xrÈ)ãœπ‰⁄õ ∑-≤îE7Ìëº“‡FwâÀ!ÆGÌ˝ïç˙¶¸´bmÉå∑™°†}†õ¸A\E¬ÖK%Òπˇ:™„*mZı-uSÍsu”˙ı/¿(;$ï c◊TS˛%xdK6L6˘ÆÓæ4gL>˛XR±ïaªâ€-DŸHtÊ¶K"∏‰3ˇ@l.É9Fü@‚%E”ÿÛßΩûK1π¥°i:äX¡≥Af.{Å'Ê C	û‰˘≥Ï9ñ)k±™W€$•∆cÉ´WÚb¶`|Dq/Ó<.…}\∂y1Ú;ëu#ﬂí#yqWràMÀçNÀ∆_Õ\hø@Â˘ôÚ4ˆ5Ù6K˘õÔB(±ò«yÅp‚"≈ÖCäKÕ ¸,5√Ω‘•ÑßÂ
+çáQØQE	˜c	ÊÉ|+.ÿóöaÕp[ë»¢ö°p4r°T˘àd±ò‰4*ô©æÂ7‹(óÃıŒÅÊänõTí#¯zÇïÀúõBü˚úsS≤ô$2í^~hy6˜«U\L√ï ,æˇ_ëpf·ÄÊ¢!ÕÖÇöY™.P„ª∆PÍ≠Î∫≤√ûKmWËÛ~hª23Lca–E
+å1ﬁ"A’•Œºª:S2¿*ΩE≠¥)'Q~ëÖô«ó0Íh’zéeÄ‹‡ª∂‚HªR—⁄âÓÚw%Cµ3ñu^À:Œ"[Ï-¢Â√„ÔlS√F∫Ztµ‚ΩŒ›b˚·ﬁ4∏Ê2g+„≥ÃŸ Ñ,xêÄéòJ^f,âUjTw2Õô´7q∑i˛ñTùEñY‹û‘V.π‘~â˚∏,•∂r…,œ•ÿŒ˙,≈ˆ|b[π\äÌ˜[lKæ ˆŒB€ê	ﬂqP“~aØ.hæîmß‹lZËtG∂eõøo#©l‘7@“rèccçlFæ q^±›æãhÃEÙÂP7˜'“ m®\ÓO§WüöycG∂ïq≈åõrÚÎ0ã™æsk€õó´òóúœÒYXG»gAç¸~n ~ÌöXJÀ+’“Àùk∂Æ™ïy˙\’Œ:µdf!≥¸£πdu#Û%¡¯\•z x;^Q‚ÅÈèÒŒ ⁄/Î¡MXÓ≥”£∆S≤πKGGdùµ:‰U„¨’8|zÏˇ·Z¢ªØÁô•)∆©MÕ8LK≠…¿}ân∫‘´m ãwE}≥˛∏ÜøöcŸpg‰‘‹!y[€Ÿ Ÿz¸ØvÌAKÌ·Fò†/€£ÓP˜ˆ'†65É∂ïsŒØ≤∑´Õ2è¶B¶∂ui ö®]‘ÜÒ%ï]€!¡*¶ƒ(öuÅ&@ûÙb•†]QÉÏnm;Ö"˜Rª¿ÚmQ¯¡†F%£pyÃñ ôÓ)û“≈ˇ\˝-`êÕù´Óu,ó"–]IK<"
+w¬≠ÎÓ1.<2˚òSàó‰;ã,LÎfiÑxAÚ~ö=RΩœ»±ŒœüN‰Fe∂b]·€:ß%\‘∂îNÚ'≥!ìU˙«¡?ºJè£8KQ$:≥ñÿmá—∑TŸBQôa„‰⁄5¡åë÷©4FûU˚!5ÒÙ!ö„ñÀ4#¯‘a≠"ïÌPE;5ç±‡ß‡ÿ∞ÄÑõ£‰Ééù9‰ÇéÌÙQl±ïdq‡‚9◊Ç2,Ø¶ÜuAµtèS.“ãÂM÷ëÓ⁄Ü2&¯|˘ìÛÛëÓPQ˙‘©“¥É:˚+¸êÂíúP≈k‰ØFCõ¥Üˆÿnç¥mG7Ω»≤UQ]âŸf'Ω	KôQ.€9ﬂ©0¥Ì∞F∞Ñ›‰9PiêÄüÎ ¢$vcV	rô«…˝¸TÑ“ö  ˙ñ3ŒÒ2‰¯Ú)çCwΩ˝’Ø£Êé˙}Í2SK¸|ö ûÁË _Å‚ö÷∞´x¥±5™óë†π†r1ûüÚÇrR‘«O!À ¬≤»pVˆFñÒ$4ëˆ4¿85D◊2fGåÈì'os≥rNS˛)…cB´ß´:5’Ò ¡ãÈ©B`∆π¨¥˘Ö‹Àû‚Ao€¯GÍEï#˚+ı™nûÆÉ_9hóyÄÙÁK 
+ƒ∂TôA&È £Áâàú	~Dë1'/fyÑ∏ÀÃì=0 ⁄ômÑÂ3ü¡.Ï/˚ÅËq•ª$µ˛&sxªÀè+¡˚Ï¿¿Ÿ˛®´Â_e¯2|;∑+ÄÊ‚ﬂÂ|¿˝üíÏpÊg•^ıG~Â¿?1&ü≥≤ÖxÌ¯êS(dÚeåÁR‘&äŸ§€íaçFèàôüû|¨m[:+iò}Ãkn¸Ç£u@’7]Î2Àg»~ß⁄˛ƒüﬁJ0QÓÃtêÕ‚ÃJ$ø˙L\cÃ`$ß&˚√0©Èöﬂ€3^XVÜ#T|∑y™áß·t«A≤◊Pg.7H”ÿT–	IlöÃã?%tItË≈wÒiGbÆ‰±5Ñìüµd$c#?ómw˜F<√M=√‰À8Ëz~1,<Ej;%jÖRv&5‰KÿPæNùà£uuQz ë¶eâR±πƒ‰‚S<ˆ &o©¥Ü√ë«j∫	ì1§Ë∞©f	—* Û¯≥=‘‘‘Ì¡2i∑Ë•Fú¬À¿£cÈG¡˙ˆ(ë‘‚£ŸÆ‹¶b™4π%kùy˛ê∏,îëíxœà˚R&˜FwßtïE©Q£\≠oß(:›{å∑dm’íÎ∆éﬁ¿HŒÙNÏÅi∞Ì˙√k[ª§y˙‚'‰¯§Ò™uzFŒ^>=nìè√H[õ<9;}FœO;'«g§y“8k4;pu#±7<'¯ŒﬂrÉ\F◊ƒ—µ∂≠8o0y%;∫ûú(Ø!	êC:PŒuÀA¬6^Hqﬁu∆ÃbÑ¯aÕÏ<kZ0’|Õ6QàÕ£õ=«¢Ë.‹∞~Ü?yiô ëTw ]°z∫ì∆y“~F–ôà◊∏Edó∫∂ıÜí÷ìNßﬂ|"‡ŸPÄ…,Äûcô˝Éâ:PÙ¿Ô’S£eó„MÿN{»∞ã ‘ﬂΩÑ«w≥cNôé>ﬂ@pY1òz÷“:“ﬁºüvÍÕ§˘u=QT»Å)∞%4“|&ÑâqÔ“ A≠Fö‘s4Ø’Ú\LåûË@,ˇåÁÏÂ˙±ﬁ–Ò˛D≠s¢E7-ÜSÉâHﬁœ “â?»»w7≠˜†%Ï÷*y˜’íI%ˆ\,´œ†fﬂ\q‚∑8ßﬂ¢$•,w€˚âóÂ%Ù˝ÃYc¢È.JQ0%ø;è¯áêÁ·CÅí}Ç;L{ù5Ñ»|∫üVÕß™É¶ÓZ†ÖtoåpLØá≈œÿ[C€r<r∆ÿç!à4xò∂«n‹jﬂé%≈°÷lwùÕäCûﬁhûô«ö˘‹“ñâqÚ–˝á∫˜år»ÅÓ∫©È}+;5éÅπå‰865Á&Ããã‹∫Ÿî∏85¯æ¥8ü5Ãà{iÍ?¡•î≈∂køÜ§8âº+Ñ¿±\¢ÖÁÅ¥˘‹ÖÆ÷–ÃË˜sÛ≠"¥+ÃØõ*\ïœç◊ÉWπ˚6,iüt„◊=ãmﬁ–T\Z©÷ z\Y˝S•ˆv£ˆ…Áü≠˜◊»ÍÁ´Y!ñÎp˜O%@2'0•Â
+º≈7û»âıŒ§∂ÄDQÏ<\#/•‚ –™úèI©u."ïIÃ¶∫˜-5∞¢AçD**L“¥À…¶ôπéiÿ é⁄œé'a˝π·≈)M∞gŸÆ§ﬂ€~‘’zè26'ï£Vj±„#2Äa CÊ™'†$∏6Aã·ô…8ú†ûÏòS
+M◊KEÁ<Tì˘√óﬂüÔÄ†Ù°QSF^÷?íÀËÃ≠ªÄUhecç<¨ŒÚhd¢‡√}ŸÀôÊ€ã=†f“äöì¡ÅKQ«–ﬁÑô}FÕΩÏ◊bîµî55Bπ8äë∑9 ÕUÉ÷67aÊë–ÿÅ1Y]Œ»/ÀJ&ºù'WutÓÁZ\ÌÅ˝[·ªj*FÈÿ,≠›Ç+>ßàπ@œëã9Áö®ÄË.yKÅ{P œ¥iWuë¬ﬁ'ç˜ﬁeFD—uÀFUå2¥XXX	>N‰H¯w•≥$RÀ•C}jœ˚≈n£7µM=Lß{Ç@“a66Îˆ2ç¢òe?˝¬%RD8Ù◊N…W“9;-l.Ôlñìà•Ypévôá®ÈP¥›ÿå
+¸C˜+Ò‚A Ö€9k<o∑:≠”Á7È«ÌÑËÁÓ;sßm]zs•Ωπ«±.ŒÙ˛¿[¿ü;≈ πN›ÈD%\ªën÷¡+ Û∆À;–ÀXô|3ÀgQ¿4¡ £OïSGÔÎfﬁæÜyK£r¸m°	ë†[LMau∑Ñû]1îÏƒ ‡x2^Óâ|√Iÿ◊∫¥(öÜ¡'kFF†’—q∆31‹\øE4√ç&`∞/ìËäa7Ú´Œ≤Àg,>ö…Äbwf´3°W<*øÖ,ÙÓÎ)‹Æí9≥c|Ÿa‰{É|ÈY◊¬ïa±Ô+OÚâí‚…ûn‡¶få-ëß»wfã…Í=ab·Õƒ]D”aB)œZÑã¶eÚc£…`X@ „»ÈÛß?!´¶e“Uñê®ú+∫¡÷+¯IéAN¢h”˙Ã≥¿Ár…Ãf‘∞a”ãg&f>Ë¶ÃÛŒ¯ ÃÂuØén—7œ©dzèTÿ”l5V^Õ\ÀúñΩõıÅîËÂ¨M◊ßŒSL¿Øœ±ˆÏß„ÉµKêˇ{∫IµÏW‘`∆:l4Ô_∆”ô‘]
+ v∆ÔÛºÚ-ŸYu¿˘¶ñÿ?∆9s[5^Lâä·≈=&v2ÙÿwÚΩè&P“’|E£ë≥Ñ¸gãµt˛… =ú%9M¡ÀÚS%∏+ålDœ≥Ã’<Iá≤8È6t◊|$‹®˝Jëóh€W‚° Œ…‰⁄t:zÖ÷˙é!¸æΩ±¡L=ˇë§Ô»ˇæOâFBpêÊ…¡»4+Ô˛˝ü2(©<∑"BºFN¿÷5–ﬁÖQ:c˚3Â§OŸ#‹]sé¥a'™Âúº·wﬂ˛.‘9ªP]»9NFvIyÈæ±ﬁÒ,c∆ÙY{2ˇEˇ‚‰Í∏•Üö∑&%ë∑Ø27ûF∆ ˇ	∫ˆÆ Ù4%óx†_=ã∫˘*b˚RD î9ìy˛|0Ï¬ÎK0@≤¡®ôÆRÅzüH0èp§Sˆåânp\ø˛(	9&‹â3!Òßkß+b´∏»¥ıÅá∞–8ÙpLGm¯Ó€ˇ¯„~ëg?LRw1hÑ·|c*á∑Ç|[≠ìL{db/¿j‡h]V.|)®˘;@%¡öè≥„£p≠†F=}G±Pºß@-j¨vÀÏÈ˝Ù©ûÄ»’º1ë¢Œ∞˜+0Iòœ∂{PD'Œ±RÀ∂,û/Ä…ÛÍ≤(L¬üÎbrùπ˜+≥≥À„0Ì”Ê_w»È9iuOLéé;ç÷”ˆÕEd(˙è;á9û∂qàë_kËPΩxAlt˙#õ¡∞4vT=Ø˙Õ’2„EvÉ)ÙÑÈÍUAÄ!NV¬ry∆RﬂP‹µœ∞Ùt?Ï ~:—ΩÆu˝È&„7Ç´ò@$@–¶§∞€…sˆ-¢(—…§'Gßõ9t#-Sî3∂ eπ™<G˘Ng'GâÇ==øØ?ü.HKﬁ‹àÁ%«≥è}ÍH%Ω	 'u-ºa‘›3s*üùÊToÆÍÀ4ÃÀä¶˘:µ£Ù…:9≥å7 çuFÈ˚æyæìÇDr>U∞ÇﬂßXŸÄ*⁄ ¡	¸O*œ†NÊ‚ÑC‹îÿÏÚÇ*∂e~Ó¨<Stì¸à}%ûUs¢ò˘N∆¨‚ ⁄ûˆzØ°YÌÅNÅz*OiØHëtLOè)ic££mjÇ‹Àï‘£‘[9xB—OÛƒ≤<</
+⁄˜3LUÉ∫r•©Í‚Fø¯wŒw(´i9TÆ'›†üÉtæ0a"Foﬂ˛D⁄¯ì\ÛA˚¯ñ$¿≠%Ócö>¬%S&„>⁄ÿ◊.ï|8ø¯Üƒ—é`Û±D&í¨Ü“DRPˆ˝⁄8|>·ƒFä… ‡S‹N‘üù Uó)C•/…'Éë√}52|
+åXü{ Æ®J°öb%ªL>±Õs˝÷ÎIÀ]·Ë≤‚¡·aB;ä*“·ﬂIÂo,ìÆk_ÍC›Àó`Ú\)xÊ˛∫u%m‰˜Àó;óﬂï^Û∫≤;Ú	ÓAAÛÔ8ıõ\ª£èÒ®;@≈›∆≈É∏i⁄á÷ö~¸É≤…é‹T¯ˆ≈,
+uB≤EáÏ.©ÆªÇƒHMÌÖH£˘K˚Y•EÈ…ŸritIa‚%–	¸µ]¬BkÑUå8uu5!˛Y8Æß;√–i/ÃFü÷˘‚ô BQc#?G_c’≥ú¡K”£Øx∫g Ö&g=ÌÇ)öí÷∫x¶_(ıpAÑÌ(c“ˆFön•Ê“ü%îñü°`~tó?√KàOMbb¢Y|yM‚M?éÙi¸9_6µ˘å=±˛óS”gØ¢ı"ﬂÑÛ©ÔOüãŒÓ©ı“ÅÈàTN≈5«∏Ì1©¯ëI‹8ÏqdáÆ«uw:WÓcû:3MôC–ñQAıq]«6A{ZçLâD;Ìv≤7?“5opW∫Åàö5˚±ΩïÏ«ˆVv?N(⁄ w©#ºE=·,+ﬂÉ/ÑÃ˘Ó´o˜¥≥n ˜[fMeîyıEíh2K}°‡9R~±†+¸›Ú“D∂;ª±c)`èaäCOWπbh†®"E†D¡Ùåàzÿ[sDß∫Ë∂!ÆÀ∆aáø,•ò¿≠Å›S4ˆ◊≈ò\‘0ÙZÛ_€&ö/
+1qà¯n∑≈”^‹œ˛âÍHlBl¿¢…T,H¶Xp¯?3%¢gC-+¥ÿTi¶R≠ÿpEÃ<w§™‘u”ôPòbÂÉÃ˘¯d'¿èN	SÆ8Tâ¬|aGê]µõ™û:é(ÉçW‰õLÎe{·t;'˚/àÎ^çá#≈Fw{àÅÃHŸ;-U~<g,ü&Y#.2¨˜ö∏Ë∑©;™A∑"ü§=}¶¿$ì	ƒùjxl√c20r¿6hN•AN¥ŒµËfœ‚ï$∂ú∑S	√à• ’¿KÇ=0ÊŸ/º	
+ˇÍ”Ô¸  ˇˇ fß=

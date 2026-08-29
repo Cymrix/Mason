@@ -68,7 +68,8 @@ function getBrushTiles(px: number, py: number, brushSize: number = 1, activeTool
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RefinedMapData, RefinedCellState, ToolType, ModeType } from '../types';
 import { TILE_SIZE, RefinedBiome, BiomeTileType } from '../engine/refinedBiomeSchema';
-import { PrefabData, BehaviorData } from '../engine/masonProjectSchema';
+import { getTileSurfaceHeightAt, TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
+import { PrefabData, BehaviorData, InputMapping, UIConfigData, UNIFIED_INPUT_TEMPLATE, ensureUIConfigDefaults } from '../engine/masonProjectSchema';
 import { renderRefinedTileCell } from '../engine/tileMaterialRenderer';
 import { drawThresholdCrackMask } from '../engine/heightBlendShader';
 import { renderParallaxLayer } from '../engine/parallaxRenderer';
@@ -130,6 +131,8 @@ interface RefinedMapCanvasProps {
   canRedo?: boolean;
   undoCount?: number;
   redoCount?: number;
+  inputMappings?: InputMapping[];
+  uiTheme?: UIConfigData;
 }
 
 export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
@@ -159,7 +162,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   canUndo = false,
   canRedo = false,
   undoCount = 0,
-  redoCount = 0
+  redoCount = 0,
+  inputMappings = [],
+  uiTheme
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
@@ -439,7 +444,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     prevVx: 0,
     prevVy: 0,
     activeBehaviorState: 'idle',
-    gravityOverride: null as number | null
+    gravityOverride: null as number | null,
+    allowedTraversalAngleDeg: 45,
+    steepSlopeBehavior: 'block' as 'block' | 'slide_down' | 'slow_down',
+    steepSlideSpeed: 3.5,
+    allowCeilingTraversal: false,
+    runtimeVariables: {} as Record<string, any>,
+    localVariables: {} as Record<string, any>
   });
 
   const [hudState, setHudState] = useState({
@@ -456,6 +467,27 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const justPressedKeysRef = useRef<Record<string, boolean>>({});
   const justReleasedKeysRef = useRef<Record<string, boolean>>({});
   const lastHudUpdateRef = useRef<number>(0);
+
+  // Raw Mouse & Pointer State tracking for play-mode trigger evaluation
+  const mouseDownRef = useRef<Record<number, boolean>>({});
+  const justPressedMouseRef = useRef<Record<number, boolean>>({});
+  const justReleasedMouseRef = useRef<Record<number, boolean>>({});
+  const mouseWheelRef = useRef<{ up: boolean; down: boolean }>({ up: false, down: false });
+  const mouseMovedRef = useRef<boolean>(false);
+  const mousePosRef = useRef<{ clientX: number; clientY: number; canvasX: number; canvasY: number; worldX: number; worldY: number; isHovering: boolean }>({
+    clientX: 0,
+    clientY: 0,
+    canvasX: 0,
+    canvasY: 0,
+    worldX: 0,
+    worldY: 0,
+    isHovering: false
+  });
+
+  // Raw Gamepad State tracking
+  const gamepadPrevButtonsRef = useRef<Record<number, Record<number, boolean>>>({});
+  const gamepadJustPressedRef = useRef<Record<number, Record<number, boolean>>>({});
+  const gamepadJustReleasedRef = useRef<Record<number, Record<number, boolean>>>({});
 
   
 
@@ -716,6 +748,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     p.isGrounded = false;
     p.isWallSliding = false;
     p.gravityOverride = null;
+    p.allowedTraversalAngleDeg = (charConfig as any)?.allowedTraversalAngleDeg ?? 45;
+    p.steepSlopeBehavior = (charConfig as any)?.steepSlopeBehavior || 'block';
+    p.steepSlideSpeed = (charConfig as any)?.steepSlideSpeed || 3.5;
+    p.allowCeilingTraversal = (charConfig as any)?.allowCeilingTraversal || false;
     p.jumpsLeft = charConfig.totalJumps;
     p.health = charConfig.maxHp;
     p.maxHealth = charConfig.maxHp;
@@ -829,32 +865,32 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     }
   }, [mode, respawnPlayer]);
 
-  // Play Mode Keyboard Listeners
+  // Play Mode Input Listeners (Keyboard + Mouse + Gamepad)
   useEffect(() => {
+    if (mode !== 'play') return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement;
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
         return;
       }
 
-      if (mode === 'play') {
-        if (!keysDownRef.current[e.code]) {
-          justPressedKeysRef.current[e.code] = true;
-        }
-        keysDownRef.current[e.code] = true;
+      if (!keysDownRef.current[e.code]) {
+        justPressedKeysRef.current[e.code] = true;
+      }
+      keysDownRef.current[e.code] = true;
 
-        if (e.code === 'Escape') {
-          e.preventDefault();
-          onExitPlayMode?.();
-          setMode?.('paint');
-          return;
-        }
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        onExitPlayMode?.();
+        setMode?.('paint');
+        return;
+      }
 
-        if (e.code === 'KeyR') {
-          e.preventDefault();
-          respawnPlayer();
-          return;
-        }
+      if (e.code === 'KeyR') {
+        e.preventDefault();
+        respawnPlayer();
+        return;
       }
     };
 
@@ -863,13 +899,71 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       keysDownRef.current[e.code] = false;
     };
 
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!mouseDownRef.current[e.button]) {
+        justPressedMouseRef.current[e.button] = true;
+      }
+      mouseDownRef.current[e.button] = true;
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      justReleasedMouseRef.current[e.button] = true;
+      mouseDownRef.current[e.button] = false;
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseMovedRef.current = true;
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        const currentPan = viewport.panRef?.current || pan;
+        const wx = (cx - currentPan.x) / scale;
+        const wy = (cy - currentPan.y) / scale;
+        const p = playerRef.current;
+        const halfW = charConfig.radius;
+        const charH = charConfig.height;
+        const isHover = wx >= (p.x - halfW) && wx <= (p.x + halfW) && wy >= (p.y - charH) && wy <= p.y;
+        mousePosRef.current = {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          canvasX: cx,
+          canvasY: cy,
+          worldX: wx,
+          worldY: wy,
+          isHovering: isHover
+        };
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) mouseWheelRef.current.up = true;
+      if (e.deltaY > 0) mouseWheelRef.current.down = true;
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      // Prevent default right-click context menu during play mode so right clicks can be used as raw inputs
+      e.preventDefault();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    window.addEventListener('contextmenu', handleContextMenu);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('contextmenu', handleContextMenu);
     };
-  }, [mode, onExitPlayMode, setMode, respawnPlayer]);
+  }, [mode, onExitPlayMode, setMode, respawnPlayer, pan, scale, charConfig.radius, charConfig.height]);
 
   // Main 60 FPS Physics & Animation Ticker for Play Mode
   useEffect(() => {
@@ -888,6 +982,33 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const justReleased = justReleasedKeysRef.current;
 
       p.animTime += dt;
+
+      // Poll connected gamepads for raw_gamepad triggers
+      const gamepads = typeof navigator.getGamepads === 'function' ? navigator.getGamepads() : [];
+      const gpJustPressed: Record<number, Record<number, boolean>> = {};
+      const gpJustReleased: Record<number, Record<number, boolean>> = {};
+
+      for (let gIdx = 0; gIdx < gamepads.length; gIdx++) {
+        const gp = gamepads[gIdx];
+        if (!gp) continue;
+        gpJustPressed[gIdx] = {};
+        gpJustReleased[gIdx] = {};
+        const prevBtns = gamepadPrevButtonsRef.current[gIdx] || {};
+        const currBtns: Record<number, boolean> = {};
+
+        for (let bIdx = 0; bIdx < gp.buttons.length; bIdx++) {
+          const isDown = gp.buttons[bIdx]?.pressed ?? false;
+          currBtns[bIdx] = isDown;
+          if (isDown && !prevBtns[bIdx]) {
+            gpJustPressed[gIdx][bIdx] = true;
+          } else if (!isDown && prevBtns[bIdx]) {
+            gpJustReleased[gIdx][bIdx] = true;
+          }
+        }
+        gamepadPrevButtonsRef.current[gIdx] = currBtns;
+      }
+      gamepadJustPressedRef.current = gpJustPressed;
+      gamepadJustReleasedRef.current = gpJustReleased;
 
       // Regenerate stamina & mana up to configured max
       p.stamina = Math.min(charConfig.maxSp, p.stamina + 0.35);
@@ -913,6 +1034,128 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const isSolidTile = (tx: number, ty: number): boolean => {
         const cell = getCell(mapData, tx, ty);
         return !!(cell && cell.tile_type_id);
+      };
+
+      // Helper to query slope geometry at a specific world pixel point
+      const checkSlopeAt = (worldX: number, worldY: number) => {
+        const tx = Math.floor(worldX / TILE_SIZE);
+        const ty = Math.floor(worldY / TILE_SIZE);
+        const cell = getCell(mapData, tx, ty);
+        if (!cell || !cell.tile_type_id) {
+          return { isSlope: false, isWalkableSlope: false, isCeilingSlope: false, shape: undefined, direction: undefined };
+        }
+        const shape = cell.shape;
+        const isUpRight = shape === 'slope_up_right_45';
+        const isUpLeft = shape === 'slope_up_left_45';
+        const isDownRight = shape === 'slope_down_right_45';
+        const isDownLeft = shape === 'slope_down_left_45';
+        const isWalkable = isUpRight || isUpLeft;
+        const isCeiling = isDownRight || isDownLeft;
+        const isSlope = isWalkable || isCeiling || (typeof shape === 'string' && shape.includes('slope'));
+
+        let angleDeg = 45;
+        if (shape && typeof shape === 'string') {
+          if (shape.includes('30') || shape.includes('gentle')) angleDeg = 30;
+          else if (shape.includes('60') || shape.includes('steep')) angleDeg = 60;
+          else if (shape.includes('75')) angleDeg = 75;
+          else if (shape.includes('90') || shape.includes('vertical')) angleDeg = 90;
+        }
+
+        let dir: 'up_right' | 'up_left' | 'down_right' | 'down_left' | undefined;
+        if (isUpRight) dir = 'up_right';
+        else if (isUpLeft) dir = 'up_left';
+        else if (isDownRight) dir = 'down_right';
+        else if (isDownLeft) dir = 'down_left';
+
+        return { isSlope, isWalkableSlope: isWalkable, isCeilingSlope: isCeiling, shape, direction: dir, angleDeg };
+      };
+
+      // Slope evaluation helper for prefab behavior trigger conditions
+      const evaluateSlopeDetection = (
+        slopeCondition: string = 'on_slope',
+        contactLocation: string = 'under_feet',
+        detectionDistancePx: number = 4
+      ): boolean => {
+        const dist = Math.max(1, detectionDistancePx);
+        const fwdDist = p.facing === 'right' ? halfW + dist : -(halfW + dist);
+        const bwdDist = p.facing === 'right' ? -(halfW + dist) : halfW + dist;
+
+        // Sample points based on contact location
+        let probePoints: Array<{ x: number; y: number }> = [];
+        if (contactLocation === 'ahead') {
+          probePoints = [
+            { x: p.x + fwdDist, y: p.y - 4 },
+            { x: p.x + fwdDist, y: p.y + 4 }
+          ];
+        } else if (contactLocation === 'behind') {
+          probePoints = [
+            { x: p.x + bwdDist, y: p.y - 4 },
+            { x: p.x + bwdDist, y: p.y + 4 }
+          ];
+        } else if (contactLocation === 'above_head') {
+          probePoints = [
+            { x: p.x - halfW / 2, y: p.y - charH - dist },
+            { x: p.x + halfW / 2, y: p.y - charH - dist }
+          ];
+        } else {
+          // 'under_feet'
+          probePoints = [
+            { x: p.x, y: p.y + dist },
+            { x: p.x - halfW / 2, y: p.y + dist },
+            { x: p.x + halfW / 2, y: p.y + dist },
+            { x: p.x, y: p.y - 2 } // Feet level
+          ];
+        }
+
+        const slopeInfos = probePoints.map(pt => checkSlopeAt(pt.x, pt.y));
+        const hasSlope = slopeInfos.some(s => s.isSlope);
+        const activeSlope = slopeInfos.find(s => s.isSlope);
+
+        if (slopeCondition === 'not_on_slope' || slopeCondition === 'no_slope') {
+          return !hasSlope;
+        }
+        if (!hasSlope || !activeSlope) {
+          return false;
+        }
+
+        if (slopeCondition === 'on_slope' || slopeCondition === 'on_any_slope') {
+          return true;
+        }
+        if (slopeCondition === 'on_floor_ramp') {
+          return activeSlope.isWalkableSlope;
+        }
+        if (slopeCondition === 'on_ceiling_slope' || slopeCondition === 'slope_ceiling') {
+          return activeSlope.isCeilingSlope;
+        }
+        if (slopeCondition === 'slope_up_right' || slopeCondition === 'slope_down_right_45') {
+          return activeSlope.shape === 'slope_up_right_45';
+        }
+        if (slopeCondition === 'slope_up_left' || slopeCondition === 'slope_down_left_45') {
+          return activeSlope.shape === 'slope_up_left_45';
+        }
+        if (slopeCondition === 'slope_down_right') {
+          return activeSlope.shape === 'slope_down_right_45';
+        }
+        if (slopeCondition === 'slope_down_left') {
+          return activeSlope.shape === 'slope_down_left_45';
+        }
+        if (slopeCondition === 'slope_steep') {
+          return activeSlope.isSlope;
+        }
+        if (slopeCondition === 'slope_ascending_forward' || slopeCondition === 'ascending_slope' || slopeCondition === 'facing_uphill') {
+          // Ascending: facing right + slope_up_right_45 (◢) OR facing left + slope_up_left_45 (◣)
+          if (p.facing === 'right' && activeSlope.shape === 'slope_up_right_45') return true;
+          if (p.facing === 'left' && activeSlope.shape === 'slope_up_left_45') return true;
+          return false;
+        }
+        if (slopeCondition === 'slope_descending_forward' || slopeCondition === 'descending_slope' || slopeCondition === 'facing_downhill') {
+          // Descending: facing right + slope_up_left_45 (◣) OR facing left + slope_up_right_45 (◢)
+          if (p.facing === 'right' && activeSlope.shape === 'slope_up_left_45') return true;
+          if (p.facing === 'left' && activeSlope.shape === 'slope_up_right_45') return true;
+          return false;
+        }
+
+        return hasSlope;
       };
 
       const halfW = charConfig.radius;
@@ -943,18 +1186,167 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ? p.gravityOverride
         : biomeGravityScale;
 
-      // Prefab Variable resolver helper
-      const getCharVarNum = (varIdOrName?: string, fallback: number = 0): number => {
+      // Prefab & Local Variable resolver helper
+      const getCharVarRaw = (varIdOrName?: string, fallback: any = 0): any => {
         if (!varIdOrName) return fallback;
+        // 1. Check localVariables first (rule-scoped / local)
+        if (p.localVariables && p.localVariables[varIdOrName] !== undefined) {
+          return p.localVariables[varIdOrName];
+        }
+        // 2. Check runtimeVariables (overridden during play test)
+        if (p.runtimeVariables && p.runtimeVariables[varIdOrName] !== undefined) {
+          return p.runtimeVariables[varIdOrName];
+        }
+        // 3. Check behaviorVariables on testCharacter
+        if (testCharacter?.behaviorVariables?.[varIdOrName] !== undefined) {
+          return testCharacter.behaviorVariables[varIdOrName];
+        }
+        // 4. Check variables on testCharacter by ID or Name
         const v = (testCharacter?.variables || []).find(cv => cv.id === varIdOrName || cv.name.toLowerCase() === varIdOrName.toLowerCase());
         if (v) {
-          const rawVal = testCharacter?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue;
-          if (rawVal !== undefined && rawVal !== null) {
-            const n = typeof rawVal === 'number' ? rawVal : parseFloat(rawVal);
-            if (!isNaN(n)) return n;
+          if (p.runtimeVariables && p.runtimeVariables[v.id] !== undefined) {
+            return p.runtimeVariables[v.id];
           }
+          const rawVal = testCharacter?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue;
+          if (rawVal !== undefined && rawVal !== null) return rawVal;
         }
         return fallback;
+      };
+
+      const getCharVarNum = (varIdOrName?: string, fallback: number = 0): number => {
+        const val = getCharVarRaw(varIdOrName, fallback);
+        if (typeof val === 'number') return isNaN(val) ? fallback : val;
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? fallback : parsed;
+      };
+
+      const setCharVar = (varIdOrName: string, value: any, scope: 'prefab' | 'local' = 'prefab') => {
+        if (!varIdOrName) return;
+        if (scope === 'local' || varIdOrName.startsWith('local_') || varIdOrName.startsWith('local.')) {
+          if (!p.localVariables) p.localVariables = {};
+          p.localVariables[varIdOrName] = value;
+        } else {
+          const v = (testCharacter?.variables || []).find(cv => cv.id === varIdOrName || cv.name.toLowerCase() === varIdOrName.toLowerCase());
+          const effId = v ? v.id : varIdOrName;
+          if (!p.runtimeVariables) p.runtimeVariables = {};
+          p.runtimeVariables[effId] = value;
+          if (testCharacter && testCharacter.behaviorVariables) {
+            testCharacter.behaviorVariables[effId] = value;
+          }
+        }
+      };
+
+      const evaluateMathAction = (action: any) => {
+        const op = action.mathOp || action.variableOp || 'set';
+        const targetVarId = action.variableId || action.localVariableName || (action.variableScope === 'local' ? 'local_temp' : (testCharacter?.variables?.[0]?.id || 'var_1'));
+        const scope: 'prefab' | 'local' = action.variableScope || (action.localVariableName || targetVarId?.startsWith('local_') || targetVarId?.startsWith('local.') ? 'local' : 'prefab');
+
+        // Resolve Operand A
+        let valA: number = 0;
+        if (action.operandASource === 'constant') {
+          valA = action.operandAConstant ?? (typeof action.variableValue === 'number' ? action.variableValue : 0);
+        } else if (action.operandASource === 'variable' && action.operandAVariableId) {
+          valA = getCharVarNum(action.operandAVariableId, 0);
+        } else if (action.operandAVariableId) {
+          valA = getCharVarNum(action.operandAVariableId, 0);
+        } else if (action.variableValue !== undefined && action.variableValue !== null && action.actionType === 'variable_modify') {
+          valA = getCharVarNum(targetVarId, 0);
+        } else {
+          valA = getCharVarNum(targetVarId, 0);
+        }
+
+        // Resolve Operand B
+        let valB: number = 0;
+        if (action.operandBSource === 'variable' && action.operandBVariableId) {
+          valB = getCharVarNum(action.operandBVariableId, 0);
+        } else if (action.operandBConstant !== undefined) {
+          valB = action.operandBConstant;
+        } else if (action.operandBVariableId) {
+          valB = getCharVarNum(action.operandBVariableId, 0);
+        } else if (action.variableValue !== undefined && action.actionType === 'variable_modify') {
+          valB = typeof action.variableValue === 'number' ? action.variableValue : parseFloat(action.variableValue) || 0;
+        }
+
+        let result = valA;
+
+        switch (op) {
+          case 'set':
+          case '=':
+            result = (action.operandASource === 'constant' || action.operandASource === 'variable') ? valA : (action.operandBSource ? valB : (action.variableValue !== undefined ? Number(action.variableValue) : valA));
+            break;
+          case 'add':
+          case '+':
+            result = valA + valB;
+            break;
+          case 'subtract':
+          case '-':
+            result = valA - valB;
+            break;
+          case 'multiply':
+          case '*':
+            result = valA * valB;
+            break;
+          case 'divide':
+          case '/':
+            result = valB !== 0 ? (valA / valB) : 0;
+            break;
+          case 'modulo':
+          case '%':
+            result = valB !== 0 ? (valA % valB) : 0;
+            break;
+          case 'power':
+          case '^':
+            result = Math.pow(valA, valB);
+            break;
+          case 'min':
+            result = Math.min(valA, valB);
+            break;
+          case 'max':
+            result = Math.max(valA, valB);
+            break;
+          case 'clamp': {
+            const minVal = action.clampMinSource === 'variable' && action.clampMinVariableId ? getCharVarNum(action.clampMinVariableId, 0) : (action.clampMin ?? 0);
+            const maxVal = action.clampMaxSource === 'variable' && action.clampMaxVariableId ? getCharVarNum(action.clampMaxVariableId, 100) : (action.clampMax ?? 100);
+            result = Math.min(Math.max(valA, Math.min(minVal, maxVal)), Math.max(minVal, maxVal));
+            break;
+          }
+          case 'abs':
+            result = Math.abs(valA);
+            break;
+          case 'round':
+            result = Math.round(valA);
+            break;
+          case 'floor':
+            result = Math.floor(valA);
+            break;
+          case 'ceil':
+            result = Math.ceil(valA);
+            break;
+          case 'negate':
+            result = -valA;
+            break;
+          case 'lerp': {
+            const t = action.lerpTSource === 'variable' && action.lerpTVariableId ? getCharVarNum(action.lerpTVariableId, 0.5) : (action.lerpT ?? 0.5);
+            result = valA + (valB - valA) * t;
+            break;
+          }
+          case 'random_range': {
+            const minVal = valA;
+            const maxVal = valB;
+            result = minVal + Math.random() * (maxVal - minVal);
+            break;
+          }
+          case 'toggle': {
+            const current = getCharVarRaw(targetVarId, false);
+            setCharVar(targetVarId, !current, scope);
+            return;
+          }
+          default:
+            result = valA;
+            break;
+        }
+
+        setCharVar(targetVarId, result, scope);
       };
 
       // Solid check helper in specific direction and distance in pixels
@@ -1056,16 +1448,20 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         const triggerMode = trig.triggerMode || 'press';
 
         switch (trig.type) {
+          case 'slope_detection':
+          case 'slope':
+            return evaluateSlopeDetection(trig.slopeCondition ?? 'on_slope', trig.contactLocation ?? 'under_feet', trig.detectionDistancePx ?? 4);
           case 'solid_detection':
             return checkSolidsInDirection(trig.direction, trig.detectionDistancePx ?? 4, trig.checkMode ?? 'touching');
           case 'physics_state':
             return evaluatePhysicsState(trig.stateKind, trig.velocityThreshold ?? 0.5);
           case 'variable_condition': {
-            const v = (testCharacter?.variables || []).find(cv => cv.id === trig.variableId || cv.name.toLowerCase() === trig.variableId?.toLowerCase());
-            if (!v) return false;
-            const leftVal = testCharacter?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue;
+            const leftVal = getCharVarRaw(trig.variableId, undefined);
+            if (leftVal === undefined) return false;
             const rightVal = trig.value;
-            if (v.type === 'boolean') {
+            const v = (testCharacter?.variables || []).find(cv => cv.id === trig.variableId || cv.name.toLowerCase() === trig.variableId?.toLowerCase());
+            const isBool = (v && v.type === 'boolean') || typeof leftVal === 'boolean' || typeof rightVal === 'boolean';
+            if (isBool) {
               const bLeft = leftVal === true || leftVal === 'true' || leftVal === 1;
               const bRight = rightVal === undefined || rightVal === true || rightVal === 'true' || rightVal === 1;
               if (trig.comparator === 'not_equals' || trig.comparator === '!=') return bLeft !== bRight;
@@ -1089,10 +1485,17 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             return false;
           case 'state':
             return p.activeBehaviorState === trig.stateId || trig.stateId === 'any';
-          case 'input_press':
-          case 'keyboard_key': {
+          case 'raw_keyboard':
+          case 'keyboard_key':
+          case 'input_press': {
+            // Check modifier requirements
+            if (trig.requireShift && !keys['ShiftLeft'] && !keys['ShiftRight']) return false;
+            if (trig.requireCtrl && !keys['ControlLeft'] && !keys['ControlRight']) return false;
+            if (trig.requireAlt && !keys['AltLeft'] && !keys['AltRight']) return false;
+
             const k = trig.key || trig.button;
             if (!k) return false;
+            const effectiveMode = trig.triggerMode || triggerMode || 'press';
             const keyMap: Record<string, string[]> = {
               jump: ['Space', 'KeyW', 'ArrowUp'],
               space: ['Space'],
@@ -1102,37 +1505,221 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               crouch: ['KeyS', 'ArrowDown'],
               dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
               attack: ['KeyJ', 'KeyZ'],
-              special: ['KeyK', 'KeyX']
+              special: ['KeyK', 'KeyX'],
+              block: ['KeyL', 'KeyV'],
+              interact: ['KeyE', 'KeyF']
             };
-            const targetCodes = keyMap[k.toLowerCase()] || [k, `Key${k.toUpperCase()}`];
-            if (triggerMode === 'release') {
-              return targetCodes.some(c => justReleased[c]);
+            const targetCodes = keyMap[k.toLowerCase()] || [k, `Key${k.toUpperCase()}`, k.toLowerCase()];
+            const checkKey = (code: string, dict: Record<string, boolean>) => {
+              if (dict[code]) return true;
+              if (code.startsWith('Key') && (dict[code.slice(3)] || dict[code.slice(3).toLowerCase()])) return true;
+              if (dict[`Key${code.toUpperCase()}`]) return true;
+              if (dict[code.toLowerCase()]) return true;
+              if (dict[code.toUpperCase()]) return true;
+              return false;
+            };
+            if (effectiveMode === 'release') {
+              return targetCodes.some(c => checkKey(c, justReleased));
             }
-            if (triggerMode === 'press') {
-              return targetCodes.some(c => justPressed[c]);
+            if (effectiveMode === 'press') {
+              return targetCodes.some(c => checkKey(c, justPressed));
             }
-            return targetCodes.some(c => keys[c]);
+            return targetCodes.some(c => checkKey(c, keys));
+          }
+          case 'raw_mouse': {
+            const act = trig.action || 'press';
+            const btn = trig.button || 'left';
+            const targetArea = trig.targetArea || 'anywhere';
+
+            // Check targetArea filter
+            if (targetArea === 'on_prefab' && !mousePosRef.current.isHovering) return false;
+            if (targetArea === 'screen_left_half' && mousePosRef.current.canvasX >= (canvasWidth / 2)) return false;
+            if (targetArea === 'screen_right_half' && mousePosRef.current.canvasX < (canvasWidth / 2)) return false;
+
+            if (act === 'wheel_up') return mouseWheelRef.current.up;
+            if (act === 'wheel_down') return mouseWheelRef.current.down;
+            if (act === 'move') return mouseMovedRef.current;
+            if (act === 'hover') return mousePosRef.current.isHovering;
+
+            const btnMap: Record<string, number> = {
+              left: 0,
+              middle: 1,
+              right: 2,
+              button_4: 3,
+              button_5: 4
+            };
+
+            if (btn === 'any') {
+              if (act === 'release') return Object.values(justReleasedMouseRef.current).some(Boolean);
+              if (act === 'press') return Object.values(justPressedMouseRef.current).some(Boolean);
+              return Object.values(mouseDownRef.current).some(Boolean);
+            }
+
+            const btnIndex = btnMap[btn] ?? 0;
+            if (act === 'release') return !!justReleasedMouseRef.current[btnIndex];
+            if (act === 'press') return !!justPressedMouseRef.current[btnIndex];
+            return !!mouseDownRef.current[btnIndex];
+          }
+          case 'raw_gamepad': {
+            const gpIdx = trig.gamepadIndex;
+            const inputType = trig.inputType || 'button';
+            
+            // Filter relevant gamepads
+            const targetPads: Gamepad[] = [];
+            if (gpIdx === 'any' || gpIdx === undefined) {
+              for (let i = 0; i < gamepads.length; i++) {
+                if (gamepads[i]) targetPads.push(gamepads[i]!);
+              }
+            } else if (typeof gpIdx === 'number' && gamepads[gpIdx]) {
+              targetPads.push(gamepads[gpIdx]!);
+            }
+
+            if (targetPads.length === 0) return false;
+
+            const gpButtonMap: Record<string, number> = {
+              button_a: 0,
+              button_b: 1,
+              button_x: 2,
+              button_y: 3,
+              left_bumper: 4,
+              right_bumper: 5,
+              left_trigger: 6,
+              right_trigger: 7,
+              select_back: 8,
+              start_pause: 9,
+              left_stick_click: 10,
+              right_stick_click: 11,
+              dpad_up: 12,
+              dpad_down: 13,
+              dpad_left: 14,
+              dpad_right: 15,
+              home_guide: 16
+            };
+
+            if (inputType === 'button') {
+              const btn = trig.button || 'button_a';
+              const btnMode = trig.buttonMode || triggerMode || 'press';
+              const targetBtnIndex = gpButtonMap[btn];
+
+              return targetPads.some(gp => {
+                const gIndex = gp.index;
+                if (btn === 'any') {
+                  if (btnMode === 'release') {
+                    return Object.values(gamepadJustReleasedRef.current[gIndex] || {}).some(Boolean);
+                  }
+                  if (btnMode === 'press') {
+                    return Object.values(gamepadJustPressedRef.current[gIndex] || {}).some(Boolean);
+                  }
+                  return gp.buttons.some(b => b.pressed);
+                }
+
+                if (targetBtnIndex === undefined) return false;
+                if (btnMode === 'release') {
+                  return !!gamepadJustReleasedRef.current[gIndex]?.[targetBtnIndex];
+                }
+                if (btnMode === 'press') {
+                  return !!gamepadJustPressedRef.current[gIndex]?.[targetBtnIndex];
+                }
+                return !!gp.buttons[targetBtnIndex]?.pressed;
+              });
+            }
+
+            if (inputType === 'stick_axis' || inputType === 'trigger_axis') {
+              const axis = trig.axis || 'left_stick_x';
+              const dir = trig.axisDirection || 'positive';
+              const threshold = trig.axisThreshold ?? 0.25;
+
+              return targetPads.some(gp => {
+                let val = 0;
+                if (axis === 'left_stick_x') val = gp.axes[0] ?? 0;
+                else if (axis === 'left_stick_y') val = gp.axes[1] ?? 0;
+                else if (axis === 'right_stick_x') val = gp.axes[2] ?? 0;
+                else if (axis === 'right_stick_y') val = gp.axes[3] ?? 0;
+                else if (axis === 'left_trigger') val = gp.buttons[6]?.value ?? gp.axes[4] ?? 0;
+                else if (axis === 'right_trigger') val = gp.buttons[7]?.value ?? gp.axes[5] ?? 0;
+
+                if (dir === 'positive' || dir === 'greater_than') return val > threshold;
+                if (dir === 'negative' || dir === 'less_than') return val < -threshold;
+                if (dir === 'any_movement') return Math.abs(val) > threshold;
+                return Math.abs(val) > threshold;
+              });
+            }
+
+            return false;
           }
           case 'mapped_input': {
-            const inp = trig.inputId;
-            const keyMap: Record<string, string[]> = {
-              jump: ['Space', 'KeyW', 'ArrowUp'],
-              move_left: ['KeyA', 'ArrowLeft'],
-              move_right: ['KeyD', 'ArrowRight'],
-              duck: ['KeyS', 'ArrowDown'],
-              crouch: ['KeyS', 'ArrowDown'],
-              dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
-              attack: ['KeyJ', 'KeyZ'],
-              special: ['KeyK', 'KeyX']
+            const inpId = trig.inputId;
+            const inpName = trig.inputName;
+            
+            // 1. Resolve configured mapping from UI module input mappings, prop inputMappings, or default UNIFIED_INPUT_TEMPLATE
+            const activePool = (inputMappings && inputMappings.length > 0) ? inputMappings : UNIFIED_INPUT_TEMPLATE;
+            const mapping = activePool.find(m => 
+              m.id === inpId || 
+              m.name === inpId || 
+              (inpName && (m.name === inpName || m.id === inpName || m.label === inpName))
+            ) || UNIFIED_INPUT_TEMPLATE.find(m => 
+              m.id === inpId || 
+              m.name === inpId || 
+              (inpName && (m.name === inpName || m.id === inpName || m.label === inpName))
+            );
+
+            // 2. Resolve target keys configured in UI module
+            let targetCodes: string[] = [];
+            if (mapping && Array.isArray(mapping.keys) && mapping.keys.length > 0) {
+              targetCodes = [...mapping.keys];
+            } else {
+              const fallbackKeyMap: Record<string, string[]> = {
+                jump: ['Space', 'KeyW', 'ArrowUp'],
+                inp_jump: ['Space', 'KeyW', 'ArrowUp'],
+                move_left: ['KeyA', 'ArrowLeft'],
+                inp_move_left: ['KeyA', 'ArrowLeft'],
+                move_right: ['KeyD', 'ArrowRight'],
+                inp_move_right: ['KeyD', 'ArrowRight'],
+                duck: ['KeyS', 'ArrowDown'],
+                crouch: ['KeyS', 'ArrowDown'],
+                inp_crouch: ['KeyS', 'ArrowDown'],
+                dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
+                inp_dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
+                attack: ['KeyJ', 'KeyZ'],
+                inp_attack: ['KeyJ', 'KeyZ'],
+                special: ['KeyK', 'KeyX'],
+                inp_special: ['KeyK', 'KeyX'],
+                block: ['KeyL', 'KeyV'],
+                inp_block: ['KeyL', 'KeyV'],
+                interact: ['KeyE', 'KeyF'],
+                inp_interact: ['KeyE', 'KeyF'],
+                cast_spell: ['KeyU', 'KeyQ'],
+                inp_cast_spell: ['KeyU', 'KeyQ'],
+                use_item: ['KeyR', 'Digit1'],
+                inp_use_item: ['KeyR', 'Digit1']
+              };
+              targetCodes = fallbackKeyMap[inpId] || fallbackKeyMap[inpName || ''] || [inpId, inpName].filter(Boolean) as string[];
+            }
+
+            // 3. Timing / Trigger Mode: use UI Input Mappings configuration directly
+            const effectiveMode = (
+              mapping?.triggerMode === 'press' ? 'press' :
+              mapping?.triggerMode === 'tap' ? 'press' :
+              mapping?.triggerMode === 'release' ? 'release' :
+              'hold'
+            );
+
+            const checkKey = (code: string, dict: Record<string, boolean>) => {
+              if (dict[code]) return true;
+              if (code.startsWith('Key') && (dict[code.slice(3)] || dict[code.slice(3).toLowerCase()])) return true;
+              if (dict[`Key${code.toUpperCase()}`]) return true;
+              if (dict[code.toLowerCase()]) return true;
+              if (dict[code.toUpperCase()]) return true;
+              return false;
             };
-            const targetCodes = keyMap[inp] || [inp];
-            if (triggerMode === 'release') {
-              return targetCodes.some(c => justReleased[c]);
+
+            if (effectiveMode === 'release') {
+              return targetCodes.some(c => checkKey(c, justReleased));
             }
-            if (triggerMode === 'press') {
-              return targetCodes.some(c => justPressed[c]);
+            if (effectiveMode === 'press') {
+              return targetCodes.some(c => checkKey(c, justPressed));
             }
-            return targetCodes.some(c => keys[c]);
+            return targetCodes.some(c => checkKey(c, keys));
           }
           case 'collision':
             return p.isGrounded || p.isWallSliding;
@@ -1203,55 +1790,91 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             p.vy = -force * 0.35;
           }
         }
-        // 2. Kinematic Move & Granular Controls
+        // 2. Kinematic Move (Manual Kinematics)
         else if (action.actionType === 'move') {
           const speed = (action.speedSource === 'variable' && action.speedVariableId)
             ? getCharVarNum(action.speedVariableId, action.speed ?? 4.0)
             : (action.speed ?? 4.0);
 
-          if (action.moveMode === 'move_left' || action.moveMode === 'left') {
+          const mode = action.moveMode || 'move_forward';
+
+          if (mode === 'move_left' || mode === 'left') {
             p.vx = -speed;
             p.facing = 'left';
             p.isWalking = true;
             movementOverridden = true;
-          } else if (action.moveMode === 'move_right' || action.moveMode === 'right') {
+          } else if (mode === 'move_right' || mode === 'right') {
             p.vx = speed;
             p.facing = 'right';
             p.isWalking = true;
             movementOverridden = true;
-          } else if (action.moveMode === 'towards_target' || action.moveMode === 'ground_patrol') {
+          } else if (mode === 'move_up') {
+            p.vy = -speed;
+            movementOverridden = true;
+          } else if (mode === 'move_down') {
+            p.vy = speed;
+            movementOverridden = true;
+          } else if (mode === 'move_forward' || mode === 'towards_target') {
             p.vx = p.facing === 'right' ? speed : -speed;
             p.isWalking = true;
             movementOverridden = true;
-          } else if (action.moveMode === 'away_from_target') {
+          } else if (mode === 'move_backward' || mode === 'away_from_target') {
             p.vx = p.facing === 'right' ? -speed : speed;
             p.isWalking = true;
             movementOverridden = true;
-          } else if (action.moveMode === 'stop') {
+          } else if (mode === 'move_angle') {
+            const rad = ((action.angleDeg ?? 0) * Math.PI) / 180;
+            p.vx = Math.cos(rad) * speed;
+            p.vy = Math.sin(rad) * speed;
+            p.isWalking = Math.abs(p.vx) > 0.1;
+            movementOverridden = true;
+          } else if (mode === 'set_velocity') {
+            if (action.velocityX !== undefined) p.vx = action.velocityX;
+            if (action.velocityY !== undefined) p.vy = action.velocityY;
+            movementOverridden = true;
+          } else if (mode === 'add_velocity') {
+            if (action.velocityX !== undefined) p.vx += action.velocityX;
+            if (action.velocityY !== undefined) p.vy += action.velocityY;
+            movementOverridden = true;
+          } else if (mode === 'set_velocity_x') {
+            p.vx = speed;
+            movementOverridden = true;
+          } else if (mode === 'set_velocity_y') {
+            p.vy = speed;
+          } else if (mode === 'add_velocity_x') {
+            p.vx += speed;
+            movementOverridden = true;
+          } else if (mode === 'add_velocity_y') {
+            p.vy += speed;
+          } else if (mode === 'stop') {
+            p.vx = 0;
+            p.vy = 0;
+            p.isWalking = false;
+            movementOverridden = true;
+          } else if (mode === 'stop_x') {
             p.vx = 0;
             p.isWalking = false;
             movementOverridden = true;
-          } else if (action.moveMode === 'duck' || action.moveMode === 'crouch') {
+          } else if (mode === 'stop_y') {
+            p.vy = 0;
+            movementOverridden = true;
+          } else if (mode === 'duck' || mode === 'crouch') {
             p.isDucking = true;
             p.capsuleHeightMultiplier = action.capsuleHeightMultiplier || 0.5;
             p.vx = 0;
             movementOverridden = true;
-          } else if (action.moveMode === 'set_velocity_x') {
-            p.vx = speed;
-            movementOverridden = true;
-          } else if (action.moveMode === 'set_velocity_y') {
-            p.vy = speed;
-          } else if (action.moveMode === 'add_velocity_x') {
-            p.vx += speed;
-            movementOverridden = true;
-          } else if (action.moveMode === 'add_velocity_y') {
-            p.vy += speed;
           }
 
           if (action.setFacing) {
-            if (action.setFacing === 'left') p.facing = 'left';
-            else if (action.setFacing === 'right') p.facing = 'right';
-            else if (action.setFacing === 'reverse') p.facing = p.facing === 'left' ? 'right' : 'left';
+            if (action.setFacing === 'match_movement' && Math.abs(p.vx) > 0.1) {
+              p.facing = p.vx > 0 ? 'right' : 'left';
+            } else if (action.setFacing === 'left') {
+              p.facing = 'left';
+            } else if (action.setFacing === 'right') {
+              p.facing = 'right';
+            } else if (action.setFacing === 'reverse') {
+              p.facing = p.facing === 'left' ? 'right' : 'left';
+            }
           }
 
           if (action.maxDescendSpeed !== undefined || action.descendRate !== undefined) {
@@ -1261,6 +1884,57 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           if (action.isDucking || action.crouch) {
             p.isDucking = true;
             p.capsuleHeightMultiplier = action.capsuleHeightMultiplier || 0.5;
+          }
+        }
+        // 2b. AI / Automation Actions
+        else if (action.actionType === 'ai_action') {
+          const speed = (action.speedSource === 'variable' && action.speedVariableId)
+            ? getCharVarNum(action.speedVariableId, action.speed ?? 3.0)
+            : (action.speed ?? 3.0);
+
+          const aiMode = action.aiMode || 'ground_patrol';
+
+          if (aiMode === 'ground_patrol') {
+            const wallAhead = checkSolidsInDirection('wall_forward', 4, 'touching');
+            const ledgeAhead = checkSolidsInDirection('wall_forward', 8, 'ledge_ahead');
+            if (wallAhead || ledgeAhead) {
+              p.facing = p.facing === 'left' ? 'right' : 'left';
+            }
+            p.vx = (p.facing === 'right' ? 1 : -1) * speed;
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (aiMode === 'towards_target' || aiMode === 'chase') {
+            p.vx = (p.facing === 'right' ? 1 : -1) * speed;
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (aiMode === 'away_from_target' || aiMode === 'flee') {
+            p.vx = (p.facing === 'right' ? -1 : 1) * speed;
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (aiMode === 'flight_sine') {
+            const freq = action.sineFrequency ?? 0.05;
+            const amp = action.sineAmplitude ?? 3.0;
+            p.vx = (p.facing === 'right' ? 1 : -1) * speed;
+            p.vy = Math.sin((p.x / 16) * freq * Math.PI * 2) * amp;
+            movementOverridden = true;
+          } else if (aiMode === 'wander') {
+            if (Math.random() < 0.02) {
+              p.facing = Math.random() < 0.5 ? 'left' : 'right';
+            }
+            p.vx = (p.facing === 'right' ? 1 : -1) * (speed * 0.7);
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (aiMode === 'circle_target') {
+            const t = Date.now() / 600;
+            p.vx = Math.cos(t) * speed;
+            p.vy = Math.sin(t) * speed;
+            movementOverridden = true;
+          }
+
+          if (action.setFacing) {
+            if (action.setFacing === 'left') p.facing = 'left';
+            else if (action.setFacing === 'right') p.facing = 'right';
+            else if (action.setFacing === 'reverse') p.facing = p.facing === 'left' ? 'right' : 'left';
           }
         }
         // 3. Gravity Override & Descend Rate
@@ -1297,6 +1971,27 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         else if (action.actionType === 'attack') {
           triggerAttack();
         }
+        // 7. Math Operation / Modify Variable (Supports Rule Local Variables & Prefab Variables)
+        else if (action.actionType === 'math_operation' || action.actionType === 'variable_modify') {
+          evaluateMathAction(action);
+        }
+        // 8. Set Allowed Traversal Angle (Slope & Incline Traversability)
+        else if (action.actionType === 'set_traversal_angle') {
+          let angle = action.traversalAngleDeg ?? 45;
+          if (action.traversalAngleSource === 'variable' && action.traversalAngleVariableId) {
+            angle = getCharVarNum(action.traversalAngleVariableId, angle);
+          }
+          p.allowedTraversalAngleDeg = Math.max(0, Math.min(90, Number(angle)));
+          if (action.steepSlopeBehavior) {
+            p.steepSlopeBehavior = action.steepSlopeBehavior;
+          }
+          if (action.steepSlideSpeed !== undefined) {
+            p.steepSlideSpeed = action.steepSlideSpeed;
+          }
+          if (action.allowCeilingTraversal !== undefined) {
+            p.allowCeilingTraversal = action.allowCeilingTraversal;
+          }
+        }
       };
 
       // ==========================================
@@ -1304,6 +1999,17 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       // ==========================================
       const rulesToEvaluate = linkedBehavior?.rules || testCharacter?.rules || [];
       if (rulesToEvaluate.length > 0) {
+        // Initialize rule local variables if defined
+        for (const r of rulesToEvaluate) {
+          if (r.localVariables && Array.isArray(r.localVariables)) {
+            for (const lv of r.localVariables) {
+              if (p.localVariables[lv.id] === undefined && lv.defaultValue !== undefined) {
+                p.localVariables[lv.id] = lv.defaultValue;
+              }
+            }
+          }
+        }
+
         // Evaluate Prefab FSM State Transitions conditioned on Behavior "IFs"
         if (testCharacter?.stateMachine?.transitions && testCharacter.stateMachine.transitions.length > 0) {
           const charStates = testCharacter.stateMachine.states || [];
@@ -1478,7 +2184,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         p.isWallSliding = false;
       }
 
-      // 1. Move X with Collision Check (using dynamic capsule height for ducking)
+      // 1. Move X with Collision Check (using dynamic capsule height for ducking & slope traversal)
       const dynamicCharH = charH * (p.isDucking ? 0.5 : (p.capsuleHeightMultiplier || 1.0));
       const nextX = p.x + p.vx;
       const checkY1 = p.y - 4;
@@ -1487,7 +2193,43 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const testTileY1 = Math.floor(checkY1 / TILE_SIZE);
       const testTileY2 = Math.floor(checkY2 / TILE_SIZE);
 
-      if (isSolidTile(testTileX, testTileY1) || isSolidTile(testTileX, testTileY2)) {
+      const cellFoot = getCell(mapData, testTileX, testTileY1);
+      const cellBody = getCell(mapData, testTileX, testTileY2);
+      const isFootSlope = cellFoot?.shape && cellFoot.shape.includes('slope');
+      const slopeInfo = isFootSlope ? checkSlopeAt(p.vx > 0 ? nextX + halfW : nextX - halfW, checkY1) : null;
+      const allowedAngle = p.allowedTraversalAngleDeg ?? 45;
+
+      let isBlockedX = false;
+
+      // Check upper body collision (solid block or ceiling slope)
+      if (cellBody && cellBody.tile_type_id) {
+        if (!cellBody.shape || !cellBody.shape.includes('slope')) {
+          isBlockedX = true;
+        } else if (cellBody.shape.includes('down') && !p.allowCeilingTraversal) {
+          isBlockedX = true;
+        }
+      }
+
+      // Check foot collision against solids and steep slopes
+      if (cellFoot && cellFoot.tile_type_id) {
+        if (!cellFoot.shape || !cellFoot.shape.includes('slope')) {
+          isBlockedX = true;
+        } else if (slopeInfo && slopeInfo.isWalkableSlope) {
+          if (slopeInfo.angleDeg > allowedAngle) {
+            // Slope exceeds allowed traversal angle!
+            if (p.steepSlopeBehavior === 'slide_down') {
+              p.vx = (slopeInfo.direction === 'up_right' ? -1 : 1) * (p.steepSlideSpeed || 3.5);
+              isBlockedX = true;
+            } else if (p.steepSlopeBehavior === 'slow_down') {
+              p.vx *= 0.35;
+            } else {
+              isBlockedX = true;
+            }
+          }
+        }
+      }
+
+      if (isBlockedX) {
         p.vx = 0;
       } else {
         p.x = nextX;
@@ -1499,9 +2241,41 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         // Falling down
         const footTileY = Math.floor(nextY / TILE_SIZE);
         const footLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+        const footMidX = Math.floor(p.x / TILE_SIZE);
         const footRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
 
-        if (isSolidTile(footLeftX, footTileY) || isSolidTile(footRightX, footTileY)) {
+        const leftCell = getCell(mapData, footLeftX, footTileY);
+        const midCell = getCell(mapData, footMidX, footTileY);
+        const rightCell = getCell(mapData, footRightX, footTileY);
+
+        let slopeGroundY: number | null = null;
+        if (midCell?.tile_type_id && midCell.shape && midCell.shape.includes('slope')) {
+          slopeGroundY = getTileSurfaceHeightAt(footMidX, footTileY, p.x, midCell.shape, TILE_SIZE);
+        } else if (leftCell?.tile_type_id && leftCell.shape && leftCell.shape.includes('slope')) {
+          slopeGroundY = getTileSurfaceHeightAt(footLeftX, footTileY, p.x, leftCell.shape, TILE_SIZE);
+        } else if (rightCell?.tile_type_id && rightCell.shape && rightCell.shape.includes('slope')) {
+          slopeGroundY = getTileSurfaceHeightAt(footRightX, footTileY, p.x, rightCell.shape, TILE_SIZE);
+        }
+
+        if (slopeGroundY !== null && nextY >= slopeGroundY) {
+          p.y = slopeGroundY;
+          if (p.vy > 5) {
+            p.landingSquash = 1.3;
+          }
+          p.vy = 0;
+          p.isGrounded = true;
+          p.isWallSliding = false;
+          p.jumpsLeft = charConfig.totalJumps;
+
+          // Check if standing on a slope steeper than allowed angle
+          const currentSlopeInfo = checkSlopeAt(p.x, p.y - 2);
+          if (currentSlopeInfo.isWalkableSlope && currentSlopeInfo.angleDeg > (p.allowedTraversalAngleDeg ?? 45)) {
+            if (p.steepSlopeBehavior === 'slide_down') {
+              const slideDir = currentSlopeInfo.direction === 'up_right' ? -1 : 1;
+              p.vx = slideDir * (p.steepSlideSpeed || 3.5);
+            }
+          }
+        } else if (isSolidTile(footLeftX, footTileY) || isSolidTile(footRightX, footTileY) || isSolidTile(footMidX, footTileY)) {
           p.y = footTileY * TILE_SIZE;
           if (p.vy > 5) {
             p.landingSquash = 1.3;
@@ -1541,9 +2315,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         }
       }
 
-      // Clear frame single-press keys at end of tick
+      // Clear frame single-press keys and mouse states at end of tick
       justPressedKeysRef.current = {};
       justReleasedKeysRef.current = {};
+      justPressedMouseRef.current = {};
+      justReleasedMouseRef.current = {};
+      mouseWheelRef.current = { up: false, down: false };
+      mouseMovedRef.current = false;
 
       // Store previous velocity for apex / directional change detection
       p.prevVx = p.vx;

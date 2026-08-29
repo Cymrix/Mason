@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.194';
-export const MASON_VERSION_DISPLAY = 'v0.194';
-export const MASON_FULL_VERSION = 'v0.194';
+export const MASON_VERSION = '0.199';
+export const MASON_VERSION_DISPLAY = 'v0.199';
+export const MASON_FULL_VERSION = 'v0.199';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,53 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.199',
+    date: '2026-08-29',
+    changes: [
+      'Implemented "Set Allowed Traversal Angle" action in Prefab Behaviors allowing dynamic control over climbable incline slopes (0° to 90°) with real-time SVG slope gauge.',
+      'Added configurable steep slope behaviors (Wall Block, Slide Downhill with custom slide speed, or Slow Incline Struggle) and ceiling slope traversal support.',
+      'Implemented full Action Sequence Reordering (Move Up / Move Down buttons) on behavior action cards to rearrange the execution order of actions inside rules.',
+      'Integrated traversal angle thresholds into RefinedMapCanvas collision detection and physics simulation.'
+    ]
+  },
+  {
+    version: 'v0.198',
+    date: '2026-08-29',
+    changes: [
+      'Added Math Calculator & Arithmetic Operations for Prefab Behavior actions (multiplication, addition, subtraction, division, modulo, power, clamp, min/max, abs, lerp, random_range, toggle, and negation).',
+      'Implemented Rule Local Variables with dynamic scoping, allowing behavior actions to calculate and store temporary values (such as move speed * run speed modifier) without polluting global prefab state.',
+      'Updated Kinematic Move, Physics Impulse, and Gravity Override actions to seamlessly consume rule-scoped local variables and prefab variables with grouped dropdown selectors.',
+      'Added live interactive math formula preview in the behavior rule editor showing real-time computed outputs.'
+    ]
+  },
+  {
+    version: 'v0.197',
+    date: '2026-08-29',
+    changes: [
+      'Implemented Slope Detection IF condition trigger in Prefab Behavior system with support for ramps, ceiling slopes, uphill/downhill incline detection, sensor locations, and slope angles.',
+      'Refactored Kinematic Move actions into dedicated Manual Kinematics (move left/right/up/down/forward/backward, angle deg, set/add velocity, stop axes) and moved autonomous routines into new AI & Automation actions (patrol, chase, flee, flight sine, wander, circle).',
+      'Cleaned up Mapped Player Input IF condition by removing redundant trigger mode override and making the UI Input Mappings tab the single source of truth for key timing.',
+      'Integrated real-time slope surface height calculation into physics collision loop and sensor raycasts in RefinedMapCanvas.'
+    ]
+  },
+  {
+    version: 'v0.196',
+    date: '2026-08-29',
+    changes: [
+      'Added Raw Keyboard, Raw Mouse, and Raw Gamepad condition triggers to the Prefab Behavior system for direct testing and unmapped hardware inputs.',
+      'Implemented full runtime event listeners and gamepad polling loop in RefinedMapCanvas with modifier keys, mouse wheel/hover/bounds detection, and analog stick/trigger deadzone thresholds.',
+      'Added dedicated Prefab Behavior UI editors for configuring raw key codes, mouse actions, target areas, gamepad button modes, and analog axis directions.'
+    ]
+  },
+  {
+    version: 'v0.195',
+    date: '2026-08-29',
+    changes: [
+      'Fixed Mapped Player Input in prefab behaviors to directly read from and execute active input mappings defined in the UI Module Input Mappings tab.',
+      'Added dynamic mapping resolution in Prefab Behavior Trigger Editor and RefinedMapCanvas engine with support for custom action IDs, names, labels, and trigger modes.'
+    ]
+  },
   {
     version: 'v0.194',
     date: '2026-08-29',

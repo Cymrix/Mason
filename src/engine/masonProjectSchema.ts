@@ -94,7 +94,31 @@ export interface BehaviorSkill {
   triggerInputId?: string; // Links to MappedInput ID
 }
 
-export type TriggerType = 'sight' | 'sound' | 'proximity' | 'health' | 'timer' | 'state' | 'collision' | 'input_press' | 'player_condition' | 'keyboard_key' | 'listener' | 'mapped_input' | 'possession' | 'variable_condition' | 'dialogue_trigger' | 'solid_detection' | 'physics_state' | 'on_spawn' | 'spawn';
+export type TriggerType = 
+  | 'sight' 
+  | 'sound' 
+  | 'proximity' 
+  | 'health' 
+  | 'timer' 
+  | 'state' 
+  | 'collision' 
+  | 'input_press' 
+  | 'player_condition' 
+  | 'keyboard_key' 
+  | 'raw_keyboard'
+  | 'raw_mouse'
+  | 'raw_gamepad'
+  | 'listener' 
+  | 'mapped_input' 
+  | 'possession' 
+  | 'variable_condition' 
+  | 'dialogue_trigger' 
+  | 'solid_detection' 
+  | 'slope_detection'
+  | 'slope'
+  | 'physics_state' 
+  | 'on_spawn' 
+  | 'spawn';
 
 export interface SpawnTrigger {
   type: 'on_spawn' | 'spawn';
@@ -163,6 +187,25 @@ export interface SolidDetectionTrigger {
   checkMode?: 'touching' | 'near' | 'clear' | 'ledge_ahead'; // touching = directly colliding, near = within distance, clear = no solids, ledge_ahead = solid below ahead
 }
 
+export interface SlopeDetectionTrigger {
+  type: 'slope_detection' | 'slope';
+  slopeCondition?: 
+    | 'on_any_slope'
+    | 'on_floor_ramp'
+    | 'on_ceiling_slope'
+    | 'ascending_slope'
+    | 'descending_slope'
+    | 'slope_up_right'
+    | 'slope_up_left'
+    | 'slope_down_right'
+    | 'slope_down_left'
+    | 'facing_uphill'
+    | 'facing_downhill'
+    | 'no_slope';
+  contactLocation?: 'feet' | 'head' | 'ahead' | 'any';
+  detectionDistancePx?: number;
+}
+
 export interface PhysicsStateTrigger {
   type: 'physics_state';
   stateKind: 
@@ -181,8 +224,57 @@ export interface PhysicsStateTrigger {
 }
 
 export interface KeyboardKeyTrigger {
-  type: 'keyboard_key';
+  type: 'keyboard_key' | 'raw_keyboard';
   key: string;
+  triggerMode?: 'press' | 'tap' | 'hold' | 'release';
+  requireShift?: boolean;
+  requireCtrl?: boolean;
+  requireAlt?: boolean;
+}
+
+export interface RawKeyboardTrigger {
+  type: 'raw_keyboard';
+  key: string;
+  triggerMode?: 'press' | 'tap' | 'hold' | 'release';
+  requireShift?: boolean;
+  requireCtrl?: boolean;
+  requireAlt?: boolean;
+}
+
+export interface RawMouseTrigger {
+  type: 'raw_mouse';
+  button?: 'left' | 'right' | 'middle' | 'button_4' | 'button_5' | 'any';
+  action?: 'press' | 'hold' | 'release' | 'wheel_up' | 'wheel_down' | 'move' | 'hover';
+  targetArea?: 'anywhere' | 'on_prefab' | 'screen_left_half' | 'screen_right_half';
+}
+
+export interface RawGamepadTrigger {
+  type: 'raw_gamepad';
+  gamepadIndex?: 'any' | 0 | 1 | 2 | 3;
+  inputType?: 'button' | 'stick_axis' | 'trigger_axis';
+  button?: 
+    | 'button_a' 
+    | 'button_b' 
+    | 'button_x' 
+    | 'button_y' 
+    | 'left_bumper' 
+    | 'right_bumper' 
+    | 'left_trigger' 
+    | 'right_trigger' 
+    | 'select_back' 
+    | 'start_pause' 
+    | 'left_stick_click' 
+    | 'right_stick_click' 
+    | 'dpad_up' 
+    | 'dpad_down' 
+    | 'dpad_left' 
+    | 'dpad_right' 
+    | 'home_guide'
+    | 'any';
+  buttonMode?: 'press' | 'hold' | 'release';
+  axis?: 'left_stick_x' | 'left_stick_y' | 'right_stick_x' | 'right_stick_y' | 'left_trigger' | 'right_trigger';
+  axisDirection?: 'positive' | 'negative' | 'any_movement' | 'greater_than' | 'less_than';
+  axisThreshold?: number;
 }
 
 export interface ListenerTrigger {
@@ -195,7 +287,9 @@ export interface MappedInputTrigger {
   type: 'mapped_input';
   inputId: string; // e.g. 'jump', 'dash', 'interact', 'move_left', 'move_right', 'attack'
   inputName?: string;
-  triggerModeOverride?: 'press' | 'tap' | 'hold' | 'combo';
+  triggerMode?: 'press' | 'tap' | 'hold' | 'release' | 'combo';
+  triggerModeOverride?: 'press' | 'tap' | 'hold' | 'release' | 'combo';
+  key?: string;
 }
 
 export interface PlayerConditionTrigger {
@@ -231,18 +325,23 @@ export type BehaviorTrigger =
   | InputPressTrigger 
   | PlayerConditionTrigger 
   | KeyboardKeyTrigger 
+  | RawKeyboardTrigger
+  | RawMouseTrigger
+  | RawGamepadTrigger
   | ListenerTrigger 
   | MappedInputTrigger
   | PossessionTrigger
   | VariableConditionTrigger
   | DialogueTrigger
   | SolidDetectionTrigger
+  | SlopeDetectionTrigger
   | PhysicsStateTrigger
   | SpawnTrigger;
 
 export type ActionType = 
   | 'none' 
   | 'move' 
+  | 'ai_action'
   | 'attack' 
   | 'state_change' 
   | 'emit_signal' 
@@ -252,7 +351,9 @@ export type ActionType =
   | 'camera' 
   | 'hero_impulse' 
   | 'variable_modify' 
+  | 'math_operation'
   | 'set_gravity' 
+  | 'set_traversal_angle'
   | 'audio' 
   | 'dialogue'
   | 'spawn_particles';
@@ -260,16 +361,51 @@ export type ActionType =
 export interface BehaviorAction {
   id: string;
   actionType: ActionType;
-  moveMode?: 'towards_target' | 'away_from_target' | 'ground_patrol' | 'flying_sine' | 'jump' | 'stop' | 'move_left' | 'move_right' | 'duck' | 'crouch' | 'set_velocity_x' | 'set_velocity_y' | 'add_velocity_x' | 'add_velocity_y' | string;
+  // Manual Kinematic Move Modes
+  moveMode?: 
+    | 'move_left' 
+    | 'move_right' 
+    | 'move_up' 
+    | 'move_down' 
+    | 'move_angle' 
+    | 'move_forward' 
+    | 'move_backward' 
+    | 'set_velocity' 
+    | 'add_velocity' 
+    | 'stop' 
+    | 'stop_x' 
+    | 'stop_y' 
+    | 'crouch' 
+    | 'duck'
+    | 'towards_target' 
+    | 'away_from_target' 
+    | 'ground_patrol' 
+    | 'flying_sine' 
+    | string;
   speed?: number;
   speedSource?: 'fixed' | 'variable';
   speedVariableId?: string;
-  setFacing?: 'left' | 'right' | 'match_movement' | 'reverse';
+  angleDeg?: number;
+  velocityX?: number;
+  velocityY?: number;
+  velocityXSource?: 'fixed' | 'variable';
+  velocityYSource?: 'fixed' | 'variable';
+  velocityXVariableId?: string;
+  velocityYVariableId?: string;
+  setFacing?: 'none' | 'left' | 'right' | 'match_movement' | 'reverse';
   maxDescendSpeed?: number;
   descendRate?: number;
   isDucking?: boolean;
   crouch?: boolean;
   capsuleHeightMultiplier?: number;
+
+  // AI & Automation Actions
+  aiMode?: 'ground_patrol' | 'towards_target' | 'away_from_target' | 'flight_sine' | 'wander' | 'circle_target';
+  patrolTurnOnWall?: boolean;
+  patrolTurnOnLedge?: boolean;
+  sineFrequency?: number;
+  sineAmplitude?: number;
+
   attackType?: 'melee_slash' | 'fire_projectile' | 'charge_dash' | 'guard';
   telegraphWindupMs?: number;
   targetState?: string;
@@ -300,14 +436,47 @@ export interface BehaviorAction {
   forceVariableId?: string;
   wallJumpForceX?: number;
   wallJumpForceY?: number;
+  
+  // Variable Modification & Math Operations
   variableId?: string;
-  variableOp?: 'set' | 'add' | 'subtract' | 'multiply' | 'toggle';
+  variableScope?: 'prefab' | 'local';
+  localVariableName?: string;
+  variableOp?: 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'modulo' | 'power' | 'min' | 'max' | 'clamp' | 'abs' | 'round' | 'floor' | 'ceil' | 'negate' | 'lerp' | 'random_range' | 'toggle';
+  mathOp?: 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'modulo' | 'power' | 'min' | 'max' | 'clamp' | 'abs' | 'round' | 'floor' | 'ceil' | 'negate' | 'lerp' | 'random_range' | 'toggle';
   variableValue?: any;
+  operandASource?: 'constant' | 'variable';
+  operandAVariableId?: string;
+  operandAConstant?: number;
+  operandBSource?: 'constant' | 'variable';
+  operandBVariableId?: string;
+  operandBConstant?: number;
+  clampMin?: number;
+  clampMax?: number;
+  clampMinSource?: 'constant' | 'variable';
+  clampMinVariableId?: string;
+  clampMaxSource?: 'constant' | 'variable';
+  clampMaxVariableId?: string;
+  lerpT?: number;
+  lerpFactorT?: number;
+  lerpTSource?: 'constant' | 'variable';
+  lerpTVariableId?: string;
+
   // Gravity Override (Overrides active Biome gravity)
   gravityScale?: number;
   gravityMode?: 'custom' | 'zero_g' | 'low_g' | 'normal' | 'heavy_g' | 'inverted' | 'reset_to_biome';
   gravitySource?: 'fixed' | 'variable';
   gravityVariableId?: string;
+
+  // Traversal & Slope Angle Configuration
+  traversalAngleDeg?: number; // Allowed slope traversal angle in degrees (0° to 90°)
+  traversalAngleSource?: 'fixed' | 'variable';
+  traversalAngleVariableId?: string;
+  traversalMode?: 'slope_and_stairs' | 'slope_only' | 'flat_only' | 'all_angles' | 'custom';
+  steepSlopeBehavior?: 'block' | 'slide_down' | 'slow_down';
+  steepSlideSpeed?: number;
+  allowCeilingTraversal?: boolean;
+  stepHeightPx?: number;
+
   soundCue?: string;
   volume?: number;
   dialogueText?: string;
@@ -331,6 +500,12 @@ export interface BehaviorRule {
   triggerLogic?: 'AND' | 'OR';
   executionMode?: 'simultaneous' | 'sequential'; // 'simultaneous' (default: all at once) or 'sequential' (in order)
   stepDelayMs?: number; // Delay in milliseconds between consecutive actions when in sequential mode
+  localVariables?: Array<{
+    id: string;
+    name: string;
+    defaultValue?: any;
+    type?: 'number' | 'string' | 'boolean';
+  }>;
   actions: BehaviorAction[];
 }
 

@@ -1701,35 +1701,43 @@ export const EditorLayout: React.FC = () => {
 
                   {/* Center Canvas */}
                   <main className="flex-1 bg-neutral-950 relative overflow-hidden flex flex-col">
-                    <RefinedMapCanvas 
-                      particleSystems={project?.fileSystem.particles || []}
-                      prefabs={project?.fileSystem.prefabs || []}
-                      mapData={currentMapData}
-                      biomes={biomesList}
-                      activeBiome={activeBiome}
-                      onTileInteract={handleMapTileInteract}
-                      isDrawing={isDrawing}
-                      setIsDrawing={setIsDrawing}
-                      showGrid={showGrid}
-                      setShowGrid={setShowGrid}
-                      showDamageMasks={showDamageMasks}
-                      isLitMode={isLitMode}
-                      brushSize={brushSize}
-                      activeTool={activeTool}
-                      mode={mode}
-                      setMode={setMode}
-                      testCharacter={activeTestCharacter}
-                      linkedBehavior={linkedBehavior}
-                      spawnPoint={currentSpawnPoint}
-                      onSetSpawnPoint={handleSetSpawnPoint}
-                      onExitPlayMode={() => setMode('paint')}
-                      onUndo={handleUndo}
-                      onRedo={handleRedo}
-                      canUndo={undoStack.length > 0}
-                      canRedo={redoStack.length > 0}
-                      undoCount={undoStack.length}
-                      redoCount={redoStack.length}
-                    />
+                    {(() => {
+                      const activeUiFile = project?.fileSystem.ui?.find(u => u.fileName === project?.activeFiles.uiFileName) || project?.fileSystem.ui?.[0];
+                      const activeInputMappings = activeUiFile?.uiConfig?.inputMappings || project?.fileSystem.ui?.find(u => u.uiConfig?.inputMappings && u.uiConfig.inputMappings.length > 0)?.uiConfig?.inputMappings || [];
+                      return (
+                        <RefinedMapCanvas 
+                          particleSystems={project?.fileSystem.particles || []}
+                          prefabs={project?.fileSystem.prefabs || []}
+                          mapData={currentMapData}
+                          biomes={biomesList}
+                          activeBiome={activeBiome}
+                          onTileInteract={handleMapTileInteract}
+                          isDrawing={isDrawing}
+                          setIsDrawing={setIsDrawing}
+                          showGrid={showGrid}
+                          setShowGrid={setShowGrid}
+                          showDamageMasks={showDamageMasks}
+                          isLitMode={isLitMode}
+                          brushSize={brushSize}
+                          activeTool={activeTool}
+                          mode={mode}
+                          setMode={setMode}
+                          testCharacter={activeTestCharacter}
+                          linkedBehavior={linkedBehavior}
+                          spawnPoint={currentSpawnPoint}
+                          onSetSpawnPoint={handleSetSpawnPoint}
+                          onExitPlayMode={() => setMode('paint')}
+                          onUndo={handleUndo}
+                          onRedo={handleRedo}
+                          canUndo={undoStack.length > 0}
+                          canRedo={redoStack.length > 0}
+                          undoCount={undoStack.length}
+                          redoCount={redoStack.length}
+                          inputMappings={activeInputMappings}
+                          uiTheme={activeUiFile?.uiConfig}
+                        />
+                      );
+                    })()}
 
                     {/* Canvas Status Badge */}
                     <div 

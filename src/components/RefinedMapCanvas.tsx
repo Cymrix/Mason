@@ -1469,23 +1469,36 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       // Smooth Camera Follow
       const targetPanX = canvasWidth / 2 - p.x * scale;
       const targetPanY = canvasHeight / 2 - (p.y - 20) * scale;
-      setPan(prev => ({
-        x: prev.x + (targetPanX - prev.x) * 0.12,
-        y: prev.y + (targetPanY - prev.y) * 0.12
-      }));
+      const prevPan = viewport.panRef.current;
+      viewport.panRef.current = {
+        x: prevPan.x + (targetPanX - prevPan.x) * 0.12,
+        y: prevPan.y + (targetPanY - prevPan.y) * 0.12
+      };
 
-      // Update HUD State periodically
-      setHudState({
-        health: p.health,
-        maxHealth: charConfig.maxHp,
-        stamina: Math.round(p.stamina),
-        mana: Math.round(p.mana),
-        isGrounded: p.isGrounded,
-        isWallSliding: p.isWallSliding,
-        facing: p.facing
+      // Update HUD State periodically (Throttled via equality check)
+      const newStam = Math.round(p.stamina);
+      const newMana = Math.round(p.mana);
+      setHudState(prev => {
+        if (
+          prev.health !== p.health ||
+          prev.stamina !== newStam ||
+          prev.mana !== newMana ||
+          prev.isGrounded !== p.isGrounded ||
+          prev.isWallSliding !== p.isWallSliding ||
+          prev.facing !== p.facing
+        ) {
+          return {
+            health: p.health,
+            maxHealth: charConfig.maxHp,
+            stamina: newStam,
+            mana: newMana,
+            isGrounded: p.isGrounded,
+            isWallSliding: p.isWallSliding,
+            facing: p.facing
+          };
+        }
+        return prev;
       });
-
-      setRenderTrigger(t => t + 1);
       
       particleEngineRef.current.update(dt, {}, mapData.height * 64 + 1000);
       animId = requestAnimationFrame(physicsTick);
@@ -1505,7 +1518,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.imageSmoothingEnabled = false;
+    let rafId: number;
+    const renderFrame = () => {
+      const currentPan = viewport.panRef.current;
+      ctx.imageSmoothingEnabled = false;
 
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
@@ -1526,8 +1542,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           layer,
           canvasWidth,
           canvasHeight,
-          pan.x,
-          pan.y,
+          currentPan.x,
+          currentPan.y,
           scale,
           biomeToRender,
           opacityMult,
@@ -1550,16 +1566,16 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     // APPLY CAMERA TRANSFORM (World Space)
     // ==========================================
     ctx.save();
-    ctx.translate(pan.x, pan.y);
+    ctx.translate(currentPan.x, currentPan.y);
     ctx.scale(scale, scale);
 
     // ==========================================
     // VIEWPORT FRUSTUM CULLING CALCULATION
     // ==========================================
-    const minVisTileX = Math.floor((-pan.x / scale) / TILE_SIZE) - 1;
-    const maxVisTileX = Math.ceil(((canvasWidth - pan.x) / scale) / TILE_SIZE) + 1;
-    const minVisTileY = Math.floor((-pan.y / scale) / TILE_SIZE) - 1;
-    const maxVisTileY = Math.ceil(((canvasHeight - pan.y) / scale) / TILE_SIZE) + 1;
+    const minVisTileX = Math.floor((-currentPan.x / scale) / TILE_SIZE) - 1;
+    const maxVisTileX = Math.ceil(((canvasWidth - currentPan.x) / scale) / TILE_SIZE) + 1;
+    const minVisTileY = Math.floor((-currentPan.y / scale) / TILE_SIZE) - 1;
+    const maxVisTileY = Math.ceil(((canvasHeight - currentPan.y) / scale) / TILE_SIZE) + 1;
 
     const minVisChunkX = Math.floor(minVisTileX / CHUNK_SIZE);
     const maxVisChunkX = Math.floor(maxVisTileX / CHUNK_SIZE);
@@ -1756,9 +1772,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.lineWidth = 1 / scale; // Keep lines 1px regardless of zoom
       ctx.beginPath();
       
-      const startCol = Math.floor((-pan.x / scale) / TILE_SIZE);
+      const startCol = Math.floor((-currentPan.x / scale) / TILE_SIZE);
       const endCol = startCol + Math.ceil((canvasWidth / scale) / TILE_SIZE) + 1;
-      const startRow = Math.floor((-pan.y / scale) / TILE_SIZE);
+      const startRow = Math.floor((-currentPan.y / scale) / TILE_SIZE);
       const endRow = startRow + Math.ceil((canvasHeight / scale) / TILE_SIZE) + 1;
 
       for (let x = startCol; x <= endCol; x++) {
@@ -2071,6 +2087,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.restore();
     } else if (mode === 'play') {
       // ==========================================
+      if (mode === 'play') {
+        rafId = requestAnimationFrame(renderFrame);
+      }
       // PLAY MODE: RENDER INTERACTIVE TEST CHARACTER
       // ==========================================
       const p = playerRef.current;
@@ -2258,8 +2277,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           layer,
           canvasWidth,
           canvasHeight,
-          pan.x,
-          pan.y,
+          currentPan.x,
+          currentPan.y,
           scale,
           biomeToRender,
           opacityMult,
@@ -2274,7 +2293,17 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     if (currBiome) {
       renderBiomeFg(currBiome, fadeAlpha);
     }
+    }; // end renderFrame
 
+    if (mode === 'play') {
+      rafId = requestAnimationFrame(renderFrame);
+    } else {
+      renderFrame();
+    }
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [
     mapData, 
     showParallaxBg, 

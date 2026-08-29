@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.190';
-export const MASON_VERSION_DISPLAY = 'v0.190';
-export const MASON_FULL_VERSION = 'v0.190';
+export const MASON_VERSION = '0.192';
+export const MASON_VERSION_DISPLAY = 'v0.192';
+export const MASON_FULL_VERSION = 'v0.192';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,22 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.192',
+    date: '2026-08-29',
+    changes: [
+      'Dev server health verification and preview initialization refresh.',
+      'Ensured stable rendering across all module canvases and launchers.'
+    ]
+  },
+  {
+    version: 'v0.191',
+    date: '2026-08-28',
+    changes: [
+      'Major performance refactor: Fixed Play Mode stalling and dropping frames in production by decoupling the 60fps canvas render loop from the React state cycle.',
+      'Throttled HUD state updates via strict equality checks.'
+    ]
+  },
   {
     version: 'v0.190',
     date: '2026-08-28',

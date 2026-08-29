@@ -495,7 +495,9 @@ export function useMasonViewport(options: MasonViewportOptions = {}) {
     setPan,
     screenToWorld,
     worldToScreen,
-    snapToGrid
+    snapToGrid,
+    panRef,
+    scaleRef
   };
 }
 

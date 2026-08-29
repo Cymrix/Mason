@@ -74,7 +74,7 @@ import { drawThresholdCrackMask } from '../engine/heightBlendShader';
 import { renderParallaxLayer } from '../engine/parallaxRenderer';
 import { globalChunkCache } from '../engine/chunkCacheManager';
 import { getCell, calculateMapBounds, CHUNK_SIZE, getChunkCoords, getChunkKey } from '../engine/mapChunkHelper';
-import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
+import { useMasonViewport, ViewportHUD, ViewportCanvasContainer } from './shared/viewport';
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -179,10 +179,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       if (mapData && prefabs && particleSystems) {
         for (let y = 0; y < mapData.height; y++) {
           for (let x = 0; x < mapData.width; x++) {
-            const cell = mapData.cells[y]?.[x];
+            const cell = mapData.cells?.[y]?.[x];
             
             // Check prefab_id
-            if (cell.prefab_id) {
+            if (cell?.prefab_id) {
               const prefab = prefabs.find(c => c.id === cell.prefab_id);
               if (prefab) {
                 // 1. Composite Prefab Parts (New Hierarchy)
@@ -486,37 +486,27 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
 
 
+  const viewport = useMasonViewport({
+    minScale: 0.15,
+    maxScale: 4.0,
+    initialScale: 0.8,
+    zoomSensitivity: 1.15,
+    originMode: 'topleft'
+  });
   const {
     scale,
     pan,
     isPanning,
     containerRef,
-    handleMouseDown: handlePanMouseDown,
     handleContextMenu,
     centerContent,
     fitContent,
     zoomIn,
     zoomOut,
-    setPan
-  } = useCanvasPanZoom({
-    minScale: 0.15,
-    maxScale: 4.0,
-    initialScale: 0.8,
-    zoomSensitivity: 1.15
-  });
+    setPan,
+    viewportSize
+  } = viewport;
 
-  const [viewportSize, setViewportSize] = useState({ width: 1200, height: 800 });
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        setViewportSize({ width: entry.contentRect.width, height: entry.contentRect.height });
-      }
-    });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, [containerRef]);
-  
   const canvasWidth = viewportSize.width;
   const canvasHeight = viewportSize.height;
   
@@ -629,7 +619,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     } else if (mapData.cells) {
       // Legacy bounds check for non-chunkified maps
       if (centerTileX >= 0 && centerTileX < mapData.width && centerTileY >= 0 && centerTileY < mapData.height) {
-        const cell = mapData.cells[centerTileY]?.[centerTileX];
+        const cell = mapData.cells?.[centerTileY]?.[centerTileX];
         if (cell?.biome_id && biomeMap[cell.biome_id]) {
           return biomeMap[cell.biome_id];
         }
@@ -1618,7 +1608,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
       for (let y = startY; y <= endY; y++) {
         for (let x = startX; x <= endX; x++) {
-          const cell = mapData.cells[y]?.[x];
+          const cell = mapData.cells?.[y]?.[x];
           if (cell && !cell.tile_type_id) {
             const cellBiome = biomeMap[cell.biome_id] || activeBiome;
             if (cellBiome?.atmosphereFogColor) {
@@ -1749,7 +1739,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
       for (let y = startY; y <= endY; y++) {
         for (let x = startX; x <= endX; x++) {
-          const cell = mapData.cells[y]?.[x];
+          const cell = mapData.cells?.[y]?.[x];
           if (cell) {
             renderCellDetails(cell, x, y);
           }
@@ -2414,6 +2404,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
     // PLAY MODE: Direct interactive combat & skill triggers
     if (mode === 'play') {
+      e.stopPropagation(); // Prevent bubbling to pan handler
       if ('button' in e) {
         const btn = (e as React.MouseEvent).button;
         if (btn === 0) {
@@ -2438,10 +2429,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
     if ('button' in e) {
       const btn = (e as React.MouseEvent).button;
-      const isSpace = (window as any).__isSpaceDown || false;
+      const isSpace = viewport.isSpaceDown;
       if (btn === 2 || btn === 1 || (btn === 0 && isSpace)) {
-        handlePanMouseDown(e as React.MouseEvent);
-        return;
+        return; // Bubble up to ViewportCanvasContainer to handle panning
       }
     }
     isDrawingRef.current = true;
@@ -2491,9 +2481,14 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   };
 
   return (
-    <div 
-      ref={containerRef}
-      onMouseDown={handleContainerPointerDown}
+    <ViewportCanvasContainer 
+      viewport={viewport}
+      cursorMode={mode === 'play' ? 'crosshair' : 'crosshair'}
+      showHud={false}
+      className="border border-neutral-800 rounded-none"
+    >
+      <div 
+        onMouseDown={handleContainerPointerDown}
       onMouseMove={handleContainerPointerMove}
       onTouchStart={handleContainerPointerDown}
       onTouchMove={handleContainerPointerMove}
@@ -2508,7 +2503,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       onMouseUp={handlePointerUp}
       onMouseLeave={handleMouseLeaveContainer}
       onTouchEnd={handlePointerUp}
-      className={`relative w-full h-full bg-neutral-950 border border-neutral-800 select-none overflow-hidden ${
+      className={`absolute inset-0 z-0  w-full h-full bg-neutral-950 border border-neutral-800 select-none overflow-hidden ${
         mode === 'play' ? 'cursor-crosshair' : isPanning ? 'cursor-grabbing' : 'cursor-crosshair'
       }`}
       style={{ touchAction: 'none' }}
@@ -2803,153 +2798,87 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
 
       {/* Floating Viewport Navigation & Parallax HUD (Paint Mode only) */}
+      </div>
       {mode === 'paint' && (
-        <div 
-          data-no-paint="true"
-          onMouseDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseMove={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-neutral-900/90 backdrop-blur-md p-1.5 rounded-xl border border-neutral-700/80 shadow-2xl text-xs select-none"
-        >
-          {/* Undo & Redo Quick Buttons */}
-          {onUndo && (
-            <button
-              type="button"
-              onClick={onUndo}
-              disabled={!canUndo}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-                canUndo 
-                  ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 active:scale-95' 
-                  : 'text-neutral-600 cursor-not-allowed'
-              }`}
-              title={`Undo Map Change (Ctrl+Z)${undoCount > 0 ? ` [${undoCount}]` : ''}`}
-            >
-              <Undo2 size={13} className={canUndo ? 'text-cyan-400' : 'text-neutral-600'} />
-              <span className="hidden sm:inline">Undo</span>
-            </button>
-          )}
+        <ViewportHUD
+          scale={scale}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onResetZoom={() => centerContent(logicalMapWidth, logicalMapHeight, 1.0)}
+          onFitContent={handleFitMap}
+          onCenterContent={() => centerContent(logicalMapWidth, logicalMapHeight, 0.8)}
+          showGrid={showGrid}
+          onToggleGrid={() => setShowGrid?.(!showGrid)}
+          position="top-right"
+          themeColor="cyan"
+          className="shadow-2xl"
+          leadingSlot={
+            <>
+              {onUndo && (
+                <button
+                  type="button"
+                  onClick={onUndo}
+                  disabled={!canUndo}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                    canUndo 
+                      ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 active:scale-95' 
+                      : 'text-neutral-600 cursor-not-allowed'
+                  }`}
+                  title={`Undo Map Change (Ctrl+Z)${undoCount > 0 ? ` [${undoCount}]` : ''}`}
+                >
+                  <Undo2 size={13} className={canUndo ? 'text-cyan-400' : 'text-neutral-600'} />
+                  <span className="hidden sm:inline">Undo</span>
+                </button>
+              )}
+              {onRedo && (
+                <button
+                  type="button"
+                  onClick={onRedo}
+                  disabled={!canRedo}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                    canRedo 
+                      ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 active:scale-95' 
+                      : 'text-neutral-600 cursor-not-allowed'
+                  }`}
+                  title={`Redo Map Change (Ctrl+Y / Cmd+Shift+Z)${redoCount > 0 ? ` [${redoCount}]` : ''}`}
+                >
+                  <Redo2 size={13} className={canRedo ? 'text-amber-400' : 'text-neutral-600'} />
+                  <span className="hidden sm:inline">Redo</span>
+                </button>
+              )}
+              {(onUndo || onRedo) && <div className="h-4 w-px bg-neutral-700 mx-0.5" />}
 
-          {onRedo && (
-            <button
-              type="button"
-              onClick={onRedo}
-              disabled={!canRedo}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-                canRedo 
-                  ? 'text-neutral-200 hover:text-white hover:bg-neutral-800 active:scale-95' 
-                  : 'text-neutral-600 cursor-not-allowed'
-              }`}
-              title={`Redo Map Change (Ctrl+Y / Cmd+Shift+Z)${redoCount > 0 ? ` [${redoCount}]` : ''}`}
-            >
-              <Redo2 size={13} className={canRedo ? 'text-amber-400' : 'text-neutral-600'} />
-              <span className="hidden sm:inline">Redo</span>
-            </button>
-          )}
-
-          {(onUndo || onRedo) && <div className="h-4 w-px bg-neutral-700 mx-0.5" />}
-
-          {/* Grid Toggle Checkbox / Button */}
-          <button
-            type="button"
-            onClick={() => setShowGrid?.(!showGrid)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-              showGrid 
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' 
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-800 border border-neutral-800'
-            }`}
-            title="Toggle Tile Grid & Chunk Outlines (Shortcut: G)"
-          >
-            <Grid size={13} className={showGrid ? 'text-emerald-400' : 'text-neutral-500'} />
-            <span>Grid</span>
-          </button>
-
-          <div className="h-4 w-px bg-neutral-700 mx-0.5" />
-
-          {/* Parallax Layer Toggles */}
-          <button
-            type="button"
-            onClick={() => setShowParallaxBg(!showParallaxBg)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-              showParallaxBg 
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' 
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-            }`}
-            title="Toggle Parallax Background Layers (-5 to -1)"
-          >
-            <Layers size={13} />
-            <span>BG Parallax</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowForegroundLayer(!showForegroundLayer)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
-              showForegroundLayer 
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-            }`}
-            title="Toggle Foreground Layer (+1)"
-          >
-            {showForegroundLayer ? <Eye size={13} /> : <EyeOff size={13} />}
-            <span>+1 FG</span>
-          </button>
-
-          <div className="h-4 w-px bg-neutral-700 mx-0.5" />
-
-          <div className="flex items-center gap-1 px-2 text-[11px] font-mono text-neutral-400 border-r border-neutral-800">
-            <Move size={12} className="text-cyan-400" />
-            <span className="hidden sm:inline">R-Click Pan • Wheel Zoom</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={zoomOut}
-            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-            title="Zoom Out"
-          >
-            <ZoomOut size={14} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => centerContent(logicalMapWidth, logicalMapHeight, 1.0)}
-            className="px-2 py-1 rounded-lg text-neutral-200 hover:text-white hover:bg-neutral-800 font-mono text-xs font-semibold transition"
-            title="Reset Zoom to 100% & Center"
-          >
-            {Math.round(scale * 100)}%
-          </button>
-
-          <button
-            type="button"
-            onClick={zoomIn}
-            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-            title="Zoom In"
-          >
-            <ZoomIn size={14} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleFitMap}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 hover:bg-cyan-600 hover:text-white border border-cyan-500/40 shadow-sm transition"
-            title="Fit Entire Map in Viewport"
-          >
-            <Maximize2 size={13} />
-            <span>Fit</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => centerContent(logicalMapWidth, logicalMapHeight, 0.8)}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
-            title="Reset Center & Pan"
-          >
-            <RotateCcw size={13} />
-          </button>
-        </div>
+              {/* Parallax Layer Toggles */}
+              <button
+                type="button"
+                onClick={() => setShowParallaxBg(!showParallaxBg)}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                  showParallaxBg 
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' 
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                }`}
+                title="Toggle Parallax Background Layers (-5 to -1)"
+              >
+                <Layers size={13} />
+                <span className="hidden sm:inline">BG Parallax</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowForegroundLayer(!showForegroundLayer)}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                  showForegroundLayer 
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                }`}
+                title="Toggle Foreground Layer (+1)"
+              >
+                {showForegroundLayer ? <Eye size={13} /> : <EyeOff size={13} />}
+                <span className="hidden sm:inline">+1 FG</span>
+              </button>
+            </>
+          }
+        />
       )}
-    </div>
+    </ViewportCanvasContainer>
   );
 };

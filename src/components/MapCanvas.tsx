@@ -5,7 +5,7 @@ import { Biome } from '../engine/biomes';
 import { TileType } from '../engine/schema';
 import { STANDARD_TILE_TYPES } from '../engine/tileTypes';
 import { drawThresholdCrackMask } from '../engine/heightBlendShader';
-import { useCanvasPanZoom } from '../hooks/useCanvasPanZoom';
+import { useMasonViewport, ViewportHUD } from './shared/viewport';
 import { ZoomIn, ZoomOut, RotateCcw, Move } from 'lucide-react';
 
 interface MapCanvasProps {
@@ -44,11 +44,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
     centerContent,
     zoomIn,
     zoomOut
-  } = useCanvasPanZoom({
+  } = useMasonViewport({
     minScale: 0.15,
     maxScale: 4.0,
     initialScale: 0.8,
-    zoomSensitivity: 1.15
+    zoomSensitivity: 1.15,
+    originMode: 'topleft'
   });
 
   const hasAutoCentered = useRef(false);
@@ -251,48 +252,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         />
       </div>
 
-      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 bg-neutral-900/90 backdrop-blur-md p-1.5 rounded-xl border border-neutral-700/80 shadow-2xl text-xs select-none">
-        <div className="flex items-center gap-1 px-2 text-[11px] font-mono text-neutral-400 border-r border-neutral-800">
-          <Move size={12} className="text-cyan-400" />
-          <span className="hidden sm:inline">R-Click Pan • Wheel Zoom</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={zoomOut}
-          className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-          title="Zoom Out"
-        >
-          <ZoomOut size={14} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => centerContent(canvasWidth, canvasHeight, 1.0)}
-          className="px-2 py-1 rounded-lg text-neutral-200 hover:text-white hover:bg-neutral-800 font-mono text-xs font-semibold transition"
-          title="Reset Zoom to 100% & Center"
-        >
-          {Math.round(scale * 100)}%
-        </button>
-
-        <button
-          type="button"
-          onClick={zoomIn}
-          className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-          title="Zoom In"
-        >
-          <ZoomIn size={14} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => centerContent(canvasWidth, canvasHeight, 0.75)}
-          className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
-          title="Fit & Center View"
-        >
-          <RotateCcw size={13} />
-        </button>
-      </div>
+      <ViewportHUD
+        scale={scale}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onResetZoom={() => centerContent(canvasWidth, canvasHeight, 1.0)}
+        onCenterContent={() => centerContent(canvasWidth, canvasHeight, 0.75)}
+        position="bottom-right"
+        themeColor="cyan"
+      />
     </div>
   );
 };

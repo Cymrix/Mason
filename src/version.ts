@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.186';
-export const MASON_VERSION_DISPLAY = 'v0.186';
-export const MASON_FULL_VERSION = 'v0.186';
+export const MASON_VERSION = '0.190';
+export const MASON_VERSION_DISPLAY = 'v0.190';
+export const MASON_FULL_VERSION = 'v0.190';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,36 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.190',
+    date: '2026-08-28',
+    changes: [
+      'Fixed mouse-wheel zoom-to-cursor scaling on Map canvases by correctly configuring originMode for the Viewport module.'
+    ]
+  },
+  {
+    version: 'v0.189',
+    date: '2026-08-28',
+    changes: [
+      'Fully migrated Tilemap Studio (RefinedMapCanvas) to strictly use the shared ViewportCanvasContainer component.'
+    ]
+  },
+  {
+    version: 'v0.189',
+    date: '2026-08-28',
+    changes: [
+      'Hotfix: Resolved React rendering crash in RefinedMapCanvas caused by undefined mapData.cells in chunk-based maps.'
+    ]
+  },
+  {
+    version: 'v0.187',
+    date: '2026-08-28',
+    changes: [
+      'Refactored map canvas modules to utilize the shared Viewport Canvas sub-module.',
+      'Replaced custom-built pan/zoom hook in RefinedMapCanvas and MapCanvas with shared useMasonViewport implementation.',
+      'Swapped inline floating viewport UI with standard ViewportHUD component in map editors.'
+    ]
+  },
   {
     version: 'v0.186',
     date: '2026-08-28',

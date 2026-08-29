@@ -260,10 +260,16 @@ export type ActionType =
 export interface BehaviorAction {
   id: string;
   actionType: ActionType;
-  moveMode?: 'towards_target' | 'away_from_target' | 'ground_patrol' | 'flying_sine' | 'jump' | 'stop';
+  moveMode?: 'towards_target' | 'away_from_target' | 'ground_patrol' | 'flying_sine' | 'jump' | 'stop' | 'move_left' | 'move_right' | 'duck' | 'crouch' | 'set_velocity_x' | 'set_velocity_y' | 'add_velocity_x' | 'add_velocity_y' | string;
   speed?: number;
   speedSource?: 'fixed' | 'variable';
   speedVariableId?: string;
+  setFacing?: 'left' | 'right' | 'match_movement' | 'reverse';
+  maxDescendSpeed?: number;
+  descendRate?: number;
+  isDucking?: boolean;
+  crouch?: boolean;
+  capsuleHeightMultiplier?: number;
   attackType?: 'melee_slash' | 'fire_projectile' | 'charge_dash' | 'guard';
   telegraphWindupMs?: number;
   targetState?: string;
@@ -288,10 +294,12 @@ export interface BehaviorAction {
   cameraLookAheadX?: number;
   cameraLookAheadY?: number;
   cameraShakeIntensity?: number;
-  impulseType?: 'jump' | 'dash' | 'wall_jump' | 'ground_slam' | 'knockback';
+  impulseType?: 'jump' | 'dash' | 'wall_jump' | 'ground_slam' | 'knockback' | 'custom_vector';
   force?: number;
   forceSource?: 'fixed' | 'variable';
   forceVariableId?: string;
+  wallJumpForceX?: number;
+  wallJumpForceY?: number;
   variableId?: string;
   variableOp?: 'set' | 'add' | 'subtract' | 'multiply' | 'toggle';
   variableValue?: any;

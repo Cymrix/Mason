@@ -599,36 +599,8 @@ export const EditorLayout: React.FC = () => {
           lookAheadOffsetY: 0,
           lockOnPriority: 5
         },
-        movement: activeTestCharacter.movement || {
-          id: `mov_${activeTestCharacter.id}`,
-          name: 'Kinematic Movement',
-          movementType: 'ground_patrol',
-          moveSpeed: activeTestCharacter.baseStats?.speed || 4.0,
-          acceleration: 0.2,
-          jumpForce: 12.0,
-          gravityScale: 1.0,
-          turnOnEdge: true,
-          turnOnObstacle: true,
-          sineFrequency: 1.0,
-          sineAmplitude: 1.0,
-          airControl: 0.8,
-          trackNodeSpeed: 4
-        },
-        ai: activeTestCharacter.ai || {
-          id: `ai_${activeTestCharacter.id}`,
-          name: 'AI',
-          aiProfile: 'aggressive_chaser' as const,
-          visionRadiusPx: 200,
-          visionAngleDeg: 120,
-          losCheckWall: true,
-          attackRangePx: 40,
-          telegraphWindupMs: 300,
-          attackCooldownMs: 1000,
-          retreatHealthPercent: 20,
-          comboChainCount: 2,
-          enragePhaseTriggerPercent: 40,
-          fsmStates: activeTestCharacter.states || ['idle', 'patrol', 'combat']
-        }
+        movement: activeTestCharacter.movement,
+        ai: activeTestCharacter.ai
       };
     }
     const behFileName = activeTestCharacter.assignedBehaviorFileName;

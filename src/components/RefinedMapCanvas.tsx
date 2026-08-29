@@ -235,60 +235,31 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const maxMp = testCharacter?.baseStats?.energy ?? 100;
     const maxSp = testCharacter?.baseStats?.stamina ?? 100;
 
-    // 3. Movement & Kinematics — Strictly driven by Prefab Kinematics / Behavior Rules
+    // 3. Movement & Kinematics — Strictly driven by configured Prefab Kinematics / Behavior Rules
     const behMov = linkedBehavior?.movement || testCharacter?.movement;
     const heroInp = linkedBehavior?.heroInput;
 
-    // Inspect Prefab and Behavior rules for actions / impulses / triggers
-    const allRules = [
-      ...(testCharacter?.rules || []),
-      ...(linkedBehavior?.rules || [])
-    ];
-
-    const hasRuleJump = allRules.some(r => {
-      const acts = r.actions || [];
-      const hasAct = acts.some(a => (a.actionType === 'hero_impulse' && a.impulseType === 'jump') || (a.actionType === 'move' && a.moveMode === 'jump'));
-      if (hasAct) return true;
-      const trigs: any[] = r.triggers || (r.trigger ? [r.trigger] : []);
-      return trigs.some(t => 
-        (t.type === 'input_press' && (t.button === 'jump' || ['Space', 'KeyW', 'ArrowUp', 'jump', 'space', 'w', 'up'].includes(t.key))) ||
-        (t.type === 'mapped_input' && t.inputId === 'jump')
-      );
-    });
-
-    const hasRuleMove = allRules.some(r => {
-      const acts = r.actions || [];
-      const hasAct = acts.some(a => a.actionType === 'move' && (a.speed ?? 0) > 0);
-      if (hasAct) return true;
-      const trigs: any[] = r.triggers || (r.trigger ? [r.trigger] : []);
-      return trigs.some(t => 
-        (t.type === 'input_press' && (['move_left', 'move_right', 'move'].includes(t.button) || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'move_left', 'move_right', 'a', 'd', 'left', 'right'].includes(t.key))) ||
-        (t.type === 'mapped_input' && ['move_left', 'move_right'].includes(t.inputId))
-      );
-    });
-
-    // Movement speed: strictly from Prefab / Behavior configuration. If not configured, 0.
-    const rawMoveSpeed = testCharacter?.movement?.moveSpeed ?? linkedBehavior?.movement?.moveSpeed ?? testCharacter?.baseStats?.speed;
-    const baseSpeed = (rawMoveSpeed !== undefined && rawMoveSpeed > 0) ? rawMoveSpeed : (hasRuleMove ? 4.5 : 0);
-    const accel = baseSpeed > 0 ? baseSpeed * 0.8 : 0;
+    // Movement speed: strictly from configured movement. If not configured, 0.
+    const rawMoveSpeed = testCharacter?.movement?.moveSpeed ?? linkedBehavior?.movement?.moveSpeed;
+    const baseSpeed = (rawMoveSpeed !== undefined && rawMoveSpeed > 0) ? rawMoveSpeed : 0;
+    const accel = (testCharacter?.movement?.acceleration ?? behMov?.acceleration ?? 0.8) * (baseSpeed > 0 ? baseSpeed : 4.0);
     const gravScale = behMov?.gravityScale !== undefined ? behMov.gravityScale : (testCharacter?.movement?.gravityScale ?? 1.0);
     const airCtrl = heroInp?.airControlPercent !== undefined 
       ? heroInp.airControlPercent / 100 
       : (behMov?.airControl !== undefined ? behMov.airControl : (testCharacter?.movement?.airControl ?? 0.85));
 
-    // 4. Jump & Air Jumps — Strictly from behavior/movement/rules. If not configured, disabled.
+    // 4. Jump & Air Jumps — Strictly from configured movement. If not configured, 0 / disabled.
     const rawJumpForce = testCharacter?.movement?.jumpForce ?? linkedBehavior?.movement?.jumpForce;
-    const jumpForce = (rawJumpForce !== undefined && rawJumpForce > 0) ? rawJumpForce : (hasRuleJump ? 12 : 0);
+    const jumpForce = (rawJumpForce !== undefined && rawJumpForce > 0) ? rawJumpForce : 0;
     const canJump = jumpForce > 0 || (testCharacter as any)?.canJump === true;
     const maxAirJumps = heroInp?.maxAirJumps ?? 0;
     const totalJumps = canJump ? (1 + maxAirJumps) : 0;
 
-    // 5. Dash — Strictly from behavior hero input, charge_dash movement type, or dash rules
+    // 5. Dash — Strictly from behavior hero input or charge_dash movement type
     const hasDash = !!(
       heroInp?.dashCooldownMs !== undefined || 
       behMov?.movementType === 'charge_dash' || 
-      (testCharacter as any)?.hasDash === true ||
-      allRules.some(r => r.actions?.some(a => a.actionType === 'hero_impulse' && a.impulseType === 'dash'))
+      (testCharacter as any)?.hasDash === true
     );
     const allowAirDash = !!(heroInp?.allowAirDash);
     const dashCooldownFrames = heroInp?.dashCooldownMs ? Math.round(heroInp.dashCooldownMs / 16.66) : 36;
@@ -305,18 +276,15 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const wallJumpForceX = heroInp?.wallJumpForceX ?? (baseSpeed > 0 ? baseSpeed * 1.8 : 6);
     const wallJumpForceY = heroInp?.wallJumpForceY ?? (jumpForce > 0 ? jumpForce * 0.95 : 0);
 
-    // 7. Combat Attacks — Driven by prefab hitboxes/animations and behavior attack rules/actions/skills
+    // 7. Combat Attacks — Driven by prefab hitboxes/animations and behavior skills
     const hasAttack = !!(
       testCharacter?.polygons?.some(poly => poly.type === 'hitbox') ||
-      testCharacter?.animations?.some(anim => anim.stateId === 'attack') ||
-      allRules.some(r => r.actions?.some(a => a.actionType === 'attack')) ||
       linkedBehavior?.skills?.some(s => s.actionType === 'primary_attack') ||
       (testCharacter as any)?.hasAttack === true
     );
 
-    // 8. Special Skills — Driven by behavior projectile rules or behavior skills
+    // 8. Special Skills — Driven by behavior skills
     const hasSpecial = !!(
-      allRules.some(r => r.actions?.some(a => a.attackType === 'fire_projectile' || (a.actionType === 'hero_impulse' && a.impulseType !== 'jump' && a.impulseType !== 'dash'))) ||
       linkedBehavior?.skills?.some(s => s.actionType === 'special_ability') ||
       (testCharacter as any)?.hasSpecial === true
     );
@@ -444,6 +412,10 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     facing: (spawnPoint?.facing || 'right') as 'left' | 'right',
     isGrounded: false,
     isWallSliding: false,
+    isDucking: false,
+    maxDescendSpeed: null as number | null,
+    requestedAnimState: null as string | null,
+    capsuleHeightMultiplier: 1.0,
     jumpsLeft: 1,
     isDashing: false,
     dashTimer: 0,
@@ -481,6 +453,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   });
 
   const keysDownRef = useRef<Record<string, boolean>>({});
+  const justPressedKeysRef = useRef<Record<string, boolean>>({});
+  const justReleasedKeysRef = useRef<Record<string, boolean>>({});
   const lastHudUpdateRef = useRef<number>(0);
 
   
@@ -864,6 +838,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       }
 
       if (mode === 'play') {
+        if (!keysDownRef.current[e.code]) {
+          justPressedKeysRef.current[e.code] = true;
+        }
         keysDownRef.current[e.code] = true;
 
         if (e.code === 'Escape') {
@@ -878,77 +855,11 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           respawnPlayer();
           return;
         }
-
-        // Jump / Wall Jump trigger
-        if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
-          e.preventDefault();
-          const p = playerRef.current;
-
-          // Wall kick jump
-          if (p.isWallSliding && charConfig.hasWallCling) {
-            p.vy = -charConfig.wallJumpForceY;
-            p.vx = p.facing === 'left' ? charConfig.wallJumpForceX : -charConfig.wallJumpForceX;
-            p.facing = p.facing === 'left' ? 'right' : 'left';
-            p.isWallSliding = false;
-            p.isGrounded = false;
-            p.jumpStretch = 1.3;
-            // Wall kick sparks
-            for (let i = 0; i < 6; i++) {
-              p.particles.push({
-                x: p.x,
-                y: p.y - 12,
-                vx: (Math.random() - 0.5) * 4,
-                vy: -Math.random() * 3,
-                life: 12,
-                maxLife: 12,
-                color: '#38bdf8',
-                size: 2
-              });
-            }
-            return;
-          }
-
-          // Standard Ground / Air Jump
-          if (charConfig.canJump && p.jumpsLeft > 0) {
-            p.vy = -Math.abs(charConfig.jumpForce);
-            p.jumpsLeft -= 1;
-            p.isGrounded = false;
-            p.isWallSliding = false;
-            p.jumpStretch = 1.25;
-            // Jump dust particles
-            for (let i = 0; i < 5; i++) {
-              p.particles.push({
-                x: p.x + (Math.random() - 0.5) * 12,
-                y: p.y,
-                vx: (Math.random() - 0.5) * 3,
-                vy: -Math.random() * 2,
-                life: 14,
-                maxLife: 14,
-                color: 'rgba(200, 200, 200, 0.7)',
-                size: 2
-              });
-            }
-          }
-        }
-
-        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyC') {
-          e.preventDefault();
-          triggerDash();
-        }
-
-        if (e.code === 'KeyJ' || e.code === 'KeyZ') {
-          e.preventDefault();
-          triggerAttack();
-        }
-
-        if (e.code === 'KeyK' || e.code === 'KeyX') {
-          e.preventDefault();
-          triggerSpecial();
-        }
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      justReleasedKeysRef.current[e.code] = true;
       keysDownRef.current[e.code] = false;
     };
 
@@ -958,7 +869,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [mode, onExitPlayMode, setMode, respawnPlayer, triggerDash, triggerAttack, triggerSpecial, charConfig]);
+  }, [mode, onExitPlayMode, setMode, respawnPlayer]);
 
   // Main 60 FPS Physics & Animation Ticker for Play Mode
   useEffect(() => {
@@ -973,6 +884,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
       const p = playerRef.current;
       const keys = keysDownRef.current;
+      const justPressed = justPressedKeysRef.current;
+      const justReleased = justReleasedKeysRef.current;
 
       p.animTime += dt;
 
@@ -1005,9 +918,15 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const halfW = charConfig.radius;
       const charH = charConfig.height;
 
-      // Movement Input (if not dashing and prefab speed > 0)
-      // 0. Environmental Gravity & Dynamic Kinematic Configuration
-      // Determine active biome for the player's current location or viewport
+      // Reset dynamic per-frame states before rule evaluation
+      p.requestedAnimState = null;
+      p.maxDescendSpeed = null;
+      p.isDucking = false;
+      p.capsuleHeightMultiplier = 1.0;
+      let movementOverridden = false;
+      let jumpTriggeredByRule = false;
+
+      // 0. Environmental Gravity & Biome lookup
       const pTileX = Math.floor(p.x / TILE_SIZE);
       const pTileY = Math.floor(p.y / TILE_SIZE);
       const { cx: pCx, cy: pCy, lx: pLx, ly: pLy } = getChunkCoords(pTileX, pTileY);
@@ -1038,366 +957,353 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         return fallback;
       };
 
-      if (!p.isDashing) {
-        if (charConfig.baseSpeed > 0) {
-          const left = keys['KeyA'] || keys['ArrowLeft'];
-          const right = keys['KeyD'] || keys['ArrowRight'];
-          const effectiveAccel = p.isGrounded ? charConfig.accel : charConfig.accel * charConfig.airCtrl;
-          const maxSpeed = charConfig.baseSpeed;
+      // Solid check helper in specific direction and distance in pixels
+      const checkSolidsInDirection = (
+        direction: 'left' | 'right' | 'above' | 'below' | 'ground' | 'ceiling' | 'wall_forward' | 'wall_backward',
+        distancePx: number = 4,
+        mode: 'touching' | 'near' | 'clear' | 'ledge_ahead' = 'touching'
+      ): boolean => {
+        const dist = Math.max(1, distancePx);
+        const fwd = p.facing === 'right' ? 'right' : 'left';
+        const bwd = p.facing === 'right' ? 'left' : 'right';
 
-          if (left && !right) {
-            p.vx = Math.max(p.vx - effectiveAccel, -maxSpeed);
-            p.facing = 'left';
-            p.isWalking = true;
-          } else if (right && !left) {
-            p.vx = Math.min(p.vx + effectiveAccel, maxSpeed);
-            p.facing = 'right';
-            p.isWalking = true;
-          } else {
-            p.vx *= (p.isGrounded ? 0.76 : 0.92);
-            if (Math.abs(p.vx) < 0.1) p.vx = 0;
-            p.isWalking = false;
+        let effDir = direction;
+        if (direction === 'wall_forward') effDir = fwd;
+        if (direction === 'wall_backward') effDir = bwd;
+        if (direction === 'ground') effDir = 'below';
+        if (direction === 'ceiling') effDir = 'above';
+
+        if (mode === 'ledge_ahead') {
+          const lookAheadX = p.x + (p.facing === 'right' ? halfW + dist : -(halfW + dist));
+          const lookDownY = p.y + 6;
+          const tX = Math.floor(lookAheadX / TILE_SIZE);
+          const tY = Math.floor(lookDownY / TILE_SIZE);
+          return !isSolidTile(tX, tY);
+        }
+
+        let solidDetected = false;
+        if (effDir === 'left') {
+          const tX = Math.floor((p.x - halfW - dist) / TILE_SIZE);
+          const tY1 = Math.floor((p.y - 4) / TILE_SIZE);
+          const tY2 = Math.floor((p.y - charH / 2) / TILE_SIZE);
+          const tY3 = Math.floor((p.y - charH + 4) / TILE_SIZE);
+          solidDetected = isSolidTile(tX, tY1) || isSolidTile(tX, tY2) || isSolidTile(tX, tY3);
+        } else if (effDir === 'right') {
+          const tX = Math.floor((p.x + halfW + dist) / TILE_SIZE);
+          const tY1 = Math.floor((p.y - 4) / TILE_SIZE);
+          const tY2 = Math.floor((p.y - charH / 2) / TILE_SIZE);
+          const tY3 = Math.floor((p.y - charH + 4) / TILE_SIZE);
+          solidDetected = isSolidTile(tX, tY1) || isSolidTile(tX, tY2) || isSolidTile(tX, tY3);
+        } else if (effDir === 'above') {
+          const tY = Math.floor((p.y - charH - dist) / TILE_SIZE);
+          const tX1 = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+          const tX2 = Math.floor(p.x / TILE_SIZE);
+          const tX3 = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+          solidDetected = isSolidTile(tX1, tY) || isSolidTile(tX2, tY) || isSolidTile(tX3, tY);
+        } else if (effDir === 'below') {
+          const tY = Math.floor((p.y + dist) / TILE_SIZE);
+          const tX1 = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+          const tX2 = Math.floor(p.x / TILE_SIZE);
+          const tX3 = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+          solidDetected = isSolidTile(tX1, tY) || isSolidTile(tX2, tY) || isSolidTile(tX3, tY);
+        }
+
+        if (mode === 'clear') {
+          return !solidDetected;
+        }
+        return solidDetected;
+      };
+
+      // Physics State evaluation helper
+      const evaluatePhysicsState = (
+        stateKind: string,
+        velocityThreshold: number = 0.5
+      ): boolean => {
+        switch (stateKind) {
+          case 'jump_peak':
+            return !p.isGrounded && Math.abs(p.vy) <= Math.max(0.6, velocityThreshold) && p.prevVy <= 0.2;
+          case 'falling':
+            return !p.isGrounded && p.vy > (velocityThreshold > 0 ? velocityThreshold : 0.5);
+          case 'rising':
+            return !p.isGrounded && p.vy < -(velocityThreshold > 0 ? velocityThreshold : 0.5);
+          case 'grounded':
+            return p.isGrounded;
+          case 'airborne':
+            return !p.isGrounded;
+          case 'wall_sliding':
+            return p.isWallSliding;
+          case 'ducking':
+          case 'crouched':
+            return p.isDucking;
+          case 'moving_horizontally':
+            return Math.abs(p.vx) > velocityThreshold;
+          case 'stopped':
+            return Math.abs(p.vx) < 0.1 && Math.abs(p.vy) < 0.1;
+          case 'weightless_environment':
+            return Math.abs(effectiveGravScale) <= 0.05;
+          case 'high_velocity':
+            return (Math.abs(p.vx) > (velocityThreshold || 6.0)) || (Math.abs(p.vy) > (velocityThreshold || 10.0));
+          case 'direction_change':
+            return (p.prevVx > 0.1 && p.vx < -0.1) || (p.prevVx < -0.1 && p.vx > 0.1);
+          default:
+            return false;
+        }
+      };
+
+      // Evaluate single trigger
+      const evaluateTrigger = (trig: any): boolean => {
+        if (!trig) return false;
+        const triggerMode = trig.triggerMode || 'press';
+
+        switch (trig.type) {
+          case 'solid_detection':
+            return checkSolidsInDirection(trig.direction, trig.detectionDistancePx ?? 4, trig.checkMode ?? 'touching');
+          case 'physics_state':
+            return evaluatePhysicsState(trig.stateKind, trig.velocityThreshold ?? 0.5);
+          case 'variable_condition': {
+            const v = (testCharacter?.variables || []).find(cv => cv.id === trig.variableId || cv.name.toLowerCase() === trig.variableId?.toLowerCase());
+            if (!v) return false;
+            const leftVal = testCharacter?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue;
+            const rightVal = trig.value;
+            if (v.type === 'boolean') {
+              const bLeft = leftVal === true || leftVal === 'true' || leftVal === 1;
+              const bRight = rightVal === undefined || rightVal === true || rightVal === 'true' || rightVal === 1;
+              if (trig.comparator === 'not_equals' || trig.comparator === '!=') return bLeft !== bRight;
+              return bLeft === bRight;
+            }
+            if (trig.comparator === 'equals' || trig.comparator === '==') return String(leftVal).toLowerCase() === String(rightVal).toLowerCase();
+            if (trig.comparator === 'not_equals' || trig.comparator === '!=') return String(leftVal).toLowerCase() !== String(rightVal).toLowerCase();
+            if (trig.comparator === 'greater_than' || trig.comparator === '>') return Number(leftVal) > Number(rightVal);
+            if (trig.comparator === 'greater_or_equal' || trig.comparator === '>=') return Number(leftVal) >= Number(rightVal);
+            if (trig.comparator === 'less_than' || trig.comparator === '<') return Number(leftVal) < Number(rightVal);
+            if (trig.comparator === 'less_or_equal' || trig.comparator === '<=') return Number(leftVal) <= Number(rightVal);
+            return false;
           }
-        } else {
-          p.vx = 0;
-          p.isWalking = false;
+          case 'player_condition':
+            if (trig.condition === 'is_grounded') return p.isGrounded;
+            if (trig.condition === 'is_airborne') return !p.isGrounded;
+            if (trig.condition === 'is_wall_sliding') return p.isWallSliding;
+            if (trig.condition === 'is_ducking') return p.isDucking;
+            if (trig.condition === 'low_health') return p.health <= 30;
+            if (trig.condition === 'low_stamina') return p.stamina <= 20;
+            return false;
+          case 'state':
+            return p.activeBehaviorState === trig.stateId || trig.stateId === 'any';
+          case 'input_press':
+          case 'keyboard_key': {
+            const k = trig.key || trig.button;
+            if (!k) return false;
+            const keyMap: Record<string, string[]> = {
+              jump: ['Space', 'KeyW', 'ArrowUp'],
+              space: ['Space'],
+              move_left: ['KeyA', 'ArrowLeft'],
+              move_right: ['KeyD', 'ArrowRight'],
+              duck: ['KeyS', 'ArrowDown'],
+              crouch: ['KeyS', 'ArrowDown'],
+              dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
+              attack: ['KeyJ', 'KeyZ'],
+              special: ['KeyK', 'KeyX']
+            };
+            const targetCodes = keyMap[k.toLowerCase()] || [k, `Key${k.toUpperCase()}`];
+            if (triggerMode === 'release') {
+              return targetCodes.some(c => justReleased[c]);
+            }
+            if (triggerMode === 'press') {
+              return targetCodes.some(c => justPressed[c]);
+            }
+            return targetCodes.some(c => keys[c]);
+          }
+          case 'mapped_input': {
+            const inp = trig.inputId;
+            const keyMap: Record<string, string[]> = {
+              jump: ['Space', 'KeyW', 'ArrowUp'],
+              move_left: ['KeyA', 'ArrowLeft'],
+              move_right: ['KeyD', 'ArrowRight'],
+              duck: ['KeyS', 'ArrowDown'],
+              crouch: ['KeyS', 'ArrowDown'],
+              dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
+              attack: ['KeyJ', 'KeyZ'],
+              special: ['KeyK', 'KeyX']
+            };
+            const targetCodes = keyMap[inp] || [inp];
+            if (triggerMode === 'release') {
+              return targetCodes.some(c => justReleased[c]);
+            }
+            if (triggerMode === 'press') {
+              return targetCodes.some(c => justPressed[c]);
+            }
+            return targetCodes.some(c => keys[c]);
+          }
+          case 'collision':
+            return p.isGrounded || p.isWallSliding;
+          default:
+            return false;
         }
+      };
 
-        // Apply environmental or overridden gravity
-        p.vy = Math.min(p.vy + 0.52 * effectiveGravScale, 14);
-      }
+      // Helper to execute single behavior action
+      const executeCharacterAction = (action: any) => {
+        if (!action || action.actionType === 'none') return;
 
-      // Wall Cling / Wall Slide Detection
-      let wallTouching: 'left' | 'right' | null = null;
-      if (!p.isGrounded && p.vy > 0 && charConfig.hasWallCling) {
-        const checkTileY = Math.floor((p.y - charH / 2) / TILE_SIZE);
-        const tileLeftX = Math.floor((p.x - halfW - 2) / TILE_SIZE);
-        const tileRightX = Math.floor((p.x + halfW + 2) / TILE_SIZE);
+        // 1. Hero Impulse (Jump, Wall Jump, Dash, Knockback, Ground Slam)
+        if (action.actionType === 'hero_impulse') {
+          const force = (action.forceSource === 'variable' && action.forceVariableId)
+            ? getCharVarNum(action.forceVariableId, action.force ?? 12)
+            : (action.force ?? 12);
 
-        if (isSolidTile(tileLeftX, checkTileY) && (keys['KeyA'] || keys['ArrowLeft'])) {
-          wallTouching = 'left';
-        } else if (isSolidTile(tileRightX, checkTileY) && (keys['KeyD'] || keys['ArrowRight'])) {
-          wallTouching = 'right';
-        }
-
-        if (wallTouching) {
-          p.vy = Math.min(p.vy, 2.0 * (1 - charConfig.wallFriction));
-          p.isWallSliding = true;
-          p.facing = wallTouching === 'left' ? 'left' : 'right';
-        } else {
-          p.isWallSliding = false;
-        }
-      } else {
-        p.isWallSliding = false;
-      }
-
-      // 1. Move X with Collision Check
-      const nextX = p.x + p.vx;
-      const checkY1 = p.y - 4;
-      const checkY2 = p.y - charH + 4;
-      const testTileX = Math.floor((p.vx > 0 ? nextX + halfW : nextX - halfW) / TILE_SIZE);
-      const testTileY1 = Math.floor(checkY1 / TILE_SIZE);
-      const testTileY2 = Math.floor(checkY2 / TILE_SIZE);
-
-      if (isSolidTile(testTileX, testTileY1) || isSolidTile(testTileX, testTileY2)) {
-        p.vx = 0;
-      } else {
-        p.x = nextX;
-      }
-
-      // 2. Move Y with Collision Check
-      const nextY = p.y + p.vy;
-      if (p.vy >= 0) {
-        // Falling down
-        const footTileY = Math.floor(nextY / TILE_SIZE);
-        const footLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
-        const footRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
-
-        if (isSolidTile(footLeftX, footTileY) || isSolidTile(footRightX, footTileY)) {
-          p.y = footTileY * TILE_SIZE;
-          if (p.vy > 5) {
-            p.landingSquash = 1.3;
-            // Landing dust
-            for (let i = 0; i < 4; i++) {
+          if (action.impulseType === 'jump') {
+            if (p.isGrounded || p.jumpsLeft > 0) {
+              p.vy = -Math.abs(force);
+              p.jumpsLeft = Math.max(0, p.jumpsLeft - 1);
+              p.isGrounded = false;
+              p.isWallSliding = false;
+              p.jumpStretch = 1.25;
+              jumpTriggeredByRule = true;
+              for (let i = 0; i < 5; i++) {
+                p.particles.push({
+                  x: p.x + (Math.random() - 0.5) * 12,
+                  y: p.y,
+                  vx: (Math.random() - 0.5) * 3,
+                  vy: -Math.random() * 2,
+                  life: 14,
+                  maxLife: 14,
+                  color: 'rgba(200, 200, 200, 0.7)',
+                  size: 2
+                });
+              }
+            }
+          } else if (action.impulseType === 'wall_jump' || action.impulseType === 'wall_kick') {
+            const jumpX = action.wallJumpForceX ?? (charConfig.baseSpeed > 0 ? charConfig.baseSpeed * 1.8 : 6);
+            const jumpY = action.wallJumpForceY ?? Math.abs(force);
+            p.vy = -jumpY;
+            p.vx = (p.facing === 'left' ? 1 : -1) * jumpX;
+            p.facing = p.facing === 'left' ? 'right' : 'left';
+            p.isWallSliding = false;
+            p.isGrounded = false;
+            p.jumpStretch = 1.3;
+            jumpTriggeredByRule = true;
+            for (let i = 0; i < 6; i++) {
               p.particles.push({
-                x: p.x + (Math.random() - 0.5) * 14,
-                y: p.y,
-                vx: (Math.random() - 0.5) * 3,
-                vy: -Math.random() * 1.5,
+                x: p.x,
+                y: p.y - 12,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -Math.random() * 3,
                 life: 12,
                 maxLife: 12,
-                color: 'rgba(210, 210, 210, 0.6)',
+                color: '#38bdf8',
                 size: 2
               });
             }
+          } else if (action.impulseType === 'dash') {
+            triggerDash();
+          } else if (action.impulseType === 'ground_slam') {
+            p.vy = Math.abs(force);
+          } else if (action.impulseType === 'knockback') {
+            p.vx = (p.facing === 'left' ? 1 : -1) * force;
+            p.vy = -force * 0.35;
           }
-          p.vy = 0;
-          p.isGrounded = true;
-          p.isWallSliding = false;
-          p.jumpsLeft = charConfig.totalJumps;
-        } else {
-          p.y = nextY;
-          p.isGrounded = false;
         }
-      } else {
-        // Jumping up (Ceiling check)
-        const headTileY = Math.floor((nextY - charH) / TILE_SIZE);
-        const headLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
-        const headRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+        // 2. Kinematic Move & Granular Controls
+        else if (action.actionType === 'move') {
+          const speed = (action.speedSource === 'variable' && action.speedVariableId)
+            ? getCharVarNum(action.speedVariableId, action.speed ?? 4.0)
+            : (action.speed ?? 4.0);
 
-        if (isSolidTile(headLeftX, headTileY) || isSolidTile(headRightX, headTileY)) {
-          p.y = (headTileY + 1) * TILE_SIZE + charH;
-          p.vy = 0;
-        } else {
-          p.y = nextY;
-          p.isGrounded = false;
+          if (action.moveMode === 'move_left' || action.moveMode === 'left') {
+            p.vx = -speed;
+            p.facing = 'left';
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (action.moveMode === 'move_right' || action.moveMode === 'right') {
+            p.vx = speed;
+            p.facing = 'right';
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (action.moveMode === 'towards_target' || action.moveMode === 'ground_patrol') {
+            p.vx = p.facing === 'right' ? speed : -speed;
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (action.moveMode === 'away_from_target') {
+            p.vx = p.facing === 'right' ? -speed : speed;
+            p.isWalking = true;
+            movementOverridden = true;
+          } else if (action.moveMode === 'stop') {
+            p.vx = 0;
+            p.isWalking = false;
+            movementOverridden = true;
+          } else if (action.moveMode === 'duck' || action.moveMode === 'crouch') {
+            p.isDucking = true;
+            p.capsuleHeightMultiplier = action.capsuleHeightMultiplier || 0.5;
+            p.vx = 0;
+            movementOverridden = true;
+          } else if (action.moveMode === 'set_velocity_x') {
+            p.vx = speed;
+            movementOverridden = true;
+          } else if (action.moveMode === 'set_velocity_y') {
+            p.vy = speed;
+          } else if (action.moveMode === 'add_velocity_x') {
+            p.vx += speed;
+            movementOverridden = true;
+          } else if (action.moveMode === 'add_velocity_y') {
+            p.vy += speed;
+          }
+
+          if (action.setFacing) {
+            if (action.setFacing === 'left') p.facing = 'left';
+            else if (action.setFacing === 'right') p.facing = 'right';
+            else if (action.setFacing === 'reverse') p.facing = p.facing === 'left' ? 'right' : 'left';
+          }
+
+          if (action.maxDescendSpeed !== undefined || action.descendRate !== undefined) {
+            p.maxDescendSpeed = action.descendRate ?? action.maxDescendSpeed;
+          }
+
+          if (action.isDucking || action.crouch) {
+            p.isDucking = true;
+            p.capsuleHeightMultiplier = action.capsuleHeightMultiplier || 0.5;
+          }
         }
-      }
+        // 3. Gravity Override & Descend Rate
+        else if (action.actionType === 'set_gravity') {
+          if (action.gravityMode === 'reset_to_biome') {
+            p.gravityOverride = null;
+          } else {
+            let gravVal = action.gravityScale ?? 1.0;
+            if (action.gravityMode === 'zero_g') gravVal = 0.0;
+            else if (action.gravityMode === 'low_g') gravVal = 0.3;
+            else if (action.gravityMode === 'normal') gravVal = 1.0;
+            else if (action.gravityMode === 'heavy_g') gravVal = 1.8;
+            else if (action.gravityMode === 'inverted') gravVal = -1.0;
 
-      // Auto respawn if falling off world
-      const bounds = calculateMapBounds(mapData);
-      if (p.y > (bounds.maxY + 12) * TILE_SIZE || p.y < (bounds.minY - 20) * TILE_SIZE) {
-        respawnPlayer();
-      }
+            if (action.gravitySource === 'variable' && action.gravityVariableId) {
+              gravVal = getCharVarNum(action.gravityVariableId, gravVal);
+            }
+            p.gravityOverride = gravVal;
+          }
+
+          if (action.descendRate !== undefined || action.maxDescendSpeed !== undefined) {
+            p.maxDescendSpeed = action.descendRate ?? action.maxDescendSpeed;
+          }
+        }
+        // 4. Animation & Frame Control
+        else if (action.actionType === 'animation' || action.actionType === 'set_frame') {
+          p.requestedAnimState = action.animState || action.targetAnimationState || 'idle';
+        }
+        // 5. State Machine Transition
+        else if (action.actionType === 'state_change' && action.targetState) {
+          p.activeBehaviorState = action.targetState;
+        }
+        // 6. Attack Execution
+        else if (action.actionType === 'attack') {
+          triggerAttack();
+        }
+      };
 
       // ==========================================
       // BEHAVIOR RULES & SENSORY TRIGGER EVALUATION
       // ==========================================
       const rulesToEvaluate = linkedBehavior?.rules || testCharacter?.rules || [];
       if (rulesToEvaluate.length > 0) {
-        // Solid check helper in specific direction and distance in pixels
-        const checkSolidsInDirection = (
-          direction: 'left' | 'right' | 'above' | 'below' | 'ground' | 'ceiling' | 'wall_forward' | 'wall_backward',
-          distancePx: number = 4,
-          mode: 'touching' | 'near' | 'clear' | 'ledge_ahead' = 'touching'
-        ): boolean => {
-          let checkX = p.x;
-          let checkY = p.y;
-          const dist = Math.max(1, distancePx);
-          const fwd = p.facing === 'right' ? 'right' : 'left';
-          const bwd = p.facing === 'right' ? 'left' : 'right';
-
-          let effDir = direction;
-          if (direction === 'wall_forward') effDir = fwd;
-          if (direction === 'wall_backward') effDir = bwd;
-          if (direction === 'ground') effDir = 'below';
-          if (direction === 'ceiling') effDir = 'above';
-
-          if (mode === 'ledge_ahead') {
-            // Ledge check: ground ahead of prefab in facing direction
-            const lookAheadX = p.x + (p.facing === 'right' ? halfW + dist : -(halfW + dist));
-            const lookDownY = p.y + 6;
-            const tX = Math.floor(lookAheadX / TILE_SIZE);
-            const tY = Math.floor(lookDownY / TILE_SIZE);
-            return !isSolidTile(tX, tY); // True if there is a pit/ledge ahead!
-          }
-
-          let solidDetected = false;
-          if (effDir === 'left') {
-            const tX = Math.floor((p.x - halfW - dist) / TILE_SIZE);
-            const tY1 = Math.floor((p.y - 4) / TILE_SIZE);
-            const tY2 = Math.floor((p.y - charH / 2) / TILE_SIZE);
-            const tY3 = Math.floor((p.y - charH + 4) / TILE_SIZE);
-            solidDetected = isSolidTile(tX, tY1) || isSolidTile(tX, tY2) || isSolidTile(tX, tY3);
-          } else if (effDir === 'right') {
-            const tX = Math.floor((p.x + halfW + dist) / TILE_SIZE);
-            const tY1 = Math.floor((p.y - 4) / TILE_SIZE);
-            const tY2 = Math.floor((p.y - charH / 2) / TILE_SIZE);
-            const tY3 = Math.floor((p.y - charH + 4) / TILE_SIZE);
-            solidDetected = isSolidTile(tX, tY1) || isSolidTile(tX, tY2) || isSolidTile(tX, tY3);
-          } else if (effDir === 'above') {
-            const tY = Math.floor((p.y - charH - dist) / TILE_SIZE);
-            const tX1 = Math.floor((p.x - halfW + 2) / TILE_SIZE);
-            const tX2 = Math.floor(p.x / TILE_SIZE);
-            const tX3 = Math.floor((p.x + halfW - 2) / TILE_SIZE);
-            solidDetected = isSolidTile(tX1, tY) || isSolidTile(tX2, tY) || isSolidTile(tX3, tY);
-          } else if (effDir === 'below') {
-            const tY = Math.floor((p.y + dist) / TILE_SIZE);
-            const tX1 = Math.floor((p.x - halfW + 2) / TILE_SIZE);
-            const tX2 = Math.floor(p.x / TILE_SIZE);
-            const tX3 = Math.floor((p.x + halfW - 2) / TILE_SIZE);
-            solidDetected = isSolidTile(tX1, tY) || isSolidTile(tX2, tY) || isSolidTile(tX3, tY);
-          }
-
-          if (mode === 'clear') {
-            return !solidDetected;
-          }
-          return solidDetected;
-        };
-
-        // Physics State evaluation helper
-        const evaluatePhysicsState = (
-          stateKind: string,
-          velocityThreshold: number = 0.5,
-          gravityEnvironment?: string
-        ): boolean => {
-          switch (stateKind) {
-            case 'jump_peak':
-              // Peak of jump: ascending previously or airborne with vertical speed near 0
-              return !p.isGrounded && Math.abs(p.vy) <= Math.max(0.6, velocityThreshold) && p.prevVy <= 0.2;
-            case 'falling':
-              // Falling downward pulled by gravity
-              return !p.isGrounded && p.vy > (velocityThreshold > 0 ? velocityThreshold : 0.5);
-            case 'rising':
-              // Ascending upward in air
-              return !p.isGrounded && p.vy < -(velocityThreshold > 0 ? velocityThreshold : 0.5);
-            case 'grounded':
-              return p.isGrounded;
-            case 'airborne':
-              return !p.isGrounded;
-            case 'wall_sliding':
-              return p.isWallSliding;
-            case 'moving_horizontally':
-              return Math.abs(p.vx) > velocityThreshold;
-            case 'stopped':
-              return Math.abs(p.vx) < 0.1 && Math.abs(p.vy) < 0.1;
-            case 'weightless_environment':
-              return Math.abs(effectiveGravScale) <= 0.05;
-            case 'high_velocity':
-              return (Math.abs(p.vx) > (velocityThreshold || 6.0)) || (Math.abs(p.vy) > (velocityThreshold || 10.0));
-            case 'direction_change':
-              return (p.prevVx > 0.1 && p.vx < -0.1) || (p.prevVx < -0.1 && p.vx > 0.1);
-            default:
-              return false;
-          }
-        };
-
-        // Evaluate single trigger
-        const evaluateTrigger = (trig: any): boolean => {
-          if (!trig) return false;
-          switch (trig.type) {
-            case 'solid_detection':
-              return checkSolidsInDirection(trig.direction, trig.detectionDistancePx ?? 4, trig.checkMode ?? 'touching');
-            case 'physics_state':
-              return evaluatePhysicsState(trig.stateKind, trig.velocityThreshold ?? 0.5);
-            case 'variable_condition': {
-              const v = (testCharacter?.variables || []).find(cv => cv.id === trig.variableId || cv.name.toLowerCase() === trig.variableId?.toLowerCase());
-              if (!v) return false;
-              const leftVal = testCharacter?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue;
-              const rightVal = trig.value;
-              if (v.type === 'boolean') {
-                const bLeft = leftVal === true || leftVal === 'true' || leftVal === 1;
-                const bRight = rightVal === undefined || rightVal === true || rightVal === 'true' || rightVal === 1;
-                if (trig.comparator === 'not_equals' || trig.comparator === '!=') return bLeft !== bRight;
-                return bLeft === bRight;
-              }
-              if (trig.comparator === 'equals' || trig.comparator === '==') return String(leftVal).toLowerCase() === String(rightVal).toLowerCase();
-              if (trig.comparator === 'not_equals' || trig.comparator === '!=') return String(leftVal).toLowerCase() !== String(rightVal).toLowerCase();
-              if (trig.comparator === 'greater_than' || trig.comparator === '>') return Number(leftVal) > Number(rightVal);
-              if (trig.comparator === 'greater_or_equal' || trig.comparator === '>=') return Number(leftVal) >= Number(rightVal);
-              if (trig.comparator === 'less_than' || trig.comparator === '<') return Number(leftVal) < Number(rightVal);
-              if (trig.comparator === 'less_or_equal' || trig.comparator === '<=') return Number(leftVal) <= Number(rightVal);
-              return false;
-            }
-            case 'player_condition':
-              if (trig.condition === 'is_grounded') return p.isGrounded;
-              if (trig.condition === 'is_airborne') return !p.isGrounded;
-              if (trig.condition === 'is_wall_sliding') return p.isWallSliding;
-              if (trig.condition === 'low_health') return p.health <= 30;
-              if (trig.condition === 'low_stamina') return p.stamina <= 20;
-              return false;
-            case 'state':
-              return p.activeBehaviorState === trig.stateId || trig.stateId === 'any';
-            case 'input_press': {
-              const k = trig.key;
-              if (!k) return false;
-              if (keys[k]) return true;
-              if (keys[`Key${k.toUpperCase()}`]) return true;
-              if (k === 'Space' || k === 'space' || k === 'jump') return !!(keys['Space'] || keys['KeyW'] || keys['ArrowUp']);
-              if (k === 'move_left' || k === 'left' || k === 'a' || k === 'KeyA') return !!(keys['KeyA'] || keys['ArrowLeft']);
-              if (k === 'move_right' || k === 'right' || k === 'd' || k === 'KeyD') return !!(keys['KeyD'] || keys['ArrowRight']);
-              if (k === 'dash') return !!(keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyC']);
-              if (k === 'attack') return !!(keys['KeyJ'] || keys['KeyZ']);
-              if (k === 'special') return !!(keys['KeyK'] || keys['KeyX']);
-              return false;
-            }
-            case 'mapped_input': {
-              const inp = trig.inputId;
-              if (inp === 'jump') return !!(keys['Space'] || keys['KeyW'] || keys['ArrowUp']);
-              if (inp === 'move_left') return !!(keys['KeyA'] || keys['ArrowLeft']);
-              if (inp === 'move_right') return !!(keys['KeyD'] || keys['ArrowRight']);
-              if (inp === 'dash') return !!(keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyC']);
-              if (inp === 'attack') return !!(keys['KeyJ'] || keys['KeyZ']);
-              if (inp === 'special') return !!(keys['KeyK'] || keys['KeyX']);
-              return false;
-            }
-            case 'keyboard_key':
-              return !!keys[trig.key] || !!keys[`Key${trig.key?.toUpperCase()}`];
-            case 'collision':
-              return p.isGrounded || p.isWallSliding;
-            default:
-              return false;
-          }
-        };
-
-        // Helper to execute single prefab behavior action
-        const executeCharacterAction = (action: any) => {
-          if (!action || action.actionType === 'none') return;
-
-          // 1. Hero Impulse (Jump, Dash, Wall Jump, Knockback) with dynamic Prefab Variables support
-          if (action.actionType === 'hero_impulse') {
-            const force = (action.forceSource === 'variable' && action.forceVariableId)
-              ? getCharVarNum(action.forceVariableId, action.force ?? 12)
-              : (action.force ?? 12);
-
-            if (action.impulseType === 'jump' && p.isGrounded) {
-              p.vy = -force;
-              p.isGrounded = false;
-            } else if (action.impulseType === 'dash') {
-              triggerDash();
-            } else if (action.impulseType === 'wall_jump' && p.isWallSliding) {
-              p.vy = -force * 0.9;
-              p.vx = (p.facing === 'left' ? 1 : -1) * force * 0.8;
-            } else if (action.impulseType === 'knockback') {
-              p.vx = (p.facing === 'left' ? 1 : -1) * force;
-              p.vy = -force * 0.35;
-            }
-          }
-          // 2. Kinematic Move with dynamic Prefab Variables support
-          else if (action.actionType === 'move') {
-            const speed = (action.speedSource === 'variable' && action.speedVariableId)
-              ? getCharVarNum(action.speedVariableId, action.speed ?? 4.0)
-              : (action.speed ?? 4.0);
-
-            if (action.moveMode === 'towards_target' || action.moveMode === 'ground_patrol') {
-              p.vx = p.facing === 'right' ? speed : -speed;
-              p.isWalking = true;
-            } else if (action.moveMode === 'away_from_target') {
-              p.vx = p.facing === 'right' ? -speed : speed;
-              p.isWalking = true;
-            } else if (action.moveMode === 'stop') {
-              p.vx = 0;
-              p.isWalking = false;
-            }
-          }
-          // 3. Gravity Override (Overrides active Biome gravity)
-          else if (action.actionType === 'set_gravity') {
-            if (action.gravityMode === 'reset_to_biome') {
-              p.gravityOverride = null;
-            } else {
-              let gravVal = action.gravityScale ?? 1.0;
-              if (action.gravityMode === 'zero_g') gravVal = 0.0;
-              else if (action.gravityMode === 'low_g') gravVal = 0.3;
-              else if (action.gravityMode === 'normal') gravVal = 1.0;
-              else if (action.gravityMode === 'heavy_g') gravVal = 1.8;
-              else if (action.gravityMode === 'inverted') gravVal = -1.0;
-
-              if (action.gravitySource === 'variable' && action.gravityVariableId) {
-                gravVal = getCharVarNum(action.gravityVariableId, gravVal);
-              }
-              p.gravityOverride = gravVal;
-            }
-          }
-          // 4. FSM State Transition
-          else if (action.actionType === 'state_change' && action.targetState) {
-            p.activeBehaviorState = action.targetState;
-          }
-          // 5. Attack Execution
-          else if (action.actionType === 'attack') {
-            triggerAttack();
-          }
-        };
-
         // Evaluate Prefab FSM State Transitions conditioned on Behavior "IFs"
         if (testCharacter?.stateMachine?.transitions && testCharacter.stateMachine.transitions.length > 0) {
           const charStates = testCharacter.stateMachine.states || [];
@@ -1451,6 +1357,193 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           }
         }
       }
+
+      // ==========================================
+      // KINEMATIC MOVEMENT & INPUT HANDLING
+      // ==========================================
+      if (!movementOverridden && !p.isDashing) {
+        if (charConfig.baseSpeed > 0) {
+          const left = keys['KeyA'] || keys['ArrowLeft'];
+          const right = keys['KeyD'] || keys['ArrowRight'];
+          const effectiveAccel = p.isGrounded ? charConfig.accel : charConfig.accel * charConfig.airCtrl;
+          const maxSpeed = charConfig.baseSpeed;
+
+          if (left && !right) {
+            p.vx = Math.max(p.vx - effectiveAccel, -maxSpeed);
+            p.facing = 'left';
+            p.isWalking = true;
+          } else if (right && !left) {
+            p.vx = Math.min(p.vx + effectiveAccel, maxSpeed);
+            p.facing = 'right';
+            p.isWalking = true;
+          } else {
+            p.vx *= (p.isGrounded ? 0.76 : 0.92);
+            if (Math.abs(p.vx) < 0.1) p.vx = 0;
+            p.isWalking = false;
+          }
+        } else {
+          p.vx *= (p.isGrounded ? 0.76 : 0.92);
+          if (Math.abs(p.vx) < 0.1) p.vx = 0;
+          p.isWalking = false;
+        }
+
+        // Jump & Action fallback triggers (only if not handled by behavior rules)
+        if (!jumpTriggeredByRule && charConfig.canJump) {
+          if (justPressed['Space'] || justPressed['KeyW'] || justPressed['ArrowUp']) {
+            if (p.isWallSliding && charConfig.hasWallCling) {
+              p.vy = -charConfig.wallJumpForceY;
+              p.vx = p.facing === 'left' ? charConfig.wallJumpForceX : -charConfig.wallJumpForceX;
+              p.facing = p.facing === 'left' ? 'right' : 'left';
+              p.isWallSliding = false;
+              p.isGrounded = false;
+              p.jumpStretch = 1.3;
+              for (let i = 0; i < 6; i++) {
+                p.particles.push({
+                  x: p.x,
+                  y: p.y - 12,
+                  vx: (Math.random() - 0.5) * 4,
+                  vy: -Math.random() * 3,
+                  life: 12,
+                  maxLife: 12,
+                  color: '#38bdf8',
+                  size: 2
+                });
+              }
+            } else if (p.jumpsLeft > 0) {
+              p.vy = -Math.abs(charConfig.jumpForce);
+              p.jumpsLeft -= 1;
+              p.isGrounded = false;
+              p.isWallSliding = false;
+              p.jumpStretch = 1.25;
+              for (let i = 0; i < 5; i++) {
+                p.particles.push({
+                  x: p.x + (Math.random() - 0.5) * 12,
+                  y: p.y,
+                  vx: (Math.random() - 0.5) * 3,
+                  vy: -Math.random() * 2,
+                  life: 14,
+                  maxLife: 14,
+                  color: 'rgba(200, 200, 200, 0.7)',
+                  size: 2
+                });
+              }
+            }
+          }
+        }
+
+        if (charConfig.hasDash && (justPressed['ShiftLeft'] || justPressed['ShiftRight'] || justPressed['KeyC'])) {
+          triggerDash();
+        }
+
+        if (charConfig.hasAttack && (justPressed['KeyJ'] || justPressed['KeyZ'])) {
+          triggerAttack();
+        }
+
+        if (charConfig.hasSpecial && (justPressed['KeyK'] || justPressed['KeyX'])) {
+          triggerSpecial();
+        }
+
+        // Apply environmental or overridden gravity with descend rate clamping
+        p.vy += 0.52 * effectiveGravScale;
+        if (p.maxDescendSpeed !== null) {
+          p.vy = Math.min(p.vy, p.maxDescendSpeed);
+        } else {
+          p.vy = Math.min(p.vy, 14);
+        }
+      }
+
+      // Wall Cling / Wall Slide Detection
+      let wallTouching: 'left' | 'right' | null = null;
+      if (!p.isGrounded && p.vy > 0 && charConfig.hasWallCling) {
+        const checkTileY = Math.floor((p.y - charH / 2) / TILE_SIZE);
+        const tileLeftX = Math.floor((p.x - halfW - 2) / TILE_SIZE);
+        const tileRightX = Math.floor((p.x + halfW + 2) / TILE_SIZE);
+
+        if (isSolidTile(tileLeftX, checkTileY) && (keys['KeyA'] || keys['ArrowLeft'])) {
+          wallTouching = 'left';
+        } else if (isSolidTile(tileRightX, checkTileY) && (keys['KeyD'] || keys['ArrowRight'])) {
+          wallTouching = 'right';
+        }
+
+        if (wallTouching) {
+          p.vy = Math.min(p.vy, 2.0 * (1 - charConfig.wallFriction));
+          p.isWallSliding = true;
+          p.facing = wallTouching === 'left' ? 'left' : 'right';
+        } else {
+          p.isWallSliding = false;
+        }
+      } else if (p.maxDescendSpeed !== null && !p.isGrounded && p.vy > 0) {
+        p.isWallSliding = true;
+      } else {
+        p.isWallSliding = false;
+      }
+
+      // 1. Move X with Collision Check (using dynamic capsule height for ducking)
+      const dynamicCharH = charH * (p.isDucking ? 0.5 : (p.capsuleHeightMultiplier || 1.0));
+      const nextX = p.x + p.vx;
+      const checkY1 = p.y - 4;
+      const checkY2 = p.y - dynamicCharH + 4;
+      const testTileX = Math.floor((p.vx > 0 ? nextX + halfW : nextX - halfW) / TILE_SIZE);
+      const testTileY1 = Math.floor(checkY1 / TILE_SIZE);
+      const testTileY2 = Math.floor(checkY2 / TILE_SIZE);
+
+      if (isSolidTile(testTileX, testTileY1) || isSolidTile(testTileX, testTileY2)) {
+        p.vx = 0;
+      } else {
+        p.x = nextX;
+      }
+
+      // 2. Move Y with Collision Check
+      const nextY = p.y + p.vy;
+      if (p.vy >= 0) {
+        // Falling down
+        const footTileY = Math.floor(nextY / TILE_SIZE);
+        const footLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+        const footRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+
+        if (isSolidTile(footLeftX, footTileY) || isSolidTile(footRightX, footTileY)) {
+          p.y = footTileY * TILE_SIZE;
+          if (p.vy > 5) {
+            p.landingSquash = 1.3;
+            for (let i = 0; i < 4; i++) {
+              p.particles.push({
+                x: p.x + (Math.random() - 0.5) * 14,
+                y: p.y,
+                vx: (Math.random() - 0.5) * 3,
+                vy: -Math.random() * 1.5,
+                life: 12,
+                maxLife: 12,
+                color: 'rgba(210, 210, 210, 0.6)',
+                size: 2
+              });
+            }
+          }
+          p.vy = 0;
+          p.isGrounded = true;
+          p.isWallSliding = false;
+          p.jumpsLeft = charConfig.totalJumps;
+        } else {
+          p.y = nextY;
+          p.isGrounded = false;
+        }
+      } else {
+        // Jumping up (Ceiling check)
+        const headTileY = Math.floor((nextY - dynamicCharH) / TILE_SIZE);
+        const headLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
+        const headRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+
+        if (isSolidTile(headLeftX, headTileY) || isSolidTile(headRightX, headTileY)) {
+          p.y = (headTileY + 1) * TILE_SIZE + dynamicCharH;
+          p.vy = 0;
+        } else {
+          p.y = nextY;
+          p.isGrounded = false;
+        }
+      }
+
+      // Clear frame single-press keys at end of tick
+      justPressedKeysRef.current = {};
+      justReleasedKeysRef.current = {};
 
       // Store previous velocity for apex / directional change detection
       p.prevVx = p.vx;
@@ -2126,20 +2219,28 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.fill();
 
       // 3. Resolve Current Animation State
-      let animState = 'idle';
-      if (p.isAttacking) {
-        animState = 'attack';
-      } else if (p.isDashing) {
-        animState = 'run';
-      } else if (!p.isGrounded) {
-        animState = 'jump';
-      } else if (p.isWalking) {
-        animState = Math.abs(p.vx) > 3.2 ? 'run' : 'walk';
-      } else {
-        animState = 'idle';
+      let animState = p.requestedAnimState || p.activeBehaviorState || 'idle';
+      if (!p.requestedAnimState && (!p.activeBehaviorState || p.activeBehaviorState === 'idle')) {
+        if (p.isAttacking) {
+          animState = 'attack';
+        } else if (p.isDashing) {
+          animState = 'run';
+        } else if (p.isWallSliding) {
+          animState = 'wall_slide';
+        } else if (!p.isGrounded) {
+          animState = 'jump';
+        } else if (p.isDucking) {
+          animState = 'duck';
+        } else if (p.isWalking) {
+          animState = Math.abs(p.vx) > 3.2 ? 'run' : 'walk';
+        } else {
+          animState = 'idle';
+        }
       }
 
-      const activeAnim = testCharacter?.animations?.find(a => a.stateId === animState)
+      const activeAnim = testCharacter?.animations?.find(a => a.stateId === animState || (a as any)?.name?.toLowerCase() === animState.toLowerCase())
+        || (p.isDucking ? testCharacter?.animations?.find(a => a.stateId === 'crouch' || (a as any)?.name?.toLowerCase() === 'crouch') : undefined)
+        || testCharacter?.animations?.find(a => a.stateId === (testCharacter as any)?.defaultAnimationState)
         || testCharacter?.animations?.find(a => a.stateId === 'idle')
         || testCharacter?.animations?.[0];
 

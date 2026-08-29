@@ -54,7 +54,7 @@ import {
   Activity
 } from 'lucide-react';
 
-interface PrefabBoneIKStudioProps {
+interface PrefabBoneIKEditorProps {
   project: MasonProject;
   char: PrefabData;
   onUpdateCharacter: (updater: (prev: PrefabData) => PrefabData) => void;
@@ -62,7 +62,7 @@ interface PrefabBoneIKStudioProps {
   showToast: (text: string, type?: 'success' | 'info' | 'error') => void;
 }
 
-export const PrefabBoneIKStudio: React.FC<PrefabBoneIKStudioProps> = ({
+export const PrefabBoneIKEditor: React.FC<PrefabBoneIKEditorProps> = ({
   project,
   char,
   onUpdateCharacter,

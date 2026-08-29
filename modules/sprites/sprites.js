@@ -13500,7 +13500,7 @@
   document.getElementById('aboutBtn')?.addEventListener('click', openAboutPopup);
   document.getElementById('aboutCloseBtn')?.addEventListener('click', closeAboutPopup);
 
-  // ---------- Tileset Tester & Studio State ----------
+  // ---------- Tileset Tester & Editor State ----------
   let tilesetTesterTileSize = 32;
   let tilesetTesterCols = 12;
   let tilesetTesterRows = 12;
@@ -14508,7 +14508,7 @@
 
   function exportGPL(){
     const main = mainGroup();
-    let out = 'GIMP Palette\nName: ' + (main.name || 'Palette Spray Studio Export') + '\nColumns: 0\n#\n';
+    let out = 'GIMP Palette\nName: ' + (main.name || 'Sprite Editor Export') + '\nColumns: 0\n#\n';
     main.colors.forEach(({hex, name})=>{
       const {r,g,b} = hexToRgb(hex);
       out += `${r} ${g} ${b}\t${(name && name.trim()) || hex}\n`;
@@ -16451,7 +16451,7 @@
   function buildProjectData(){
     captureCurrentFrameState();
     return {
-      type: 'palette-spray-studio-project',
+      type: 'sprite-editor-project',
       version: 6,
       name: document.getElementById('projectNameInput').value,
       autoFullscreen,
@@ -16520,7 +16520,7 @@
       }
     };
   }
-  const BACKUP_SUBFOLDER_NAME = 'Palette Spray Studio Backups';
+  const BACKUP_SUBFOLDER_NAME = 'Sprite Editor Backups';
   let projectFileHandle = null; // File System Access handle, when supported — lets Save overwrite in place
   let backupDirHandle = null; // File System Access directory handle for the chosen backups folder, when enabled
   let backupIntervalTimer = null;
@@ -16735,7 +16735,7 @@
       const legacy = localStorage.getItem('cloud_folder_name');
       if (legacy) saved = legacy;
     }
-    return normalizePath(saved || '/Palette Spray Studio');
+    return normalizePath(saved || '/Image & Sprite Editor');
   }
 
   function getCloudBackupFolderPath(prov = currentCloudProvider) {
@@ -16948,7 +16948,7 @@
       }
     }
 
-    // 2. Cloud backups (always saves to the active cloud service inside the 'Palette Spray Studio Backups' folder)
+    // 2. Cloud backups (always saves to the active cloud service inside the 'Sprite Editor Backups' folder)
     const cloudBackupsEnabled = document.getElementById('cloudBackupsCheckbox')?.checked;
     if (cloudBackupsEnabled) {
       const activeProv = currentCloudProviderUsed || currentCloudProvider || 'gdrive';
@@ -17145,7 +17145,7 @@
       if(forceNewLocation || !projectFileHandle){
         projectFileHandle = await window.showSaveFilePicker({
           suggestedName: projectName() + '.pssproj',
-          types: [{ description: 'Palette Spray Studio project', accept: {'application/json': ['.pssproj']} }]
+          types: [{ description: 'Image & Sprite Editor project', accept: {'application/json': ['.pssproj']} }]
         });
       }
       await writeProjectToHandle(projectFileHandle);
@@ -17574,7 +17574,7 @@
     if(typeof window.showOpenFilePicker === 'function'){
       try {
         const [handle] = await window.showOpenFilePicker({
-          types: [{ description: 'Palette Spray Studio project', accept: {'application/json': ['.pssproj', '.json']} }]
+          types: [{ description: 'Image & Sprite Editor project', accept: {'application/json': ['.pssproj', '.json']} }]
         });
         const file = await handle.getFile();
         const text = await file.text();
@@ -17758,7 +17758,7 @@
 
   function applyTargetFolderInput() {
     const raw = cloudTargetFolderInput ? cloudTargetFolderInput.value : '';
-    const norm = normalizePath(raw || '/Palette Spray Studio');
+    const norm = normalizePath(raw || '/Image & Sprite Editor');
     setTargetFolder(norm, null, currentCloudProvider);
     showToast(`Target cloud folder set to: "${norm}"`);
     loadCloudFileList();
@@ -19085,7 +19085,7 @@
   })();
 
   // ==========================================
-  // UNIFIED MASON SPRITE & IMAGE STUDIO BRIDGE
+  // UNIFIED MASON SPRITE & IMAGE EDITOR BRIDGE
   // ==========================================
   function getSingleFrameCompositeDataUrl() {
     try {

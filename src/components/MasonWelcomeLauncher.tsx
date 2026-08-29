@@ -70,7 +70,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
             }}
           >
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: primaryDef.hex }}></span>
-            <span>Mason World Authoring Studio {MASON_FULL_VERSION}</span>
+            <span>Mason World Authoring Suite {MASON_FULL_VERSION}</span>
           </div>
 
           <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">

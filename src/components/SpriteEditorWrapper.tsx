@@ -864,7 +864,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
           ref={iframeRef}
           src={getModuleUrl('modules/sprites/index.html')}
           className="w-full h-full border-none bg-neutral-950"
-          title="Image & Sprite Studio"
+          title="Image & Sprite Editor"
           onLoad={() => {
             postToIframe({ type: 'REQUEST_STATUS' });
           }}

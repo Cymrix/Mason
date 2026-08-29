@@ -201,7 +201,7 @@ export const ModulesModal: React.FC<ModulesModalProps> = ({
             <Info size={14} style={{ color: primaryDef.hex }} />
             <span>Click any module tile to instantly jump to that module.</span>
           </div>
-          <span className="font-mono text-[10px] text-neutral-500">Mason Studio Architecture</span>
+          <span className="font-mono text-[10px] text-neutral-500">Mason Architecture</span>
         </div>
 
       </div>

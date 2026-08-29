@@ -304,7 +304,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                             borderColor: spritesDef?.hex,
                             color: spritesDef?.hex
                           }}
-                          title={`Image & Sprite Studio (.sprite): ${spritesDef?.name}`}
+                          title={`Image & Sprite Editor (.sprite): ${spritesDef?.name}`}
                         >
                           <span className="text-[8px] opacity-70">IMG</span>
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: spritesDef?.hex }} />
@@ -483,8 +483,8 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                         <Paintbrush size={15} />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-neutral-200">Image & Sprite Studio (.sprite)</div>
-                        <div className="text-[10px] text-neutral-400">Pixel art studio, spray brush & sprite frame editing</div>
+                        <div className="text-xs font-bold text-neutral-200">Image & Sprite Editor (.sprite)</div>
+                        <div className="text-[10px] text-neutral-400">Pixel art workspace, spray brush & sprite frame editing</div>
                       </div>
                     </div>
 
@@ -823,7 +823,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                   <div className="h-3 w-px bg-white/20 mx-1" />
                   <span className="text-xs font-bold text-neutral-100 flex items-center gap-1.5">
                     <MasonBrandIcon size={14} />
-                    <span>Mason Studio</span>
+                    <span>Mason Suite</span>
                   </span>
                 </div>
 

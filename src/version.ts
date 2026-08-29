@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.199';
-export const MASON_VERSION_DISPLAY = 'v0.199';
-export const MASON_FULL_VERSION = 'v0.199';
+export const MASON_VERSION = '0.203';
+export const MASON_VERSION_DISPLAY = 'v0.203';
+export const MASON_FULL_VERSION = 'v0.203';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,38 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.203',
+    date: '2026-08-29',
+    changes: [
+      'Completely purged "Palette Spray" / "Palette Spray Studio" / "Palette Spray Painter" terminology across all components, html entrypoints, module bridges, schema exports, and backup paths.',
+      'Replaced all references with standard "Image & Sprite Editor" and "Sprite Projects".',
+      'Updated AGENTS.md with strict persistent policy banning "Palette Spray" across the codebase.'
+    ]
+  },
+  {
+    version: 'v0.202',
+    date: '2026-08-29',
+    changes: [
+      'Completely removed the word "Studio" across all UI labels, component names, modal titles, tab headers, manifest definitions, and module descriptors.',
+      'Renamed components and modules to clean alternative terms (e.g., Animation Editor, Image & Sprite Editor, Prefab Composition Editor, Prefab Bone IK Editor, Mason Suite, Image & Sprite Editor).',
+      'Added strict persistent naming policy in AGENTS.md prohibiting "Studio" in all future application features.'
+    ]
+  },
+  {
+    version: 'v0.201',
+    date: '2026-08-29',
+    changes: [
+      'Verified clean UTF-8 source file encoding across all modules and validated successful production Vite build.'
+    ]
+  },
+  {
+    version: 'v0.200',
+    date: '2026-08-29',
+    changes: [
+      'Fixed redundant duplicate rendering of Prefab Composition Studio in the Composite tab by removing extraneous secondary view block.'
+    ]
+  },
   {
     version: 'v0.199',
     date: '2026-08-29',
@@ -120,7 +152,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.189',
     date: '2026-08-28',
     changes: [
-      'Fully migrated Tilemap Studio (RefinedMapCanvas) to strictly use the shared ViewportCanvasContainer component.'
+      'Fully migrated Tilemap Editor (RefinedMapCanvas) to strictly use the shared ViewportCanvasContainer component.'
     ]
   },
   {
@@ -320,7 +352,7 @@ export const MASON_RELEASE_HISTORY = [
     date: '2026-08-26',
     changes: [
       'Added canvas dimension & size preset controls to the Create New Sprite modal across the top bar button and subfolder dropdown menu.',
-      'Removed legacy /palette-spray-studio and /public/palette-spray-studio directories to fully consolidate sprite engine assets into /public/modules/sprites/.',
+      'Removed legacy /legacy-sprite-app and /public/legacy-sprite-app directories to fully consolidate sprite engine assets into /public/modules/sprites/.',
       'Cleaned up export submenu by removing redundant standalone heightmap and roughness map export items in favor of the full PNG & Maps export suite.',
       'Streamlined FileSubfolderHeader with aspect ratio linking, preset resolution chips (16×16 to 256×256), and dynamic pixel counter.'
     ]
@@ -332,7 +364,7 @@ export const MASON_RELEASE_HISTORY = [
       'Fixed the Sprite & Image Editor black screen root cause by reintroducing the safe DOM Proxy shim (Script 0) to prevent unhandled TypeErrors from missing optional elements during engine startup.',
       'Embedded the bidirectional postMessage iframe bridge directly into the Sprite Editor main IIFE execution scope, guaranteeing access to layers, frames, resetProjectToDefaults, and render.',
       'Synchronized SpriteEditor message handling in SpriteEditorWrapper for SPRITE_STATUS and SPRITE_STATUS_UPDATE payloads.',
-      'Ensured full asset and canvas parity across /modules/sprites/index.html and /palette-spray-studio/index.html.'
+      'Ensured full asset and canvas parity across /modules/sprites/index.html and /legacy-sprite-app/index.html.'
     ]
   },
   {
@@ -375,7 +407,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.153',
     date: '2026-08-25',
     changes: [
-      'Fixed sprite canvas reload loop when painting or editing canvas layers in Image & Sprite Studio.',
+      'Fixed sprite canvas reload loop when painting or editing canvas layers in Image & Sprite Editor.',
       'Added lastLoadedSpriteFileNameRef to prevent state updates from re-sending LOAD_PROJECT during drawing sessions.'
     ]
   },
@@ -540,7 +572,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.136',
     date: '2026-08-24',
     changes: [
-      'Fixed a bug in Palette Spray Studio embedded applet causing a black screen on fresh sprite creation.',
+      'Fixed a bug in Image & Sprite Editor embedded applet causing a black screen on fresh sprite creation.',
       'Corrected string quotation in typeof checks and implemented a resilient makeDummy DOM fallback for optional module elements.',
       'Ensured proper canvas resize and initial rendering for empty LOAD_SPRITE events.'
     ]
@@ -549,10 +581,10 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.135',
     date: '2026-08-24',
     changes: [
-      'Refactored Palette Spray Studio into a streamlined, embedded Mason module and React modal component.',
+      'Refactored Image & Sprite Editor into a streamlined, embedded Mason module and React modal component.',
       'Stripped standalone cloud storage overhead, Google Drive / OneDrive credentials, and PWA manifest links.',
       'Integrated SpriteEditorModal component allowing direct pixel art painting & spritesheet creation inside Prefab Editor.',
-      'Added top-level Palette Spray Studio module entry to Mason Modules Registry.'
+      'Added top-level Image & Sprite Editor module entry to Mason Modules Registry.'
     ]
   },
   {
@@ -664,7 +696,7 @@ export const MASON_RELEASE_HISTORY = [
     changes: [
       'Added full motion blur support to both Particle and Prefab animation timelines.',
       'Particles Engine stretches particles dynamically across their velocity vector based on the motion blur track intensity.',
-      'Prefab Editor features a new Sprite Blur track in the Animation Studio Matrix for keyframing visual motion blur during fast character animations.'
+      'Prefab Editor features a new Sprite Blur track in the Animation Editor Matrix for keyframing visual motion blur during fast character animations.'
     ]
   },
   {
@@ -798,7 +830,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.96',
     date: '2026-08-23',
     changes: [
-      'Biome Gravity System: Added biome gravity multiplier controls in Biome Studio (Standard 1.0x, Zero-G / Weightless 0.0x, Low-G Moon 0.3x, Heavy 1.8x, Inverted -1.0x, or Custom scale).',
+      'Biome Gravity System: Added biome gravity multiplier controls in Biome Editor (Standard 1.0x, Zero-G / Weightless 0.0x, Low-G Moon 0.3x, Heavy 1.8x, Inverted -1.0x, or Custom scale).',
       'Prefab Gravity Overrides: Added action to allow prefab behaviors to override biome gravity or revert back to biome defaults dynamically.',
       'Prefab Variable Binding: Prefab behaviors can now bind and read prefab variables (e.g., speed, jump_force, gravity_scale) for movement velocity, impulse jump forces, and gravity modifiers.',
       'Sensory Triggers Refinement: Removed redundant gravity filters from prefab triggers, unifying gravity state checks into the multi-condition IF evaluation engine.'
@@ -818,16 +850,16 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.94',
     date: '2026-08-22',
     changes: [
-      'Prefab Studio Viewport Defaults: Configured sensory sockets, hitboxes, and collision capsule overlays to be turned OFF by default in the animation viewport so only the clean sprite is visible on launch.',
+      'Prefab Editor Viewport Defaults: Configured sensory sockets, hitboxes, and collision capsule overlays to be turned OFF by default in the animation viewport so only the clean sprite is visible on launch.',
       'Map Module Animation Speed Calibration: Fixed the delta-time physics timer calculation in play mode so prefab animation frame transitions play smoothly at their exact configured FPS rate.',
-      'Prefab Sprite & Capsule Alignment: Realigned the map spawn marker, placement preview, and interactive player sprite to use center-anchored coordinates matching the Prefab Studio definition and exact capsule offset.'
+      'Prefab Sprite & Capsule Alignment: Realigned the map spawn marker, placement preview, and interactive player sprite to use center-anchored coordinates matching the Prefab Editor definition and exact capsule offset.'
     ]
   },
   {
     version: 'v0.93',
     date: '2026-08-22',
     changes: [
-      'Map Module Prefab Sync: Auto-synchronized the Map Editor "Test Hero" selector with the active prefab file in Prefab Studio.',
+      'Map Module Prefab Sync: Auto-synchronized the Map Editor "Test Hero" selector with the active prefab file in Prefab Editor.',
       'Real Prefab Sprite Rendering: Updated Map Canvas to render the actual prefab spritesheet frames, collision capsules, and orientation at the spawn location and placement hover preview instead of a generic capsule proxy.',
       'Play Mode Sprite Animation: Animated real prefab sprites in Play Mode with state-based clip selection (idle, walk, run, jump, attack, dash), facing direction flips, and squash-and-stretch effects.'
     ]
@@ -836,7 +868,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.92',
     date: '2026-08-22',
     changes: [
-      'Prefab Animation Studio: Square Keyframe Matrix Grid — Fixed layout and column width table styling with <colgroup> definitions and w-max table-fixed rules, enforcing perfect 28px × 28px square cells.',
+      'Prefab Animation Editor: Square Keyframe Matrix Grid — Fixed layout and column width table styling with <colgroup> definitions and w-max table-fixed rules, enforcing perfect 28px × 28px square cells.',
       'Keyframe Matrix UI Polish: Replaced text coordinates with compact centered indicator badges (◆ for keyframes, ○ for holding frames), added vertical drag-resize handles and S/M/L height presets.',
       'Left Sidebar Resizing: Implemented interactive draggable border handle for adjustable animation sidebar width.'
     ]
@@ -937,7 +969,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.81',
     date: '2026-08-18',
     changes: [
-      'Capsule Collider Keyframing: Enabled full per-frame capsule collider keyframing (Radius, Height, Offset X/Y) in Animation Studio with timeline indicators and interactive canvas handles.',
+      'Capsule Collider Keyframing: Enabled full per-frame capsule collider keyframing (Radius, Height, Offset X/Y) in Animation Editor with timeline indicators and interactive canvas handles.',
       'Spritesheet Uploads & Visualizer: Added image upload support (Data URLs), auto-calculating grid columns/rows from image dimensions, preset sprite sheets, and an interactive full-sheet tile grid viewer with frame inspect.',
       'Custom Variable Categories: Transformed Variable Category selection into a flexible free-text input with category suggestions, allowing bespoke category names.',
       'FSM Node Dragging Fix: Re-architected state graph node dragging using global window pointer listeners and delta calculations to eliminate stuck/hung drag states.',
@@ -961,7 +993,7 @@ export const MASON_RELEASE_HISTORY = [
       'UI Streamlining: Restored full-featured top navbar font sizes and re-added the quick Modules icon dropdown (🧩) in the main top header.',
       'Removed Redundant Navigation: Removed intermediate dashboard module tabs bar (dashboard cards handle navigation) and consolidated duplicate buttons.',
       'Maximizing Vertical Space: Removed redundant sub-header bar, standalone app switch, and duplicate switch module button in ModuleRunnerContainer.',
-      'Sticky Module Tabs: Made primary workspace tabs in Prefab Creator (Animation Studio, Spritesheets, Variables, States, Behaviors) and Biome Editor sticky so they never scroll away.',
+      'Sticky Module Tabs: Made primary workspace tabs in Prefab Creator (Animation Editor, Spritesheets, Variables, States, Behaviors) and Biome Editor sticky so they never scroll away.',
       'Header Consolidation: Combined Project Info/Dashboard navigation and file operations into a single sleek h-9 bar, aligning Copy Rules/Vars alongside the prefab metadata.'
     ]
   },
@@ -978,7 +1010,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.77',
     date: '2026-08-18',
     changes: [
-      'Animation Studio: Made animation playback paused by default on initial view.',
+      'Animation Editor: Made animation playback paused by default on initial view.',
       'Frame-by-Frame Stepping: Added dedicated Previous Frame (<), Next Frame (>), First Frame (|<<), and Last Frame (>>|) controls.',
       'Interactive Frame Scrubber: Added a visual frame timeline strip displaying clip cells with keyframe indicators.',
       'Keyframe Positioning Engine: Added ability to snapshot and clear per-frame socket/point and hitbox polygon positions (with copy from previous frame support).',
@@ -1130,7 +1162,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.53.9',
     date: '2026-08-16',
     changes: [
-      'Added Light Dashed Tile Outline Cursor preview for Tilemap Studio showing exact brush size (1x1 up to NxN) and chunk regions with translucent fill and floating dimension pill badges',
+      'Added Light Dashed Tile Outline Cursor preview for Tilemap Editor showing exact brush size (1x1 up to NxN) and chunk regions with translucent fill and floating dimension pill badges',
       'Distinguished Biome Open Air (allocated chunk cells with atmosphere fog tint) from Unallocated Void (no tile/chunk painted, displaying pure void space with no background)'
     ]
   },
@@ -1138,15 +1170,15 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.53.8',
     date: '2026-08-16',
     changes: [
-      'Tilemap Studio Biome Backgrounds now dynamically load based on the centermost tile of the camera position (hiding backgrounds when pointing at empty void space without a biome)',
-      'Upgraded Tilemap Studio painting interpolation to Super-Cover Orthogonal Line algorithm with window-level continuous pointer drag tracking to eliminate diagonal gaps and missed mouse ticks'
+      'Tilemap Editor Biome Backgrounds now dynamically load based on the centermost tile of the camera position (hiding backgrounds when pointing at empty void space without a biome)',
+      'Upgraded Tilemap Editor painting interpolation to Super-Cover Orthogonal Line algorithm with window-level continuous pointer drag tracking to eliminate diagonal gaps and missed mouse ticks'
     ]
   },
   {
     version: 'v0.53.7',
     date: '2026-08-16',
     changes: [
-      'Massive Tilemap Studio Painting Performance Overhaul: implemented viewport frustum culling to skip off-screen chunks',
+      'Massive Tilemap Editor Painting Performance Overhaul: implemented viewport frustum culling to skip off-screen chunks',
       'Consolidated 4 separate full-world cell loops into a single frustum-culled detail pass per frame',
       'Implemented copy-on-write selective chunk cloning during mouse drag painting to eliminate garbage collection pauses'
     ]
@@ -1155,7 +1187,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.53.6',
     date: '2026-08-16',
     changes: [
-      'Updated Tilemap Studio "Fit" button to calculate exact bounding box of all chunks (including negative or offset chunk coordinates) and center all chunks perfectly in viewport'
+      'Updated Tilemap Editor "Fit" button to calculate exact bounding box of all chunks (including negative or offset chunk coordinates) and center all chunks perfectly in viewport'
     ]
   },
   {
@@ -1170,7 +1202,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.53.4',
     date: '2026-08-16',
     changes: [
-      'Simplified Tilemap Studio biome selector dropdown to show clean biome names without parenthetical filenames',
+      'Simplified Tilemap Editor biome selector dropdown to show clean biome names without parenthetical filenames',
       'Removed submode status text to the right of Lit/Unlit Mode toggle'
     ]
   },
@@ -1244,7 +1276,7 @@ export const MASON_RELEASE_HISTORY = [
     date: '2026-08-16',
     changes: [
       'Added Bresenham stroke interpolation for seamless, buttery smooth tilemap brush and eraser painting',
-      'Implemented dedicated "Fit" button in Tilemap Studio HUD to automatically fit and center maps of any size',
+      'Implemented dedicated "Fit" button in Tilemap Editor HUD to automatically fit and center maps of any size',
       'Added stroke interpolation to Macro Biome Map painter and Autotile Live Sandbox',
       'Optimized batch stroke updates across chunks and cell matrices'
     ]
@@ -1337,7 +1369,7 @@ export const MASON_RELEASE_HISTORY = [
       'Converted slope rendering to pure horizontal mirroring (flipH) without rotation, keeping slope trims upright',
       'Added dedicated Inner Corner for Slopes in addition to standard Inner Corner for solid Blocks',
       'Preserved overlay Z-order hierarchy (Right Side -> Left Side -> Inner Corners -> Slopes -> Bottom -> Top)',
-      'Updated Biome Studio Overlay panel with clear helper sublabels and thumbnail controls for top/bottom slopes and inner corners'
+      'Updated Biome Editor Overlay panel with clear helper sublabels and thumbnail controls for top/bottom slopes and inner corners'
     ]
   },
   {
@@ -1366,7 +1398,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.35',
     date: '2026-08-16',
     changes: [
-      'Added Full Albedo Texture preview tab to the left of 47-Blob Matrix in Biome Studio preview workspace',
+      'Added Full Albedo Texture preview tab to the left of 47-Blob Matrix in Biome Editor preview workspace',
       'Implemented pure seamless blended albedo canvas (Base Material A ↔ Base Material B dual-noise projection)',
       'Added interactive cursor-centered wheel zoom, right-click panning, reset HUD, and grid border toggle support',
       'Added Export Albedo PNG download feature for standalone map exports'
@@ -1387,7 +1419,7 @@ export const MASON_RELEASE_HISTORY = [
       'Fixed albedo noise map range normalization (stretching raw noise from [0.25, 0.75] to full [0.0, 1.0] range)',
       'Ensured Base Material B reaches 100% solid opacity at contrast 1.0 without requiring extreme contrast boosts',
       'Fixed noise mask inversion (Base A <-> Base B swap) to produce immediate 100% pattern reversals',
-      'Added Layer 1 and Layer 2 Weight Influence sliders to Biome Studio noise blend controls'
+      'Added Layer 1 and Layer 2 Weight Influence sliders to Biome Editor noise blend controls'
     ]
   },
   {
@@ -1403,7 +1435,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.31',
     date: '2026-08-16',
     changes: [
-      'Fixed mouse wheel cursor-centered zoom in Biome Studio blob matrix and live sandbox preview',
+      'Fixed mouse wheel cursor-centered zoom in Biome Editor blob matrix and live sandbox preview',
       'Hardcoded tile size to 64px and removed tile scale UI selectors from Biome preview',
       'Fixed Base Material B albedo texture wrapping to support 100% full opacity blending'
     ]
@@ -1412,7 +1444,7 @@ export const MASON_RELEASE_HISTORY = [
     version: 'v0.30',
     date: '2026-08-16',
     changes: [
-      'Updated autotile edge overlay render order in Biome Studio: sides -> bottom -> top',
+      'Updated autotile edge overlay render order in Biome Editor: sides -> bottom -> top',
       'Configured heightmap and roughness textures to use world-aligned seamless repeating matching albedo texture scale'
     ]
   },

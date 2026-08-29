@@ -29,7 +29,7 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
   initialImageDataUrl,
   initialWidth = 32,
   initialHeight = 32,
-  title = 'Palette Spray Studio — Pixel & Sprite Editor'
+  title = 'Image & Sprite Editor'
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isLoadedRef = useRef(false);
@@ -119,11 +119,11 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               {title}
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold border border-emerald-500/30">
-                Embedded Studio
+                Embedded Editor
               </span>
             </h2>
             <p className="text-[11px] text-neutral-400">
-              Layered pixel art, palette spray brush, normal map & animation tools
+              Layered pixel art, spray brush, normal map & animation tools
             </p>
           </div>
         </div>
@@ -155,7 +155,7 @@ export const SpriteEditorModal: React.FC<SpriteEditorModalProps> = ({
           ref={iframeRef}
           src={getModuleUrl('modules/sprites/index.html')}
           className="w-full h-full border-none"
-          title="Palette Spray Studio"
+          title="Image & Sprite Editor"
           onLoad={handleIframeLoad}
         />
       </div>

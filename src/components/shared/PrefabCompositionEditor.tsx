@@ -63,7 +63,7 @@ import {
   Target
 } from 'lucide-react';
 
-interface PrefabCompositionStudioProps {
+interface PrefabCompositionEditorProps {
   project: MasonProject;
   char: PrefabData;
   onUpdateCharacter: (updater: (prev: PrefabData) => PrefabData) => void;
@@ -290,7 +290,7 @@ const BUILTIN_PARTICLE_PRESETS: Record<string, any> = {
   }
 };
 
-export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = ({
+export const PrefabCompositionEditor: React.FC<PrefabCompositionEditorProps> = ({
   project,
   char,
   onUpdateCharacter,

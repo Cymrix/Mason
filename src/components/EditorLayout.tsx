@@ -541,7 +541,7 @@ export const EditorLayout: React.FC = () => {
     ];
   }, [project?.fileSystem?.prefabs]);
 
-  // Synchronize active prefab file in Prefab Studio with Map Editor selected test prefab
+  // Synchronize active prefab file in Prefab Editor with Map Editor selected test prefab
   useEffect(() => {
     if (currentCharacterFile?.prefabData?.id) {
       setSelectedTestCharacterId(currentCharacterFile.prefabData.id);
@@ -977,13 +977,13 @@ export const EditorLayout: React.FC = () => {
 
           <div className="h-4 w-px bg-neutral-800"></div>
 
-          {/* Project Title / Studio Brand & Version */}
+          {/* Project Title / Brand & Version */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => handleLaunchModule(null)}
               className="flex items-center gap-2 group hover:opacity-90 transition text-left"
-              title="Mason Studio - View Dashboard"
+              title="Mason Suite - View Dashboard"
             >
               {/* Sky Blue Mason Citadel Brand Icon */}
               <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-sky-900/90 via-sky-950 to-neutral-950 border border-sky-500/50 flex items-center justify-center shadow-md shadow-sky-950/60 shrink-0 group-hover:border-sky-400 group-hover:scale-105 transition-all p-1">
@@ -1447,7 +1447,7 @@ export const EditorLayout: React.FC = () => {
                             : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
                         }`}
                       >
-                        <span>🗺️ Tilemap Studio</span>
+                        <span>🗺️ Tilemap Editor</span>
                       </button>
                       <button
                         type="button"
@@ -2290,7 +2290,7 @@ export const EditorLayout: React.FC = () => {
                               className="w-full py-2 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-amber-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
                             >
                               <Sparkles size={13} />
-                              <span>Open Particle Systems Studio</span>
+                              <span>Open Particle Systems Editor</span>
                             </button>
                           </div>
                         </div>

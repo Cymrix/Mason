@@ -338,7 +338,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
     let url = sheet?.imageUrl || sheet?.dataUrl || (sheet as any)?.imageBase64 || '';
     if (!url) {
-      // Procedural fallback spritesheet canvas matching Prefab Studio
+      // Procedural fallback spritesheet canvas matching Prefab Editor
       const cvs = document.createElement('canvas');
       cvs.width = tileW * cols;
       cvs.height = tileH * rows;
@@ -2825,7 +2825,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const capOx = charConfig.offsetX;
       const capOy = charConfig.offsetY;
 
-      // In Prefab Studio, the capsule center is at (capOx, capOy) relative to sprite center (0,0).
+      // In Prefab Editor, the capsule center is at (capOx, capOy) relative to sprite center (0,0).
       // On the map, the bottom of the capsule rests on the ground at spawnY (or p.y).
       // Therefore, the capsule center is at (spawnX, spawnY - capH / 2).
       // And the sprite center is at (spawnX - capOx, spawnY - (capOy + capH / 2)).

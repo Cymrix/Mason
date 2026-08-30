@@ -379,10 +379,10 @@ export const saveProjectToOneDrive = async (
 
   let fileName = options.customFileName?.trim();
   if (!fileName) {
-    const safeName = (project.name || 'mason_world').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const safeName = (project.name || 'mason_world').trim().replace(/[/\\?%*:|"<>]/g, '_');
     const extension = '.mason';
     const prefix = options.isBackup ? '[BACKUP]_' : '';
-    fileName = `${prefix}${safeName}_${project.id}${extension}`;
+    fileName = `${prefix}${safeName}${extension}`;
   } else if (!fileName.endsWith('.mason') && !fileName.endsWith('.json')) {
     fileName = `${fileName}.mason`;
   }

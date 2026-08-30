@@ -87,9 +87,7 @@ import { getCell, setCell } from '../engine/mapChunkHelper';
 import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle } from '../engine/metroidvaniaGenerator';
 import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
 import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
-import { usePWA } from '../hooks/usePWA';
-import { DownloadCloud, WifiOff } from 'lucide-react';
-import { PWAInstallModal } from './PWAInstallModal';
+import { getBackupSettings, executeProjectBackup } from '../utils/projectBackupSystem';
 import { ThemeModal } from './ThemeModal';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Palette } from 'lucide-react';
@@ -101,16 +99,6 @@ export const EditorLayout: React.FC = () => {
   
   // App Theme Hook
   const { theme, primaryDef, bgDef, getModuleColorDef } = useAppTheme();
-  
-  // PWA Support Hook
-  const { 
-    hasNativePrompt, 
-    isInstalled, 
-    isOffline, 
-    isInIframe, 
-    platform, 
-    triggerNativeInstall 
-  } = usePWA();
 
   // Active Module State (null by default when a project is loaded, showing Project Info until clicked)
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
@@ -160,10 +148,9 @@ export const EditorLayout: React.FC = () => {
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [isExplorerModalOpen, setIsExplorerModalOpen] = useState(false);
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
-  const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
-  const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'save' | 'load'>('explore');
+  const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'backups'>('explore');
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -178,6 +165,24 @@ export const EditorLayout: React.FC = () => {
     window.addEventListener('message', handleMsg);
     return () => window.removeEventListener('message', handleMsg);
   }, []);
+
+  // Automated Project Backup Interval Effect
+  useEffect(() => {
+    if (!project || !project.id) return;
+    const intervalTimer = setInterval(async () => {
+      const settings = getBackupSettings();
+      const lastTime = settings.lastBackupTime ? new Date(settings.lastBackupTime).getTime() : 0;
+      const intervalMs = (settings.intervalMinutes || 10) * 60 * 1000;
+      if (Date.now() - lastTime >= intervalMs) {
+        try {
+          await executeProjectBackup(project, 'Auto Interval Backup');
+        } catch (err) {
+          console.warn('Auto interval backup error:', err);
+        }
+      }
+    }, 30000);
+    return () => clearInterval(intervalTimer);
+  }, [project]);
 
   // Map Painting State (for maps module)
   const [mode, setMode] = useState<ModeType>('paint');
@@ -972,7 +977,6 @@ export const EditorLayout: React.FC = () => {
             onExportBundle={handleExportBundle}
             onCloseProject={handleCloseProject}
             onSelectModule={(modId) => handleLaunchModule(modId)}
-            onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
             onOpenCloudSyncModal={(mode = 'explore') => {
               setCloudSyncInitialMode(mode);
               setIsCloudSyncModalOpen(true);
@@ -1018,12 +1022,6 @@ export const EditorLayout: React.FC = () => {
             ) : (
               <span className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800">
                 No Project Loaded
-              </span>
-            )}
-
-            {isOffline && (
-              <span className="hidden sm:flex items-center gap-1 text-[10px] font-mono text-amber-400 bg-amber-950/50 border border-amber-500/30 px-1.5 py-0.5 rounded" title="Offline Mode Active">
-                <WifiOff size={11} /> Offline
               </span>
             )}
           </div>
@@ -1272,7 +1270,10 @@ export const EditorLayout: React.FC = () => {
             onLoadProjectFromFile={() => setIsLoadModalOpen(true)}
             onSelectSavedProject={handleSelectSavedProject}
             onDeleteSavedProject={handleDeleteSavedProject}
-            onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
+            onOpenCloudSyncModal={(mode = 'explore') => {
+              setCloudSyncInitialMode(mode);
+              setIsCloudSyncModalOpen(true);
+            }}
           />
         )}
 
@@ -2454,35 +2455,16 @@ export const EditorLayout: React.FC = () => {
             cells: project.fileSystem.maps?.[0]?.cells || []
           }) as any,
           biomes: project.fileSystem.biomes?.map(b => b.biomeData) || [],
-          activeBiomeId: project.fileSystem.biomes?.[0]?.id || 'mourne_ashen_steppes'
-        } : {
-          id: 'temp_proj',
-          name: 'New Mason Level',
-          engine_version: '2.0.0',
-          tile_size_px: 64,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          map: { width: 24, height: 24, cells: [] },
-          biomes: [],
-          activeBiomeId: 'mourne_ashen_steppes'
-        }}
+          activeBiomeId: project.fileSystem.biomes?.[0]?.id || 'mourne_ashen_steppes',
+          fullMasonProject: project
+        } : null}
+        onShowToast={(msg, type) => showToast(msg, type === 'warning' ? 'info' : type)}
         onLoadProject={(loadedProjectData) => {
           const masonProj = convertProjectDataToMasonProject(loadedProjectData);
           setProject(masonProj);
           refreshSavedProjects();
           showToast(`Loaded "${masonProj.name}" from Cloud!`, 'success');
         }}
-      />
-
-      {/* PWA Direct Installation & Guidance Modal */}
-      <PWAInstallModal
-        isOpen={isPWAInstallModalOpen}
-        onClose={() => setIsPWAInstallModalOpen(false)}
-        hasNativePrompt={hasNativePrompt}
-        isInIframe={isInIframe}
-        isInstalled={isInstalled}
-        platform={platform}
-        onTriggerNativeInstall={triggerNativeInstall}
       />
 
       {/* App Theme Settings & Palette Modal */}

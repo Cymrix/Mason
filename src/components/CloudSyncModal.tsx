@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Search,
   Trash2,
   FileCheck,
@@ -25,7 +26,10 @@ import {
   Compass,
   Check,
   ExternalLink,
-  FolderTree
+  FolderTree,
+  LogOut,
+  History,
+  Settings
 } from 'lucide-react';
 import { ProjectData } from '../utils/projectStorage';
 import { 
@@ -65,13 +69,25 @@ import {
   CloudProvider,
   deleteOneDriveFile
 } from '../utils/oneDriveStorage';
+import {
+  getBackupSettings,
+  saveBackupSettings,
+  executeProjectBackup,
+  fetchBackupFilesFromFolder,
+  deleteBackupFile,
+  restoreBackupFile,
+  downloadBackupFileToClient,
+  BackupSettings,
+  BackupFileItem
+} from '../utils/projectBackupSystem';
 
 interface CloudSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentProject: ProjectData;
+  currentProject: (ProjectData & { fullMasonProject?: any }) | null;
   onLoadProject: (project: ProjectData) => void;
-  initialMode?: 'explore' | 'save' | 'load';
+  initialMode?: 'explore' | 'backups';
+  onShowToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
 }
 
 interface FolderBreadcrumb {
@@ -84,14 +100,23 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   onClose,
   currentProject,
   onLoadProject,
-  initialMode = 'explore'
+  initialMode = 'explore',
+  onShowToast
 }) => {
+  const isProjectLoaded = Boolean(currentProject && currentProject.id && currentProject.id !== 'temp_proj');
   const [activeProvider, setActiveProviderState] = useState<CloudProvider>('gdrive');
-  const [activeTab, setActiveTab] = useState<'explore' | 'save' | 'load'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'backups'>('explore');
   const [explorerViewMode, setExplorerViewMode] = useState<'subfolders' | 'all_folders'>('subfolders');
 
   // Search / Filter
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Backup System State
+  const [backupSettings, setBackupSettingsState] = useState<BackupSettings>(getBackupSettings());
+  const [backupsList, setBackupsList] = useState<BackupFileItem[]>([]);
+  const [backupsLocationName, setBackupsLocationName] = useState<string>('');
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [executingBackup, setExecutingBackup] = useState(false);
 
   // Google Drive State
   const [gdriveToken, setGdriveToken] = useState<string | null>(null);
@@ -117,38 +142,199 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [newFolderName, setNewFolderName] = useState('');
   const [showCreateFolder, setShowCreateFolder] = useState(false);
 
-  // Custom Save Dialog State
+  // Custom Save Dialog State (in Explorer tab)
+  const [showSaveAsDialog, setShowSaveAsDialog] = useState(false);
   const [customSaveFileName, setCustomSaveFileName] = useState('');
   const [isBackupSave, setIsBackupSave] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
+  // In-Modal Confirmation State for Deletion & Restoration
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    id: string;
+    name: string;
+    type: 'gdrive' | 'onedrive' | 'backup';
+    backupItem?: BackupFileItem;
+  } | null>(null);
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
+
+  const [restoreConfirmTarget, setRestoreConfirmTarget] = useState<BackupFileItem | null>(null);
+  const [restoringInProgress, setRestoringInProgress] = useState(false);
+
   // Scroll Container Refs
   const modalBodyRef = React.useRef<HTMLDivElement>(null);
   const itemsListRef = React.useRef<HTMLDivElement>(null);
-  const loadListRef = React.useRef<HTMLDivElement>(null);
 
   const scrollToTop = () => {
     if (itemsListRef.current) {
       itemsListRef.current.scrollTop = 0;
-    }
-    if (loadListRef.current) {
-      loadListRef.current.scrollTop = 0;
     }
     if (modalBodyRef.current) {
       modalBodyRef.current.scrollTop = 0;
     }
   };
 
+  const loadBackups = async () => {
+    setLoadingBackups(true);
+    try {
+      const res = await fetchBackupFilesFromFolder(activeProvider, currentProject?.id);
+      setBackupsList(res.items);
+      setBackupsLocationName(res.locationName);
+    } catch (err) {
+      console.warn('Could not load project backups:', err);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  const prevIsOpenRef = React.useRef(false);
   useEffect(() => {
     if (isOpen) {
       setActiveProviderState(getActiveCloudProvider());
-      setActiveTab(initialMode);
-      setCustomSaveFileName(
-        `${(currentProject?.name || 'mason_world').toLowerCase().replace(/[^a-z0-9]/g, '_')}_${currentProject?.id || 'map'}.mason`
-      );
+      if (!prevIsOpenRef.current) {
+        setActiveTab(initialMode);
+      }
+      if (isProjectLoaded && currentProject) {
+        const cleanProjectName = (currentProject.name || 'mason_world').trim().replace(/[/\\?%*:|"<>]/g, '_');
+        setCustomSaveFileName(`${cleanProjectName}.mason`);
+      } else {
+        setCustomSaveFileName('');
+      }
       refreshCloudState();
+      setBackupSettingsState(getBackupSettings());
+      loadBackups();
     }
-  }, [isOpen, initialMode, currentProject]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialMode]);
+
+  const handleUpdateBackupSettings = (updates: Partial<BackupSettings>) => {
+    const updated = saveBackupSettings(updates);
+    setBackupSettingsState(updated);
+    onShowToast?.(`Backup settings saved: every ${updated.intervalMinutes}m, keep ${updated.retentionCount}`, 'success');
+  };
+
+  const handleTriggerManualBackup = async () => {
+    if (!isProjectLoaded || !currentProject) {
+      onShowToast?.('No project is open to back up. Please create or load a project first.', 'warning');
+      return;
+    }
+    setExecutingBackup(true);
+    try {
+      const projToBackup = currentProject.fullMasonProject || {
+        id: currentProject.id,
+        name: currentProject.name,
+        description: currentProject.description,
+        engineVersion: currentProject.engine_version || '2.0.0',
+        activeModule: 'general',
+        fileSystem: {
+          maps: [{
+            id: 'map_1',
+            fileName: 'main_world.map',
+            width: currentProject.map?.width || 24,
+            height: currentProject.map?.height || 24,
+            cells: currentProject.map?.cells || [],
+            data: currentProject.map || {}
+          }],
+          biomes: (currentProject.biomes || []).map((b: any, idx: number) => ({
+            id: b.id || `biome_${idx}`,
+            fileName: `${b.name || 'biome'}.biome`,
+            biomeData: b
+          })),
+          prefabs: [],
+          sprites: [],
+          images: [],
+          behaviors: [],
+          audio: [],
+          docs: [],
+          particles: []
+        },
+        createdAt: currentProject.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const res = await executeProjectBackup(projToBackup as any, 'Manual Backup Snapshot');
+      await loadBackups();
+      setBackupSettingsState(getBackupSettings());
+      onShowToast?.(`Backup snapshot created (${res.totalKept} backups retained)`, 'success');
+    } catch (err: any) {
+      onShowToast?.(`Backup failed: ${err.message}`, 'error');
+    } finally {
+      setExecutingBackup(false);
+    }
+  };
+
+  const handleRestoreBackupRecord = (item: BackupFileItem) => {
+    setRestoreConfirmTarget(item);
+  };
+
+  const handleDeleteBackupRecord = (item: BackupFileItem, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeleteConfirmTarget({
+      id: item.id,
+      name: item.name,
+      type: 'backup',
+      backupItem: item
+    });
+  };
+
+  const executeConfirmedDelete = async () => {
+    if (!deleteConfirmTarget) return;
+    setDeletingInProgress(true);
+    try {
+      if (deleteConfirmTarget.type === 'gdrive') {
+        await deleteGoogleDriveFile(deleteConfirmTarget.id);
+        setGdriveStatusMsg(`Deleted "${deleteConfirmTarget.name}" from Google Drive.`);
+        onShowToast?.(`Deleted "${deleteConfirmTarget.name}" from Google Drive`, 'info');
+        await fetchGDriveFolder(gdriveCurrentFolder.id);
+      } else if (deleteConfirmTarget.type === 'onedrive') {
+        await deleteOneDriveFile(deleteConfirmTarget.id);
+        setOnedriveStatusMsg(`Deleted "${deleteConfirmTarget.name}" from OneDrive.`);
+        onShowToast?.(`Deleted "${deleteConfirmTarget.name}" from OneDrive`, 'info');
+        await fetchOneDriveFolder(onedriveCurrentFolder.id);
+      } else if (deleteConfirmTarget.type === 'backup' && deleteConfirmTarget.backupItem) {
+        await deleteBackupFile(deleteConfirmTarget.backupItem);
+        await loadBackups();
+        onShowToast?.(`Deleted backup snapshot "${deleteConfirmTarget.name}"`, 'info');
+      }
+      setDeleteConfirmTarget(null);
+    } catch (err: any) {
+      const errorMsg = err.message || 'Delete operation failed';
+      if (deleteConfirmTarget.type === 'gdrive') setGdriveStatusMsg(`Delete failed: ${errorMsg}`);
+      if (deleteConfirmTarget.type === 'onedrive') setOnedriveStatusMsg(`Delete failed: ${errorMsg}`);
+      onShowToast?.(`Delete failed: ${errorMsg}`, 'error');
+    } finally {
+      setDeletingInProgress(false);
+    }
+  };
+
+  const executeConfirmedRestore = async () => {
+    if (!restoreConfirmTarget) return;
+    setRestoringInProgress(true);
+    try {
+      const restored = await restoreBackupFile(restoreConfirmTarget);
+      if (restored) {
+        onLoadProject(restored);
+        onShowToast?.(`Restored project from backup "${restoreConfirmTarget.name}"!`, 'success');
+        setRestoreConfirmTarget(null);
+        onClose();
+      }
+    } catch (err: any) {
+      onShowToast?.(`Restore failed: ${err.message}`, 'error');
+    } finally {
+      setRestoringInProgress(false);
+    }
+  };
+
+  const handleDownloadBackupRecord = async (item: BackupFileItem, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await downloadBackupFileToClient(item);
+      onShowToast?.(`Downloaded backup "${item.name}"`, 'info');
+    } catch (err: any) {
+      onShowToast?.(`Download failed: ${err.message}`, 'error');
+    }
+  };
 
   const handleSwitchProvider = (provider: CloudProvider) => {
     setActiveProviderState(provider);
@@ -382,19 +568,14 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     }
   };
 
-  const handleDeleteGDriveFile = async (fileId: string, fileName: string, e: React.MouseEvent) => {
+  const handleDeleteGDriveFile = (fileId: string, fileName: string, e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to delete "${fileName}" from Google Drive?`)) return;
-    setLoading(true);
-    try {
-      await deleteGoogleDriveFile(fileId);
-      setGdriveStatusMsg(`Deleted "${fileName}" from Google Drive.`);
-      fetchGDriveFolder(gdriveCurrentFolder.id);
-    } catch (err: any) {
-      setGdriveStatusMsg(`Delete failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+    setDeleteConfirmTarget({
+      id: fileId,
+      name: fileName,
+      type: 'gdrive'
+    });
   };
 
   // --- OneDrive Handlers ---
@@ -527,19 +708,14 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     }
   };
 
-  const handleDeleteOneDriveFile = async (fileId: string, fileName: string, e: React.MouseEvent) => {
+  const handleDeleteOneDriveFile = (fileId: string, fileName: string, e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to delete "${fileName}" from OneDrive?`)) return;
-    setLoading(true);
-    try {
-      await deleteOneDriveFile(fileId);
-      setOnedriveStatusMsg(`Deleted "${fileName}" from OneDrive.`);
-      fetchOneDriveFolder(onedriveCurrentFolder.id);
-    } catch (err: any) {
-      setOnedriveStatusMsg(`Delete failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+    setDeleteConfirmTarget({
+      id: fileId,
+      name: fileName,
+      type: 'onedrive'
+    });
   };
 
   // Filter items
@@ -681,45 +857,35 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
         </div>
 
         {/* Mode Tabs */}
-        <div className="px-5 border-b border-stone-800 bg-stone-950/40 flex items-center justify-between">
+        <div className="px-5 border-b border-stone-800 bg-stone-950/40 flex items-center justify-between overflow-x-auto">
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setActiveTab('explore')}
-              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer ${
                 activeTab === 'explore'
                   ? 'border-amber-500 text-amber-300 bg-amber-500/5'
-                  : 'border-transparent text-stone-400 hover:text-stone-200'
+                  : 'border-transparent text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
               }`}
             >
               <FolderOpen className="w-3.5 h-3.5" />
-              Explore Folders & Pick Location
+              Explore Folders & Projects
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab('save')}
-              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-                activeTab === 'save'
+              onClick={() => {
+                setActiveTab('backups');
+                loadBackups();
+              }}
+              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer ${
+                activeTab === 'backups'
                   ? 'border-amber-500 text-amber-300 bg-amber-500/5'
-                  : 'border-transparent text-stone-400 hover:text-stone-200'
+                  : 'border-transparent text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
               }`}
             >
-              <Upload className="w-3.5 h-3.5" />
-              Save Project As...
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('load')}
-              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-                activeTab === 'load'
-                  ? 'border-amber-500 text-amber-300 bg-amber-500/5'
-                  : 'border-transparent text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              <Download className="w-3.5 h-3.5" />
-              Load from Cloud
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              Project Backups & History
             </button>
           </div>
 
@@ -727,7 +893,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
             <button
               type="button"
               onClick={() => handleOpenGooglePicker('folder')}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-bold transition shadow-sm"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 active:bg-blue-700 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
               title="Open Google's official Drive folder selection window"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -740,7 +906,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
         <div ref={modalBodyRef} className="flex-1 overflow-y-auto p-4 space-y-3">
 
           {/* Account Header Banner */}
-          <div className="p-3 rounded-xl bg-stone-950/60 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3.5 rounded-xl bg-stone-950/60 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {activeProvider === 'gdrive' ? (
                 gdriveUser?.picture ? (
@@ -788,7 +954,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                     type="button"
                     onClick={handleConnectGDrive}
                     disabled={loading}
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
                   >
                     {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
                     Connect Google Drive
@@ -798,7 +964,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                     type="button"
                     onClick={() => handleConnectOneDrive()}
                     disabled={loading}
-                    className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-sky-600/20"
+                    className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-sky-600/20 active:scale-95 transition-all cursor-pointer"
                   >
                     {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
                     Sign In with Microsoft
@@ -808,18 +974,31 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => refreshCloudState()}
+                    onClick={async () => {
+                      onShowToast?.('Refreshing cloud drive contents...', 'info');
+                      await refreshCloudState();
+                      onShowToast?.('Cloud drive contents updated', 'success');
+                    }}
                     disabled={loading}
-                    className="p-2 rounded-lg border border-stone-700 hover:bg-stone-800 text-stone-300 text-xs transition"
+                    className="p-2.5 rounded-xl border border-stone-700 hover:border-sky-500/70 bg-stone-900/90 hover:bg-stone-800 active:bg-stone-700 text-stone-300 hover:text-white active:scale-95 transition-all shadow-sm hover:shadow cursor-pointer flex items-center justify-center group"
                     title="Refresh folder listing"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 text-stone-400 group-hover:text-sky-400 group-hover:rotate-180 transition-transform duration-500 ${loading ? 'animate-spin' : ''}`} />
                   </button>
                   <button
                     type="button"
-                    onClick={activeProvider === 'gdrive' ? handleDisconnectGDrive : handleDisconnectOneDrive}
-                    className="px-3 py-1.5 rounded-lg border border-stone-700 hover:border-red-500/50 hover:bg-red-500/10 text-stone-300 hover:text-red-400 text-xs transition"
+                    onClick={() => {
+                      const name = activeProvider === 'gdrive' ? 'Google Drive' : 'Microsoft OneDrive';
+                      if (activeProvider === 'gdrive') {
+                        handleDisconnectGDrive();
+                      } else {
+                        handleDisconnectOneDrive();
+                      }
+                      onShowToast?.(`Disconnected from ${name}`, 'info');
+                    }}
+                    className="px-3.5 py-2 rounded-xl border border-stone-700 hover:border-red-500/70 bg-stone-900/90 hover:bg-red-500/20 active:bg-red-500/30 text-stone-300 hover:text-red-300 active:scale-95 transition-all shadow-sm hover:shadow cursor-pointer text-xs font-semibold flex items-center gap-1.5"
                   >
+                    <LogOut className="w-3.5 h-3.5 text-red-400" />
                     Disconnect
                   </button>
                 </div>
@@ -908,7 +1087,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                       type="button"
                       onClick={() => setShowCreateFolder(!showCreateFolder)}
                       disabled={!activeToken}
-                      className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition"
+                      className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <FolderPlus className="w-3.5 h-3.5" /> + New Subfolder
                     </button>
@@ -923,29 +1102,123 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                         }
                       }}
                       disabled={!activeToken}
-                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-600/20 transition"
+                      className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 active:bg-stone-600 text-stone-200 text-xs font-semibold flex items-center gap-1.5 border border-stone-700 transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Set this open folder as the active destination for project saves"
                     >
-                      <FolderCheck className="w-3.5 h-3.5" /> Pick This Location
+                      <FolderCheck className="w-3.5 h-3.5 text-amber-400" /> Pick This Location
                     </button>
 
                     <button
                       type="button"
                       onClick={() => {
-                        if (activeProvider === 'gdrive') {
-                          handleSaveToGDriveLocation();
-                        } else {
-                          handleSaveToOneDriveLocation();
+                        if (!isProjectLoaded) {
+                          onShowToast?.('No project is currently open to save.', 'warning');
+                          return;
                         }
+                        if (!showSaveAsDialog && !customSaveFileName && currentProject?.name) {
+                          setCustomSaveFileName(currentProject.name);
+                        }
+                        setShowSaveAsDialog(!showSaveAsDialog);
                       }}
-                      disabled={!activeToken || loading}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition"
-                      title="Save the active project directly into this current directory"
+                      disabled={!activeToken || !isProjectLoaded}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                        showSaveAsDialog
+                          ? 'bg-amber-500 text-stone-950 shadow-amber-500/30'
+                          : 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-stone-950 shadow-amber-600/20'
+                      }`}
+                      title={isProjectLoaded ? "Save active project to this folder with custom options" : "No project open to save"}
                     >
-                      <Upload className="w-3.5 h-3.5" /> Save Project Here
+                      <Upload className="w-3.5 h-3.5" /> Save As...
                     </button>
                   </div>
                 </div>
+
+                {/* Inline Save As Dialog Form */}
+                {showSaveAsDialog && (
+                  <div className="p-4 rounded-xl bg-stone-900/95 border border-amber-500/40 shadow-lg space-y-3 animate-fade-in">
+                    <div className="flex items-center justify-between pb-2 border-b border-stone-800">
+                      <div className="flex items-center gap-2">
+                        <Upload className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs font-bold text-stone-200">
+                          Save Active Project into "{activeCurrentFolder.name}"
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowSaveAsDialog(false)}
+                        className="text-stone-400 hover:text-stone-200 text-xs p-1 rounded hover:bg-stone-800 transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-stone-300">
+                        Project File Name:
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={customSaveFileName}
+                          onChange={(e) => setCustomSaveFileName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (activeProvider === 'gdrive') {
+                                handleSaveToGDriveLocation();
+                              } else {
+                                handleSaveToOneDriveLocation();
+                              }
+                            }
+                          }}
+                          placeholder="e.g. MyProject"
+                          autoFocus
+                          className="flex-1 px-3.5 py-2 rounded-xl bg-stone-950 border border-stone-700 focus:border-amber-500 text-xs text-stone-100 font-mono focus:outline-none"
+                        />
+                        <div className="px-3 py-2 rounded-xl bg-stone-950/80 border border-stone-800 text-stone-400 text-xs font-mono flex items-center">
+                          .mason
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="explorerBackupCheckbox"
+                        checked={isBackupSave}
+                        onChange={(e) => setIsBackupSave(e.target.checked)}
+                        className="w-4 h-4 rounded border-stone-700 bg-stone-950 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <label htmlFor="explorerBackupCheckbox" className="text-xs text-stone-300 cursor-pointer select-none">
+                        Prefix with <code className="text-amber-400">[BACKUP]_</code> for version safety
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
+                      <button
+                        type="button"
+                        onClick={() => setShowSaveAsDialog(false)}
+                        className="px-3.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 active:bg-stone-600 text-stone-300 text-xs font-semibold transition cursor-pointer active:scale-95"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeProvider === 'gdrive') {
+                            handleSaveToGDriveLocation();
+                          } else {
+                            handleSaveToOneDriveLocation();
+                          }
+                        }}
+                        disabled={!activeToken || loading}
+                        className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-stone-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-600/30 transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        Save Project File
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Inline New Folder Form */}
                 {showCreateFolder && (
@@ -1285,8 +1558,8 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                         handleDeleteOneDriveFile(item.id, item.name, e);
                                       }
                                     }}
-                                    className="p-1.5 rounded-lg hover:bg-red-500/20 text-stone-500 hover:text-red-400 transition"
-                                    title="Delete from cloud"
+                                    className="p-1.5 rounded-lg bg-stone-800/80 border border-stone-700/60 hover:border-red-500 hover:bg-red-600 active:bg-red-700 text-stone-400 hover:text-white active:scale-95 transition cursor-pointer shadow-sm"
+                                    title="Delete file from cloud drive"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1305,205 +1578,319 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
             </div>
           )}
 
-          {/* MAIN TAB 2: SAVE PROJECT AS... DIALOG */}
-          {activeTab === 'save' && (
+          {/* MAIN TAB 2: AUTOMATED PROJECT BACKUPS & HISTORY */}
+          {activeTab === 'backups' && (
             <div className="space-y-4">
-              <div className="p-5 rounded-2xl bg-stone-950/80 border border-stone-800 space-y-5">
-                <div>
-                  <h3 className="font-bold text-stone-100 text-base flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-amber-400" />
-                    Save Active Project to Cloud Location
-                  </h3>
-                  <p className="text-xs text-stone-400 mt-0.5">
-                    Choose your file name, confirm the target destination folder, and push the latest map data to your cloud drive.
-                  </p>
-                </div>
-
-                {/* Target Location Card */}
-                <div className="p-3.5 rounded-xl bg-stone-900/90 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
-                      <FolderCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Save Destination Folder</div>
-                      <div className="font-bold text-stone-100 text-sm">{activeCurrentFolder.name}</div>
-                      <div className="text-[11px] text-stone-500">Service: {activeProvider === 'gdrive' ? 'Google Drive' : 'Microsoft OneDrive'}</div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('explore')}
-                    className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center gap-1.5 transition"
-                  >
-                    <Folder className="w-3.5 h-3.5 text-amber-400" /> Change Target Folder...
-                  </button>
-                </div>
-
-                {/* Filename Input Form */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-stone-300">
-                    File Name:
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={customSaveFileName}
-                      onChange={(e) => setCustomSaveFileName(e.target.value)}
-                      placeholder="e.g. world_map_level1.mason"
-                      className="flex-1 px-3.5 py-2 rounded-xl bg-stone-900 border border-stone-700 focus:border-amber-500 text-xs text-stone-100 font-mono focus:outline-none"
-                    />
-                    <div className="px-3 py-2 rounded-xl bg-stone-900/80 border border-stone-800 text-stone-400 text-xs font-mono flex items-center">
-                      .mason
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Saves map cells ({currentProject?.map?.width || 0}x{currentProject?.map?.height || 0}), biomes ({(currentProject?.biomes || []).length}), custom entities, checkpoints, and settings in Mason format (.mason).
-                  </p>
-                </div>
-
-                {/* Options Checkbox */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="backupCheckbox"
-                    checked={isBackupSave}
-                    onChange={(e) => setIsBackupSave(e.target.checked)}
-                    className="w-4 h-4 rounded border-stone-700 bg-stone-900 text-amber-600 focus:ring-amber-500"
-                  />
-                  <label htmlFor="backupCheckbox" className="text-xs text-stone-300 cursor-pointer">
-                    Prefix with <code className="text-amber-400">[BACKUP]_</code> for version safety
-                  </label>
-                </div>
-
-                {/* Save Execution Button */}
-                <div className="pt-3 border-t border-stone-800 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('explore')}
-                    className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold transition"
-                  >
-                    Back to Explorer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (activeProvider === 'gdrive') {
-                        handleSaveToGDriveLocation();
-                      } else {
-                        handleSaveToOneDriveLocation();
-                      }
-                    }}
-                    disabled={!activeToken || loading}
-                    className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold flex items-center gap-2 shadow-lg shadow-amber-600/30 transition"
-                  >
-                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Save Project to Selected Location
-                  </button>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* MAIN TAB 3: LOAD SAVED CLOUD PROJECTS */}
-          {activeTab === 'load' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-stone-950/80 border border-stone-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
+              
+              {/* Backup Engine Configuration Box */}
+              <div className="p-4 rounded-xl bg-stone-950/80 border border-stone-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-800">
+                  <div className="space-y-0.5">
                     <h3 className="font-bold text-stone-100 text-sm flex items-center gap-2">
-                      <Download className="w-4 h-4 text-blue-400" />
-                      Saved Cloud Projects in "{activeCurrentFolder.name}"
+                      <Clock className="w-4 h-4 text-amber-400" />
+                      Automated Project Backup Engine
                     </h3>
                     <p className="text-xs text-stone-400">
-                      Select any previously saved Mason project file to open it directly in the editor.
+                      Snapshots are automatically created to IndexedDB and synced to your cloud <code className="text-amber-300">backups/</code> subfolder.
                     </p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => setActiveTab('explore')}
-                    className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center gap-1"
+                    onClick={handleTriggerManualBackup}
+                    disabled={executingBackup}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-stone-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-600/20 active:scale-95 transition cursor-pointer self-start sm:self-auto"
                   >
-                    <Compass className="w-3.5 h-3.5" /> Browse Other Folders...
+                    {executingBackup ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+                    Create Backup Snapshot Now
                   </button>
                 </div>
 
-                {/* Project File List */}
-                {(!activeToken) ? (
-                  <div className="p-8 text-center text-xs text-stone-500">
-                    Connect your cloud account to view saved projects.
+                {/* Settings Controls (Interval & Retention) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-3.5 rounded-xl bg-stone-900/90 border border-stone-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-stone-200">
+                        Backup Frequency
+                      </label>
+                      <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-xs font-bold border border-amber-500/30">
+                        Every {backupSettings.intervalMinutes} minutes
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-400">
+                      Interval between automatic background snapshots (Allowed: 3 to 60 minutes).
+                    </p>
+                    <div className="flex items-center gap-3 pt-1">
+                      <input
+                        type="range"
+                        min="3"
+                        max="60"
+                        step="1"
+                        value={backupSettings.intervalMinutes}
+                        onChange={(e) => handleUpdateBackupSettings({ intervalMinutes: Number(e.target.value) })}
+                        className="flex-1 accent-amber-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-mono text-stone-400 w-12 text-right">
+                        {backupSettings.intervalMinutes}m
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-stone-900/90 border border-stone-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-stone-200">
+                        Backup Retention Limit
+                      </label>
+                      <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono text-xs font-bold border border-blue-500/30">
+                        Keep last {backupSettings.retentionCount} backups
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-400">
+                      Oldest backups automatically cycle out once limit is reached (Allowed: 1 to 50 backups).
+                    </p>
+                    <div className="flex items-center gap-3 pt-1">
+                      <input
+                        type="range"
+                        min="1"
+                        max="50"
+                        step="1"
+                        value={backupSettings.retentionCount}
+                        onChange={(e) => handleUpdateBackupSettings({ retentionCount: Number(e.target.value) })}
+                        className="flex-1 accent-blue-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-mono text-stone-400 w-12 text-right">
+                        {backupSettings.retentionCount}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cloud sync status banner */}
+                <div className="p-3 rounded-xl bg-stone-900/60 border border-stone-800 flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-stone-300">
+                    <Cloud className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span>
+                      Cloud Destination: <strong className="text-stone-100">backups/</strong> in {activeSelectedTarget.name} ({activeProvider === 'gdrive' ? 'Google Drive' : 'OneDrive'})
+                    </span>
+                  </div>
+                  {backupSettings.lastBackupTime && (
+                    <span className="text-[11px] text-stone-400">
+                      Last backup: {new Date(backupSettings.lastBackupTime).toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Backup History Snapshots List */}
+              <div className="p-4 rounded-xl bg-stone-950/80 border border-stone-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-stone-200 text-xs flex items-center gap-2">
+                      <History className="w-3.5 h-3.5 text-stone-400" />
+                      Backups Folder Snapshots ({backupsList.length})
+                    </h4>
+                    {backupsLocationName && (
+                      <p className="text-[11px] text-stone-400 mt-0.5">
+                        Location: <span className="font-mono text-stone-300">{backupsLocationName}</span>
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      onShowToast?.('Refreshing backups folder...', 'info');
+                      await loadBackups();
+                      onShowToast?.('Backups folder updated', 'success');
+                    }}
+                    className="p-1.5 rounded-lg border border-stone-800 hover:border-sky-500/50 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-stone-400 hover:text-stone-200 text-xs transition cursor-pointer active:scale-95 shadow-sm"
+                    title="Refresh snapshots from backups folder"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingBackups ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {loadingBackups ? (
+                  <div className="p-8 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-amber-500" /> Loading backup files directly from backups folder...
+                  </div>
+                ) : backupsList.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-stone-500 border border-dashed border-stone-800 rounded-xl space-y-2">
+                    <Clock className="w-6 h-6 text-stone-600 mx-auto" />
+                    <p>No backup files found in the backups folder.</p>
+                    <p className="text-[11px] text-stone-600">
+                      Click "Create Backup Snapshot Now" or wait for the automatic periodic snapshot.
+                    </p>
                   </div>
                 ) : (
-                  <div ref={loadListRef} className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                    {(activeProvider === 'gdrive' ? gdriveFolderItems : onedriveFolderItems)
-                      .filter(item => !item.isFolder && (item.name.endsWith('.mason') || item.name.endsWith('.json')))
-                      .map(file => (
-                        <div
-                          key={file.id}
-                          className="p-3 rounded-xl bg-stone-900/80 border border-stone-800 hover:border-blue-500/40 flex items-center justify-between gap-3 text-xs transition"
-                        >
-                          <div className="flex items-center gap-3 truncate">
-                            <div className="p-2 rounded-lg bg-blue-600/20 text-blue-400 shrink-0">
-                              <FileCode className="w-4 h-4" />
-                            </div>
-                            <div className="truncate">
-                              <span className="font-bold text-stone-200 truncate">{file.name}</span>
-                              <div className="text-[10px] text-stone-500 flex items-center gap-2 mt-0.5">
-                                <span>Modified: {new Date(file.modifiedTime).toLocaleDateString()}</span>
-                                {file.size && <span>• {Math.round(Number(file.size) / 1024)} KB</span>}
-                              </div>
-                            </div>
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    {backupsList.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className="p-3 rounded-xl bg-stone-900/90 border border-stone-800 hover:border-amber-500/40 flex items-center justify-between gap-3 text-xs transition group"
+                      >
+                        <div className="flex items-center gap-3 truncate">
+                          <div className="p-2 rounded-lg bg-amber-600/20 text-amber-400 shrink-0">
+                            <Clock className="w-4 h-4" />
                           </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (activeProvider === 'gdrive') {
-                                  handleLoadFromGDrive(file.id);
-                                } else {
-                                  handleLoadFromOneDrive(file as OneDriveItem);
-                                }
-                              }}
-                              disabled={loading}
-                              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
-                            >
-                              <Download className="w-3.5 h-3.5" /> Load Project
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                if (activeProvider === 'gdrive') {
-                                  handleDeleteGDriveFile(file.id, file.name, e);
-                                } else {
-                                  handleDeleteOneDriveFile(file.id, file.name, e);
-                                }
-                              }}
-                              className="p-1.5 rounded-lg hover:bg-red-500/20 text-stone-500 hover:text-red-400 transition"
-                              title="Delete from cloud"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                          <div className="truncate">
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="font-bold text-stone-200 truncate">
+                                {rec.name}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-stone-800 text-amber-400 border border-amber-500/20">
+                                {rec.provider === 'gdrive' ? 'Google Drive' : rec.provider === 'onedrive' ? 'OneDrive' : 'Local'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-stone-400 flex items-center gap-2 mt-0.5">
+                              <span>Saved: {new Date(rec.modifiedTime).toLocaleString()}</span>
+                              {rec.size && (
+                                <span>• {Math.round(Number(rec.size) / 1024)} KB</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      ))}
-                    {(activeProvider === 'gdrive' ? gdriveFolderItems : onedriveFolderItems)
-                      .filter(item => !item.isFolder && (item.name.endsWith('.mason') || item.name.endsWith('.json'))).length === 0 && (
-                      <div className="p-8 text-center text-xs text-stone-500 border border-dashed border-stone-800 rounded-xl">
-                        No saved Mason project files (.mason) found in this folder.
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreBackupRecord(rec)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition cursor-pointer"
+                            title="Restore this backup state into the editor"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" /> Restore
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleDownloadBackupRecord(rec, e)}
+                            className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 active:bg-stone-600 text-stone-300 hover:text-white transition cursor-pointer active:scale-95 shadow-sm"
+                            title="Download .mason backup file"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteBackupRecord(rec, e)}
+                            className="p-1.5 rounded-lg bg-stone-800/80 border border-stone-700/60 hover:border-red-500 hover:bg-red-600 active:bg-red-700 text-stone-400 hover:text-white active:scale-95 transition cursor-pointer shadow-sm"
+                            title="Delete backup file"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
                 )}
               </div>
+
             </div>
           )}
 
         </div>
+
+        {/* In-Modal Delete Confirmation Overlay */}
+        {deleteConfirmTarget && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-md bg-stone-900 border border-red-500/40 rounded-2xl p-5 shadow-2xl space-y-4 text-stone-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-stone-100">Delete Permanently?</h3>
+                  <p className="text-xs text-stone-400">
+                    {deleteConfirmTarget.type === 'backup' ? 'Remove backup snapshot' : 'Remove project file from cloud drive'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-stone-950 border border-stone-800 space-y-1">
+                <div className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider">File Name</div>
+                <div className="font-mono text-xs text-amber-300 font-bold break-all">
+                  {deleteConfirmTarget.name}
+                </div>
+              </div>
+
+              <p className="text-xs text-stone-400 leading-relaxed">
+                Are you sure you want to permanently delete this project file? This action cannot be undone.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmTarget(null)}
+                  disabled={deletingInProgress}
+                  className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 active:bg-stone-600 text-stone-300 text-xs font-semibold transition cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeConfirmedDelete}
+                  disabled={deletingInProgress}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-red-600/30 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {deletingInProgress ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Permanently Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* In-Modal Restore Confirmation Overlay */}
+        {restoreConfirmTarget && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-md bg-stone-900 border border-amber-500/40 rounded-2xl p-5 shadow-2xl space-y-4 text-stone-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-stone-100">Restore Backup Snapshot?</h3>
+                  <p className="text-xs text-stone-400">
+                    Replaces the active workspace project
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-stone-950 border border-stone-800 space-y-1">
+                <div className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider">Snapshot File</div>
+                <div className="font-mono text-xs text-amber-300 font-bold break-all">
+                  {restoreConfirmTarget.name}
+                </div>
+                <div className="text-[10px] text-stone-500">
+                  Saved: {new Date(restoreConfirmTarget.modifiedTime).toLocaleString()}
+                </div>
+              </div>
+
+              <p className="text-xs text-stone-400 leading-relaxed">
+                Are you sure you want to restore this snapshot? Any unsaved changes in your current session will be replaced with this backup state.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setRestoreConfirmTarget(null)}
+                  disabled={restoringInProgress}
+                  className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 active:bg-stone-600 text-stone-300 text-xs font-semibold transition cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeConfirmedRestore}
+                  disabled={restoringInProgress}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-stone-950 text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {restoringInProgress ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Restore Snapshot
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal Footer */}
         <div className="px-5 py-3 border-t border-stone-800 bg-stone-950/90 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-stone-500">
@@ -1515,8 +1902,9 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 font-medium transition"
+            className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-stone-950 font-bold text-xs transition-all shadow-md shadow-amber-600/20 hover:shadow-amber-600/40 active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
+            <Check className="w-3.5 h-3.5" />
             Done
           </button>
         </div>

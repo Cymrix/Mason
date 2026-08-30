@@ -125,4 +125,13 @@ fs.writeFileSync(path.resolve('./public/icon-192.png'), icon192);
 fs.writeFileSync(path.resolve('./public/icon-512.png'), icon512);
 fs.writeFileSync(path.resolve('./public/icon-maskable.png'), iconMaskable);
 
+// Copy SVG favicon to SVG icon for PWA completeness
+try {
+  const svgContent = fs.readFileSync(path.resolve('./public/favicon.svg'), 'utf-8');
+  fs.writeFileSync(path.resolve('./public/icon.svg'), svgContent);
+  console.log('SVG Icon copied successfully.');
+} catch (err) {
+  console.warn('Could not copy SVG icon:', err.message);
+}
+
 console.log('PNG Icons generated successfully (192x192, 512x512, maskable).');

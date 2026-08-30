@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.219';
-export const MASON_VERSION_DISPLAY = 'v0.219';
-export const MASON_FULL_VERSION = 'v0.219';
+export const MASON_VERSION = '0.224';
+export const MASON_VERSION_DISPLAY = 'v0.224';
+export const MASON_FULL_VERSION = 'v0.224';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,56 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.224',
+    date: '2026-08-30',
+    changes: [
+      'Upgraded the absolute in-modal Delete/Restore confirmation overlays to fixed-position full-window overlays, correcting scaling issues inside the main scroll container.',
+      'Refined the hover and active states for cloud drive and backup deletion buttons with rich high-contrast red highlights.',
+      'Pristinely cleaned the workspace root by deleting obsolete scratch files (server.js, generate-icons.mjs) and consolidating the PWA generator script.'
+    ]
+  },
+  {
+    version: 'v0.223',
+    date: '2026-08-30',
+    changes: [
+      'Replaced iframe-blocked window.confirm with styled in-modal Delete and Restore confirmation dialogs.',
+      'Enhanced delete and restore buttons in Explorer and Backups tabs with distinct hover highlights and active states.',
+      'Cleaned up repository by removing leftover scratch scripts, test logs, puppeteer artifacts, and obsolete test files.',
+      'Verified cloud and backup deletion workflows across Google Drive and Microsoft OneDrive.'
+    ]
+  },
+  {
+    version: 'v0.222',
+    date: '2026-08-30',
+    changes: [
+      'Removed separate Save As and Load tabs from Cloud Drive modal in favor of unified Explorer workflow.',
+      'Added inline Save As dialog with custom filename input and backup options to Explorer actions toolbar.',
+      'Unified cloud project loading and saving directly inside the Cloud Drives Explorer view.',
+      'Updated EditorLayout cloud sync mode typing to explore and backups.'
+    ]
+  },
+  {
+    version: 'v0.221',
+    date: '2026-08-30',
+    changes: [
+      'Refactored Project Backups system to directly read and manage backup files from the cloud backups/ directory without separate database dependencies.',
+      'Added explicit confirmation dialogs ("Are you sure?") and toast feedback before deleting project files and backups in Cloud Drive.',
+      'Disabled project saving when no project is open and cleaned filename defaults to strictly ProjectName.mason.',
+      'Enhanced Refresh, Disconnect, and Done buttons with high-contrast hover feedback and click animations.'
+    ]
+  },
+  {
+    version: 'v0.220',
+    date: '2026-08-30',
+    changes: [
+      'Added automated Project File Backup Engine running every 10m (configurable 3-60m) retaining 10 snapshots (configurable 1-50) with auto cloud sub-folder backups/ sync.',
+      'Added comprehensive Backups & History management tab in Cloud Drive modal with snapshot restore, instant manual backup, and file download.',
+      'Enhanced Cloud Drive modal buttons (Refresh, Disconnect, Done) with high-contrast hover states, active click feedback, and real-time toast alerts.',
+      'Standardized project saving filename default to clean ProjectName.mason without arbitrary IDs or redundant prefixes.',
+      'Removed all PWA installation buttons and prompts from menus, dashboard, and launcher.'
+    ]
+  },
   {
     version: 'v0.219',
     date: '2026-08-30',

@@ -3,48 +3,45 @@ import { getContrastTextColor } from '../theme/appTheme';
 import { 
   Plus, 
   FolderOpen, 
-  Upload, 
   Layers, 
   Sparkles, 
-  Compass, 
-  Play, 
   Trash2, 
-  FileText,
-  CheckCircle2,
-  Box,
-  Cpu,
-  Map,
-  TreePine,
-  Users,
-  Sliders,
-  Network
+  Cpu, 
+  Map, 
+  TreePine, 
+  Users, 
+  Sliders, 
+  Network,
+  Cloud,
+  HardDrive
 } from 'lucide-react';
 import { ProjectIndexItem } from '../utils/masonStorage';
 import { MASON_MODULES } from '../engine/modulesRegistry';
-import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
-import { usePWA } from '../hooks/usePWA';
+import { MASON_FULL_VERSION } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
-import { DownloadCloud } from 'lucide-react';
+import { getGoogleDriveToken } from '../utils/googleDriveStorage';
+import { getOneDriveToken } from '../utils/oneDriveStorage';
 
 interface MasonWelcomeLauncherProps {
   savedProjects: ProjectIndexItem[];
   onCreateNewProject: () => void;
   onLoadProjectFromFile: () => void;
+  onOpenCloudSyncModal: (mode?: 'explore' | 'backups') => void;
   onSelectSavedProject: (id: string) => void;
   onDeleteSavedProject: (id: string, e: React.MouseEvent) => void;
-  onOpenPWAInstallModal: () => void;
 }
 
 export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
   savedProjects,
   onCreateNewProject,
   onLoadProjectFromFile,
+  onOpenCloudSyncModal,
   onSelectSavedProject,
-  onDeleteSavedProject,
-  onOpenPWAInstallModal
+  onDeleteSavedProject
 }) => {
-  const { isInstalled } = usePWA();
   const { primaryDef, bgDef } = useAppTheme();
+  const isGDriveConnected = Boolean(getGoogleDriveToken());
+  const isOneDriveConnected = Boolean(getOneDriveToken());
 
   return (
     <div 
@@ -57,53 +54,16 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
         style={{ backgroundColor: primaryDef.hex }}
       ></div>
 
-      <div className="max-w-4xl w-full space-y-10 relative z-10">
+      <div className="max-w-5xl w-full space-y-8 relative z-10">
         
-        {/* Hero Header */}
-        <div className="text-center space-y-3">
-          <div 
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono border"
-            style={{
-              backgroundColor: `rgba(${primaryDef.rgb}, 0.15)`,
-              borderColor: `rgba(${primaryDef.rgb}, 0.35)`,
-              color: primaryDef.hex
-            }}
-          >
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: primaryDef.hex }}></span>
-            <span>Mason World Authoring Studio {MASON_FULL_VERSION}</span>
-          </div>
-
-          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">
-            Mason Project Manager
-          </h1>
-
-          <p className="text-sm md:text-base text-neutral-400 max-w-xl mx-auto leading-relaxed">
-            Modular 2D Metroidvania & Sidescroller world authoring system. Load independent HTML mini-apps for level editing, biomes, prefabs, and game flow.
-          </p>
-
-          {/* PWA Install Action (Only when not installed) */}
-          {!isInstalled && (
-            <div className="pt-2 flex justify-center">
-              <button
-                type="button"
-                onClick={onOpenPWAInstallModal}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-300 text-xs font-bold transition shadow-lg shadow-indigo-950/50 group"
-              >
-                <DownloadCloud size={15} className="text-indigo-400 group-hover:scale-110 transition" />
-                <span>Install Mason as Desktop / Mobile App (PWA)</span>
-                <span className="text-[10px] bg-indigo-900/60 px-1.5 py-0.2 rounded font-mono text-indigo-200">{MASON_VERSION_DISPLAY}</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Primary Action Buttons (Create & Load) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Create Project Card */}
+        {/* Primary Action Buttons (Create, Local Load, Cloud Drive) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          {/* 1. Create Project Card */}
           <button
             type="button"
             onClick={onCreateNewProject}
-            className="group relative overflow-hidden p-6 md:p-8 rounded-3xl border text-left transition hover:shadow-2xl active:scale-[0.99]"
+            className="group relative overflow-hidden p-6 rounded-3xl border text-left transition-all hover:shadow-2xl active:scale-[0.98] cursor-pointer flex flex-col justify-between"
             style={{
               backgroundColor: bgDef.cardHex,
               borderColor: `rgba(${primaryDef.rgb}, 0.35)`
@@ -111,40 +71,40 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
           >
             <div className="space-y-4">
               <div 
-                className="w-14 h-14 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition duration-300 shadow-lg"
+                className="w-12 h-12 rounded-2xl border flex items-center justify-center group-hover:scale-110 transition duration-300 shadow-lg"
                 style={{
                   backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
                   borderColor: `rgba(${primaryDef.rgb}, 0.4)`,
                   color: primaryDef.hex
                 }}
               >
-                <Plus size={28} />
+                <Plus size={26} />
               </div>
 
               <div className="space-y-1">
-                <h2 className="text-lg md:text-xl font-black text-white transition">
+                <h2 className="text-base md:text-lg font-black text-white transition">
                   Create New Project
                 </h2>
                 <p className="text-xs text-neutral-400 leading-relaxed">
                   Start a new 2D Metroidvania universe with starter maps, 7-layer parallax biomes, prefabs, and UI presets.
                 </p>
               </div>
+            </div>
 
-              <div 
-                className="flex items-center gap-2 text-xs font-mono font-bold pt-2"
-                style={{ color: primaryDef.hex }}
-              >
-                <span>Configure & Start</span>
-                <span>→</span>
-              </div>
+            <div 
+              className="flex items-center gap-2 text-xs font-mono font-bold pt-4"
+              style={{ color: primaryDef.hex }}
+            >
+              <span>Configure & Start</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </button>
 
-          {/* Load Project Card */}
+          {/* 2. Load Local Project Card */}
           <button
             type="button"
             onClick={onLoadProjectFromFile}
-            className="group relative overflow-hidden p-6 md:p-8 rounded-3xl border text-left transition hover:shadow-2xl active:scale-[0.99]"
+            className="group relative overflow-hidden p-6 rounded-3xl border text-left transition-all hover:shadow-2xl active:scale-[0.98] cursor-pointer flex flex-col justify-between"
             style={{
               backgroundColor: bgDef.cardHex,
               borderColor: bgDef.borderHex
@@ -152,30 +112,75 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
           >
             <div className="space-y-4">
               <div 
-                className="w-14 h-14 rounded-2xl border flex items-center justify-center text-neutral-300 group-hover:scale-110 transition duration-300 shadow-lg"
+                className="w-12 h-12 rounded-2xl border flex items-center justify-center text-neutral-300 group-hover:scale-110 transition duration-300 shadow-lg"
                 style={{
                   backgroundColor: bgDef.hex,
                   borderColor: bgDef.borderHex
                 }}
               >
-                <FolderOpen size={28} />
+                <FolderOpen size={26} />
               </div>
 
               <div className="space-y-1">
-                <h2 className="text-lg md:text-xl font-black text-white group-hover:text-neutral-200 transition">
-                  Load Existing Project
+                <h2 className="text-base md:text-lg font-black text-white group-hover:text-neutral-200 transition">
+                  Load Local Project
                 </h2>
                 <p className="text-xs text-neutral-400 leading-relaxed">
-                  Open a <code className="font-mono" style={{ color: primaryDef.hex }}>.mason.json</code> project bundle or select a saved project from local storage.
+                  Open a <code className="font-mono text-amber-300">.mason</code> project bundle file from your disk or local browser cache.
                 </p>
               </div>
+            </div>
 
-              <div className="flex items-center gap-2 text-xs font-mono text-neutral-300 font-bold pt-2">
-                <span>Browse Files or Local Saves</span>
-                <span>→</span>
-              </div>
+            <div className="flex items-center gap-2 text-xs font-mono text-neutral-300 font-bold pt-4">
+              <span>Browse Local Files</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </button>
+
+          {/* 3. Cloud Drive Projects Card */}
+          <button
+            type="button"
+            onClick={() => onOpenCloudSyncModal('explore')}
+            className="group relative overflow-hidden p-6 rounded-3xl border text-left transition-all hover:shadow-2xl active:scale-[0.98] cursor-pointer flex flex-col justify-between hover:border-sky-500/50"
+            style={{
+              backgroundColor: bgDef.cardHex,
+              borderColor: (isGDriveConnected || isOneDriveConnected) ? 'rgba(56, 189, 248, 0.4)' : bgDef.borderHex
+            }}
+          >
+            <div className="space-y-4">
+              <div 
+                className="w-12 h-12 rounded-2xl border flex items-center justify-center text-sky-400 group-hover:scale-110 transition duration-300 shadow-lg"
+                style={{
+                  backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                  borderColor: 'rgba(56, 189, 248, 0.35)'
+                }}
+              >
+                <Cloud size={26} />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base md:text-lg font-black text-white group-hover:text-sky-200 transition">
+                    Cloud Storage
+                  </h2>
+                  {(isGDriveConnected || isOneDriveConnected) && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                      Connected
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-neutral-400 leading-relaxed">
+                  Browse Google Drive & Microsoft OneDrive folders, open cloud saves, and manage automated backups.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-mono text-sky-300 font-bold pt-4">
+              <span>Open Cloud Drive</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </button>
+
         </div>
 
         {/* Saved Projects Section (if any exists) */}
@@ -195,7 +200,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                 <div
                   key={p.id}
                   onClick={() => onSelectSavedProject(p.id)}
-                  className="p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between group shadow-lg"
+                  className="p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between group shadow-lg hover:border-neutral-500"
                   style={{
                     backgroundColor: bgDef.cardHex,
                     borderColor: bgDef.borderHex
@@ -219,8 +224,11 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={(e) => onDeleteSavedProject(p.id, e)}
-                      className="p-2 rounded-xl text-neutral-500 hover:text-red-400 transition"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSavedProject(p.id, e);
+                      }}
+                      className="p-2 rounded-xl text-neutral-500 hover:text-red-400 transition hover:bg-red-500/10 cursor-pointer"
                       style={{
                         backgroundColor: bgDef.hex,
                         borderColor: bgDef.borderHex
@@ -230,7 +238,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                       <Trash2 size={14} />
                     </button>
                     <div 
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 group-hover:scale-105"
                       style={{
                         backgroundColor: primaryDef.hex,
                         color: getContrastTextColor(primaryDef)

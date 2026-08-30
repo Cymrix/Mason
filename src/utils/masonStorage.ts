@@ -21,6 +21,8 @@ import {
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { MASON_VERSION_DISPLAY } from '../version';
 
+export type { ProjectBackupRecord, FileBackupRecord };
+
 const MASON_PROJECT_STORAGE_KEY = 'mason_active_project_data';
 const MASON_PROJECT_LIST_INDEX = 'mason_projects_index';
 const MASON_ACTIVE_ID_KEY = 'mason_active_project_id';
@@ -807,8 +809,8 @@ export const exportParticleFile = (file: ParticleSystemFile) => {
 };
 
 export const exportFullProjectBundle = (project: MasonProject) => {
-  const safeName = project.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-  downloadJsonFile(`${safeName}_project_bundle.mason`, project);
+  const safeName = (project.name || 'mason_world').trim().replace(/[/\\?%*:|"<>]/g, '_');
+  downloadJsonFile(`${safeName}.mason`, project);
 };
 
 // ==================================================

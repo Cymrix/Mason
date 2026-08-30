@@ -20,10 +20,8 @@ import {
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
-import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
-import { usePWA } from '../hooks/usePWA';
+import { MASON_FULL_VERSION } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
-import { DownloadCloud, WifiOff } from 'lucide-react';
 import { MasonBrandIcon } from './MasonBrandIcon';
 
 interface HamburgerMenuProps {
@@ -38,8 +36,7 @@ interface HamburgerMenuProps {
   onExportBundle: () => void;
   onCloseProject: () => void;
   onSelectModule: (moduleId: string) => void;
-  onOpenPWAInstallModal: () => void;
-  onOpenCloudSyncModal?: (mode?: 'explore' | 'save' | 'load') => void;
+  onOpenCloudSyncModal?: (mode?: 'explore' | 'backups') => void;
   activeModuleId: string | null;
 }
 
@@ -55,14 +52,12 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onExportBundle,
   onCloseProject,
   onSelectModule,
-  onOpenPWAInstallModal,
   onOpenCloudSyncModal,
   activeModuleId
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { isInstalled, isOffline } = usePWA();
   const { theme, primaryDef } = useAppTheme();
 
   // Close when clicking outside
@@ -302,7 +297,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                     type="button"
                     onClick={() => {
                       setIsOpen(false);
-                      onOpenCloudSyncModal('save');
+                      onOpenCloudSyncModal('explore');
                     }}
                     className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
                   >
@@ -338,39 +333,12 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 </button>
               </>
             )}
-
-            {/* PWA App Install Action (Only when not installed) */}
-            {!isInstalled && (
-              <>
-                <div className="h-px bg-neutral-800 my-1"></div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsOpen(false);
-                    onOpenPWAInstallModal();
-                  }}
-                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-500/30 flex items-center justify-between transition group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <DownloadCloud size={15} className="text-indigo-400 group-hover:scale-110 transition" />
-                    <span>Install Mason PWA...</span>
-                  </div>
-                  <span className="text-[9px] font-mono text-indigo-400/70 uppercase">{MASON_VERSION_DISPLAY}</span>
-                </button>
-              </>
-            )}
           </div>
 
           {/* Footer Version & Status */}
           <div className="px-4 py-2 border-t border-neutral-800/80 bg-neutral-950/60 flex items-center justify-between text-[10px] font-mono text-neutral-500">
             <span>Mason {MASON_FULL_VERSION}</span>
-            {isOffline ? (
-              <span className="flex items-center gap-1 text-amber-400 font-semibold">
-                <WifiOff size={11} /> Offline Ready
-              </span>
-            ) : (
-              <span className="text-neutral-400">PWA Enabled</span>
-            )}
+            <span className="text-neutral-400">Web Studio</span>
           </div>
 
         </div>

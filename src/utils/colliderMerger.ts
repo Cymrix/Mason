@@ -1,7 +1,7 @@
 import { RefinedMapData } from '../types';
 import { TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
 import { BiomeTileType, TILE_SIZE } from '../engine/refinedBiomeSchema';
-import { getCell } from '../engine/mapChunkHelper';
+import { getCell, calculateMapBounds } from '../engine/mapChunkHelper';
 import { resolveAutoTileShape } from '../engine/autoTileSlopeSolver';
 
 export interface Point {
@@ -112,7 +112,7 @@ export function getMergedPolygonColliders(
   const mapId = mapData.id || mapData.name || 'default_map';
   const cached = mergedPolygonsCache.get(mapId);
   
-  if (cached && cached.version === globalVersionCounter && cached.width === mapData.width && cached.height === mapData.height) {
+  if (cached && cached.version === globalVersionCounter) {
     return cached.polygons;
   }
 
@@ -132,9 +132,11 @@ export function getMergedPolygonColliders(
     return rec.tileType.generatesCollider !== false;
   };
 
-  // Loop through all map grid cells
-  for (let y = 0; y < mapData.height; y++) {
-    for (let x = 0; x < mapData.width; x++) {
+  const { minX, maxX, minY, maxY } = calculateMapBounds(mapData);
+
+  // Loop through all active map grid cells
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
       const cell = getCell(mapData, x, y);
       if (!cell || !cell.tile_type_id) continue;
 

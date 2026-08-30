@@ -771,6 +771,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     p.maxMana = charConfig.maxMp;
     p.ghostTrails = [];
     p.slashes = [];
+    p.runtimeVariables = {};
+    p.localVariables = {};
+    p.activeBehaviorState = 'idle';
     // Spawn respawn sparkle ring
     for (let i = 0; i < 16; i++) {
       const angle = (i / 16) * Math.PI * 2;
@@ -1291,9 +1294,6 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           const effId = v ? v.id : varIdOrName;
           if (!p.runtimeVariables) p.runtimeVariables = {};
           p.runtimeVariables[effId] = value;
-          if (testCharacter && testCharacter.behaviorVariables) {
-            testCharacter.behaviorVariables[effId] = value;
-          }
         }
       };
 
@@ -2247,103 +2247,155 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
       // 1. Move X with Collision Check (using dynamic capsule height for ducking & slope traversal)
       const dynamicCharH = charH * (p.isDucking ? 0.5 : (p.capsuleHeightMultiplier || 1.0));
-      const nextX = p.x + p.vx;
-      const checkY1 = p.y - 4;
-      const checkY2 = p.y - dynamicCharH + 4;
-      const testTileX = Math.floor((p.vx > 0 ? nextX + halfW : nextX - halfW) / TILE_SIZE);
-      const testTileY1 = Math.floor(checkY1 / TILE_SIZE);
-      const testTileY2 = Math.floor(checkY2 / TILE_SIZE);
- 
-      const cellFoot = getCell(mapData, testTileX, testTileY1);
-      const cellBody = getCell(mapData, testTileX, testTileY2);
-      const footShape = cellFoot?.tile_type_id ? getEffectiveTileShape(testTileX, testTileY1) : 'full';
-      const bodyShape = cellBody?.tile_type_id ? getEffectiveTileShape(testTileX, testTileY2) : 'full';
-      const isFootSlope = footShape && footShape.includes('slope');
-      const slopeInfo = isFootSlope ? checkSlopeAt(p.vx > 0 ? nextX + halfW : nextX - halfW, checkY1) : null;
-      const allowedAngle = p.allowedTraversalAngleDeg ?? 45;
- 
-      let isBlockedX = false;
- 
-      // Check upper body collision (solid block or ceiling slope)
-      if (cellBody && cellBody.tile_type_id) {
-        if (!bodyShape || !bodyShape.includes('slope')) {
-          isBlockedX = true;
-        } else if (bodyShape.includes('down') && !p.allowCeilingTraversal) {
-          isBlockedX = true;
-        }
-      }
- 
-      // Check foot collision against solids and steep slopes
-      if (cellFoot && cellFoot.tile_type_id) {
-        if (!footShape || !footShape.includes('slope')) {
-          isBlockedX = true;
-        } else if (slopeInfo && slopeInfo.isWalkableSlope) {
-          if (slopeInfo.angleDeg > allowedAngle) {
-            // Slope exceeds allowed traversal angle!
-            if (p.steepSlopeBehavior === 'slide_down') {
-              p.vx = (slopeInfo.direction === 'up_right' ? -1 : 1) * (p.steepSlideSpeed || 3.5);
-              isBlockedX = true;
-            } else if (p.steepSlopeBehavior === 'slow_down') {
-              p.vx *= 0.35;
-            } else {
-              isBlockedX = true;
+      const stepHeight = 6;
+      const numSamples = 4;
+      const originalY = p.y;
+      const isGroundedBefore = p.isGrounded;
+
+      // Helper to query the highest ground surface or slope under a specific horizontal world pixel coordinate
+      const getGroundSurfaceAt = (worldX: number, currentY: number) => {
+        const tx = Math.floor(worldX / TILE_SIZE);
+        // Search tile rows around the current feet level for possible ground blocks
+        const startTy = Math.floor((currentY - 16) / TILE_SIZE);
+        const endTy = Math.floor((currentY + 16) / TILE_SIZE);
+        
+        let highestSurfaceY: number | null = null;
+        let isSlope = false;
+        let slopeShape: string | undefined = undefined;
+
+        for (let ty = startTy; ty <= endTy; ty++) {
+          const cell = getCell(mapData, tx, ty);
+          if (cell && cell.tile_type_id) {
+            const shape = getEffectiveTileShape(tx, ty);
+            const isWalkable = shape === 'slope_up_right_45' || shape === 'slope_up_left_45';
+            const isSolidFlat = !shape || !shape.includes('slope');
+            
+            if (isWalkable) {
+              const h = getTileSurfaceHeightAt(tx, ty, worldX, shape, TILE_SIZE);
+              if (h !== null) {
+                if (highestSurfaceY === null || h < highestSurfaceY) {
+                  highestSurfaceY = h;
+                  isSlope = true;
+                  slopeShape = shape;
+                }
+              }
+            } else if (isSolidFlat) {
+              const tileTop = ty * TILE_SIZE;
+              if (highestSurfaceY === null || tileTop < highestSurfaceY) {
+                highestSurfaceY = tileTop;
+                isSlope = false;
+                slopeShape = undefined;
+              }
             }
           }
         }
+
+        if (highestSurfaceY !== null) {
+          return { y: highestSurfaceY, isSlope, slopeShape };
+        }
+        return null;
+      };
+
+      const testX = p.x + p.vx;
+      const sideX = p.vx > 0 ? testX + halfW : testX - halfW;
+      const testTileX = Math.floor(sideX / TILE_SIZE);
+      let isBlockedX = false;
+
+      // Probe multiple points vertically along the player's side to detect solid walls, bypassing the foot/step region
+      for (let i = 0; i < numSamples; i++) {
+        const checkY = p.y - stepHeight - (i / (numSamples - 1)) * (dynamicCharH - stepHeight - 2);
+        const testTileY = Math.floor(checkY / TILE_SIZE);
+        const cell = getCell(mapData, testTileX, testTileY);
+        if (cell && cell.tile_type_id) {
+          const shape = getEffectiveTileShape(testTileX, testTileY);
+          const isSolidFlat = !shape || !shape.includes('slope');
+          
+          if (isSolidFlat) {
+            isBlockedX = true;
+            break;
+          }
+          
+          // Block if running into the steep reverse back-wall of a slope
+          if (shape === 'slope_up_left_45' && p.vx > 0) {
+            isBlockedX = true;
+            break;
+          }
+          if (shape === 'slope_up_right_45' && p.vx < 0) {
+            isBlockedX = true;
+            break;
+          }
+        }
       }
- 
+
+      const allowedAngle = p.allowedTraversalAngleDeg ?? 45;
+
+      // Check if entering a slope that exceeds our maximum permitted traversal angle
+      if (!isBlockedX && p.vx !== 0) {
+        const fwdProbeX = p.x + p.vx + (p.vx > 0 ? halfW : -halfW);
+        const fwdSlope = checkSlopeAt(fwdProbeX, p.y - 2);
+        if (fwdSlope.isWalkableSlope && fwdSlope.angleDeg > allowedAngle) {
+          if (p.steepSlopeBehavior === 'slide_down') {
+            p.vx = (fwdSlope.direction === 'up_right' ? -1 : 1) * (p.steepSlideSpeed || 3.5);
+            isBlockedX = true;
+          } else if (p.steepSlopeBehavior === 'slow_down') {
+            p.vx *= 0.35;
+          } else {
+            isBlockedX = true;
+          }
+        }
+      }
+
       if (isBlockedX) {
         p.vx = 0;
       } else {
-        p.x = nextX;
+        p.x = testX;
+
+        // Ground snapping traversal for climbs and descents
+        if (isGroundedBefore) {
+          const groundInfo = getGroundSurfaceAt(p.x, originalY);
+          if (groundInfo) {
+            const maxStepUp = 12;
+            const maxSnapDown = 14;
+            const heightDiff = originalY - groundInfo.y; // Positive is climbing up, negative is climbing down
+            
+            if (heightDiff >= -maxSnapDown && heightDiff <= maxStepUp) {
+              p.y = groundInfo.y;
+              p.vy = 0;
+              p.isGrounded = true;
+            } else {
+              p.isGrounded = false;
+            }
+          } else {
+            p.isGrounded = false;
+          }
+        }
       }
- 
+
       // 2. Move Y with Collision Check
       const nextY = p.y + p.vy;
       if (p.vy >= 0) {
-        // Falling down
-        const footTileY = Math.floor(nextY / TILE_SIZE);
-        const footLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
-        const footMidX = Math.floor(p.x / TILE_SIZE);
-        const footRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
- 
-        const leftCell = getCell(mapData, footLeftX, footTileY);
-        const midCell = getCell(mapData, footMidX, footTileY);
-        const rightCell = getCell(mapData, footRightX, footTileY);
- 
-        let slopeGroundY: number | null = null;
-        const midShape = midCell?.tile_type_id ? getEffectiveTileShape(footMidX, footTileY) : 'full';
-        const leftShape = leftCell?.tile_type_id ? getEffectiveTileShape(footLeftX, footTileY) : 'full';
-        const rightShape = rightCell?.tile_type_id ? getEffectiveTileShape(footRightX, footTileY) : 'full';
+        // Falling or stationary on ground
+        let highestGroundY: number | null = null;
+        let groundedOnSlope = false;
+        let slopeShape: string | undefined = undefined;
 
-        if (midCell?.tile_type_id && midShape && midShape.includes('slope')) {
-          slopeGroundY = getTileSurfaceHeightAt(footMidX, footTileY, p.x, midShape, TILE_SIZE);
-        } else if (leftCell?.tile_type_id && leftShape && leftShape.includes('slope')) {
-          slopeGroundY = getTileSurfaceHeightAt(footLeftX, footTileY, p.x, leftShape, TILE_SIZE);
-        } else if (rightCell?.tile_type_id && rightShape && rightShape.includes('slope')) {
-          slopeGroundY = getTileSurfaceHeightAt(footRightX, footTileY, p.x, rightShape, TILE_SIZE);
-        }
-
-        if (slopeGroundY !== null && nextY >= slopeGroundY) {
-          p.y = slopeGroundY;
-          if (p.vy > 5) {
-            p.landingSquash = 1.3;
-          }
-          p.vy = 0;
-          p.isGrounded = true;
-          p.isWallSliding = false;
-          p.jumpsLeft = charConfig.totalJumps;
-
-          // Check if standing on a slope steeper than allowed angle
-          const currentSlopeInfo = checkSlopeAt(p.x, p.y - 2);
-          if (currentSlopeInfo.isWalkableSlope && currentSlopeInfo.angleDeg > (p.allowedTraversalAngleDeg ?? 45)) {
-            if (p.steepSlopeBehavior === 'slide_down') {
-              const slideDir = currentSlopeInfo.direction === 'up_right' ? -1 : 1;
-              p.vx = slideDir * (p.steepSlideSpeed || 3.5);
+        const feetSamples = [p.x, p.x - halfW + 2, p.x + halfW - 2];
+        feetSamples.forEach(sampleX => {
+          const groundInfo = getGroundSurfaceAt(sampleX, nextY);
+          if (groundInfo) {
+            // Check if the falling position is within landing threshold of the surface
+            if (nextY >= groundInfo.y - 8 && nextY <= groundInfo.y + 8) {
+              if (highestGroundY === null || groundInfo.y < highestGroundY) {
+                highestGroundY = groundInfo.y;
+                groundedOnSlope = groundInfo.isSlope;
+                slopeShape = groundInfo.slopeShape;
+              }
             }
           }
-        } else if (isSolidFlatTile(footLeftX, footTileY) || isSolidFlatTile(footRightX, footTileY) || isSolidFlatTile(footMidX, footTileY)) {
-          p.y = footTileY * TILE_SIZE;
+        });
+
+        if (highestGroundY !== null) {
+          p.y = highestGroundY;
           if (p.vy > 5) {
             p.landingSquash = 1.3;
             for (let i = 0; i < 4; i++) {
@@ -2363,18 +2415,47 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           p.isGrounded = true;
           p.isWallSliding = false;
           p.jumpsLeft = charConfig.totalJumps;
+
+          // Slide off steep slopes if configured
+          if (groundedOnSlope && slopeShape) {
+            const slopeInfo = checkSlopeAt(p.x, p.y - 2);
+            if (slopeInfo.isWalkableSlope && slopeInfo.angleDeg > allowedAngle) {
+              if (p.steepSlopeBehavior === 'slide_down') {
+                const slideDir = slopeInfo.direction === 'up_right' ? -1 : 1;
+                p.vx = slideDir * (p.steepSlideSpeed || 3.5);
+              }
+            }
+          }
         } else {
           p.y = nextY;
           p.isGrounded = false;
         }
       } else {
-        // Jumping up (Ceiling check)
-        const headTileY = Math.floor((nextY - dynamicCharH) / TILE_SIZE);
-        const headLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
-        const headRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
+        // Jumping up (Ceiling Check)
+        let isCeilingBlocked = false;
+        let ceilingY: number | null = null;
 
-        if (isSolidTile(headLeftX, headTileY) || isSolidTile(headRightX, headTileY)) {
-          p.y = (headTileY + 1) * TILE_SIZE + dynamicCharH;
+        const headSamples = [p.x, p.x - halfW + 2, p.x + halfW - 2];
+        headSamples.forEach(sampleX => {
+          const tx = Math.floor(sampleX / TILE_SIZE);
+          const ty = Math.floor((nextY - dynamicCharH) / TILE_SIZE);
+          const cell = getCell(mapData, tx, ty);
+          if (cell && cell.tile_type_id) {
+            const shape = getEffectiveTileShape(tx, ty);
+            const isSolidFlat = !shape || !shape.includes('slope');
+            
+            if (isSolidFlat || shape === 'slope_down_right_45' || shape === 'slope_down_left_45') {
+              isCeilingBlocked = true;
+              const tileBottom = (ty + 1) * TILE_SIZE;
+              if (ceilingY === null || tileBottom > ceilingY) {
+                ceilingY = tileBottom;
+              }
+            }
+          }
+        });
+
+        if (isCeilingBlocked && ceilingY !== null) {
+          p.y = ceilingY + dynamicCharH;
           p.vy = 0;
         } else {
           p.y = nextY;

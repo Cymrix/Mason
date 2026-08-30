@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.207';
-export const MASON_VERSION_DISPLAY = 'v0.207';
-export const MASON_FULL_VERSION = 'v0.207';
+export const MASON_VERSION = '0.211';
+export const MASON_VERSION_DISPLAY = 'v0.211';
+export const MASON_FULL_VERSION = 'v0.211';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,40 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.211',
+    date: '2026-08-29',
+    changes: [
+      'Implemented advanced axis-separated capsule movement physics with downward ground snapping and step-climbing traversal.',
+      'Eliminated diagonal jittering and mid-air launching on slopes by continuously tracking analytical surface heights.',
+      'Refined multi-sample vertical side-probes to prevent horizontal wall-clipping while ignoring walkable ramps.'
+    ]
+  },
+  {
+    version: 'v0.210',
+    date: '2026-08-29',
+    changes: [
+      'Fixed incorrect variable values shown in behavior dropdown lists and math/condition preview blocks by resolving values from behaviorVariables instead of the variables definition template.',
+      'Refactored live playtest variable updates to write strictly to runtimeVariables and preserve original pristine behaviorVariables set inside the editor across respawns.'
+    ]
+  },
+  {
+    version: 'v0.209',
+    date: '2026-08-29',
+    changes: [
+      'Resolved horizontal block on diagonal slopes by allowing walkable-slope standing states to bypass horizontal foot checks against adjacent flat support blocks.',
+      'Fixed prefab variables caching bug by resetting playtest runtime and local variables and sync-refreshing behavior overrides with fresh values on player respawn.'
+    ]
+  },
+  {
+    version: 'v0.208',
+    date: '2026-08-29',
+    changes: [
+      'Refactored polygon collider generator to calculate the exact bounding box of all loaded map chunks to guarantee cyan wireframe overlays cover all active tiles.',
+      'Upgraded platformer horizontal movement checks to prevent passing through the vertical back walls of diagonal slopes.',
+      'Implemented neighborhood multi-row vertical probe scan (above, same, below) to handle perfect step-up slope climbing and step-down slope snapping.'
+    ]
+  },
   {
     version: 'v0.207',
     date: '2026-08-29',

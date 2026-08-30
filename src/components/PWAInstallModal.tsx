@@ -258,7 +258,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                 </div>
                 <div className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-cyan-950 border border-cyan-500/40 text-cyan-400 font-mono text-[10px] flex items-center justify-center shrink-0">2</span>
-                  <span>Or click the browser menu <strong>(⋮) → "Cast, save, and share" → "Install Mason Suite..."</strong></span>
+                  <span>Or click the browser menu <strong>(⋮) → "Cast, save, and share" → "Install Mason Studio..."</strong></span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <span className="w-5 h-5 rounded-full bg-cyan-950 border border-cyan-500/40 text-cyan-400 font-mono text-[10px] flex items-center justify-center shrink-0">3</span>

@@ -2564,7 +2564,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }
       />
 
-      {/* Main Editor Body: Canvas Viewport on Left, Inspector on Right */}
+      {/* Main Studio Body: Canvas Viewport on Left, Inspector on Right */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left: Live Interactive Canvas Area */}
         <div className="flex-1 flex flex-col bg-neutral-950 border-r border-neutral-800 overflow-hidden relative">

@@ -52,7 +52,7 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Mason Editor Workspace"
+      "label": "Mason Studio Workspace"
     }
   ],
   "shortcuts": [
@@ -69,9 +69,9 @@
       ]
     },
     {
-      "name": "1px:1tile Canvas",
+      "name": "1px:1tile Studio",
       "short_name": "Macro",
-      "description": "Launch procedural biome macro editor",
+      "description": "Launch procedural biome macro studio",
       "url": "./?action=macro",
       "icons": [
         {

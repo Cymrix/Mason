@@ -43,7 +43,7 @@ const inMemoryProjectsCache: Map<string, MasonProject> = new Map();
 // ==================================================
 // INDEXED_DB PERSISTENCE (Quota-free high-capacity storage)
 // ==================================================
-const DB_NAME = 'mason_metroidvania_editor_idb';
+const DB_NAME = 'mason_metroidvania_studio_idb';
 const DB_VERSION = 3;
 const STORE_PROJECTS = 'projects';
 const STORE_META = 'meta';
@@ -763,7 +763,7 @@ export const createNewProject = (
 ): MasonProject => {
   const initial = createInitialMasonProject(name);
   initial.id = `proj_${Date.now()}`;
-  initial.description = description || '2D Metroidvania world authored in Mason Suite.';
+  initial.description = description || '2D Metroidvania world authored in Mason Studio.';
   initial.author = author;
   saveActiveMasonProject(initial);
   return initial;

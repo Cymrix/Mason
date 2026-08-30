@@ -6,7 +6,8 @@ import {
   RotateCcw,
   Grid,
   Crosshair,
-  Move
+  Move,
+  Shield
 } from 'lucide-react';
 
 export interface ViewportHUDProps {
@@ -20,6 +21,8 @@ export interface ViewportHUDProps {
   // Optional Toggles
   showGrid?: boolean;
   onToggleGrid?: () => void;
+  showColliders?: boolean;
+  onToggleColliders?: () => void;
   showCrosshairs?: boolean;
   onToggleCrosshairs?: () => void;
 
@@ -43,6 +46,8 @@ export const ViewportHUD: React.FC<ViewportHUDProps> = ({
   onCenterContent,
   showGrid,
   onToggleGrid,
+  showColliders,
+  onToggleColliders,
   showCrosshairs,
   onToggleCrosshairs,
   leadingSlot,
@@ -109,6 +114,22 @@ export const ViewportHUD: React.FC<ViewportHUDProps> = ({
           title="Toggle Pixel Grid Overlay"
         >
           <Grid size={14} />
+        </button>
+      )}
+
+      {/* Polygon Colliders Toggle */}
+      {onToggleColliders && (
+        <button
+          type="button"
+          onClick={onToggleColliders}
+          className={`p-1.5 rounded-lg border transition ${
+            showColliders
+              ? colorMap.activeBg
+              : 'border-transparent text-neutral-400 hover:text-white hover:bg-neutral-800'
+          }`}
+          title="Toggle Tile Polygon Colliders (Shift+C)"
+        >
+          <Shield size={14} />
         </button>
       )}
 

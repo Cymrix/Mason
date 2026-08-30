@@ -2,8 +2,8 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Image & Sprite Editor</title>
-<meta property="og:title" content="Image & Sprite Editor">
+<title>Palette Spray Studio</title>
+<meta property="og:title" content="Palette Spray Studio">
 <meta property="og:description" content="Layered pixel-art painter with a palette and gradient-driven spray brush.">
 <meta property="og:type" content="website">
 
@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#17181c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Sprite Editor">
+<meta name="apple-mobile-web-app-title" content="Palette Spray">
 <meta name="mobile-web-app-capable" content="yes">
 <style>
   :root{
@@ -880,11 +880,11 @@
   </div>
 
   <div class="color-edit-popup" id="aboutPopup" style="display:none;width:260px;">
-    <label class="field" style="margin-top:0;">Image & Sprite Editor</label>
+    <label class="field" style="margin-top:0;">Palette Spray Studio</label>
     <div class="hint" id="aboutVersionInfo" style="margin-top:4px;"></div>
     <div class="hint" style="margin-top:4px;">This app is free and open source</div>
     <div class="hint" style="margin-top:10px;">
-      <span style="color:var(--accent); font-weight:600;">Mason Image &amp; Sprite Editor</span>
+      <span style="color:var(--accent); font-weight:600;">Mason Image &amp; Sprite Studio</span>
     </div>
     <div class="color-edit-actions">
       <button class="btn small primary" id="aboutCloseBtn">Close</button>
@@ -893,7 +893,7 @@
 
   <div class="color-edit-popup" id="tilesetTesterPopup" style="display:none; width:520px; height:620px; min-width:380px; min-height:420px; max-width:95vw; max-height:95vh; resize:both; overflow:hidden; z-index:2200; padding:12px; box-shadow:0 16px 40px rgba(0,0,0,0.8); flex-direction:column;">
     <div class="drag-handle" id="tilesetTesterDragHandle" style="flex:0 0 auto; cursor:move; padding:6px 10px; margin:-12px -12px 10px -12px; background:var(--panel-2); border-bottom:1px solid var(--line); font-weight:bold; font-size:12px; display:flex; justify-content:space-between; align-items:center; border-radius:8px 8px 0 0; user-select:none;">
-      <span>Tileset Tester & Editor</span>
+      <span>Tileset Tester & Studio</span>
       <span id="tilesetTesterCloseCross" style="cursor:pointer; padding:2px 6px; font-weight:normal; opacity:0.7;">✕</span>
     </div>
     
@@ -1119,7 +1119,7 @@
         <ol style="margin:0 0 10px 0; padding-left:18px; display:flex; flex-direction:column; gap:6px;">
           <li><strong>Active Service Toggle</strong>: Use the top slider to switch the active cloud service to Google Drive.</li>
           <li><strong>Sign In</strong>: Click <em>Sign In</em> to connect your Google account in the secure Google sign-in window.</li>
-          <li><strong>Target Folder</strong>: Projects save into your configured full path (default: <code>/Image & Sprite Editor</code>). You can enter any custom path (e.g. <code>/Art/Projects</code>) and click <em>Apply</em>, or navigate subfolders using <em>Browse Folders</em>.</li>
+          <li><strong>Target Folder</strong>: Projects save into your configured full path (default: <code>/Palette Spray Studio</code>). You can enter any custom path (e.g. <code>/Art/Projects</code>) and click <em>Apply</em>, or navigate subfolders using <em>Browse Folders</em>.</li>
           <li><strong>Save &amp; Load</strong>: Enter a file name and click <em>Save to Cloud</em> to store your complete artwork project. Click <em>Load</em> on any file in the list to open it directly into the canvas.</li>
         </ol>
       </div>
@@ -1130,7 +1130,7 @@
         <ol style="margin:0 0 10px 0; padding-left:18px; display:flex; flex-direction:column; gap:6px;">
           <li><strong>Active Service Toggle</strong>: Use the top slider to switch the active cloud service to OneDrive.</li>
           <li><strong>Sign In</strong>: Click <em>Sign In</em> to connect your Microsoft account.</li>
-          <li><strong>Target Folder</strong>: Projects save into your configured full path (default: <code>/Image & Sprite Editor</code>). You can enter any custom path or browse directories directly.</li>
+          <li><strong>Target Folder</strong>: Projects save into your configured full path (default: <code>/Palette Spray Studio</code>). You can enter any custom path or browse directories directly.</li>
           <li><strong>Save &amp; Load</strong>: Save or load <code>.pssproj</code> projects seamlessly across your devices.</li>
         </ol>
       </div>
@@ -2324,7 +2324,7 @@
           <select id="lightboxPresetSelect" style="width:100%;font-size:10px;padding:3px;">
             <option value="none" selected>None</option>
             <option value="white">Pure White</option>
-            <option value="studio">Softbox Lighting</option>
+            <option value="studio">Studio Softbox</option>
             <option value="cyberpunk">Cyberpunk Neon</option>
             <option value="sunset">Sunset / Golden Hour</option>
             <option value="grid">Tech Grid Light</option>

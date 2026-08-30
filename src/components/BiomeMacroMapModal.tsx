@@ -304,7 +304,7 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              Map Macro (1px:1tile Canvas)
+              Map Macro (1px:1tile Studio)
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
                 1 Pixel = 1 World Tile
               </span>

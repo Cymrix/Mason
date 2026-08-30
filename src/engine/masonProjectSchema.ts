@@ -1600,7 +1600,7 @@ export interface SpriteFile {
   fileName: string;
   createdAt?: string;
   updatedAt: string;
-  spriteData?: any; // Raw JSON export from Image & Sprite Editor
+  spriteData?: any; // Raw JSON export from Palette Spray Studio
   imageUrl?: string;
   dataUrl?: string;
   width?: number;
@@ -1879,7 +1879,7 @@ export const ensureUIConfigDefaults = (config?: Partial<UIConfigData>): UIConfig
   const defaultSplashScreen: UISplashScreenConfig = {
     gameTitle: config?.splashScreen?.gameTitle || 'ECHOES OF THE ASHEN VOID',
     gameSubtitle: config?.splashScreen?.gameSubtitle || 'A 2D Metroidvania Odyssey',
-    studioName: config?.splashScreen?.studioName || 'MASON ENGINE LABS',
+    studioName: config?.splashScreen?.studioName || 'MASON ENGINE STUDIOS',
     pressPromptText: config?.splashScreen?.pressPromptText || 'PRESS ANY BUTTON TO ENTER',
     showStudioLogo: config?.splashScreen?.showStudioLogo ?? true,
     logoIcon: config?.splashScreen?.logoIcon || '⚔️',
@@ -2551,7 +2551,7 @@ export const DEFAULT_UI_THEMES: UIConfigData[] = [
     splashScreen: {
       gameTitle: 'ECHOES OF THE ASHEN VOID',
       gameSubtitle: 'A 2D Metroidvania Odyssey',
-      studioName: 'MASON ENGINE LABS',
+      studioName: 'MASON ENGINE STUDIOS',
       pressPromptText: 'PRESS ANY BUTTON TO ENTER',
       showStudioLogo: true,
       logoIcon: '⚔️',

@@ -66,7 +66,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-neutral-300 uppercase">Lead Author / Creator</label>
+            <label className="text-[11px] font-bold text-neutral-300 uppercase">Lead Author / Studio</label>
             <input
               type="text"
               value={author}

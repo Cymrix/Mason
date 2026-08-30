@@ -56,7 +56,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     associatedExtension: '.png',
     iconName: 'Paintbrush',
     accentColor: 'emerald',
-    description: 'A powerful embedded pixel painter for drawing hero sprites, monster animations, tilesets, and height/normal maps with gradient spray brushes, palette swatches, and multi-frame animation timelines.',
+    description: 'A powerful embedded pixel studio for drawing hero sprites, monster animations, tilesets, and height/normal maps with gradient spray brushes, palette swatches, and multi-frame animation timelines.',
     features: [
       'Gradient & Palette-Driven Spray Brushes with custom scatter jitter',
       'Multi-Layer Canvas: Opacity, blend layers, flip, rotate, and sharpening FX',
@@ -121,7 +121,7 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
     accentColor: 'rose',
     description: 'Author player heroes, NPCs, enemies, and animated props (like campfires) with custom spritesheets, state machines, custom variables, and bespoke IFTTT behavior rule logic.',
     features: [
-      'Visual Animation Editor: Multi-spritesheet support, frame sequencing, hitbox/hurtbox polygons & sockets',
+      'Visual Animation Studio: Multi-spritesheet support, frame sequencing, hitbox/hurtbox polygons & sockets',
       'Base Attributes & Variables: Manage stats, proficiencies, and custom variables with auto-generated IDs',
       'Bespoke IFTTT Rule Engine: Author sensory sight, sound hearing, proximity, player input, and camera tracking rules',
       'Rule Inheritance & Cloning: 1-click duplicate prefab or copy behavior rules from another prefab'

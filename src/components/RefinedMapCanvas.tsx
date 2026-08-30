@@ -68,13 +68,15 @@ function getBrushTiles(px: number, py: number, brushSize: number = 1, activeTool
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { RefinedMapData, RefinedCellState, ToolType, ModeType } from '../types';
 import { TILE_SIZE, RefinedBiome, BiomeTileType } from '../engine/refinedBiomeSchema';
-import { getTileSurfaceHeightAt, TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
+import { getTileSurfaceHeightAt, buildTileShapePath, TileShape, TILE_SHAPE_DEFINITIONS } from '../engine/tileShape';
+import { resolveAutoTileShape } from '../engine/autoTileSlopeSolver';
 import { PrefabData, BehaviorData, InputMapping, UIConfigData, UNIFIED_INPUT_TEMPLATE, ensureUIConfigDefaults } from '../engine/masonProjectSchema';
 import { renderRefinedTileCell } from '../engine/tileMaterialRenderer';
 import { drawThresholdCrackMask } from '../engine/heightBlendShader';
 import { renderParallaxLayer } from '../engine/parallaxRenderer';
 import { globalChunkCache } from '../engine/chunkCacheManager';
 import { getCell, calculateMapBounds, CHUNK_SIZE, getChunkCoords, getChunkKey } from '../engine/mapChunkHelper';
+import { getMergedPolygonColliders, invalidateMergedColliders } from '../utils/colliderMerger';
 import { useMasonViewport, ViewportHUD, ViewportCanvasContainer } from './shared/viewport';
 import { 
   ZoomIn, 
@@ -171,6 +173,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const [showParallaxBg, setShowParallaxBg] = useState<boolean>(true);
   const [showForegroundLayer, setShowForegroundLayer] = useState<boolean>(true);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number } | null>(null);
+  const [showColliders, setShowColliders] = useState<boolean>(false);
   const [, setRenderTrigger] = useState(0);
 
 
@@ -338,7 +341,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
     let url = sheet?.imageUrl || sheet?.dataUrl || (sheet as any)?.imageBase64 || '';
     if (!url) {
-      // Procedural fallback spritesheet canvas matching Prefab Editor
+      // Procedural fallback spritesheet canvas matching Prefab Studio
       const cvs = document.createElement('canvas');
       cvs.width = tileW * cols;
       cvs.height = tileH * rows;
@@ -718,17 +721,24 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     };
   }, [hoverTile, mapData, biomeMap, biomes]);
 
-  // Keyboard shortcut for toggling grid
+  // Invalidate merged polygon collider cache whenever map data changes
+  useEffect(() => {
+    invalidateMergedColliders();
+  }, [mapData]);
+
+  // Keyboard shortcuts for toggling grid (G) and polygon colliders (C / Shift+C)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
+        return;
+      }
       if (e.key === 'g' || e.key === 'G') {
-        const activeEl = document.activeElement;
-        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
-          return;
-        }
         if (setShowGrid) {
           setShowGrid(prev => !prev);
         }
+      } else if (e.key === 'c' || e.key === 'C') {
+        setShowColliders(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1030,10 +1040,60 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       if (p.landingSquash > 1.0) p.landingSquash = Math.max(1.0, p.landingSquash - 0.05);
       if (p.jumpStretch > 1.0) p.jumpStretch = Math.max(1.0, p.jumpStretch - 0.04);
 
-      // Helper to check if tile at (tx, ty) is solid
+      // Helper to check if tile at (tx, ty) is solid (ignoring decoration/background tiles)
       const isSolidTile = (tx: number, ty: number): boolean => {
         const cell = getCell(mapData, tx, ty);
-        return !!(cell && cell.tile_type_id);
+        if (!cell || !cell.tile_type_id) return false;
+        const record = tileTypeMap[cell.tile_type_id];
+        if (!record || record.tileType.generatesCollider === false) return false;
+        return true;
+      };
+
+      // Helper to check if tile at (tx, ty) is solid and flat (not a slope)
+      const isSolidFlatTile = (tx: number, ty: number): boolean => {
+        if (!isSolidTile(tx, ty)) return false;
+        const shape = getEffectiveTileShape(tx, ty);
+        if (shape && shape.includes('slope')) return false;
+        return true;
+      };
+
+      // Helper to get the resolved shape of a tile, resolving autotiles dynamically using neighbors
+      const getEffectiveTileShape = (tx: number, ty: number): TileShape => {
+        const cell = getCell(mapData, tx, ty);
+        if (!cell || !cell.tile_type_id) return 'full';
+        const record = tileTypeMap[cell.tile_type_id];
+        if (!record) return 'full';
+
+        const manualShape: TileShape = cell.shape || 'full';
+        if (manualShape !== 'auto') {
+          return manualShape;
+        }
+
+        const isNeighborSolid = (ny: number, nx: number) => {
+          const neighbor = getCell(mapData, nx, ny);
+          if (!neighbor || !neighbor.tile_type_id) return false;
+          const rec = tileTypeMap[neighbor.tile_type_id];
+          if (!rec) return false;
+          return rec.tileType.generatesCollider !== false;
+        };
+
+        const shape: TileShape = resolveAutoTileShape(
+          record.tileType.bevelProbability ?? 0,
+          tx,
+          ty,
+          {
+            hasTop: isNeighborSolid(ty - 1, tx),
+            hasBottom: isNeighborSolid(ty + 1, tx),
+            hasLeft: isNeighborSolid(ty, tx - 1),
+            hasRight: isNeighborSolid(ty, tx + 1),
+            hasTopLeft: isNeighborSolid(ty - 1, tx - 1),
+            hasTopRight: isNeighborSolid(ty - 1, tx + 1),
+            hasBottomLeft: isNeighborSolid(ty + 1, tx - 1),
+            hasBottomRight: isNeighborSolid(ty + 1, tx + 1),
+          },
+          manualShape
+        );
+        return shape;
       };
 
       // Helper to query slope geometry at a specific world pixel point
@@ -1044,7 +1104,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         if (!cell || !cell.tile_type_id) {
           return { isSlope: false, isWalkableSlope: false, isCeilingSlope: false, shape: undefined, direction: undefined };
         }
-        const shape = cell.shape;
+        
+        const shape = getEffectiveTileShape(tx, ty);
         const isUpRight = shape === 'slope_up_right_45';
         const isUpLeft = shape === 'slope_up_left_45';
         const isDownRight = shape === 'slope_down_right_45';
@@ -2192,27 +2253,29 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const testTileX = Math.floor((p.vx > 0 ? nextX + halfW : nextX - halfW) / TILE_SIZE);
       const testTileY1 = Math.floor(checkY1 / TILE_SIZE);
       const testTileY2 = Math.floor(checkY2 / TILE_SIZE);
-
+ 
       const cellFoot = getCell(mapData, testTileX, testTileY1);
       const cellBody = getCell(mapData, testTileX, testTileY2);
-      const isFootSlope = cellFoot?.shape && cellFoot.shape.includes('slope');
+      const footShape = cellFoot?.tile_type_id ? getEffectiveTileShape(testTileX, testTileY1) : 'full';
+      const bodyShape = cellBody?.tile_type_id ? getEffectiveTileShape(testTileX, testTileY2) : 'full';
+      const isFootSlope = footShape && footShape.includes('slope');
       const slopeInfo = isFootSlope ? checkSlopeAt(p.vx > 0 ? nextX + halfW : nextX - halfW, checkY1) : null;
       const allowedAngle = p.allowedTraversalAngleDeg ?? 45;
-
+ 
       let isBlockedX = false;
-
+ 
       // Check upper body collision (solid block or ceiling slope)
       if (cellBody && cellBody.tile_type_id) {
-        if (!cellBody.shape || !cellBody.shape.includes('slope')) {
+        if (!bodyShape || !bodyShape.includes('slope')) {
           isBlockedX = true;
-        } else if (cellBody.shape.includes('down') && !p.allowCeilingTraversal) {
+        } else if (bodyShape.includes('down') && !p.allowCeilingTraversal) {
           isBlockedX = true;
         }
       }
-
+ 
       // Check foot collision against solids and steep slopes
       if (cellFoot && cellFoot.tile_type_id) {
-        if (!cellFoot.shape || !cellFoot.shape.includes('slope')) {
+        if (!footShape || !footShape.includes('slope')) {
           isBlockedX = true;
         } else if (slopeInfo && slopeInfo.isWalkableSlope) {
           if (slopeInfo.angleDeg > allowedAngle) {
@@ -2228,13 +2291,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           }
         }
       }
-
+ 
       if (isBlockedX) {
         p.vx = 0;
       } else {
         p.x = nextX;
       }
-
+ 
       // 2. Move Y with Collision Check
       const nextY = p.y + p.vy;
       if (p.vy >= 0) {
@@ -2243,18 +2306,22 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         const footLeftX = Math.floor((p.x - halfW + 2) / TILE_SIZE);
         const footMidX = Math.floor(p.x / TILE_SIZE);
         const footRightX = Math.floor((p.x + halfW - 2) / TILE_SIZE);
-
+ 
         const leftCell = getCell(mapData, footLeftX, footTileY);
         const midCell = getCell(mapData, footMidX, footTileY);
         const rightCell = getCell(mapData, footRightX, footTileY);
-
+ 
         let slopeGroundY: number | null = null;
-        if (midCell?.tile_type_id && midCell.shape && midCell.shape.includes('slope')) {
-          slopeGroundY = getTileSurfaceHeightAt(footMidX, footTileY, p.x, midCell.shape, TILE_SIZE);
-        } else if (leftCell?.tile_type_id && leftCell.shape && leftCell.shape.includes('slope')) {
-          slopeGroundY = getTileSurfaceHeightAt(footLeftX, footTileY, p.x, leftCell.shape, TILE_SIZE);
-        } else if (rightCell?.tile_type_id && rightCell.shape && rightCell.shape.includes('slope')) {
-          slopeGroundY = getTileSurfaceHeightAt(footRightX, footTileY, p.x, rightCell.shape, TILE_SIZE);
+        const midShape = midCell?.tile_type_id ? getEffectiveTileShape(footMidX, footTileY) : 'full';
+        const leftShape = leftCell?.tile_type_id ? getEffectiveTileShape(footLeftX, footTileY) : 'full';
+        const rightShape = rightCell?.tile_type_id ? getEffectiveTileShape(footRightX, footTileY) : 'full';
+
+        if (midCell?.tile_type_id && midShape && midShape.includes('slope')) {
+          slopeGroundY = getTileSurfaceHeightAt(footMidX, footTileY, p.x, midShape, TILE_SIZE);
+        } else if (leftCell?.tile_type_id && leftShape && leftShape.includes('slope')) {
+          slopeGroundY = getTileSurfaceHeightAt(footLeftX, footTileY, p.x, leftShape, TILE_SIZE);
+        } else if (rightCell?.tile_type_id && rightShape && rightShape.includes('slope')) {
+          slopeGroundY = getTileSurfaceHeightAt(footRightX, footTileY, p.x, rightShape, TILE_SIZE);
         }
 
         if (slopeGroundY !== null && nextY >= slopeGroundY) {
@@ -2275,7 +2342,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               p.vx = slideDir * (p.steepSlideSpeed || 3.5);
             }
           }
-        } else if (isSolidTile(footLeftX, footTileY) || isSolidTile(footRightX, footTileY) || isSolidTile(footMidX, footTileY)) {
+        } else if (isSolidFlatTile(footLeftX, footTileY) || isSolidFlatTile(footRightX, footTileY) || isSolidFlatTile(footMidX, footTileY)) {
           p.y = footTileY * TILE_SIZE;
           if (p.vy > 5) {
             p.landingSquash = 1.3;
@@ -2690,6 +2757,54 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     }
 
     // ==========================================
+    // 8b. POLYGON COLLIDER WIREFRAME OVERLAY
+    // ==========================================
+    if (showColliders) {
+      ctx.save();
+      
+      // --- Merged Polygon Colliders (Thick Contiguous Outline contour paths) ---
+      const mergedPolygons = getMergedPolygonColliders(mapData, tileTypeMap);
+
+      mergedPolygons.forEach((poly) => {
+        if (poly.length < 3) return;
+
+        ctx.beginPath();
+        ctx.moveTo(poly[0].x, poly[0].y);
+        for (let i = 1; i < poly.length; i++) {
+          ctx.lineTo(poly[i].x, poly[i].y);
+        }
+        ctx.closePath();
+
+        // Semi-transparent fills for contiguous solid islands
+        ctx.fillStyle = 'rgba(6, 182, 212, 0.08)'; // Very subtle cyan fill
+        ctx.fill();
+
+        // Glowing bold outer contour line
+        ctx.strokeStyle = '#22d3ee'; // Bright neon cyan
+        ctx.lineWidth = Math.max(2.0 / scale, 1.5);
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Vertex Dots for simplified geometric vertices
+        if (scale > 0.3) {
+          ctx.fillStyle = '#ffffff';
+          poly.forEach((pt) => {
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, Math.max(3.0 / scale, 1.5), 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 0.75 / scale;
+            ctx.stroke();
+          });
+        }
+      });
+
+      ctx.restore();
+    }
+
+    // ==========================================
     // 9. LIT MODE OVERLAY (Darkness)
     // ==========================================
     if (isLitMode) {
@@ -2825,7 +2940,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const capOx = charConfig.offsetX;
       const capOy = charConfig.offsetY;
 
-      // In Prefab Editor, the capsule center is at (capOx, capOy) relative to sprite center (0,0).
+      // In Prefab Studio, the capsule center is at (capOx, capOy) relative to sprite center (0,0).
       // On the map, the bottom of the capsule rests on the ground at spawnY (or p.y).
       // Therefore, the capsule center is at (spawnX, spawnY - capH / 2).
       // And the sprite center is at (spawnX - capOx, spawnY - (capOy + capH / 2)).
@@ -3735,6 +3850,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           onCenterContent={() => centerContent(logicalMapWidth, logicalMapHeight, 0.8)}
           showGrid={showGrid}
           onToggleGrid={() => setShowGrid?.(!showGrid)}
+          showColliders={showColliders}
+          onToggleColliders={() => setShowColliders(prev => !prev)}
           position="top-right"
           themeColor="cyan"
           className="shadow-2xl"

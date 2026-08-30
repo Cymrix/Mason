@@ -351,7 +351,7 @@ export const BACKGROUND_TONES: Record<BackgroundToneKey, BackgroundToneDef> = {
     hex: '#0b0f19',
     cardHex: '#131b2e',
     borderHex: '#1e293b',
-    description: 'Cool midnight grey-blue workspace'
+    description: 'Cool midnight grey-blue studio'
   },
   navy: {
     name: 'Midnight Navy',
@@ -578,7 +578,7 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
   },
   {
     id: 'monochrome_precision',
-    name: 'Monochrome Slate Editor',
+    name: 'Monochrome Slate Studio',
     description: 'Tactical graphite neutral primary paired with 7 distinct colorful module accents for minimal header distraction & maximum workspace clarity.',
     category: 'standard',
     primary: 'gray_slate',

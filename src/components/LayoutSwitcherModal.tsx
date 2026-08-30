@@ -27,7 +27,7 @@ export const LayoutSwitcherModal: React.FC<LayoutSwitcherModalProps> = ({
   }[] = [
     {
       id: 'classic',
-      title: 'Classic Inspector',
+      title: 'Classic Studio Inspector',
       description: 'Dedicated left tool ribbon, central canvas, and persistent right inspector / palette.',
       icon: <Columns className="w-5 h-5 text-blue-400" />,
       wireframe: (

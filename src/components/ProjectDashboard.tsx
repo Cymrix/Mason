@@ -227,7 +227,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase text-neutral-400">Lead Author / Creator</label>
+              <label className="text-[10px] font-bold uppercase text-neutral-400">Lead Author / Studio</label>
               <input
                 type="text"
                 value={author}
@@ -292,7 +292,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = spritesColor.hex)}
           onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
-          title="Image & Sprite Editor (.sprite)"
+          title="Image & Sprite Studio (.sprite)"
         >
           {/* Upper Right Number */}
           <div className="absolute top-3.5 right-3.5 text-right font-mono group-hover:scale-105 transition-transform">

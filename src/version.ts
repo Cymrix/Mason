@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.224';
-export const MASON_VERSION_DISPLAY = 'v0.224';
-export const MASON_FULL_VERSION = 'v0.224';
+export const MASON_VERSION = '0.225';
+export const MASON_VERSION_DISPLAY = 'v0.225';
+export const MASON_FULL_VERSION = 'v0.225';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,15 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.225',
+    date: '2026-08-30',
+    changes: [
+      'Performed an exhaustive byte-level and character-encoding audit of PrefabEditor.tsx and all other source files using Python.',
+      'Confirmed 100% absence of corrupted Unicode replacement characters, BOMs, or invalid UTF-8 sequences.',
+      'Validated and successfully executed a flawless local production compilation and linting pass using esbuild and Vite.'
+    ]
+  },
   {
     version: 'v0.224',
     date: '2026-08-30',

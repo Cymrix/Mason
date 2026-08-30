@@ -141,7 +141,9 @@ export const authenticateGoogleDrive = async (manualToken?: string, customClient
   // Method 1: Try Firebase Auth Popup (uses provisioned OAuth Client in firebase-applet-config.json)
   try {
     const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive');
     provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.addScope('https://www.googleapis.com/auth/drive.metadata.readonly');
     provider.addScope('https://www.googleapis.com/auth/userinfo.email');
     provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
 
@@ -180,7 +182,7 @@ export const authenticateGoogleDrive = async (manualToken?: string, customClient
           const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
             client_id: clientId,
             scope:
-              'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+              'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
             callback: async (resp: any) => {
               if (resp.error) {
                 if (resp.error === 'origin_mismatch' || resp.error_description?.includes('origin')) {
@@ -259,16 +261,25 @@ export const listGoogleDriveFolderContents = async (folderId?: string | null): P
   if (!token) return [];
 
   const parentId = folderId || 'root';
-  const query = encodeURIComponent(`'${parentId}' in parents and trashed = false`);
-  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType,modifiedTime,size)&orderBy=folder desc,modifiedTime desc`;
+  const query = `'${parentId}' in parents and trashed = false`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,modifiedTime,size,webViewLink)&orderBy=folder desc,name asc&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
   });
 
   if (!res.ok) {
-    if (res.status === 401) disconnectGoogleDrive();
-    return [];
+    if (res.status === 401) {
+      disconnectGoogleDrive();
+      throw new Error('Google Drive authorization expired. Please reconnect.');
+    }
+    const errBody = await res.text();
+    let msg = `Google Drive error (${res.status})`;
+    try {
+      const parsed = JSON.parse(errBody);
+      if (parsed.error?.message) msg = parsed.error.message;
+    } catch {}
+    throw new Error(msg);
   }
 
   const data = await res.json();
@@ -281,6 +292,102 @@ export const listGoogleDriveFolderContents = async (folderId?: string | null): P
     size: f.size,
     isBackup: f.name.startsWith('[BACKUP]')
   }));
+};
+
+/**
+ * Queries all folders across the entire Google Drive for easy browsing
+ */
+export const listAllGoogleDriveFolders = async (): Promise<DriveItem[]> => {
+  const token = getGoogleDriveToken();
+  if (!token) return [];
+
+  const query = `mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,modifiedTime,parents)&orderBy=name asc&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!res.ok) {
+    return [];
+  }
+
+  const data = await res.json();
+  return (data.files || []).map((f: any) => ({
+    id: f.id,
+    name: f.name,
+    isFolder: true,
+    mimeType: f.mimeType,
+    modifiedTime: f.modifiedTime,
+    isBackup: false
+  }));
+};
+
+/**
+ * Opens the native Google Drive Picker to select any folder or file interactively
+ */
+export const openGoogleDrivePicker = (
+  mode: 'folder' | 'file' = 'folder'
+): Promise<{ id: string; name: string; isFolder: boolean } | null> => {
+  const token = getGoogleDriveToken();
+  if (!token) return Promise.reject(new Error('Please connect Google Drive first.'));
+
+  return new Promise((resolve, reject) => {
+    const initPicker = () => {
+      if (!(window as any).google?.picker) {
+        reject(new Error('Google Picker API not available.'));
+        return;
+      }
+
+      try {
+        const view = new (window as any).google.picker.DocsView(
+          mode === 'folder'
+            ? (window as any).google.picker.ViewId.FOLDERS
+            : (window as any).google.picker.ViewId.DOCS
+        );
+        if (mode === 'folder') {
+          view.setSelectFolderEnabled(true);
+          view.setIncludeFolders(true);
+        }
+
+        const picker = new (window as any).google.picker.PickerBuilder()
+          .addView(view)
+          .setOAuthToken(token)
+          .setTitle(mode === 'folder' ? 'Select Cloud Save Destination Folder' : 'Select Mason Map File (.mason)')
+          .setCallback((data: any) => {
+            if (data.action === (window as any).google.picker.Action.PICKED) {
+              const doc = data.docs[0];
+              resolve({
+                id: doc.id,
+                name: doc.name,
+                isFolder: doc.type === 'folder' || doc.mimeType === 'application/vnd.google-apps.folder'
+              });
+            } else if (data.action === (window as any).google.picker.Action.CANCEL) {
+              resolve(null);
+            }
+          })
+          .build();
+
+        picker.setVisible(true);
+      } catch (e: any) {
+        reject(e);
+      }
+    };
+
+    if ((window as any).google?.picker) {
+      initPicker();
+    } else if ((window as any).gapi) {
+      (window as any).gapi.load('picker', { callback: initPicker });
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://apis.google.com/js/api.js';
+      script.onload = () => {
+        (window as any).gapi.load('picker', { callback: initPicker });
+      };
+      script.onerror = () => reject(new Error('Failed to load Google Picker API script.'));
+      document.head.appendChild(script);
+    }
+  });
 };
 
 /**

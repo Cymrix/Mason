@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.214';
-export const MASON_VERSION_DISPLAY = 'v0.214';
-export const MASON_FULL_VERSION = 'v0.214';
+export const MASON_VERSION = '0.219';
+export const MASON_VERSION_DISPLAY = 'v0.219';
+export const MASON_FULL_VERSION = 'v0.219';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,53 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.219',
+    date: '2026-08-30',
+    changes: [
+      'Streamlined Microsoft OneDrive integration to a pure, seamless 1-click OAuth login popup.',
+      'Removed manual token input and configuration drawers in favor of zero-friction user login.',
+      'Updated default authentication tenant to common to seamlessly support Personal and Work/School Microsoft accounts.',
+      'Provided precise Azure Portal configuration steps for Personal and Work/School account sign-in.'
+    ]
+  },
+  {
+    version: 'v0.218',
+    date: '2026-08-30',
+    changes: [
+      'Resolved unauthorized_client Azure error handling for Microsoft OneDrive connection.',
+      'Added Azure & Token Configuration drawer with instant Microsoft Graph Access Token authentication.',
+      'Added custom Azure Application Client ID and tenant configuration with 1-click SPA Redirect URI copy tool.',
+      'Enhanced diagnostic error feedback explaining consumer account requirements and immediate workaround methods.'
+    ]
+  },
+  {
+    version: 'v0.217',
+    date: '2026-08-30',
+    changes: [
+      'Added automatic scrollbar reset to top whenever navigating to folders or loading new contents in the Cloud Drives Explorer modal.',
+      'Attached container and list refs with immediate and reactive scroll reset.'
+    ]
+  },
+  {
+    version: 'v0.216',
+    date: '2026-08-30',
+    changes: [
+      'Fixed Cloud Drives Explorer modal displaying on app startup by adding missing isOpen visibility guard.',
+      'Added backdrop click and Escape key support to close CloudSyncModal.',
+      'Updated all cloud load buttons and labels to consistently read "Load Project".'
+    ]
+  },
+  {
+    version: 'v0.215',
+    date: '2026-08-30',
+    changes: [
+      'Refactored Cloud Drives Explorer with interactive folder tree browsing and directory traversal.',
+      'Added Google Drive Picker integration for native modal folder selection.',
+      'Added direct navigation controls: Up Level button, quick jump to root/target folder, and all-folders view.',
+      'Enhanced folder and file action buttons with "Open Folder", "Set Target", "Save Here", and "Load Map".'
+    ]
+  },
   {
     version: 'v0.214',
     date: '2026-08-30',

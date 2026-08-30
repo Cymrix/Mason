@@ -10,6 +10,7 @@ import {
   FileCode, 
   FolderPlus,
   Folder,
+  FolderOpen,
   ChevronRight,
   FolderCheck,
   ArrowLeft,
@@ -22,7 +23,9 @@ import {
   Layers,
   Clock,
   Compass,
-  Check
+  Check,
+  ExternalLink,
+  FolderTree
 } from 'lucide-react';
 import { ProjectData } from '../utils/projectStorage';
 import { 
@@ -34,6 +37,8 @@ import {
   loadProjectFromGoogleDrive, 
   DriveItem,
   listGoogleDriveFolderContents,
+  listAllGoogleDriveFolders,
+  openGoogleDrivePicker,
   createGoogleDriveFolder,
   getGoogleDriveSelectedFolder,
   setGoogleDriveSelectedFolder,
@@ -55,6 +60,8 @@ import {
   setActiveCloudProvider,
   getOneDriveTenant,
   setOneDriveTenant,
+  getOneDriveClientId,
+  setOneDriveClientId,
   CloudProvider,
   deleteOneDriveFile
 } from '../utils/oneDriveStorage';
@@ -81,6 +88,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 }) => {
   const [activeProvider, setActiveProviderState] = useState<CloudProvider>('gdrive');
   const [activeTab, setActiveTab] = useState<'explore' | 'save' | 'load'>('explore');
+  const [explorerViewMode, setExplorerViewMode] = useState<'subfolders' | 'all_folders'>('subfolders');
 
   // Search / Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,20 +97,20 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [gdriveToken, setGdriveToken] = useState<string | null>(null);
   const [gdriveUser, setGdriveUser] = useState<any>(null);
   const [gdriveStatusMsg, setGdriveStatusMsg] = useState<string | null>(null);
-  const [gdriveCurrentFolder, setGdriveCurrentFolder] = useState<FolderBreadcrumb>({ id: null, name: 'Root Directory' });
-  const [gdriveSelectedTarget, setGdriveSelectedTarget] = useState<FolderBreadcrumb>({ id: null, name: 'Root Directory' });
+  const [gdriveCurrentFolder, setGdriveCurrentFolder] = useState<FolderBreadcrumb>({ id: null, name: 'My Drive (Root)' });
+  const [gdriveSelectedTarget, setGdriveSelectedTarget] = useState<FolderBreadcrumb>({ id: null, name: 'My Drive (Root)' });
   const [gdriveFolderItems, setGdriveFolderItems] = useState<DriveItem[]>([]);
+  const [gdriveAllFolders, setGdriveAllFolders] = useState<DriveItem[]>([]);
   const [gdrivePathStack, setGdrivePathStack] = useState<FolderBreadcrumb[]>([{ id: null, name: 'My Drive (Root)' }]);
 
   // OneDrive State
   const [onedriveToken, setOnedriveToken] = useState<string | null>(null);
   const [onedriveUser, setOnedriveUser] = useState<any>(null);
   const [onedriveStatusMsg, setOnedriveStatusMsg] = useState<string | null>(null);
-  const [onedriveTenant, setOnedriveTenantState] = useState<string>(getOneDriveTenant());
-  const [onedriveCurrentFolder, setOnedriveCurrentFolder] = useState<FolderBreadcrumb>({ id: null, name: 'App Root / MasonMapEditor' });
-  const [onedriveSelectedTarget, setOnedriveSelectedTarget] = useState<FolderBreadcrumb>({ id: null, name: 'App Root / MasonMapEditor' });
+  const [onedriveCurrentFolder, setOnedriveCurrentFolder] = useState<FolderBreadcrumb>({ id: null, name: 'OneDrive Root (My Files)' });
+  const [onedriveSelectedTarget, setOnedriveSelectedTarget] = useState<FolderBreadcrumb>({ id: null, name: 'OneDrive Root (My Files)' });
   const [onedriveFolderItems, setOnedriveFolderItems] = useState<OneDriveItem[]>([]);
-  const [onedrivePathStack, setOnedrivePathStack] = useState<FolderBreadcrumb[]>([{ id: null, name: 'App Root' }]);
+  const [onedrivePathStack, setOnedrivePathStack] = useState<FolderBreadcrumb[]>([{ id: null, name: 'OneDrive Root (My Files)' }]);
 
   // Folder creation & loading
   const [loading, setLoading] = useState(false);
@@ -113,6 +121,23 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [customSaveFileName, setCustomSaveFileName] = useState('');
   const [isBackupSave, setIsBackupSave] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  // Scroll Container Refs
+  const modalBodyRef = React.useRef<HTMLDivElement>(null);
+  const itemsListRef = React.useRef<HTMLDivElement>(null);
+  const loadListRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollToTop = () => {
+    if (itemsListRef.current) {
+      itemsListRef.current.scrollTop = 0;
+    }
+    if (loadListRef.current) {
+      loadListRef.current.scrollTop = 0;
+    }
+    if (modalBodyRef.current) {
+      modalBodyRef.current.scrollTop = 0;
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -128,6 +153,8 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const handleSwitchProvider = (provider: CloudProvider) => {
     setActiveProviderState(provider);
     setActiveCloudProvider(provider);
+    setSearchQuery('');
+    setSaveSuccessMsg(null);
   };
 
   const refreshCloudState = async () => {
@@ -156,6 +183,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
   const fetchGDriveFolder = async (folderId: string | null) => {
     setLoading(true);
+    setGdriveStatusMsg(null);
     try {
       const items = await listGoogleDriveFolderContents(folderId);
       setGdriveFolderItems(items);
@@ -166,31 +194,45 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     }
   };
 
-  const fetchOneDriveFolder = async (folderId: string | null) => {
+  const fetchAllGDriveFolders = async () => {
     setLoading(true);
     try {
-      const items = await listOneDriveFolderContents(folderId);
-      setOnedriveFolderItems(items);
+      const folders = await listAllGoogleDriveFolders();
+      setGdriveAllFolders(folders);
+      setExplorerViewMode('all_folders');
     } catch (e: any) {
-      setOnedriveStatusMsg(`Folder list error: ${e.message}`);
+      setGdriveStatusMsg(`Could not fetch folder index: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!isOpen) return null;
+  const fetchOneDriveFolder = async (folderId: string | null) => {
+    setLoading(true);
+    setOnedriveStatusMsg(null);
+    try {
+      const items = await listOneDriveFolderContents(folderId);
+      setOnedriveFolderItems(items);
+    } catch (e: any) {
+      setOnedriveStatusMsg(`OneDrive folder list error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Google Drive Handlers
+  // --- Google Drive Handlers ---
+
   const handleConnectGDrive = async () => {
     setLoading(true);
-    setGdriveStatusMsg(null);
+    setGdriveStatusMsg('Opening Google OAuth popup window...');
     try {
-      await authenticateGoogleDrive();
-      handleSwitchProvider('gdrive');
-      refreshCloudState();
-      setGdriveStatusMsg('Connected to Google Drive successfully!');
+      const token = await authenticateGoogleDrive();
+      setGdriveToken(token);
+      setGdriveUser(getGoogleDriveUser());
+      setGdriveStatusMsg('Connected to Google Drive! Loading directories...');
+      fetchGDriveFolder(null);
     } catch (err: any) {
-      setGdriveStatusMsg(`Google Drive connection failed: ${err.message}`);
+      setGdriveStatusMsg(`Google Drive connection error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -201,42 +243,21 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setGdriveToken(null);
     setGdriveUser(null);
     setGdriveFolderItems([]);
-    setGdriveStatusMsg('Disconnected from Google Drive.');
-  };
-
-  const handleSaveToGDriveLocation = async (targetFolderId?: string | null, targetFolderName?: string) => {
-    if (!currentProject) return;
-    setLoading(true);
-    const destFolder = targetFolderName || (targetFolderId !== undefined ? 'Selected Folder' : gdriveCurrentFolder.name);
-    setGdriveStatusMsg(`Uploading project to Google Drive location: "${destFolder}"...`);
-    try {
-      const saved = await saveProjectToGoogleDrive(currentProject, {
-        targetFolderId: targetFolderId !== undefined ? targetFolderId : gdriveCurrentFolder.id,
-        targetFolderName: destFolder,
-        customFileName: customSaveFileName.trim() || undefined,
-        isBackup: isBackupSave
-      });
-      setSaveSuccessMsg(`Successfully saved "${saved.name}" to Google Drive folder "${destFolder}"!`);
-      setGdriveStatusMsg(`Saved full project "${saved.name}" to Google Drive!`);
-      fetchGDriveFolder(gdriveCurrentFolder.id);
-    } catch (err: any) {
-      setGdriveStatusMsg(`Save failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+    setGdriveStatusMsg('Google Drive disconnected.');
   };
 
   const handleCreateGDriveFolder = async () => {
     if (!newFolderName.trim()) return;
     setLoading(true);
+    setGdriveStatusMsg(`Creating folder "${newFolderName}"...`);
     try {
-      const created = await createGoogleDriveFolder(newFolderName.trim(), gdriveCurrentFolder.id);
+      const newFolder = await createGoogleDriveFolder(newFolderName.trim(), gdriveCurrentFolder.id);
       setNewFolderName('');
       setShowCreateFolder(false);
-      setGdriveStatusMsg(`Created folder "${created.name}" on Google Drive`);
+      setGdriveStatusMsg(`Created folder "${newFolder.name}"!`);
       fetchGDriveFolder(gdriveCurrentFolder.id);
     } catch (err: any) {
-      setGdriveStatusMsg(`Could not create folder: ${err.message}`);
+      setGdriveStatusMsg(`Error creating folder: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -247,35 +268,103 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     const name = folderName || gdriveCurrentFolder.name;
     setGoogleDriveSelectedFolder(id, name);
     setGdriveSelectedTarget({ id, name });
-    setGdriveStatusMsg(`Active Google Drive save location updated to: "${name}"`);
+    setGdriveStatusMsg(`Active save target folder set to: "${name}"`);
   };
 
   const handleNavigateGDriveFolder = (folder: DriveItem) => {
+    scrollToTop();
     const nextBreadcrumb = { id: folder.id, name: folder.name };
     setGdriveCurrentFolder(nextBreadcrumb);
     setGdrivePathStack(prev => [...prev, nextBreadcrumb]);
+    setExplorerViewMode('subfolders');
     fetchGDriveFolder(folder.id);
     setSearchQuery('');
   };
 
   const handleNavigateGDriveCrumb = (index: number) => {
+    scrollToTop();
     const target = gdrivePathStack[index];
     const newStack = gdrivePathStack.slice(0, index + 1);
     setGdrivePathStack(newStack);
     setGdriveCurrentFolder(target);
+    setExplorerViewMode('subfolders');
     fetchGDriveFolder(target.id);
     setSearchQuery('');
   };
 
   const handleNavigateUpGDrive = () => {
+    scrollToTop();
     if (gdrivePathStack.length <= 1) return;
     const newStack = [...gdrivePathStack];
     newStack.pop();
     const parent = newStack[newStack.length - 1];
     setGdrivePathStack(newStack);
     setGdriveCurrentFolder(parent);
+    setExplorerViewMode('subfolders');
     fetchGDriveFolder(parent.id);
     setSearchQuery('');
+  };
+
+  const handleJumpToGDriveRoot = () => {
+    scrollToTop();
+    const rootCrumb = { id: null, name: 'My Drive (Root)' };
+    setGdrivePathStack([rootCrumb]);
+    setGdriveCurrentFolder(rootCrumb);
+    setExplorerViewMode('subfolders');
+    fetchGDriveFolder(null);
+    setSearchQuery('');
+  };
+
+  const handleOpenGooglePicker = async (mode: 'folder' | 'file' = 'folder') => {
+    setLoading(true);
+    setGdriveStatusMsg('Opening native Google Drive Picker dialog...');
+    try {
+      const picked = await openGoogleDrivePicker(mode);
+      if (picked) {
+        if (picked.isFolder) {
+          handleSetGDriveTargetFolder(picked.id, picked.name);
+          const crumb = { id: picked.id, name: picked.name };
+          setGdriveCurrentFolder(crumb);
+          setGdrivePathStack([
+            { id: null, name: 'My Drive (Root)' },
+            crumb
+          ]);
+          setExplorerViewMode('subfolders');
+          fetchGDriveFolder(picked.id);
+          setGdriveStatusMsg(`Selected folder "${picked.name}" via Google Picker.`);
+        } else {
+          handleLoadFromGDrive(picked.id);
+        }
+      }
+    } catch (err: any) {
+      setGdriveStatusMsg(`Google Picker: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveToGDriveLocation = async (targetFolderId?: string | null, targetFolderName?: string) => {
+    const folderId = targetFolderId !== undefined ? targetFolderId : gdriveCurrentFolder.id;
+    const folderName = targetFolderName || gdriveCurrentFolder.name;
+
+    setLoading(true);
+    setGdriveStatusMsg(`Saving map "${currentProject.name}" into "${folderName}"...`);
+    try {
+      const saved = await saveProjectToGoogleDrive(currentProject, {
+        isBackup: isBackupSave,
+        customFileName: customSaveFileName.trim() || undefined,
+        targetFolderId: folderId,
+        targetFolderName: folderName
+      });
+      setSaveSuccessMsg(`Saved map file "${saved.name}" to Google Drive folder "${folderName}"!`);
+      setGdriveStatusMsg(`Successfully saved "${saved.name}"!`);
+      handleSetGDriveTargetFolder(folderId, folderName);
+      fetchGDriveFolder(folderId);
+    } catch (err: any) {
+      setGdriveStatusMsg(`Save failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLoadFromGDrive = async (fileId: string) => {
@@ -284,7 +373,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     try {
       const loaded = await loadProjectFromGoogleDrive(fileId);
       onLoadProject(loaded);
-      setGdriveStatusMsg(`Successfully loaded project "${loaded.name}"!`);
+      setGdriveStatusMsg(`Loaded project "${loaded.name}"!`);
       onClose();
     } catch (err: any) {
       setGdriveStatusMsg(`Load failed: ${err.message}`);
@@ -308,27 +397,19 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     }
   };
 
-  // OneDrive Handlers
-  const handleTenantChange = (tenant: string) => {
-    setOnedriveTenantState(tenant);
-    setOneDriveTenant(tenant);
-  };
+  // --- OneDrive Handlers ---
 
-  const handleConnectOneDrive = async (overrideTenant?: string) => {
+  const handleConnectOneDrive = async () => {
     setLoading(true);
-    setOnedriveStatusMsg(null);
-    const activeTenant = overrideTenant || onedriveTenant;
+    setOnedriveStatusMsg('Opening Microsoft Account login window...');
     try {
-      await authenticateOneDrive(undefined, undefined, activeTenant);
-      handleSwitchProvider('onedrive');
-      refreshCloudState();
+      const token = await authenticateOneDrive();
+      setOnedriveToken(token);
+      setOnedriveUser(getOneDriveUser());
       setOnedriveStatusMsg('Connected to Microsoft OneDrive!');
+      fetchOneDriveFolder(null);
     } catch (err: any) {
-      const msg = err.message || '';
-      if (msg.toLowerCase().includes('useraudience') && activeTenant === 'common') {
-        handleTenantChange('consumers');
-      }
-      setOnedriveStatusMsg(`OneDrive connection error: ${msg}`);
+      setOnedriveStatusMsg(`OneDrive connection error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -339,42 +420,45 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setOnedriveToken(null);
     setOnedriveUser(null);
     setOnedriveFolderItems([]);
-    setOnedriveStatusMsg('Disconnected from Microsoft OneDrive.');
-  };
-
-  const handleSaveToOneDriveLocation = async (targetFolderId?: string | null, targetFolderName?: string) => {
-    if (!currentProject) return;
-    setLoading(true);
-    const destFolder = targetFolderName || (targetFolderId !== undefined ? 'Selected Folder' : onedriveCurrentFolder.name);
-    setOnedriveStatusMsg(`Uploading project to Microsoft OneDrive location: "${destFolder}"...`);
-    try {
-      const saved = await saveProjectToOneDrive(currentProject, {
-        targetFolderId: targetFolderId !== undefined ? targetFolderId : onedriveCurrentFolder.id,
-        targetFolderName: destFolder,
-        customFileName: customSaveFileName.trim() || undefined,
-        isBackup: isBackupSave
-      });
-      setSaveSuccessMsg(`Successfully saved "${saved.name}" to OneDrive folder "${destFolder}"!`);
-      setOnedriveStatusMsg(`Saved full project "${saved.name}" to OneDrive!`);
-      fetchOneDriveFolder(onedriveCurrentFolder.id);
-    } catch (err: any) {
-      setOnedriveStatusMsg(`OneDrive Save failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+    setOnedriveStatusMsg('Microsoft OneDrive disconnected.');
   };
 
   const handleCreateOneDriveFolder = async () => {
     if (!newFolderName.trim()) return;
     setLoading(true);
+    setOnedriveStatusMsg(`Creating folder "${newFolderName}"...`);
     try {
-      await createOneDriveFolder(newFolderName.trim(), onedriveCurrentFolder.id);
+      const newFolder = await createOneDriveFolder(newFolderName.trim(), onedriveCurrentFolder.id);
       setNewFolderName('');
       setShowCreateFolder(false);
-      setOnedriveStatusMsg(`Created folder "${newFolderName.trim()}" on OneDrive`);
+      setOnedriveStatusMsg(`Created folder "${newFolder.name}"!`);
       fetchOneDriveFolder(onedriveCurrentFolder.id);
     } catch (err: any) {
-      setOnedriveStatusMsg(`Could not create folder: ${err.message}`);
+      setOnedriveStatusMsg(`Error creating folder: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveToOneDriveLocation = async (targetFolderId?: string | null, targetFolderName?: string) => {
+    const folderId = targetFolderId !== undefined ? targetFolderId : onedriveCurrentFolder.id;
+    const folderName = targetFolderName || onedriveCurrentFolder.name;
+
+    setLoading(true);
+    setOnedriveStatusMsg(`Saving project "${currentProject.name}" to OneDrive...`);
+    try {
+      const saved = await saveProjectToOneDrive(currentProject, {
+        isBackup: isBackupSave,
+        customFileName: customSaveFileName.trim() || undefined,
+        targetFolderId: folderId,
+        targetFolderName: folderName
+      });
+      setSaveSuccessMsg(`Saved file "${saved.name}" to OneDrive folder "${folderName}"!`);
+      setOnedriveStatusMsg(`Successfully saved "${saved.name}"!`);
+      handleSetOneDriveTargetFolder(folderId, folderName);
+      fetchOneDriveFolder(folderId);
+    } catch (err: any) {
+      setOnedriveStatusMsg(`Save failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -389,6 +473,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   };
 
   const handleNavigateOneDriveFolder = (folder: OneDriveItem) => {
+    scrollToTop();
     const nextBreadcrumb = { id: folder.id, name: folder.name };
     setOnedriveCurrentFolder(nextBreadcrumb);
     setOnedrivePathStack(prev => [...prev, nextBreadcrumb]);
@@ -397,6 +482,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   };
 
   const handleNavigateOneDriveCrumb = (index: number) => {
+    scrollToTop();
     const target = onedrivePathStack[index];
     const newStack = onedrivePathStack.slice(0, index + 1);
     setOnedrivePathStack(newStack);
@@ -406,6 +492,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   };
 
   const handleNavigateUpOneDrive = () => {
+    scrollToTop();
     if (onedrivePathStack.length <= 1) return;
     const newStack = [...onedrivePathStack];
     newStack.pop();
@@ -413,6 +500,15 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setOnedrivePathStack(newStack);
     setOnedriveCurrentFolder(parent);
     fetchOneDriveFolder(parent.id);
+    setSearchQuery('');
+  };
+
+  const handleJumpToOneDriveRoot = () => {
+    scrollToTop();
+    const rootCrumb = { id: null, name: 'OneDrive Root (My Files)' };
+    setOnedrivePathStack([rootCrumb]);
+    setOnedriveCurrentFolder(rootCrumb);
+    fetchOneDriveFolder(null);
     setSearchQuery('');
   };
 
@@ -447,12 +543,45 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   };
 
   // Filter items
-  const filteredGDriveItems = gdriveFolderItems.filter(item => 
+  const currentItems = activeProvider === 'gdrive' 
+    ? (explorerViewMode === 'all_folders' ? gdriveAllFolders : gdriveFolderItems)
+    : onedriveFolderItems;
+
+  const filteredItems = currentItems.filter(item => 
     !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const filteredOneDriveItems = onedriveFolderItems.filter(item => 
-    !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+
+  // Keyboard listener for Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Reset scrollbar to top whenever navigating to a folder or when folder content updates
+  useEffect(() => {
+    if (!isOpen) return;
+    scrollToTop();
+  }, [
+    isOpen,
+    gdriveCurrentFolder.id,
+    onedriveCurrentFolder.id,
+    gdriveFolderItems,
+    onedriveFolderItems,
+    gdriveAllFolders,
+    explorerViewMode,
+    activeProvider,
+    activeTab
+  ]);
+
+  if (!isOpen) {
+    return null;
+  }
 
   const activeToken = activeProvider === 'gdrive' ? gdriveToken : onedriveToken;
   const activeCurrentFolder = activeProvider === 'gdrive' ? gdriveCurrentFolder : onedriveCurrentFolder;
@@ -460,26 +589,33 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const activePathStack = activeProvider === 'gdrive' ? gdrivePathStack : onedrivePathStack;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-5xl max-h-[94vh] bg-stone-900 border border-amber-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-100">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="relative w-full max-w-5xl max-h-[96vh] bg-stone-900 border border-amber-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-100">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800 bg-stone-950/95">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-stone-800 bg-stone-950/95">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-600/30 to-orange-900/40 border border-amber-500/40 text-amber-400">
-              <Compass className="w-6 h-6" />
+              <Compass className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-stone-100 to-amber-200 bg-clip-text text-transparent">
+                <h2 className="text-base sm:text-lg font-bold bg-gradient-to-r from-stone-100 to-amber-200 bg-clip-text text-transparent">
                   Cloud Drives Explorer & Save Location
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                  Folder Picker
+                  Folder Navigation
                 </span>
               </div>
               <p className="text-xs text-stone-400">
-                Explore cloud folders, pick exact save locations, and synchronize Mason project files (.mason)
+                Browse cloud directories, select exact destination folders, and save/load your Mason project files (.mason)
               </p>
             </div>
           </div>
@@ -493,17 +629,17 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           </button>
         </div>
 
-        {/* Top Control Bar: Provider Switcher & Modes */}
-        <div className="px-5 py-3 bg-stone-950/70 border-b border-stone-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Top Control Bar: Provider Switcher & Save Target Summary */}
+        <div className="px-5 py-2.5 bg-stone-950/70 border-b border-stone-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           
           {/* Provider Selector */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-stone-400">Cloud Service:</span>
+            <span className="text-xs font-semibold text-stone-400">Cloud Storage:</span>
             <div className="p-1 rounded-xl bg-stone-900 border border-stone-800 flex gap-1">
               <button
                 type="button"
                 onClick={() => handleSwitchProvider('gdrive')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                   activeProvider === 'gdrive'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
@@ -519,7 +655,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleSwitchProvider('onedrive')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                   activeProvider === 'onedrive'
                     ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
@@ -534,9 +670,9 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
           {/* Active Target Summary Badge */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-stone-900 border border-amber-500/30 text-xs">
               <FolderCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="text-stone-400">Target Save Folder:</span>
+              <span className="text-stone-400">Active Save Target:</span>
               <span className="font-bold text-amber-300 truncate max-w-[200px]" title={activeSelectedTarget.name}>
                 {activeSelectedTarget.name}
               </span>
@@ -545,72 +681,86 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
         </div>
 
         {/* Mode Tabs */}
-        <div className="px-5 border-b border-stone-800 bg-stone-950/40 flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab('explore')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-              activeTab === 'explore'
-                ? 'border-amber-500 text-amber-300 bg-amber-500/5'
-                : 'border-transparent text-stone-400 hover:text-stone-200'
-            }`}
-          >
-            <Folder className="w-3.5 h-3.5" />
-            Explore & Pick Location
-          </button>
+        <div className="px-5 border-b border-stone-800 bg-stone-950/40 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('explore')}
+              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+                activeTab === 'explore'
+                  ? 'border-amber-500 text-amber-300 bg-amber-500/5'
+                  : 'border-transparent text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              Explore Folders & Pick Location
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('save')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-              activeTab === 'save'
-                ? 'border-amber-500 text-amber-300 bg-amber-500/5'
-                : 'border-transparent text-stone-400 hover:text-stone-200'
-            }`}
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Save Project As...
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('save')}
+              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+                activeTab === 'save'
+                  ? 'border-amber-500 text-amber-300 bg-amber-500/5'
+                  : 'border-transparent text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Save Project As...
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('load')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-              activeTab === 'load'
-                ? 'border-amber-500 text-amber-300 bg-amber-500/5'
-                : 'border-transparent text-stone-400 hover:text-stone-200'
-            }`}
-          >
-            <Download className="w-3.5 h-3.5" />
-            Load from Cloud
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('load')}
+              className={`px-4 py-2 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+                activeTab === 'load'
+                  ? 'border-amber-500 text-amber-300 bg-amber-500/5'
+                  : 'border-transparent text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              Load from Cloud
+            </button>
+          </div>
+
+          {activeTab === 'explore' && activeProvider === 'gdrive' && activeToken && (
+            <button
+              type="button"
+              onClick={() => handleOpenGooglePicker('folder')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-bold transition shadow-sm"
+              title="Open Google's official Drive folder selection window"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open Google Drive Picker
+            </button>
+          )}
         </div>
 
         {/* Modal Main Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div ref={modalBodyRef} className="flex-1 overflow-y-auto p-4 space-y-3">
 
           {/* Account Header Banner */}
-          <div className="p-3.5 rounded-xl bg-stone-950/60 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3 rounded-xl bg-stone-950/60 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {activeProvider === 'gdrive' ? (
                 gdriveUser?.picture ? (
-                  <img src={gdriveUser.picture} alt="Profile" className="w-9 h-9 rounded-full border border-blue-500/40" />
+                  <img src={gdriveUser.picture} alt="Profile" className="w-8 h-8 rounded-full border border-blue-500/40" />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                    <Cloud className="w-5 h-5" />
+                  <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                    <Cloud className="w-4 h-4" />
                   </div>
                 )
               ) : (
-                <div className="w-9 h-9 rounded-full bg-sky-600/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
-                  <Cloud className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-full bg-sky-600/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <Cloud className="w-4 h-4" />
                 </div>
               )}
               
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-stone-100 text-sm">
+                  <span className="font-semibold text-stone-100 text-xs sm:text-sm">
                     {activeProvider === 'gdrive' 
-                      ? (gdriveUser?.name || 'Google Drive Storage') 
+                      ? (gdriveUser?.name || 'Google Drive Cloud Storage') 
                       : (onedriveUser?.displayName || 'Microsoft OneDrive Storage')}
                   </span>
                   {activeToken ? (
@@ -623,10 +773,10 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-stone-400">
+                <p className="text-[11px] text-stone-400">
                   {activeProvider === 'gdrive' 
-                    ? (gdriveUser?.email || 'Choose destination folders in Google Drive to store and sync maps') 
-                    : (onedriveUser?.email || 'Choose destination folders in Microsoft OneDrive')}
+                    ? (gdriveUser?.email || 'Choose destination folders in Google Drive to store and sync projects') 
+                    : (onedriveUser?.email || 'Choose destination folders in Microsoft OneDrive to store and sync projects')}
                 </p>
               </div>
             </div>
@@ -644,17 +794,15 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                     Connect Google Drive
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleConnectOneDrive()}
-                      disabled={loading}
-                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-sky-600/20"
-                    >
-                      {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
-                      Connect OneDrive
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleConnectOneDrive()}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-sky-600/20"
+                  >
+                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
+                    Sign In with Microsoft
+                  </button>
                 )
               ) : (
                 <div className="flex items-center gap-2">
@@ -681,7 +829,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
           {/* Feedback & Status Message */}
           {(activeProvider === 'gdrive' ? gdriveStatusMsg : onedriveStatusMsg) && (
-            <div className="p-3 rounded-xl bg-stone-950/80 border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2 animate-fade-in">
+            <div className="p-2.5 rounded-xl bg-stone-950/80 border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2 animate-fade-in">
               <ShieldCheck className="w-4 h-4 shrink-0 text-amber-400" />
               <span>{activeProvider === 'gdrive' ? gdriveStatusMsg : onedriveStatusMsg}</span>
             </div>
@@ -705,20 +853,34 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
           {/* MAIN TAB 1: EXPLORE & PICK LOCATION */}
           {activeTab === 'explore' && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               
               {/* Folder Navigation & Toolbar */}
-              <div className="p-4 rounded-xl bg-stone-950/80 border border-stone-800 space-y-3">
+              <div className="p-3.5 rounded-xl bg-stone-950/80 border border-stone-800 space-y-3">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                   
-                  {/* Interactive Breadcrumb Bar */}
-                  <div className="flex items-center gap-1.5 flex-wrap text-xs bg-stone-900/90 px-3 py-2 rounded-xl border border-stone-800/80">
+                  {/* Interactive Breadcrumb Bar & Up Button */}
+                  <div className="flex items-center gap-1.5 flex-wrap text-xs bg-stone-900/90 px-3 py-2 rounded-xl border border-stone-800/80 flex-1">
+                    
+                    {/* Up Level Button */}
+                    {activePathStack.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={activeProvider === 'gdrive' ? handleNavigateUpGDrive : handleNavigateUpOneDrive}
+                        className="px-2 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-bold flex items-center gap-1 transition mr-1 border border-stone-700"
+                        title="Go up one folder level"
+                      >
+                        <ArrowLeft className="w-3 h-3 text-amber-400" /> Up Level
+                      </button>
+                    )}
+
                     <span className="text-stone-500 font-bold flex items-center gap-1 mr-1">
                       <Compass className="w-3.5 h-3.5 text-amber-400" /> Path:
                     </span>
+
                     {activePathStack.map((crumb, idx) => (
                       <React.Fragment key={crumb.id || `crumb-${idx}`}>
-                        {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-stone-600 shrink-0" />}
+                        {idx > 0 && <ChevronRight className="w-3 h-3 text-stone-600 shrink-0" />}
                         <button
                           type="button"
                           onClick={() => {
@@ -728,9 +890,9 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                               handleNavigateOneDriveCrumb(idx);
                             }
                           }}
-                          className={`hover:underline transition truncate max-w-[140px] ${
+                          className={`hover:underline transition truncate max-w-[140px] px-1.5 py-0.5 rounded ${
                             idx === activePathStack.length - 1 
-                              ? 'font-bold text-amber-300' 
+                              ? 'font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20' 
                               : 'text-stone-400 hover:text-stone-200'
                           }`}
                         >
@@ -742,24 +904,13 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
                   {/* Actions Toolbar */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {activePathStack.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={activeProvider === 'gdrive' ? handleNavigateUpGDrive : handleNavigateUpOneDrive}
-                        className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold flex items-center gap-1 transition"
-                        title="Navigate up one level"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" /> Up
-                      </button>
-                    )}
-
                     <button
                       type="button"
                       onClick={() => setShowCreateFolder(!showCreateFolder)}
                       disabled={!activeToken}
                       className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition"
                     >
-                      <FolderPlus className="w-3.5 h-3.5" /> + New Folder
+                      <FolderPlus className="w-3.5 h-3.5" /> + New Subfolder
                     </button>
 
                     <button
@@ -773,7 +924,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                       }}
                       disabled={!activeToken}
                       className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-600/20 transition"
-                      title="Set this folder as the active cloud save target for all future saves"
+                      title="Set this open folder as the active destination for project saves"
                     >
                       <FolderCheck className="w-3.5 h-3.5" /> Pick This Location
                     </button>
@@ -789,7 +940,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                       }}
                       disabled={!activeToken || loading}
                       className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition"
-                      title="Save the active project directly into this current folder"
+                      title="Save the active project directly into this current directory"
                     >
                       <Upload className="w-3.5 h-3.5" /> Save Project Here
                     </button>
@@ -801,7 +952,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   <div className="flex gap-2 p-3 rounded-xl bg-stone-900 border border-amber-500/40 animate-fade-in">
                     <input
                       type="text"
-                      placeholder="Enter folder name (e.g. Dungeon Levels, Chapter 1)..."
+                      placeholder="Enter new folder name (e.g. Dungeon Levels, Campaign Maps)..."
                       value={newFolderName}
                       onChange={(e) => setNewFolderName(e.target.value)}
                       onKeyDown={(e) => {
@@ -833,60 +984,136 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   </div>
                 )}
 
-                {/* Search Bar & Stats */}
-                <div className="flex items-center justify-between gap-3 pt-1 border-t border-stone-800/80">
-                  <div className="relative flex-1 max-w-sm">
+                {/* Quick Navigation Shortcuts & Filter Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-stone-800/80">
+                  
+                  {/* Quick Locations */}
+                  <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                    <span className="text-[11px] font-semibold text-stone-500 mr-1">Quick Jump:</span>
+                    <button
+                      type="button"
+                      onClick={activeProvider === 'gdrive' ? handleJumpToGDriveRoot : handleJumpToOneDriveRoot}
+                      className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 border border-stone-800 text-stone-300 text-[11px] flex items-center gap-1"
+                    >
+                      <HardDrive className="w-3 h-3 text-stone-400" /> Root Drive
+                    </button>
+
+                    {activeSelectedTarget.id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeProvider === 'gdrive') {
+                            setGdriveCurrentFolder(activeSelectedTarget);
+                            setGdrivePathStack([{ id: null, name: 'My Drive' }, activeSelectedTarget]);
+                            fetchGDriveFolder(activeSelectedTarget.id);
+                          } else {
+                            setOnedriveCurrentFolder(activeSelectedTarget);
+                            setOnedrivePathStack([{ id: null, name: 'OneDrive Root' }, activeSelectedTarget]);
+                            fetchOneDriveFolder(activeSelectedTarget.id);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-1"
+                      >
+                        <FolderCheck className="w-3 h-3 text-amber-400" /> Target: {activeSelectedTarget.name}
+                      </button>
+                    )}
+
+                    {activeProvider === 'gdrive' && activeToken && (
+                      <button
+                        type="button"
+                        onClick={fetchAllGDriveFolders}
+                        className={`px-2.5 py-1 rounded-lg border text-[11px] flex items-center gap-1 ${
+                          explorerViewMode === 'all_folders'
+                            ? 'bg-amber-600 text-stone-950 font-bold border-amber-500'
+                            : 'bg-stone-900 hover:bg-stone-800 border-stone-800 text-stone-300'
+                        }`}
+                      >
+                        <FolderTree className="w-3 h-3" /> All Drive Folders
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative flex-1 max-w-xs">
                     <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
                     <input
                       type="text"
-                      placeholder="Filter items in current folder..."
+                      placeholder="Filter current directory..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs text-stone-300 focus:outline-none focus:border-amber-500"
+                      className="w-full pl-8 pr-3 py-1 rounded-lg bg-stone-900 border border-stone-800 text-xs text-stone-300 focus:outline-none focus:border-amber-500"
                     />
-                  </div>
-
-                  <div className="text-[11px] text-stone-400 flex items-center gap-3">
-                    <span>
-                      {activeProvider === 'gdrive' 
-                        ? `${filteredGDriveItems.filter(i => i.isFolder).length} Folders, ${filteredGDriveItems.filter(i => !i.isFolder).length} Files`
-                        : `${filteredOneDriveItems.filter(i => i.isFolder).length} Folders, ${filteredOneDriveItems.filter(i => !i.isFolder).length} Files`}
-                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Folder & Files List View */}
               {!activeToken ? (
-                <div className="p-12 text-center border border-dashed border-stone-800 rounded-2xl bg-stone-950/40 space-y-3">
-                  <Cloud className="w-10 h-10 text-stone-600 mx-auto" />
-                  <h3 className="font-bold text-stone-300 text-sm">Not Connected to {activeProvider === 'gdrive' ? 'Google Drive' : 'OneDrive'}</h3>
-                  <p className="text-xs text-stone-500 max-w-md mx-auto">
-                    Connect your cloud drive account to browse existing directories, create game map folders, and pick custom save locations.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={activeProvider === 'gdrive' ? handleConnectGDrive : () => handleConnectOneDrive()}
-                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs inline-flex items-center gap-2 shadow-lg"
-                  >
-                    <Cloud className="w-4 h-4" /> Connect Now
-                  </button>
+                <div className="p-10 text-center border border-dashed border-stone-800 rounded-2xl bg-stone-950/40 space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-stone-900 border border-stone-800 flex items-center justify-center mx-auto text-stone-400">
+                    <Cloud className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-stone-200 text-sm">Not Connected to {activeProvider === 'gdrive' ? 'Google Drive' : 'Microsoft OneDrive'}</h3>
+                    <p className="text-xs text-stone-500 max-w-md mx-auto">
+                      {activeProvider === 'gdrive' 
+                        ? 'Connect your Google Drive account to explore folders, pick save locations, and open projects.'
+                        : 'Connect your Microsoft OneDrive account to explore folders, pick save locations, and sync your Mason projects.'}
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    {activeProvider === 'gdrive' ? (
+                      <button
+                        type="button"
+                        onClick={handleConnectGDrive}
+                        disabled={loading}
+                        className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-blue-600/20 transition"
+                      >
+                        <Cloud className="w-4 h-4" /> Connect Google Drive
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleConnectOneDrive()}
+                        disabled={loading}
+                        className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-sky-600/20 transition"
+                      >
+                        <Cloud className="w-4 h-4" /> Sign In with Microsoft
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {(activeProvider === 'gdrive' ? filteredGDriveItems : filteredOneDriveItems).length === 0 ? (
-                    <div className="p-10 text-center border border-dashed border-stone-800 rounded-2xl bg-stone-950/30 space-y-2">
-                      <Folder className="w-8 h-8 text-stone-600 mx-auto" />
-                      <p className="text-xs text-stone-400">
-                        {searchQuery ? 'No items matched your filter query.' : 'This folder is currently empty.'}
-                      </p>
-                      <div className="flex justify-center gap-2 pt-2">
+                  {filteredItems.length === 0 ? (
+                    <div className="p-10 text-center border border-dashed border-stone-800 rounded-2xl bg-stone-950/30 space-y-3">
+                      <Folder className="w-10 h-10 text-stone-600 mx-auto" />
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-stone-300 text-sm">
+                          {searchQuery ? 'No items matched your filter query' : 'This directory has no subfolders or files'}
+                        </h4>
+                        <p className="text-xs text-stone-500 max-w-md mx-auto">
+                          You can create a new subfolder here, set this folder as your cloud save location, or browse other drives.
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-wrap justify-center gap-2 pt-2">
+                        {activePathStack.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={activeProvider === 'gdrive' ? handleNavigateUpGDrive : handleNavigateUpOneDrive}
+                            className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold flex items-center gap-1.5"
+                          >
+                            <ArrowLeft className="w-3.5 h-3.5" /> Up to Parent Folder
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setShowCreateFolder(true)}
-                          className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold"
+                          className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold flex items-center gap-1.5"
                         >
-                          + Create Subfolder
+                          <FolderPlus className="w-3.5 h-3.5 text-amber-400" /> + Create Subfolder
                         </button>
                         <button
                           type="button"
@@ -897,30 +1124,39 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                               handleSaveToOneDriveLocation();
                             }
                           }}
-                          className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold"
+                          className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold flex items-center gap-1.5"
                         >
-                          Save Project Here
+                          <Upload className="w-3.5 h-3.5" /> Save Project Here
                         </button>
+                        {activeProvider === 'gdrive' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenGooglePicker('folder')}
+                            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Open Google Drive Picker
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-2 max-h-[380px] overflow-y-auto pr-1">
-                      {(activeProvider === 'gdrive' ? (filteredGDriveItems as DriveItem[]) : (filteredOneDriveItems as OneDriveItem[])).map(item => {
+                    <div ref={itemsListRef} className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-1">
+                      {filteredItems.map(item => {
                         const isFolder = item.isFolder;
                         const isSelectedTarget = isFolder && activeSelectedTarget.id === item.id;
 
                         return (
                           <div
                             key={item.id}
-                            className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition group ${
+                            className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition group ${
                               isFolder
                                 ? isSelectedTarget
-                                  ? 'bg-amber-950/40 border-amber-500/50 shadow-sm'
-                                  : 'bg-stone-950/60 border-stone-800/90 hover:border-amber-500/40 hover:bg-stone-900/60'
-                                : 'bg-stone-950/40 border-stone-800/60 hover:border-stone-700'
+                                  ? 'bg-amber-950/30 border-amber-500/60 shadow-sm'
+                                  : 'bg-stone-950/60 border-stone-800 hover:border-amber-500/40 hover:bg-stone-900/60'
+                                : 'bg-stone-950/40 border-stone-800/60 hover:border-blue-500/30'
                             }`}
                           >
-                            {/* Left: Icon & Info */}
+                            {/* Left: Icon & Title (Clickable) */}
                             <div 
                               className={`flex items-center gap-3 truncate ${isFolder ? 'cursor-pointer flex-1' : ''}`}
                               onClick={() => {
@@ -933,17 +1169,17 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                 }
                               }}
                             >
-                              <div className={`p-2 rounded-lg shrink-0 ${
+                              <div className={`p-2.5 rounded-xl shrink-0 ${
                                 isFolder 
-                                  ? isSelectedTarget ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-600/10 text-amber-400'
-                                  : 'bg-blue-600/10 text-blue-400'
+                                  ? isSelectedTarget ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-600/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
                               }`}>
-                                {isFolder ? <Folder className="w-4 h-4" /> : <FileCode className="w-4 h-4" />}
+                                {isFolder ? <FolderOpen className="w-4 h-4" /> : <FileCode className="w-4 h-4" />}
                               </div>
 
                               <div className="truncate">
                                 <div className="flex items-center gap-2">
-                                  <span className={`font-semibold truncate ${
+                                  <span className={`font-bold text-xs sm:text-sm truncate ${
                                     isFolder 
                                       ? 'text-stone-100 group-hover:text-amber-300' 
                                       : 'text-stone-200'
@@ -951,15 +1187,20 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                     {item.name}
                                   </span>
                                   {isSelectedTarget && (
-                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                       Active Save Target
+                                    </span>
+                                  )}
+                                  {isFolder && (
+                                    <span className="hidden sm:inline text-[10px] text-stone-500">
+                                      (Click to browse folder)
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-[10px] text-stone-500 flex items-center gap-2 mt-0.5">
                                   <span className="flex items-center gap-1">
                                     <Clock className="w-2.5 h-2.5" />
-                                    {new Date(item.modifiedTime).toLocaleDateString()} {new Date(item.modifiedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(item.modifiedTime).toLocaleDateString()}
                                   </span>
                                   {item.size && (
                                     <span>• {Math.round(Number(item.size) / 1024)} KB</span>
@@ -969,7 +1210,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                             </div>
 
                             {/* Right: Actions */}
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-2 shrink-0 flex-wrap">
                               {isFolder ? (
                                 <>
                                   <button
@@ -981,10 +1222,10 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                         handleSetOneDriveTargetFolder(item.id, item.name);
                                       }
                                     }}
-                                    className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-amber-300 text-[11px] font-medium transition flex items-center gap-1"
+                                    className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-amber-300 text-[11px] font-medium transition flex items-center gap-1 border border-stone-700"
                                     title="Set this subfolder as default save location"
                                   >
-                                    <FolderCheck className="w-3 h-3" /> Set Target
+                                    <FolderCheck className="w-3 h-3 text-amber-400" /> Set Target
                                   </button>
 
                                   <button
@@ -997,7 +1238,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                       }
                                     }}
                                     disabled={loading}
-                                    className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[11px] font-bold transition flex items-center gap-1"
+                                    className="px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[11px] font-bold transition flex items-center gap-1"
                                     title="Save project directly inside this folder"
                                   >
                                     <Upload className="w-3 h-3" /> Save Here
@@ -1012,10 +1253,10 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                         handleNavigateOneDriveFolder(item as OneDriveItem);
                                       }
                                     }}
-                                    className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition flex items-center gap-1"
-                                    title="Open folder"
+                                    className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-amber-600 text-stone-200 hover:text-stone-950 font-bold text-[11px] transition flex items-center gap-1"
+                                    title="Open and browse inside this folder"
                                   >
-                                    Open <ChevronRight className="w-3 h-3" />
+                                    Open Folder <ChevronRight className="w-3.5 h-3.5" />
                                   </button>
                                 </>
                               ) : (
@@ -1030,9 +1271,9 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                       }
                                     }}
                                     disabled={loading}
-                                    className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center gap-1 transition shadow-sm"
+                                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
                                   >
-                                    <Download className="w-3 h-3" /> Load
+                                    <Download className="w-3 h-3" /> Load Project
                                   </button>
 
                                   <button
@@ -1044,7 +1285,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                                         handleDeleteOneDriveFile(item.id, item.name, e);
                                       }
                                     }}
-                                    className="p-1 rounded-lg hover:bg-red-500/20 text-stone-500 hover:text-red-400 transition"
+                                    className="p-1.5 rounded-lg hover:bg-red-500/20 text-stone-500 hover:text-red-400 transition"
                                     title="Delete from cloud"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1177,7 +1418,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                       Saved Cloud Projects in "{activeCurrentFolder.name}"
                     </h3>
                     <p className="text-xs text-stone-400">
-                      Select any previously saved Mason map file to open it directly in the editor.
+                      Select any previously saved Mason project file to open it directly in the editor.
                     </p>
                   </div>
 
@@ -1196,7 +1437,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                     Connect your cloud account to view saved projects.
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  <div ref={loadListRef} className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                     {(activeProvider === 'gdrive' ? gdriveFolderItems : onedriveFolderItems)
                       .filter(item => !item.isFolder && (item.name.endsWith('.mason') || item.name.endsWith('.json')))
                       .map(file => (
@@ -1230,7 +1471,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                               disabled={loading}
                               className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
                             >
-                              <Download className="w-3.5 h-3.5" /> Load into Editor
+                              <Download className="w-3.5 h-3.5" /> Load Project
                             </button>
 
                             <button
@@ -1245,7 +1486,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                               className="p-1.5 rounded-lg hover:bg-red-500/20 text-stone-500 hover:text-red-400 transition"
                               title="Delete from cloud"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>

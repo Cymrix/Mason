@@ -72,12 +72,30 @@ export const setActiveCloudProvider = (provider: CloudProvider) => {
   localStorage.setItem(ACTIVE_CLOUD_PROVIDER_KEY, provider);
 };
 
+const ONEDRIVE_CLIENT_ID_KEY = 'mourne_onedrive_client_id';
+
+export const getOneDriveClientId = (): string => {
+  return localStorage.getItem(ONEDRIVE_CLIENT_ID_KEY) || (import.meta as any).env?.VITE_ONEDRIVE_CLIENT_ID || '';
+};
+
+export const setOneDriveClientId = (clientId: string) => {
+  if (clientId && clientId.trim()) {
+    localStorage.setItem(ONEDRIVE_CLIENT_ID_KEY, clientId.trim());
+  } else {
+    localStorage.removeItem(ONEDRIVE_CLIENT_ID_KEY);
+  }
+};
+
 export const getOneDriveTenant = (): string => {
-  return localStorage.getItem(ONEDRIVE_TENANT_KEY) || 'consumers';
+  return localStorage.getItem(ONEDRIVE_TENANT_KEY) || 'common';
 };
 
 export const setOneDriveTenant = (tenant: string) => {
-  localStorage.setItem(ONEDRIVE_TENANT_KEY, tenant);
+  if (tenant && tenant.trim()) {
+    localStorage.setItem(ONEDRIVE_TENANT_KEY, tenant.trim());
+  } else {
+    localStorage.setItem(ONEDRIVE_TENANT_KEY, 'common');
+  }
 };
 
 export const getOneDriveToken = (): string | null => {
@@ -123,39 +141,37 @@ export const getOneDriveUser = (): OneDriveUser | null => {
 };
 
 /**
- * Connects to Microsoft OneDrive via OAuth Popup / Access Token Prompt
+ * Formats Microsoft OAuth error messages into friendly guidance
+ */
+export const formatMicrosoftAuthError = (rawError: string): string => {
+  const lower = rawError.toLowerCase();
+  if (lower.includes('unauthorized_client') || lower.includes('does not exist or is not enabled for consumers')) {
+    return 'Microsoft Login Error: The Azure App Registration is not enabled for Personal Microsoft accounts. In Azure Portal, set Supported Account Types to "Personal Microsoft accounts" or "Accounts in any organizational directory and personal Microsoft accounts" (signInAudience: AzureADandPersonalMicrosoftAccount).';
+  }
+  if (lower.includes('redirect_uri') || lower.includes('reply address')) {
+    return `Microsoft Login Error: The current redirect URI (${window.location.origin}) is not registered in the Azure App Registration's Single-Page Application (SPA) redirect URIs.`;
+  }
+  return rawError;
+};
+
+/**
+ * Connects to Microsoft OneDrive via standard OAuth Popup
  */
 export const authenticateOneDrive = async (
-  manualToken?: string, 
-  customClientId?: string,
-  customTenant?: string
+  customTenant?: string,
+  customClientId?: string
 ): Promise<string> => {
-  if (manualToken) {
-    setOneDriveToken(manualToken);
-    try {
-      const res = await fetch('https://graph.microsoft.com/v1.0/me', {
-        headers: { Authorization: `Bearer ${manualToken}` }
-      });
-      if (res.ok) {
-        const user = await res.json();
-        localStorage.setItem(ONEDRIVE_USER_KEY, JSON.stringify({
-          displayName: user.displayName || user.userPrincipalName,
-          email: user.mail || user.userPrincipalName
-        }));
-      }
-    } catch (e) {
-      console.warn('OneDrive profile fetch failed:', e);
-    }
-    setActiveCloudProvider('onedrive');
-    return manualToken;
-  }
-
-  // Popup flow for Microsoft Account OAuth
   return new Promise((resolve, reject) => {
     const redirectUri = window.location.href.split('#')[0].split('?')[0];
     const scopes = encodeURIComponent('files.readwrite user.read offline_access');
-    const tenant = customTenant?.trim() || getOneDriveTenant() || 'consumers';
-    const clientId = customClientId?.trim() || (import.meta as any).env?.VITE_ONEDRIVE_CLIENT_ID || localStorage.getItem('mourne_onedrive_client_id') || 'c1001aef-9d0f-4875-8272-b8cfabcf3afd';
+    const tenant = customTenant?.trim() || getOneDriveTenant() || 'common';
+    const clientId = customClientId?.trim() || getOneDriveClientId() || 'c1001aef-9d0f-4875-8272-b8cfabcf3afd';
+    
+    if (!clientId) {
+      reject(new Error('Azure Application (Client ID) is missing.'));
+      return;
+    }
+
     const authUrl = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;
 
     const width = 600;
@@ -203,7 +219,7 @@ export const authenticateOneDrive = async (
         resolve(token);
       } else if (event.data && event.data.type === 'ONEDRIVE_AUTH_ERROR') {
         cleanup();
-        reject(new Error(event.data.error || 'OneDrive authorization failed.'));
+        reject(new Error(formatMicrosoftAuthError(event.data.error || 'OneDrive authorization failed.')));
       }
     };
 
@@ -246,7 +262,7 @@ export const authenticateOneDrive = async (
           const urlParams = new URLSearchParams(popup.location.hash.substring(1) || popup.location.search.substring(1));
           const errDesc = urlParams.get('error_description') || urlParams.get('error') || 'OAuth authorization failed';
           cleanup();
-          reject(new Error(errDesc));
+          reject(new Error(formatMicrosoftAuthError(errDesc)));
         }
       } catch (err) {
         // Cross-origin restriction while popup is on microsoftonline.com
@@ -267,12 +283,12 @@ export const listOneDriveFolderContents = async (folderId?: string | null): Prom
   const token = getOneDriveToken();
   if (!token) return [];
 
-  let endpoint = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/MasonMapEditor:/children?$select=id,name,folder,file,lastModifiedDateTime,size,@microsoft.graph.downloadUrl`;
+  let endpoint = `https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,folder,file,lastModifiedDateTime,size,@microsoft.graph.downloadUrl`;
   
-  if (folderId && folderId !== 'approot' && folderId !== 'root') {
+  if (folderId && folderId !== 'root' && folderId !== 'approot') {
     endpoint = `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children?$select=id,name,folder,file,lastModifiedDateTime,size,@microsoft.graph.downloadUrl`;
-  } else if (folderId === 'root') {
-    endpoint = `https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,folder,file,lastModifiedDateTime,size,@microsoft.graph.downloadUrl`;
+  } else if (folderId === 'approot') {
+    endpoint = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/MasonMapEditor:/children?$select=id,name,folder,file,lastModifiedDateTime,size,@microsoft.graph.downloadUrl`;
   }
 
   const res = await fetch(endpoint, {
@@ -280,8 +296,21 @@ export const listOneDriveFolderContents = async (folderId?: string | null): Prom
   });
 
   if (!res.ok) {
-    if (res.status === 401) disconnectOneDrive();
-    return [];
+    if (res.status === 401) {
+      disconnectOneDrive();
+      throw new Error('Microsoft OneDrive authorization expired. Please reconnect.');
+    }
+    // If approot failed, retry with root
+    if (folderId === 'approot') {
+      return listOneDriveFolderContents('root');
+    }
+    const errText = await res.text();
+    let msg = `OneDrive error (${res.status})`;
+    try {
+      const parsed = JSON.parse(errText);
+      if (parsed.error?.message) msg = parsed.error.message;
+    } catch {}
+    throw new Error(msg);
   }
 
   const data = await res.json();

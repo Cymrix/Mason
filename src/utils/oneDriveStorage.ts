@@ -338,24 +338,37 @@ export const createOneDriveFolder = async (folderName: string, parentFolderId?: 
  */
 export const saveProjectToOneDrive = async (
   project: ProjectData,
-  options: { isBackup?: boolean } = {}
+  options: { 
+    isBackup?: boolean; 
+    customFileName?: string; 
+    targetFolderId?: string | null;
+    targetFolderName?: string;
+  } = {}
 ): Promise<OneDriveFileInfo> => {
   let token = getOneDriveToken();
   if (!token) throw new Error('Not connected to Microsoft OneDrive.');
 
-  const safeName = (project.name || 'mason_world').toLowerCase().replace(/[^a-z0-9]/g, '_');
-  const extension = '.mason';
-  const prefix = options.isBackup ? '[BACKUP]_' : '';
-  const fileName = `${prefix}${safeName}_${project.id}${extension}`;
+  let fileName = options.customFileName?.trim();
+  if (!fileName) {
+    const safeName = (project.name || 'mason_world').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const extension = '.mason';
+    const prefix = options.isBackup ? '[BACKUP]_' : '';
+    fileName = `${prefix}${safeName}_${project.id}${extension}`;
+  } else if (!fileName.endsWith('.mason') && !fileName.endsWith('.json')) {
+    fileName = `${fileName}.mason`;
+  }
 
   const body = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
 
-  const selectedFolder = getOneDriveSelectedFolder();
+  const targetFolderId = options.targetFolderId !== undefined 
+    ? options.targetFolderId 
+    : getOneDriveSelectedFolder().id;
+
   let endpoint = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/MasonMapEditor/${encodeURIComponent(fileName)}:/content`;
 
-  if (selectedFolder.id && selectedFolder.id !== 'approot' && selectedFolder.id !== 'root') {
-    endpoint = `https://graph.microsoft.com/v1.0/me/drive/items/${selectedFolder.id}:/${encodeURIComponent(fileName)}:/content`;
-  } else if (selectedFolder.id === 'root') {
+  if (targetFolderId && targetFolderId !== 'approot' && targetFolderId !== 'root') {
+    endpoint = `https://graph.microsoft.com/v1.0/me/drive/items/${targetFolderId}:/${encodeURIComponent(fileName)}:/content`;
+  } else if (targetFolderId === 'root') {
     endpoint = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(fileName)}:/content`;
   }
 
@@ -389,13 +402,32 @@ export const saveProjectToOneDrive = async (
 };
 
 /**
+ * Deletes a file or folder from OneDrive
+ */
+export const deleteOneDriveFile = async (fileId: string): Promise<boolean> => {
+  const token = getOneDriveToken();
+  if (!token) throw new Error('Not connected to Microsoft OneDrive.');
+
+  const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
+    throw new Error(`Failed to delete OneDrive file (${res.status})`);
+  }
+  return true;
+};
+
+/**
  * Lists project files on OneDrive in current active folder
  */
-export const listOneDriveProjects = async (): Promise<OneDriveFileInfo[]> => {
+export const listOneDriveProjects = async (folderId?: string | null): Promise<OneDriveFileInfo[]> => {
   const token = getOneDriveToken();
   if (!token) return [];
 
-  const items = await listOneDriveFolderContents(getOneDriveSelectedFolder().id);
+  const targetId = folderId !== undefined ? folderId : getOneDriveSelectedFolder().id;
+  const items = await listOneDriveFolderContents(targetId);
   return items
     .filter(i => !i.isFolder && (i.name.endsWith('.mason') || i.name.endsWith('.json')))
     .map(i => ({

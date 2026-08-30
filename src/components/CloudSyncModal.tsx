@@ -14,7 +14,15 @@ import {
   FolderCheck,
   ArrowLeft,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Search,
+  Trash2,
+  FileCheck,
+  Sparkles,
+  Layers,
+  Clock,
+  Compass,
+  Check
 } from 'lucide-react';
 import { ProjectData } from '../utils/projectStorage';
 import { 
@@ -28,7 +36,8 @@ import {
   listGoogleDriveFolderContents,
   createGoogleDriveFolder,
   getGoogleDriveSelectedFolder,
-  setGoogleDriveSelectedFolder
+  setGoogleDriveSelectedFolder,
+  deleteGoogleDriveFile
 } from '../utils/googleDriveStorage';
 import { 
   getOneDriveToken, 
@@ -46,7 +55,8 @@ import {
   setActiveCloudProvider,
   getOneDriveTenant,
   setOneDriveTenant,
-  CloudProvider
+  CloudProvider,
+  deleteOneDriveFile
 } from '../utils/oneDriveStorage';
 
 interface CloudSyncModalProps {
@@ -54,6 +64,7 @@ interface CloudSyncModalProps {
   onClose: () => void;
   currentProject: ProjectData;
   onLoadProject: (project: ProjectData) => void;
+  initialMode?: 'explore' | 'save' | 'load';
 }
 
 interface FolderBreadcrumb {
@@ -65,9 +76,14 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   isOpen,
   onClose,
   currentProject,
-  onLoadProject
+  onLoadProject,
+  initialMode = 'explore'
 }) => {
   const [activeProvider, setActiveProviderState] = useState<CloudProvider>('gdrive');
+  const [activeTab, setActiveTab] = useState<'explore' | 'save' | 'load'>('explore');
+
+  // Search / Filter
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Google Drive State
   const [gdriveToken, setGdriveToken] = useState<string | null>(null);
@@ -76,7 +92,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [gdriveCurrentFolder, setGdriveCurrentFolder] = useState<FolderBreadcrumb>({ id: null, name: 'Root Directory' });
   const [gdriveSelectedTarget, setGdriveSelectedTarget] = useState<FolderBreadcrumb>({ id: null, name: 'Root Directory' });
   const [gdriveFolderItems, setGdriveFolderItems] = useState<DriveItem[]>([]);
-  const [gdrivePathStack, setGdrivePathStack] = useState<FolderBreadcrumb[]>([{ id: null, name: 'Root' }]);
+  const [gdrivePathStack, setGdrivePathStack] = useState<FolderBreadcrumb[]>([{ id: null, name: 'My Drive (Root)' }]);
 
   // OneDrive State
   const [onedriveToken, setOnedriveToken] = useState<string | null>(null);
@@ -93,12 +109,21 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [newFolderName, setNewFolderName] = useState('');
   const [showCreateFolder, setShowCreateFolder] = useState(false);
 
+  // Custom Save Dialog State
+  const [customSaveFileName, setCustomSaveFileName] = useState('');
+  const [isBackupSave, setIsBackupSave] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       setActiveProviderState(getActiveCloudProvider());
+      setActiveTab(initialMode);
+      setCustomSaveFileName(
+        `${(currentProject?.name || 'mason_world').toLowerCase().replace(/[^a-z0-9]/g, '_')}_${currentProject?.id || 'map'}.mason`
+      );
       refreshCloudState();
     }
-  }, [isOpen]);
+  }, [isOpen, initialMode, currentProject]);
 
   const handleSwitchProvider = (provider: CloudProvider) => {
     setActiveProviderState(provider);
@@ -179,11 +204,19 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setGdriveStatusMsg('Disconnected from Google Drive.');
   };
 
-  const handleSaveToGDrive = async () => {
+  const handleSaveToGDriveLocation = async (targetFolderId?: string | null, targetFolderName?: string) => {
+    if (!currentProject) return;
     setLoading(true);
-    setGdriveStatusMsg('Uploading full project structure (all levels, tilesets, settings) to Google Drive...');
+    const destFolder = targetFolderName || (targetFolderId !== undefined ? 'Selected Folder' : gdriveCurrentFolder.name);
+    setGdriveStatusMsg(`Uploading project to Google Drive location: "${destFolder}"...`);
     try {
-      const saved = await saveProjectToGoogleDrive(currentProject);
+      const saved = await saveProjectToGoogleDrive(currentProject, {
+        targetFolderId: targetFolderId !== undefined ? targetFolderId : gdriveCurrentFolder.id,
+        targetFolderName: destFolder,
+        customFileName: customSaveFileName.trim() || undefined,
+        isBackup: isBackupSave
+      });
+      setSaveSuccessMsg(`Successfully saved "${saved.name}" to Google Drive folder "${destFolder}"!`);
       setGdriveStatusMsg(`Saved full project "${saved.name}" to Google Drive!`);
       fetchGDriveFolder(gdriveCurrentFolder.id);
     } catch (err: any) {
@@ -197,10 +230,10 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     if (!newFolderName.trim()) return;
     setLoading(true);
     try {
-      await createGoogleDriveFolder(newFolderName.trim(), gdriveCurrentFolder.id);
+      const created = await createGoogleDriveFolder(newFolderName.trim(), gdriveCurrentFolder.id);
       setNewFolderName('');
       setShowCreateFolder(false);
-      setGdriveStatusMsg(`Created folder "${newFolderName.trim()}"`);
+      setGdriveStatusMsg(`Created folder "${created.name}" on Google Drive`);
       fetchGDriveFolder(gdriveCurrentFolder.id);
     } catch (err: any) {
       setGdriveStatusMsg(`Could not create folder: ${err.message}`);
@@ -209,10 +242,12 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     }
   };
 
-  const handleSetGDriveTargetFolder = () => {
-    setGoogleDriveSelectedFolder(gdriveCurrentFolder.id, gdriveCurrentFolder.name);
-    setGdriveSelectedTarget({ id: gdriveCurrentFolder.id, name: gdriveCurrentFolder.name });
-    setGdriveStatusMsg(`Active Google Drive target folder set to: "${gdriveCurrentFolder.name}"`);
+  const handleSetGDriveTargetFolder = (folderId?: string | null, folderName?: string) => {
+    const id = folderId !== undefined ? folderId : gdriveCurrentFolder.id;
+    const name = folderName || gdriveCurrentFolder.name;
+    setGoogleDriveSelectedFolder(id, name);
+    setGdriveSelectedTarget({ id, name });
+    setGdriveStatusMsg(`Active Google Drive save location updated to: "${name}"`);
   };
 
   const handleNavigateGDriveFolder = (folder: DriveItem) => {
@@ -220,6 +255,16 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setGdriveCurrentFolder(nextBreadcrumb);
     setGdrivePathStack(prev => [...prev, nextBreadcrumb]);
     fetchGDriveFolder(folder.id);
+    setSearchQuery('');
+  };
+
+  const handleNavigateGDriveCrumb = (index: number) => {
+    const target = gdrivePathStack[index];
+    const newStack = gdrivePathStack.slice(0, index + 1);
+    setGdrivePathStack(newStack);
+    setGdriveCurrentFolder(target);
+    fetchGDriveFolder(target.id);
+    setSearchQuery('');
   };
 
   const handleNavigateUpGDrive = () => {
@@ -230,6 +275,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setGdrivePathStack(newStack);
     setGdriveCurrentFolder(parent);
     fetchGDriveFolder(parent.id);
+    setSearchQuery('');
   };
 
   const handleLoadFromGDrive = async (fileId: string) => {
@@ -242,6 +288,21 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
       onClose();
     } catch (err: any) {
       setGdriveStatusMsg(`Load failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteGDriveFile = async (fileId: string, fileName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to delete "${fileName}" from Google Drive?`)) return;
+    setLoading(true);
+    try {
+      await deleteGoogleDriveFile(fileId);
+      setGdriveStatusMsg(`Deleted "${fileName}" from Google Drive.`);
+      fetchGDriveFolder(gdriveCurrentFolder.id);
+    } catch (err: any) {
+      setGdriveStatusMsg(`Delete failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -265,7 +326,6 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     } catch (err: any) {
       const msg = err.message || '';
       if (msg.toLowerCase().includes('useraudience') && activeTenant === 'common') {
-        // Automatically set tenant to consumers when userAudience error occurs
         handleTenantChange('consumers');
       }
       setOnedriveStatusMsg(`OneDrive connection error: ${msg}`);
@@ -282,11 +342,19 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setOnedriveStatusMsg('Disconnected from Microsoft OneDrive.');
   };
 
-  const handleSaveToOneDrive = async () => {
+  const handleSaveToOneDriveLocation = async (targetFolderId?: string | null, targetFolderName?: string) => {
+    if (!currentProject) return;
     setLoading(true);
-    setOnedriveStatusMsg('Uploading full project structure (all levels, tilesets, settings) to Microsoft OneDrive...');
+    const destFolder = targetFolderName || (targetFolderId !== undefined ? 'Selected Folder' : onedriveCurrentFolder.name);
+    setOnedriveStatusMsg(`Uploading project to Microsoft OneDrive location: "${destFolder}"...`);
     try {
-      const saved = await saveProjectToOneDrive(currentProject);
+      const saved = await saveProjectToOneDrive(currentProject, {
+        targetFolderId: targetFolderId !== undefined ? targetFolderId : onedriveCurrentFolder.id,
+        targetFolderName: destFolder,
+        customFileName: customSaveFileName.trim() || undefined,
+        isBackup: isBackupSave
+      });
+      setSaveSuccessMsg(`Successfully saved "${saved.name}" to OneDrive folder "${destFolder}"!`);
       setOnedriveStatusMsg(`Saved full project "${saved.name}" to OneDrive!`);
       fetchOneDriveFolder(onedriveCurrentFolder.id);
     } catch (err: any) {
@@ -312,10 +380,12 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     }
   };
 
-  const handleSetOneDriveTargetFolder = () => {
-    setOneDriveSelectedFolder(onedriveCurrentFolder.id, onedriveCurrentFolder.name);
-    setOnedriveSelectedTarget({ id: onedriveCurrentFolder.id, name: onedriveCurrentFolder.name });
-    setOnedriveStatusMsg(`Active OneDrive target folder set to: "${onedriveCurrentFolder.name}"`);
+  const handleSetOneDriveTargetFolder = (folderId?: string | null, folderName?: string) => {
+    const id = folderId !== undefined ? folderId : onedriveCurrentFolder.id;
+    const name = folderName || onedriveCurrentFolder.name;
+    setOneDriveSelectedFolder(id, name);
+    setOnedriveSelectedTarget({ id, name });
+    setOnedriveStatusMsg(`Active OneDrive save location updated to: "${name}"`);
   };
 
   const handleNavigateOneDriveFolder = (folder: OneDriveItem) => {
@@ -323,6 +393,16 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setOnedriveCurrentFolder(nextBreadcrumb);
     setOnedrivePathStack(prev => [...prev, nextBreadcrumb]);
     fetchOneDriveFolder(folder.id);
+    setSearchQuery('');
+  };
+
+  const handleNavigateOneDriveCrumb = (index: number) => {
+    const target = onedrivePathStack[index];
+    const newStack = onedrivePathStack.slice(0, index + 1);
+    setOnedrivePathStack(newStack);
+    setOnedriveCurrentFolder(target);
+    fetchOneDriveFolder(target.id);
+    setSearchQuery('');
   };
 
   const handleNavigateUpOneDrive = () => {
@@ -333,6 +413,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setOnedrivePathStack(newStack);
     setOnedriveCurrentFolder(parent);
     fetchOneDriveFolder(parent.id);
+    setSearchQuery('');
   };
 
   const handleLoadFromOneDrive = async (file: OneDriveItem) => {
@@ -350,39 +431,77 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     }
   };
 
+  const handleDeleteOneDriveFile = async (fileId: string, fileName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to delete "${fileName}" from OneDrive?`)) return;
+    setLoading(true);
+    try {
+      await deleteOneDriveFile(fileId);
+      setOnedriveStatusMsg(`Deleted "${fileName}" from OneDrive.`);
+      fetchOneDriveFolder(onedriveCurrentFolder.id);
+    } catch (err: any) {
+      setOnedriveStatusMsg(`Delete failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter items
+  const filteredGDriveItems = gdriveFolderItems.filter(item => 
+    !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredOneDriveItems = onedriveFolderItems.filter(item => 
+    !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const activeToken = activeProvider === 'gdrive' ? gdriveToken : onedriveToken;
+  const activeCurrentFolder = activeProvider === 'gdrive' ? gdriveCurrentFolder : onedriveCurrentFolder;
+  const activeSelectedTarget = activeProvider === 'gdrive' ? gdriveSelectedTarget : onedriveSelectedTarget;
+  const activePathStack = activeProvider === 'gdrive' ? gdrivePathStack : onedrivePathStack;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-4xl max-h-[92vh] bg-stone-900 border border-amber-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-5xl max-h-[94vh] bg-stone-900 border border-amber-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-stone-100">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-stone-800 bg-stone-950/90">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800 bg-stone-950/95">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-600/30 to-orange-900/40 border border-amber-500/40 text-amber-400">
-              <Cloud className="w-6 h-6" />
+              <Compass className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold bg-gradient-to-r from-stone-100 to-amber-200 bg-clip-text text-transparent">
-                Cloud Storage & Project Sync
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-stone-100 to-amber-200 bg-clip-text text-transparent">
+                  Cloud Drives Explorer & Save Location
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                  Folder Picker
+                </span>
+              </div>
               <p className="text-xs text-stone-400">
-                Save, browse, and auto-backup complete Mason project files across cloud providers
+                Explore cloud folders, pick exact save locations, and synchronize Mason project files (.mason)
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-lg text-stone-400 hover:text-stone-100 hover:bg-stone-800 transition-colors"
+            className="p-2 rounded-xl text-stone-400 hover:text-stone-100 hover:bg-stone-800 transition-colors"
+            title="Close Explorer"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Visual Provider Switcher */}
-        <div className="p-4 bg-stone-950/60 border-b border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-stone-400">Active Storage Provider:</span>
+        {/* Top Control Bar: Provider Switcher & Modes */}
+        <div className="px-5 py-3 bg-stone-950/70 border-b border-stone-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          
+          {/* Provider Selector */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-stone-400">Cloud Service:</span>
             <div className="p-1 rounded-xl bg-stone-900 border border-stone-800 flex gap-1">
               <button
+                type="button"
                 onClick={() => handleSwitchProvider('gdrive')}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   activeProvider === 'gdrive'
@@ -394,10 +513,11 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   <path d="M12.01 1.992L4.01 15.992h15.999l-8-14zm-7.009 15.008l4.004 7h12l-4.004-7h-12zm12.009-1h4l-7.999-14h-4l7.999 14z" />
                 </svg>
                 Google Drive
-                {activeProvider === 'gdrive' && <CheckCircle2 className="w-3.5 h-3.5 text-blue-200" />}
+                {gdriveToken && <CheckCircle2 className="w-3.5 h-3.5 text-blue-200" />}
               </button>
 
               <button
+                type="button"
                 onClick={() => handleSwitchProvider('onedrive')}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   activeProvider === 'onedrive'
@@ -407,500 +527,756 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               >
                 <Cloud className="w-3.5 h-3.5 text-sky-200" />
                 Microsoft OneDrive
-                {activeProvider === 'onedrive' && <CheckCircle2 className="w-3.5 h-3.5 text-sky-200" />}
+                {onedriveToken && <CheckCircle2 className="w-3.5 h-3.5 text-sky-200" />}
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-950/40 border border-amber-500/30 px-3 py-1.5 rounded-lg">
-            <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-            <span>Automatic cloud backups active for <strong>{activeProvider === 'gdrive' ? 'Google Drive' : 'OneDrive'}</strong></span>
+          {/* Active Target Summary Badge */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs">
+              <FolderCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-stone-400">Target Save Folder:</span>
+              <span className="font-bold text-amber-300 truncate max-w-[200px]" title={activeSelectedTarget.name}>
+                {activeSelectedTarget.name}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Mode Tabs */}
+        <div className="px-5 border-b border-stone-800 bg-stone-950/40 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('explore')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+              activeTab === 'explore'
+                ? 'border-amber-500 text-amber-300 bg-amber-500/5'
+                : 'border-transparent text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Folder className="w-3.5 h-3.5" />
+            Explore & Pick Location
+          </button>
 
-          {/* GOOGLE DRIVE SECTION */}
-          {activeProvider === 'gdrive' && (
-            <div className="space-y-6">
-              {/* Account Status Card */}
-              <div className="p-4 rounded-xl bg-stone-950/60 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  {gdriveUser?.picture ? (
-                    <img src={gdriveUser.picture} alt="Profile" className="w-10 h-10 rounded-full border border-blue-500/40" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                      <Cloud className="w-5 h-5" />
-                    </div>
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-stone-100 text-sm">
-                        {gdriveUser?.name || 'Google Drive Storage'}
-                      </h3>
-                      {gdriveToken ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Connected
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-800 text-stone-400">
-                          Disconnected
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-stone-400">
-                      {gdriveUser?.email || 'Save entire project files directly to your Google Drive'}
-                    </p>
+          <button
+            type="button"
+            onClick={() => setActiveTab('save')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+              activeTab === 'save'
+                ? 'border-amber-500 text-amber-300 bg-amber-500/5'
+                : 'border-transparent text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Save Project As...
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('load')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+              activeTab === 'load'
+                ? 'border-amber-500 text-amber-300 bg-amber-500/5'
+                : 'border-transparent text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Download className="w-3.5 h-3.5" />
+            Load from Cloud
+          </button>
+        </div>
+
+        {/* Modal Main Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+          {/* Account Header Banner */}
+          <div className="p-3.5 rounded-xl bg-stone-950/60 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {activeProvider === 'gdrive' ? (
+                gdriveUser?.picture ? (
+                  <img src={gdriveUser.picture} alt="Profile" className="w-9 h-9 rounded-full border border-blue-500/40" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                    <Cloud className="w-5 h-5" />
                   </div>
+                )
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-sky-600/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <Cloud className="w-5 h-5" />
                 </div>
-
+              )}
+              
+              <div>
                 <div className="flex items-center gap-2">
-                  {!gdriveToken ? (
+                  <span className="font-semibold text-stone-100 text-sm">
+                    {activeProvider === 'gdrive' 
+                      ? (gdriveUser?.name || 'Google Drive Storage') 
+                      : (onedriveUser?.displayName || 'Microsoft OneDrive Storage')}
+                  </span>
+                  {activeToken ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Connected
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-800 text-stone-400">
+                      Not Connected
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-stone-400">
+                  {activeProvider === 'gdrive' 
+                    ? (gdriveUser?.email || 'Choose destination folders in Google Drive to store and sync maps') 
+                    : (onedriveUser?.email || 'Choose destination folders in Microsoft OneDrive')}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!activeToken ? (
+                activeProvider === 'gdrive' ? (
+                  <button
+                    type="button"
+                    onClick={handleConnectGDrive}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                  >
+                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
+                    Connect Google Drive
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleConnectGDrive()}
+                      type="button"
+                      onClick={() => handleConnectOneDrive()}
                       disabled={loading}
-                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20"
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-sky-600/20"
                     >
                       {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
-                      Connect Google Drive
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleDisconnectGDrive}
-                      className="px-3 py-1.5 rounded-lg border border-stone-700 hover:border-red-500/50 hover:bg-red-500/10 text-stone-300 hover:text-red-400 text-xs transition-colors"
-                    >
-                      Disconnect
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {gdriveStatusMsg && (
-                <div className="p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-300 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 shrink-0 text-blue-400" />
-                  {gdriveStatusMsg}
-                </div>
-              )}
-
-              {gdriveToken && (
-                <>
-                  {/* Entire Project Cloud Save Action */}
-                  <div className="p-4 rounded-xl bg-stone-950/40 border border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-semibold text-stone-200 flex items-center gap-2">
-                        <Upload className="w-4 h-4 text-blue-400" />
-                        Save Entire Project to Google Drive
-                      </h4>
-                      <p className="text-xs text-stone-400">
-                        Saves all levels, tilesets, palette, grid configs, and metadata of "{currentProject.name}" to target directory: <strong className="text-blue-300">{gdriveSelectedTarget.name}</strong>
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={handleSaveToGDrive}
-                      disabled={loading}
-                      className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 shrink-0 transition-all"
-                    >
-                      {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileCode className="w-4 h-4" />}
-                      Save Entire Project (.mason)
+                      Connect OneDrive
                     </button>
                   </div>
-
-                  {/* Virtual Google Drive Folder Browser */}
-                  <div className="space-y-3 p-4 rounded-xl bg-stone-950/70 border border-stone-800">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800 pb-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
-                          <Folder className="w-4 h-4 text-amber-400" /> Virtual Drive Browser:
-                        </span>
-                        
-                        {/* Breadcrumbs */}
-                        <div className="flex items-center gap-1 text-xs text-stone-400 bg-stone-900 px-2.5 py-1 rounded-md border border-stone-800">
-                          {gdrivePathStack.map((crumb, idx) => (
-                            <React.Fragment key={crumb.id || 'root'}>
-                              {idx > 0 && <ChevronRight className="w-3 h-3 text-stone-600" />}
-                              <span className={idx === gdrivePathStack.length - 1 ? 'font-bold text-amber-300' : ''}>
-                                {crumb.name}
-                              </span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {gdrivePathStack.length > 1 && (
-                          <button
-                            onClick={handleNavigateUpGDrive}
-                            className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs flex items-center gap-1"
-                          >
-                            <ArrowLeft className="w-3 h-3" /> Up
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => setShowCreateFolder(!showCreateFolder)}
-                          className="px-2.5 py-1 rounded bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs flex items-center gap-1"
-                        >
-                          <FolderPlus className="w-3.5 h-3.5" /> + New Folder
-                        </button>
-
-                        <button
-                          onClick={handleSetGDriveTargetFolder}
-                          className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center gap-1 shadow-sm"
-                        >
-                          <FolderCheck className="w-3.5 h-3.5" /> Set Sync Target
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Inline Folder Creator */}
-                    {showCreateFolder && (
-                      <div className="flex gap-2 p-3 rounded-lg bg-stone-900 border border-amber-500/30 animate-fade-in">
-                        <input
-                          type="text"
-                          placeholder="New Folder Name..."
-                          value={newFolderName}
-                          onChange={(e) => setNewFolderName(e.target.value)}
-                          className="flex-1 px-3 py-1.5 rounded bg-stone-950 border border-stone-800 text-xs text-stone-200 focus:outline-none focus:border-amber-500"
-                        />
-                        <button
-                          onClick={handleCreateGDriveFolder}
-                          disabled={!newFolderName.trim() || loading}
-                          className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs"
-                        >
-                          Create
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Folder & File List */}
-                    {gdriveFolderItems.length === 0 ? (
-                      <div className="p-8 text-center border border-dashed border-stone-800 rounded-xl text-stone-500 text-xs">
-                        This Google Drive folder is empty. Save your project here or create a subfolder!
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                        {gdriveFolderItems.map(item => (
-                          <div 
-                            key={item.id}
-                            className="p-2.5 rounded-lg bg-stone-900/80 border border-stone-800/80 hover:border-stone-700 flex items-center justify-between gap-3 text-xs"
-                          >
-                            <div className="flex items-center gap-2.5 truncate">
-                              {item.isFolder ? (
-                                <Folder className="w-4 h-4 text-amber-400 shrink-0" />
-                              ) : (
-                                <FileCode className="w-4 h-4 text-blue-400 shrink-0" />
-                              )}
-                              <div className="truncate">
-                                <span className={`font-medium ${item.isFolder ? 'text-amber-200 hover:underline cursor-pointer' : 'text-stone-200'}`}
-                                      onClick={() => item.isFolder && handleNavigateGDriveFolder(item)}>
-                                  {item.name}
-                                </span>
-                                <span className="text-[10px] text-stone-500 ml-2">
-                                  {new Date(item.modifiedTime).toLocaleDateString()}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              {item.isFolder ? (
-                                <button
-                                  onClick={() => handleNavigateGDriveFolder(item)}
-                                  className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-[11px] flex items-center gap-1"
-                                >
-                                  Open <ChevronRight className="w-3 h-3" />
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleLoadFromGDrive(item.id)}
-                                  disabled={loading}
-                                  className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] flex items-center gap-1"
-                                >
-                                  <Download className="w-3 h-3" /> Load Project
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
+                )
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => refreshCloudState()}
+                    disabled={loading}
+                    className="p-2 rounded-lg border border-stone-700 hover:bg-stone-800 text-stone-300 text-xs transition"
+                    title="Refresh folder listing"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={activeProvider === 'gdrive' ? handleDisconnectGDrive : handleDisconnectOneDrive}
+                    className="px-3 py-1.5 rounded-lg border border-stone-700 hover:border-red-500/50 hover:bg-red-500/10 text-stone-300 hover:text-red-400 text-xs transition"
+                  >
+                    Disconnect
+                  </button>
+                </div>
               )}
+            </div>
+          </div>
+
+          {/* Feedback & Status Message */}
+          {(activeProvider === 'gdrive' ? gdriveStatusMsg : onedriveStatusMsg) && (
+            <div className="p-3 rounded-xl bg-stone-950/80 border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2 animate-fade-in">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>{activeProvider === 'gdrive' ? gdriveStatusMsg : onedriveStatusMsg}</span>
             </div>
           )}
 
-          {/* MICROSOFT ONEDRIVE SECTION */}
-          {activeProvider === 'onedrive' && (
-            <div className="space-y-6">
-              {/* Account Status Card */}
-              <div className="p-4 rounded-xl bg-stone-950/60 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-sky-600/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
-                    <Cloud className="w-5 h-5" />
+          {saveSuccessMsg && (
+            <div className="p-3 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-xs text-emerald-300 flex items-center justify-between gap-2 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{saveSuccessMsg}</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSaveSuccessMsg(null)}
+                className="text-stone-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* MAIN TAB 1: EXPLORE & PICK LOCATION */}
+          {activeTab === 'explore' && (
+            <div className="space-y-4">
+              
+              {/* Folder Navigation & Toolbar */}
+              <div className="p-4 rounded-xl bg-stone-950/80 border border-stone-800 space-y-3">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  
+                  {/* Interactive Breadcrumb Bar */}
+                  <div className="flex items-center gap-1.5 flex-wrap text-xs bg-stone-900/90 px-3 py-2 rounded-xl border border-stone-800/80">
+                    <span className="text-stone-500 font-bold flex items-center gap-1 mr-1">
+                      <Compass className="w-3.5 h-3.5 text-amber-400" /> Path:
+                    </span>
+                    {activePathStack.map((crumb, idx) => (
+                      <React.Fragment key={crumb.id || `crumb-${idx}`}>
+                        {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-stone-600 shrink-0" />}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (activeProvider === 'gdrive') {
+                              handleNavigateGDriveCrumb(idx);
+                            } else {
+                              handleNavigateOneDriveCrumb(idx);
+                            }
+                          }}
+                          className={`hover:underline transition truncate max-w-[140px] ${
+                            idx === activePathStack.length - 1 
+                              ? 'font-bold text-amber-300' 
+                              : 'text-stone-400 hover:text-stone-200'
+                          }`}
+                        >
+                          {crumb.name}
+                        </button>
+                      </React.Fragment>
+                    ))}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-stone-100 text-sm">
-                        {onedriveUser?.displayName || 'Microsoft OneDrive Storage'}
-                      </h3>
-                      {onedriveToken ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Connected
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-800 text-stone-400">
-                          Disconnected
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-stone-400">
-                      {onedriveUser?.email || 'Save entire project files directly to your Microsoft OneDrive account'}
-                    </p>
+
+                  {/* Actions Toolbar */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {activePathStack.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={activeProvider === 'gdrive' ? handleNavigateUpGDrive : handleNavigateUpOneDrive}
+                        className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold flex items-center gap-1 transition"
+                        title="Navigate up one level"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Up
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateFolder(!showCreateFolder)}
+                      disabled={!activeToken}
+                      className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" /> + New Folder
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeProvider === 'gdrive') {
+                          handleSetGDriveTargetFolder();
+                        } else {
+                          handleSetOneDriveTargetFolder();
+                        }
+                      }}
+                      disabled={!activeToken}
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-600/20 transition"
+                      title="Set this folder as the active cloud save target for all future saves"
+                    >
+                      <FolderCheck className="w-3.5 h-3.5" /> Pick This Location
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeProvider === 'gdrive') {
+                          handleSaveToGDriveLocation();
+                        } else {
+                          handleSaveToOneDriveLocation();
+                        }
+                      }}
+                      disabled={!activeToken || loading}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition"
+                      title="Save the active project directly into this current folder"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Save Project Here
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  {!onedriveToken ? (
-                    <>
-                      <div className="flex items-center gap-1 p-1 bg-stone-900 border border-stone-800 rounded-lg text-xs">
-                        <span className="text-[10px] font-bold text-stone-500 uppercase px-1.5">Account:</span>
-                        <button
-                          type="button"
-                          onClick={() => handleTenantChange('consumers')}
-                          className={`px-2 py-1 rounded text-[11px] font-medium transition-all ${
-                            onedriveTenant === 'consumers'
-                              ? 'bg-sky-600 text-white shadow-sm'
-                              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
-                          }`}
-                          title="Personal Microsoft Accounts (@outlook, @hotmail, @live)"
-                        >
-                          Personal (consumers)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTenantChange('common')}
-                          className={`px-2 py-1 rounded text-[11px] font-medium transition-all ${
-                            onedriveTenant === 'common'
-                              ? 'bg-sky-600 text-white shadow-sm'
-                              : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800'
-                          }`}
-                          title="Work or School Accounts (Azure AD / Microsoft 365)"
-                        >
-                          Work/School (common)
-                        </button>
-                      </div>
-
-                      <button
-                        onClick={() => handleConnectOneDrive()}
-                        disabled={loading}
-                        className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-sky-600/20"
-                      >
-                        {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
-                        Connect OneDrive
-                      </button>
-                    </>
-                  ) : (
+                {/* Inline New Folder Form */}
+                {showCreateFolder && (
+                  <div className="flex gap-2 p-3 rounded-xl bg-stone-900 border border-amber-500/40 animate-fade-in">
+                    <input
+                      type="text"
+                      placeholder="Enter folder name (e.g. Dungeon Levels, Chapter 1)..."
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          activeProvider === 'gdrive' ? handleCreateGDriveFolder() : handleCreateOneDriveFolder();
+                        }
+                      }}
+                      autoFocus
+                      className="flex-1 px-3 py-2 rounded-lg bg-stone-950 border border-stone-800 text-xs text-stone-100 focus:outline-none focus:border-amber-500 font-mono"
+                    />
                     <button
-                      onClick={handleDisconnectOneDrive}
-                      className="px-3 py-1.5 rounded-lg border border-stone-700 hover:border-red-500/50 hover:bg-red-500/10 text-stone-300 hover:text-red-400 text-xs transition-colors"
+                      type="button"
+                      onClick={activeProvider === 'gdrive' ? handleCreateGDriveFolder : handleCreateOneDriveFolder}
+                      disabled={!newFolderName.trim() || loading}
+                      className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs transition"
                     >
-                      Disconnect
+                      Create Folder
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateFolder(false);
+                        setNewFolderName('');
+                      }}
+                      className="px-3 py-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-400 text-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Search Bar & Stats */}
+                <div className="flex items-center justify-between gap-3 pt-1 border-t border-stone-800/80">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
+                    <input
+                      type="text"
+                      placeholder="Filter items in current folder..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-stone-900 border border-stone-800 text-xs text-stone-300 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="text-[11px] text-stone-400 flex items-center gap-3">
+                    <span>
+                      {activeProvider === 'gdrive' 
+                        ? `${filteredGDriveItems.filter(i => i.isFolder).length} Folders, ${filteredGDriveItems.filter(i => !i.isFolder).length} Files`
+                        : `${filteredOneDriveItems.filter(i => i.isFolder).length} Folders, ${filteredOneDriveItems.filter(i => !i.isFolder).length} Files`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {onedriveStatusMsg && (
-                <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs text-sky-300 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 shrink-0 text-sky-400" />
-                    <span className="break-words">{onedriveStatusMsg}</span>
-                  </div>
-                  {onedriveStatusMsg.toLowerCase().includes('useraudience') && (
-                    <div className="mt-2 p-3 rounded-lg bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs flex items-start gap-2.5">
-                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-amber-100">Personal Microsoft Account Endpoint Required:</p>
-                        <p className="mt-0.5 text-amber-300/90 leading-relaxed">
-                          Microsoft Entra ID rejected the request because the registered app audience is set for Personal accounts (`Consumer`). We have automatically updated your connection endpoint setting to <strong>Personal (consumers)</strong>!
-                        </p>
+              {/* Folder & Files List View */}
+              {!activeToken ? (
+                <div className="p-12 text-center border border-dashed border-stone-800 rounded-2xl bg-stone-950/40 space-y-3">
+                  <Cloud className="w-10 h-10 text-stone-600 mx-auto" />
+                  <h3 className="font-bold text-stone-300 text-sm">Not Connected to {activeProvider === 'gdrive' ? 'Google Drive' : 'OneDrive'}</h3>
+                  <p className="text-xs text-stone-500 max-w-md mx-auto">
+                    Connect your cloud drive account to browse existing directories, create game map folders, and pick custom save locations.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={activeProvider === 'gdrive' ? handleConnectGDrive : () => handleConnectOneDrive()}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs inline-flex items-center gap-2 shadow-lg"
+                  >
+                    <Cloud className="w-4 h-4" /> Connect Now
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(activeProvider === 'gdrive' ? filteredGDriveItems : filteredOneDriveItems).length === 0 ? (
+                    <div className="p-10 text-center border border-dashed border-stone-800 rounded-2xl bg-stone-950/30 space-y-2">
+                      <Folder className="w-8 h-8 text-stone-600 mx-auto" />
+                      <p className="text-xs text-stone-400">
+                        {searchQuery ? 'No items matched your filter query.' : 'This folder is currently empty.'}
+                      </p>
+                      <div className="flex justify-center gap-2 pt-2">
                         <button
-                          onClick={() => {
-                            handleTenantChange('consumers');
-                            handleConnectOneDrive('consumers');
-                          }}
-                          className="mt-2.5 px-3.5 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+                          type="button"
+                          onClick={() => setShowCreateFolder(true)}
+                          className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold"
                         >
-                          <Cloud className="w-3.5 h-3.5" /> Retry Connection (consumers Endpoint)
+                          + Create Subfolder
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (activeProvider === 'gdrive') {
+                              handleSaveToGDriveLocation();
+                            } else {
+                              handleSaveToOneDriveLocation();
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold"
+                        >
+                          Save Project Here
                         </button>
                       </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2 max-h-[380px] overflow-y-auto pr-1">
+                      {(activeProvider === 'gdrive' ? (filteredGDriveItems as DriveItem[]) : (filteredOneDriveItems as OneDriveItem[])).map(item => {
+                        const isFolder = item.isFolder;
+                        const isSelectedTarget = isFolder && activeSelectedTarget.id === item.id;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition group ${
+                              isFolder
+                                ? isSelectedTarget
+                                  ? 'bg-amber-950/40 border-amber-500/50 shadow-sm'
+                                  : 'bg-stone-950/60 border-stone-800/90 hover:border-amber-500/40 hover:bg-stone-900/60'
+                                : 'bg-stone-950/40 border-stone-800/60 hover:border-stone-700'
+                            }`}
+                          >
+                            {/* Left: Icon & Info */}
+                            <div 
+                              className={`flex items-center gap-3 truncate ${isFolder ? 'cursor-pointer flex-1' : ''}`}
+                              onClick={() => {
+                                if (isFolder) {
+                                  if (activeProvider === 'gdrive') {
+                                    handleNavigateGDriveFolder(item as DriveItem);
+                                  } else {
+                                    handleNavigateOneDriveFolder(item as OneDriveItem);
+                                  }
+                                }
+                              }}
+                            >
+                              <div className={`p-2 rounded-lg shrink-0 ${
+                                isFolder 
+                                  ? isSelectedTarget ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-600/10 text-amber-400'
+                                  : 'bg-blue-600/10 text-blue-400'
+                              }`}>
+                                {isFolder ? <Folder className="w-4 h-4" /> : <FileCode className="w-4 h-4" />}
+                              </div>
+
+                              <div className="truncate">
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-semibold truncate ${
+                                    isFolder 
+                                      ? 'text-stone-100 group-hover:text-amber-300' 
+                                      : 'text-stone-200'
+                                  }`}>
+                                    {item.name}
+                                  </span>
+                                  {isSelectedTarget && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                      Active Save Target
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-stone-500 flex items-center gap-2 mt-0.5">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5" />
+                                    {new Date(item.modifiedTime).toLocaleDateString()} {new Date(item.modifiedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                  {item.size && (
+                                    <span>• {Math.round(Number(item.size) / 1024)} KB</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right: Actions */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isFolder ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (activeProvider === 'gdrive') {
+                                        handleSetGDriveTargetFolder(item.id, item.name);
+                                      } else {
+                                        handleSetOneDriveTargetFolder(item.id, item.name);
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-amber-300 text-[11px] font-medium transition flex items-center gap-1"
+                                    title="Set this subfolder as default save location"
+                                  >
+                                    <FolderCheck className="w-3 h-3" /> Set Target
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (activeProvider === 'gdrive') {
+                                        handleSaveToGDriveLocation(item.id, item.name);
+                                      } else {
+                                        handleSaveToOneDriveLocation(item.id, item.name);
+                                      }
+                                    }}
+                                    disabled={loading}
+                                    className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[11px] font-bold transition flex items-center gap-1"
+                                    title="Save project directly inside this folder"
+                                  >
+                                    <Upload className="w-3 h-3" /> Save Here
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (activeProvider === 'gdrive') {
+                                        handleNavigateGDriveFolder(item as DriveItem);
+                                      } else {
+                                        handleNavigateOneDriveFolder(item as OneDriveItem);
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition flex items-center gap-1"
+                                    title="Open folder"
+                                  >
+                                    Open <ChevronRight className="w-3 h-3" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (activeProvider === 'gdrive') {
+                                        handleLoadFromGDrive(item.id);
+                                      } else {
+                                        handleLoadFromOneDrive(item as OneDriveItem);
+                                      }
+                                    }}
+                                    disabled={loading}
+                                    className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center gap-1 transition shadow-sm"
+                                  >
+                                    <Download className="w-3 h-3" /> Load
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      if (activeProvider === 'gdrive') {
+                                        handleDeleteGDriveFile(item.id, item.name, e);
+                                      } else {
+                                        handleDeleteOneDriveFile(item.id, item.name, e);
+                                      }
+                                    }}
+                                    className="p-1 rounded-lg hover:bg-red-500/20 text-stone-500 hover:text-red-400 transition"
+                                    title="Delete from cloud"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               )}
 
-              {onedriveToken && (
-                <>
-                  {/* Entire Project Cloud Save Action */}
-                  <div className="p-4 rounded-xl bg-stone-950/40 border border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-semibold text-stone-200 flex items-center gap-2">
-                        <Upload className="w-4 h-4 text-sky-400" />
-                        Save Entire Project to OneDrive
-                      </h4>
-                      <p className="text-xs text-stone-400">
-                        Saves all levels, tilesets, palette, grid configs, and metadata of "{currentProject.name}" to target directory: <strong className="text-sky-300">{onedriveSelectedTarget.name}</strong>
-                      </p>
-                    </div>
+            </div>
+          )}
 
-                    <button
-                      onClick={handleSaveToOneDrive}
-                      disabled={loading}
-                      className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-600/20 shrink-0 transition-all"
-                    >
-                      {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileCode className="w-4 h-4" />}
-                      Save Entire Project (.mason)
-                    </button>
+          {/* MAIN TAB 2: SAVE PROJECT AS... DIALOG */}
+          {activeTab === 'save' && (
+            <div className="space-y-4">
+              <div className="p-5 rounded-2xl bg-stone-950/80 border border-stone-800 space-y-5">
+                <div>
+                  <h3 className="font-bold text-stone-100 text-base flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-amber-400" />
+                    Save Active Project to Cloud Location
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Choose your file name, confirm the target destination folder, and push the latest map data to your cloud drive.
+                  </p>
+                </div>
+
+                {/* Target Location Card */}
+                <div className="p-3.5 rounded-xl bg-stone-900/90 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+                      <FolderCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Save Destination Folder</div>
+                      <div className="font-bold text-stone-100 text-sm">{activeCurrentFolder.name}</div>
+                      <div className="text-[11px] text-stone-500">Service: {activeProvider === 'gdrive' ? 'Google Drive' : 'Microsoft OneDrive'}</div>
+                    </div>
                   </div>
 
-                  {/* Virtual OneDrive Folder Browser */}
-                  <div className="space-y-3 p-4 rounded-xl bg-stone-950/70 border border-stone-800">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800 pb-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
-                          <Folder className="w-4 h-4 text-sky-400" /> Virtual OneDrive Browser:
-                        </span>
-                        
-                        {/* Breadcrumbs */}
-                        <div className="flex items-center gap-1 text-xs text-stone-400 bg-stone-900 px-2.5 py-1 rounded-md border border-stone-800">
-                          {onedrivePathStack.map((crumb, idx) => (
-                            <React.Fragment key={crumb.id || 'approot'}>
-                              {idx > 0 && <ChevronRight className="w-3 h-3 text-stone-600" />}
-                              <span className={idx === onedrivePathStack.length - 1 ? 'font-bold text-sky-300' : ''}>
-                                {crumb.name}
-                              </span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('explore')}
+                    className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <Folder className="w-3.5 h-3.5 text-amber-400" /> Change Target Folder...
+                  </button>
+                </div>
 
-                      <div className="flex items-center gap-2">
-                        {onedrivePathStack.length > 1 && (
-                          <button
-                            onClick={handleNavigateUpOneDrive}
-                            className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs flex items-center gap-1"
-                          >
-                            <ArrowLeft className="w-3 h-3" /> Up
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => setShowCreateFolder(!showCreateFolder)}
-                          className="px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-xs flex items-center gap-1"
-                        >
-                          <FolderPlus className="w-3.5 h-3.5" /> + New Folder
-                        </button>
-
-                        <button
-                          onClick={handleSetOneDriveTargetFolder}
-                          className="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium flex items-center gap-1 shadow-sm"
-                        >
-                          <FolderCheck className="w-3.5 h-3.5" /> Set Sync Target
-                        </button>
-                      </div>
+                {/* Filename Input Form */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-stone-300">
+                    File Name:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customSaveFileName}
+                      onChange={(e) => setCustomSaveFileName(e.target.value)}
+                      placeholder="e.g. world_map_level1.mason"
+                      className="flex-1 px-3.5 py-2 rounded-xl bg-stone-900 border border-stone-700 focus:border-amber-500 text-xs text-stone-100 font-mono focus:outline-none"
+                    />
+                    <div className="px-3 py-2 rounded-xl bg-stone-900/80 border border-stone-800 text-stone-400 text-xs font-mono flex items-center">
+                      .mason
                     </div>
+                  </div>
+                  <p className="text-[11px] text-stone-500">
+                    Saves map cells ({currentProject?.map?.width || 0}x{currentProject?.map?.height || 0}), biomes ({(currentProject?.biomes || []).length}), custom entities, checkpoints, and settings in Mason format (.mason).
+                  </p>
+                </div>
 
-                    {/* Inline Folder Creator */}
-                    {showCreateFolder && (
-                      <div className="flex gap-2 p-3 rounded-lg bg-stone-900 border border-sky-500/30 animate-fade-in">
-                        <input
-                          type="text"
-                          placeholder="New Folder Name..."
-                          value={newFolderName}
-                          onChange={(e) => setNewFolderName(e.target.value)}
-                          className="flex-1 px-3 py-1.5 rounded bg-stone-950 border border-stone-800 text-xs text-stone-200 focus:outline-none focus:border-sky-500"
-                        />
-                        <button
-                          onClick={handleCreateOneDriveFolder}
-                          disabled={!newFolderName.trim() || loading}
-                          className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs"
+                {/* Options Checkbox */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="backupCheckbox"
+                    checked={isBackupSave}
+                    onChange={(e) => setIsBackupSave(e.target.checked)}
+                    className="w-4 h-4 rounded border-stone-700 bg-stone-900 text-amber-600 focus:ring-amber-500"
+                  />
+                  <label htmlFor="backupCheckbox" className="text-xs text-stone-300 cursor-pointer">
+                    Prefix with <code className="text-amber-400">[BACKUP]_</code> for version safety
+                  </label>
+                </div>
+
+                {/* Save Execution Button */}
+                <div className="pt-3 border-t border-stone-800 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('explore')}
+                    className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold transition"
+                  >
+                    Back to Explorer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeProvider === 'gdrive') {
+                        handleSaveToGDriveLocation();
+                      } else {
+                        handleSaveToOneDriveLocation();
+                      }
+                    }}
+                    disabled={!activeToken || loading}
+                    className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold flex items-center gap-2 shadow-lg shadow-amber-600/30 transition"
+                  >
+                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Save Project to Selected Location
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* MAIN TAB 3: LOAD SAVED CLOUD PROJECTS */}
+          {activeTab === 'load' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-stone-950/80 border border-stone-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-stone-100 text-sm flex items-center gap-2">
+                      <Download className="w-4 h-4 text-blue-400" />
+                      Saved Cloud Projects in "{activeCurrentFolder.name}"
+                    </h3>
+                    <p className="text-xs text-stone-400">
+                      Select any previously saved Mason map file to open it directly in the editor.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('explore')}
+                    className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center gap-1"
+                  >
+                    <Compass className="w-3.5 h-3.5" /> Browse Other Folders...
+                  </button>
+                </div>
+
+                {/* Project File List */}
+                {(!activeToken) ? (
+                  <div className="p-8 text-center text-xs text-stone-500">
+                    Connect your cloud account to view saved projects.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                    {(activeProvider === 'gdrive' ? gdriveFolderItems : onedriveFolderItems)
+                      .filter(item => !item.isFolder && (item.name.endsWith('.mason') || item.name.endsWith('.json')))
+                      .map(file => (
+                        <div
+                          key={file.id}
+                          className="p-3 rounded-xl bg-stone-900/80 border border-stone-800 hover:border-blue-500/40 flex items-center justify-between gap-3 text-xs transition"
                         >
-                          Create
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Folder & File List */}
-                    {onedriveFolderItems.length === 0 ? (
-                      <div className="p-8 text-center border border-dashed border-stone-800 rounded-xl text-stone-500 text-xs">
-                        This OneDrive folder is empty. Click "Save Entire Project" or create a subfolder!
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                        {onedriveFolderItems.map(item => (
-                          <div 
-                            key={item.id}
-                            className="p-2.5 rounded-lg bg-stone-900/80 border border-stone-800/80 hover:border-stone-700 flex items-center justify-between gap-3 text-xs"
-                          >
-                            <div className="flex items-center gap-2.5 truncate">
-                              {item.isFolder ? (
-                                <Folder className="w-4 h-4 text-sky-400 shrink-0" />
-                              ) : (
-                                <FileCode className="w-4 h-4 text-amber-400 shrink-0" />
-                              )}
-                              <div className="truncate">
-                                <span className={`font-medium ${item.isFolder ? 'text-sky-200 hover:underline cursor-pointer' : 'text-stone-200'}`}
-                                      onClick={() => item.isFolder && handleNavigateOneDriveFolder(item)}>
-                                  {item.name}
-                                </span>
-                                <span className="text-[10px] text-stone-500 ml-2">
-                                  {new Date(item.modifiedTime).toLocaleDateString()}
-                                </span>
+                          <div className="flex items-center gap-3 truncate">
+                            <div className="p-2 rounded-lg bg-blue-600/20 text-blue-400 shrink-0">
+                              <FileCode className="w-4 h-4" />
+                            </div>
+                            <div className="truncate">
+                              <span className="font-bold text-stone-200 truncate">{file.name}</span>
+                              <div className="text-[10px] text-stone-500 flex items-center gap-2 mt-0.5">
+                                <span>Modified: {new Date(file.modifiedTime).toLocaleDateString()}</span>
+                                {file.size && <span>• {Math.round(Number(file.size) / 1024)} KB</span>}
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              {item.isFolder ? (
-                                <button
-                                  onClick={() => handleNavigateOneDriveFolder(item)}
-                                  className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-[11px] flex items-center gap-1"
-                                >
-                                  Open <ChevronRight className="w-3 h-3" />
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleLoadFromOneDrive(item)}
-                                  disabled={loading}
-                                  className="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white font-medium text-[11px] flex items-center gap-1"
-                                >
-                                  <Download className="w-3 h-3" /> Load Project
-                                </button>
-                              )}
-                            </div>
                           </div>
-                        ))}
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (activeProvider === 'gdrive') {
+                                  handleLoadFromGDrive(file.id);
+                                } else {
+                                  handleLoadFromOneDrive(file as OneDriveItem);
+                                }
+                              }}
+                              disabled={loading}
+                              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Load into Editor
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                if (activeProvider === 'gdrive') {
+                                  handleDeleteGDriveFile(file.id, file.name, e);
+                                } else {
+                                  handleDeleteOneDriveFile(file.id, file.name, e);
+                                }
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-red-500/20 text-stone-500 hover:text-red-400 transition"
+                              title="Delete from cloud"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    {(activeProvider === 'gdrive' ? gdriveFolderItems : onedriveFolderItems)
+                      .filter(item => !item.isFolder && (item.name.endsWith('.mason') || item.name.endsWith('.json'))).length === 0 && (
+                      <div className="p-8 text-center text-xs text-stone-500 border border-dashed border-stone-800 rounded-xl">
+                        No saved Mason project files (.mason) found in this folder.
                       </div>
                     )}
                   </div>
-                </>
-              )}
+                )}
+              </div>
             </div>
           )}
 
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-stone-800 bg-stone-950/80 flex items-center justify-between text-xs text-stone-500">
-          <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" /> Automatic non-optional cloud project persistence enabled
-          </span>
+        <div className="px-5 py-3 border-t border-stone-800 bg-stone-950/90 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-stone-500">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Active Cloud Target: <strong className="text-stone-300">{activeSelectedTarget.name}</strong> ({activeProvider === 'gdrive' ? 'Google Drive' : 'OneDrive'})</span>
+          </div>
+          
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 font-medium transition-colors"
+            className="px-4 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 font-medium transition"
           >
-            Close
+            Done
           </button>
         </div>
 

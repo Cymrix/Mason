@@ -15,7 +15,8 @@ import {
   Info,
   Compass,
   Zap,
-  Palette
+  Palette,
+  Cloud
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
@@ -38,6 +39,7 @@ interface HamburgerMenuProps {
   onCloseProject: () => void;
   onSelectModule: (moduleId: string) => void;
   onOpenPWAInstallModal: () => void;
+  onOpenCloudSyncModal?: (mode?: 'explore' | 'save' | 'load') => void;
   activeModuleId: string | null;
 }
 
@@ -54,6 +56,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onCloseProject,
   onSelectModule,
   onOpenPWAInstallModal,
+  onOpenCloudSyncModal,
   activeModuleId
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -266,6 +269,20 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
               <span>Load Existing Project...</span>
             </button>
 
+            {onOpenCloudSyncModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenCloudSyncModal('explore');
+                }}
+                className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
+              >
+                <Cloud size={14} className="text-sky-400" />
+                <span>Explore Cloud Drives & Save Location...</span>
+              </button>
+            )}
+
             {project && (
               <>
                 <button
@@ -279,6 +296,20 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                   <Save size={14} className="text-amber-400" />
                   <span>Save Active Project</span>
                 </button>
+
+                {onOpenCloudSyncModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      onOpenCloudSyncModal('save');
+                    }}
+                    className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
+                  >
+                    <Upload size={14} className="text-amber-400" />
+                    <span>Save Project to Cloud Location...</span>
+                  </button>
+                )}
 
                 <button
                   type="button"

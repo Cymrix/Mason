@@ -163,6 +163,7 @@ export const EditorLayout: React.FC = () => {
   const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
+  const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'save' | 'load'>('explore');
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -972,6 +973,10 @@ export const EditorLayout: React.FC = () => {
             onCloseProject={handleCloseProject}
             onSelectModule={(modId) => handleLaunchModule(modId)}
             onOpenPWAInstallModal={() => setIsPWAInstallModalOpen(true)}
+            onOpenCloudSyncModal={(mode = 'explore') => {
+              setCloudSyncInitialMode(mode);
+              setIsCloudSyncModalOpen(true);
+            }}
             activeModuleId={activeModuleId}
           />
 
@@ -1180,16 +1185,19 @@ export const EditorLayout: React.FC = () => {
                 <FolderOpen size={16} className="text-amber-400" />
               </button>
 
-              {/* Cloud Sync & Backups Button */}
+              {/* Cloud Sync & Location Explorer Button */}
               <button
                 type="button"
-                onClick={() => setIsCloudSyncModalOpen(true)}
-                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-blue-400 hover:text-blue-300 rounded-xl transition shadow-sm relative group"
-                title="Google Drive & OneDrive Cloud Storage & Backups"
-                aria-label="Cloud Sync"
+                onClick={() => {
+                  setCloudSyncInitialMode('explore');
+                  setIsCloudSyncModalOpen(true);
+                }}
+                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-sky-400 hover:text-sky-300 rounded-xl transition shadow-sm relative group"
+                title="Explore Cloud Drives & Pick Save Location (Google Drive & OneDrive)"
+                aria-label="Cloud Drives Explorer"
               >
                 <Cloud size={16} />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-neutral-950 animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-sky-500 rounded-full border-2 border-neutral-950 animate-pulse" />
               </button>
 
               {/* Save Project Button (Icon Only) */}
@@ -2430,6 +2438,7 @@ export const EditorLayout: React.FC = () => {
       <CloudSyncModal
         isOpen={isCloudSyncModalOpen}
         onClose={() => setIsCloudSyncModalOpen(false)}
+        initialMode={cloudSyncInitialMode}
         currentProject={project ? {
           id: project.id,
           name: project.name,

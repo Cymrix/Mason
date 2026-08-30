@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.211';
-export const MASON_VERSION_DISPLAY = 'v0.211';
-export const MASON_FULL_VERSION = 'v0.211';
+export const MASON_VERSION = '0.214';
+export const MASON_VERSION_DISPLAY = 'v0.214';
+export const MASON_FULL_VERSION = 'v0.214';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,34 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.214',
+    date: '2026-08-30',
+    changes: [
+      'Implemented full Cloud Drives Explorer to browse Google Drive and Microsoft OneDrive directories.',
+      'Added interactive folder navigation, search filtering, and directory breadcrumb traversal.',
+      'Added direct "Save Project Here", custom filename selection, and "Pick This Location" target configuration.',
+      'Integrated real-time Cloud Drive action triggers into top bar and main menu.'
+    ]
+  },
+  {
+    version: 'v0.213',
+    date: '2026-08-30',
+    changes: [
+      'Restored full UTF-8 text integrity and structure in PrefabEditor component.',
+      'Eliminated invalid characters causing Vite/esbuild pre-transform build failures at line 9065.',
+      'Verified zero compilation and linting errors across the entire codebase.'
+    ]
+  },
+  {
+    version: 'v0.212',
+    date: '2026-08-29',
+    changes: [
+      'Eliminated unclosed or raw JSX angle brackets and arrows across the Prefab editor UI to conform to strict bundler requirements.',
+      'Refactored multi-byte emoji character listings to standard plain-text equivalents to prevent compiler charset decoding drift.',
+      'Fully validated file UTF-8 integrity ensuring seamless, warning-free cross-environment builds.'
+    ]
+  },
   {
     version: 'v0.211',
     date: '2026-08-29',

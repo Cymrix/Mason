@@ -322,26 +322,37 @@ export const createGoogleDriveFolder = async (folderName: string, parentFolderId
  */
 export const saveProjectToGoogleDrive = async (
   project: ProjectData,
-  options: { isBackup?: boolean } = {}
+  options: { 
+    isBackup?: boolean; 
+    customFileName?: string; 
+    targetFolderId?: string | null;
+    targetFolderName?: string;
+  } = {}
 ): Promise<DriveFileInfo> => {
   let token = getGoogleDriveToken();
   if (!token) {
     token = await authenticateGoogleDrive();
   }
 
-  const safeName = (project.name || 'mason_world').toLowerCase().replace(/[^a-z0-9]/g, '_');
-  const extension = '.mason';
-  const prefix = options.isBackup ? '[BACKUP]_' : '';
-  const fileName = `${prefix}${safeName}_${project.id}${extension}`;
+  let fileName = options.customFileName?.trim();
+  if (!fileName) {
+    const safeName = (project.name || 'mason_world').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const extension = '.mason';
+    const prefix = options.isBackup ? '[BACKUP]_' : '';
+    fileName = `${prefix}${safeName}_${project.id}${extension}`;
+  } else if (!fileName.endsWith('.mason') && !fileName.endsWith('.json')) {
+    fileName = `${fileName}.mason`;
+  }
 
   const bodyBlob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
   const mimeType = 'application/json';
 
-  const selectedFolder = getGoogleDriveSelectedFolder();
-  const parentFolderId = selectedFolder.id || 'root';
+  const parentFolderId = options.targetFolderId !== undefined 
+    ? (options.targetFolderId || 'root') 
+    : (getGoogleDriveSelectedFolder().id || 'root');
 
   // Check if file already exists in target folder
-  const query = encodeURIComponent(`name = '${fileName}' and '${parentFolderId}' in parents and trashed = false`);
+  const query = encodeURIComponent(`name = '${fileName.replace(/'/g, "\\'")}' and '${parentFolderId}' in parents and trashed = false`);
   const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -403,13 +414,32 @@ export const saveProjectToGoogleDrive = async (
 };
 
 /**
+ * Deletes a file or moves it to trash in Google Drive
+ */
+export const deleteGoogleDriveFile = async (fileId: string): Promise<boolean> => {
+  const token = getGoogleDriveToken();
+  if (!token) throw new Error('Not connected to Google Drive.');
+
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!res.ok && res.status !== 204 && res.status !== 404) {
+    throw new Error(`Failed to delete Google Drive file (${res.status})`);
+  }
+  return true;
+};
+
+/**
  * Lists all Mason projects stored on Google Drive in selected folder
  */
-export const listGoogleDriveProjects = async (): Promise<DriveFileInfo[]> => {
+export const listGoogleDriveProjects = async (folderId?: string | null): Promise<DriveFileInfo[]> => {
   const token = getGoogleDriveToken();
   if (!token) return [];
 
-  const items = await listGoogleDriveFolderContents(getGoogleDriveSelectedFolder().id);
+  const targetId = folderId !== undefined ? folderId : getGoogleDriveSelectedFolder().id;
+  const items = await listGoogleDriveFolderContents(targetId);
   return items
     .filter(item => !item.isFolder && (item.name.endsWith('.mason') || item.name.endsWith('.json')))
     .map(item => ({

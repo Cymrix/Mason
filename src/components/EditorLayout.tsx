@@ -41,6 +41,8 @@ import { GameStructureModule } from './GameStructureModule';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { SpriteEditorWrapper } from './SpriteEditorWrapper';
 import { CloudSyncModal } from './CloudSyncModal';
+import { AppProfileConfigModal } from './AppProfileConfigModal';
+import { ProfileBadgeSwitcher } from './ProfileBadgeSwitcher';
 import {
   Paintbrush,
   Eraser,
@@ -150,6 +152,7 @@ export const EditorLayout: React.FC = () => {
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
+  const [isAppProfileConfigModalOpen, setIsAppProfileConfigModalOpen] = useState(false);
   const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'backups'>('explore');
 
   // Toast feedback state
@@ -964,6 +967,7 @@ export const EditorLayout: React.FC = () => {
             onOpenModulesModal={() => setIsModulesModalOpen(true)}
             onOpenExplorerModal={() => setIsExplorerModalOpen(true)}
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
+            onOpenAppProfileConfigModal={() => setIsAppProfileConfigModalOpen(true)}
             onShowProjectInfo={() => handleLaunchModule(null)}
             onNewProject={() => setIsCreateModalOpen(true)}
             onLoadProject={() => setIsLoadModalOpen(true)}
@@ -1028,210 +1032,228 @@ export const EditorLayout: React.FC = () => {
         </div>
 
         {/* Right Navigation & Action Tools */}
-        <div className="flex items-center gap-2 flex-1 justify-end overflow-x-auto hide-scrollbar pl-4 min-w-0">
+        <div className="flex items-center gap-2 flex-1 justify-end pl-4 min-w-0">
           {project && (
             <>
-              {/* Module & Dashboard Direct Icon Bar */}
-              <div className="flex items-center gap-1 bg-neutral-950/80 p-1 rounded-xl border border-neutral-800">
-                {/* Dashboard Icon */}
-                <button
-                  type="button"
-                  onClick={() => handleLaunchModule(null)}
-                  title="Project Dashboard"
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 relative border ${
-                    activeModuleId === null
-                      ? 'border shadow-md'
-                      : 'border-transparent hover:bg-neutral-800 hover:border-neutral-700'
-                  }`}
-                  style={
-                    activeModuleId === null
-                      ? {
-                          backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
-                          borderColor: `rgba(${primaryDef.rgb}, 0.5)`,
-                          color: primaryDef.hex,
-                          boxShadow: `0 4px 12px rgba(${primaryDef.rgb}, 0.3)`
-                        }
-                      : {
-                          color: primaryDef.hex,
-                          backgroundColor: `rgba(${primaryDef.rgb}, 0.08)`
-                        }
-                  }
-                >
-                  <LayoutDashboard size={16} />
-                  {activeModuleId === null && (
-                    <span 
-                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-neutral-900 animate-pulse" 
-                      style={{ backgroundColor: primaryDef.hex }}
-                    />
-                  )}
-                </button>
-
-                <div className="h-4 w-px bg-neutral-800 mx-0.5" />
-
-                {/* Modules Direct Line Art Icons */}
-                {MASON_MODULES.map(mod => {
-                  const isActive = activeModuleId === mod.id;
-                  const modColor = getModuleColorDef(mod.id);
-
-                  const renderModIcon = () => {
-                    switch (mod.iconName) {
-                      case 'Paintbrush': return <Paintbrush size={16} />;
-                      case 'Map': return <Map size={16} />;
-                      case 'TreePine': return <TreePine size={16} />;
-                      case 'Users': return <Users size={16} />;
-                      case 'Sliders': return <Sliders size={16} />;
-                      case 'Network': return <Network size={16} />;
-                      case 'Sparkles': return <Sparkles size={16} />;
-                      default: return <Map size={16} />;
+              {/* Scrollable Module & Toolbar Icon Area */}
+              <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar min-w-0 shrink">
+                {/* Module & Dashboard Direct Icon Bar */}
+                <div className="flex items-center gap-1 bg-neutral-950/80 p-1 rounded-xl border border-neutral-800 shrink-0">
+                  {/* Dashboard Icon */}
+                  <button
+                    type="button"
+                    onClick={() => handleLaunchModule(null)}
+                    title="Project Dashboard"
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 relative border ${
+                      activeModuleId === null
+                        ? 'border shadow-md'
+                        : 'border-transparent hover:bg-neutral-800 hover:border-neutral-700'
+                    }`}
+                    style={
+                      activeModuleId === null
+                        ? {
+                            backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
+                            borderColor: `rgba(${primaryDef.rgb}, 0.5)`,
+                            color: primaryDef.hex,
+                            boxShadow: `0 4px 12px rgba(${primaryDef.rgb}, 0.3)`
+                          }
+                        : {
+                            color: primaryDef.hex,
+                            backgroundColor: `rgba(${primaryDef.rgb}, 0.08)`
+                          }
                     }
-                  };
+                  >
+                    <LayoutDashboard size={16} />
+                    {activeModuleId === null && (
+                      <span 
+                        className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-neutral-900 animate-pulse" 
+                        style={{ backgroundColor: primaryDef.hex }}
+                      />
+                    )}
+                  </button>
 
-                  return (
-                    <button
-                      key={mod.id}
-                      type="button"
-                      onClick={() => handleLaunchModule(mod.id)}
-                      title={`${mod.name} (${mod.associatedExtension})`}
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 group relative border ${
-                        isActive
-                          ? 'shadow-md ring-1'
-                          : 'border-transparent hover:bg-neutral-800 hover:border-neutral-700'
-                      }`}
-                      style={
-                        isActive
-                          ? {
-                              backgroundColor: `rgba(${modColor.rgb}, 0.25)`,
-                              borderColor: `rgba(${modColor.rgb}, 0.6)`,
-                              color: modColor.hex,
-                              boxShadow: `0 4px 12px rgba(${modColor.rgb}, 0.35)`
-                            }
-                          : {
-                              color: modColor.hex,
-                              backgroundColor: `rgba(${modColor.rgb}, 0.08)`
-                            }
+                  <div className="h-4 w-px bg-neutral-800 mx-0.5" />
+
+                  {/* Modules Direct Line Art Icons */}
+                  {MASON_MODULES.map(mod => {
+                    const isActive = activeModuleId === mod.id;
+                    const modColor = getModuleColorDef(mod.id);
+
+                    const renderModIcon = () => {
+                      switch (mod.iconName) {
+                        case 'Paintbrush': return <Paintbrush size={16} />;
+                        case 'Map': return <Map size={16} />;
+                        case 'TreePine': return <TreePine size={16} />;
+                        case 'Users': return <Users size={16} />;
+                        case 'Sliders': return <Sliders size={16} />;
+                        case 'Network': return <Network size={16} />;
+                        case 'Sparkles': return <Sparkles size={16} />;
+                        default: return <Map size={16} />;
                       }
-                    >
-                      <span className="group-hover:scale-110 transition-transform">
-                        {renderModIcon()}
+                    };
+
+                    return (
+                      <button
+                        key={mod.id}
+                        type="button"
+                        onClick={() => handleLaunchModule(mod.id)}
+                        title={`${mod.name} (${mod.associatedExtension})`}
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95 group relative border ${
+                          isActive
+                            ? 'shadow-md ring-1'
+                            : 'border-transparent hover:bg-neutral-800 hover:border-neutral-700'
+                        }`}
+                        style={
+                          isActive
+                            ? {
+                                backgroundColor: `rgba(${modColor.rgb}, 0.25)`,
+                                borderColor: `rgba(${modColor.rgb}, 0.6)`,
+                                color: modColor.hex,
+                                boxShadow: `0 4px 12px rgba(${modColor.rgb}, 0.35)`
+                              }
+                            : {
+                                color: modColor.hex,
+                                backgroundColor: `rgba(${modColor.rgb}, 0.08)`
+                              }
+                        }
+                      >
+                        <span className="group-hover:scale-110 transition-transform">
+                          {renderModIcon()}
+                        </span>
+                        {isActive && (
+                          <span 
+                            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-neutral-900 animate-pulse" 
+                            style={{ backgroundColor: modColor.hex }}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="h-4 w-px bg-neutral-800 shrink-0" />
+
+                {/* Undo & Redo Header Action Buttons */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleUndo}
+                    disabled={undoStack.length === 0}
+                    className={`w-8 h-8 flex items-center justify-center rounded-xl border transition shadow-sm relative ${
+                      undoStack.length > 0
+                        ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200 hover:text-white cursor-pointer active:scale-95'
+                        : 'bg-neutral-950/60 border-neutral-800 text-neutral-600 cursor-not-allowed'
+                    }`}
+                    title={`Undo (Ctrl+Z)${undoStack.length > 0 ? ` [${undoStack.length} step${undoStack.length > 1 ? 's' : ''}]` : ''}`}
+                    aria-label="Undo"
+                  >
+                    <Undo2 size={15} className={undoStack.length > 0 ? 'text-cyan-400' : 'text-neutral-600'} />
+                    {undoStack.length > 0 && (
+                      <span className="absolute -top-1 -left-1 px-1 min-w-[14px] h-3.5 bg-cyan-950 text-[9px] font-mono font-bold text-cyan-300 rounded-full flex items-center justify-center border border-cyan-700 shadow-sm">
+                        {undoStack.length}
                       </span>
-                      {isActive && (
-                        <span 
-                          className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-neutral-900 animate-pulse" 
-                          style={{ backgroundColor: modColor.hex }}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                    )}
+                  </button>
 
-              <div className="h-4 w-px bg-neutral-800" />
+                  <button
+                    type="button"
+                    onClick={handleRedo}
+                    disabled={redoStack.length === 0}
+                    className={`w-8 h-8 flex items-center justify-center rounded-xl border transition shadow-sm relative ${
+                      redoStack.length > 0
+                        ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200 hover:text-white cursor-pointer active:scale-95'
+                        : 'bg-neutral-950/60 border-neutral-800 text-neutral-600 cursor-not-allowed'
+                    }`}
+                    title={`Redo (Ctrl+Y / Cmd+Shift+Z)${redoStack.length > 0 ? ` [${redoStack.length} step${redoStack.length > 1 ? 's' : ''}]` : ''}`}
+                    aria-label="Redo"
+                  >
+                    <Redo2 size={15} className={redoStack.length > 0 ? 'text-amber-400' : 'text-neutral-600'} />
+                    {redoStack.length > 0 && (
+                      <span className="absolute -top-1 -right-1 px-1 min-w-[14px] h-3.5 bg-amber-950 text-[9px] font-mono font-bold text-amber-300 rounded-full flex items-center justify-center border border-amber-700 shadow-sm">
+                        {redoStack.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
 
-              {/* Undo & Redo Header Action Buttons */}
-              <div className="flex items-center gap-1">
+                <div className="h-4 w-px bg-neutral-800 shrink-0" />
+
+                {/* Virtual Files Explorer Button (Icon Only) */}
                 <button
                   type="button"
-                  onClick={handleUndo}
-                  disabled={undoStack.length === 0}
-                  className={`w-8 h-8 flex items-center justify-center rounded-xl border transition shadow-sm relative ${
-                    undoStack.length > 0
-                      ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200 hover:text-white cursor-pointer active:scale-95'
-                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-600 cursor-not-allowed'
-                  }`}
-                  title={`Undo (Ctrl+Z)${undoStack.length > 0 ? ` [${undoStack.length} step${undoStack.length > 1 ? 's' : ''}]` : ''}`}
-                  aria-label="Undo"
+                  onClick={() => setIsExplorerModalOpen(true)}
+                  className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl transition shadow-sm shrink-0"
+                  title="Virtual Files Explorer"
+                  aria-label="Files"
                 >
-                  <Undo2 size={15} className={undoStack.length > 0 ? 'text-cyan-400' : 'text-neutral-600'} />
-                  {undoStack.length > 0 && (
-                    <span className="absolute -top-1 -left-1 px-1 min-w-[14px] h-3.5 bg-cyan-950 text-[9px] font-mono font-bold text-cyan-300 rounded-full flex items-center justify-center border border-cyan-700 shadow-sm">
-                      {undoStack.length}
-                    </span>
-                  )}
+                  <FolderOpen size={16} className="text-amber-400" />
                 </button>
 
+                {/* Cloud Sync & Location Explorer Button */}
                 <button
                   type="button"
-                  onClick={handleRedo}
-                  disabled={redoStack.length === 0}
-                  className={`w-8 h-8 flex items-center justify-center rounded-xl border transition shadow-sm relative ${
-                    redoStack.length > 0
-                      ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-200 hover:text-white cursor-pointer active:scale-95'
-                      : 'bg-neutral-950/60 border-neutral-800 text-neutral-600 cursor-not-allowed'
-                  }`}
-                  title={`Redo (Ctrl+Y / Cmd+Shift+Z)${redoStack.length > 0 ? ` [${redoStack.length} step${redoStack.length > 1 ? 's' : ''}]` : ''}`}
-                  aria-label="Redo"
+                  onClick={() => {
+                    setCloudSyncInitialMode('explore');
+                    setIsCloudSyncModalOpen(true);
+                  }}
+                  className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-sky-400 hover:text-sky-300 rounded-xl transition shadow-sm relative group shrink-0"
+                  title="Explore Cloud Drives & Pick Save Location (Google Drive & OneDrive)"
+                  aria-label="Cloud Drives Explorer"
                 >
-                  <Redo2 size={15} className={redoStack.length > 0 ? 'text-amber-400' : 'text-neutral-600'} />
-                  {redoStack.length > 0 && (
-                    <span className="absolute -top-1 -right-1 px-1 min-w-[14px] h-3.5 bg-amber-950 text-[9px] font-mono font-bold text-amber-300 rounded-full flex items-center justify-center border border-amber-700 shadow-sm">
-                      {redoStack.length}
-                    </span>
-                  )}
+                  <Cloud size={16} />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-sky-500 rounded-full border-2 border-neutral-950 animate-pulse" />
                 </button>
               </div>
 
-              <div className="h-4 w-px bg-neutral-800" />
+              <div className="h-4 w-px bg-neutral-800 shrink-0" />
 
-              {/* Virtual Files Explorer Button (Icon Only) */}
-              <button
-                type="button"
-                onClick={() => setIsExplorerModalOpen(true)}
-                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 rounded-xl transition shadow-sm"
-                title="Virtual Files Explorer"
-                aria-label="Files"
-              >
-                <FolderOpen size={16} className="text-amber-400" />
-              </button>
+              {/* Fixed Right Actions & Profile Switcher (Outside Overflow Container) */}
+              <div className="flex items-center gap-2 shrink-0 relative z-40">
+                {/* Profile & Global App Config Switcher */}
+                <ProfileBadgeSwitcher
+                  onOpenConfigModal={() => setIsAppProfileConfigModalOpen(true)}
+                  onShowToast={(msg, type) => showToast(msg, type === 'warning' ? 'info' : type)}
+                />
 
-              {/* Cloud Sync & Location Explorer Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setCloudSyncInitialMode('explore');
-                  setIsCloudSyncModalOpen(true);
-                }}
-                className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-sky-400 hover:text-sky-300 rounded-xl transition shadow-sm relative group"
-                title="Explore Cloud Drives & Pick Save Location (Google Drive & OneDrive)"
-                aria-label="Cloud Drives Explorer"
-              >
-                <Cloud size={16} />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-sky-500 rounded-full border-2 border-neutral-950 animate-pulse" />
-              </button>
-
-              {/* Save Project Button (Icon Only) */}
-              <button
-                type="button"
-                onClick={async () => {
-                  if ((window as any).masonRequestSpriteSave) {
-                    const savedProj = await (window as any).masonRequestSpriteSave();
-                    if (savedProj) {
-                      saveActiveMasonProject(savedProj);
+                {/* Save Project Button (Icon Only) */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if ((window as any).masonRequestSpriteSave) {
+                      const savedProj = await (window as any).masonRequestSpriteSave();
+                      if (savedProj) {
+                        saveActiveMasonProject(savedProj);
+                      } else {
+                        saveActiveMasonProject(project);
+                      }
                     } else {
                       saveActiveMasonProject(project);
                     }
-                  } else {
-                    saveActiveMasonProject(project);
-                  }
-                  refreshSavedProjects();
-                  showToast(`Saved ${project.name}`, 'success');
-                }}
-                className={`w-8 h-8 flex items-center justify-center text-white rounded-xl transition shadow-md active:scale-95 ${
-                  isSpriteDirty ? "animate-pulse ring-2 ring-red-400" : ""
-                }`}
-                style={{
-                  backgroundColor: isSpriteDirty ? '#dc2626' : primaryDef.hex,
-                  boxShadow: isSpriteDirty ? '0 0 16px rgba(220, 38, 38, 0.9)' : `0 4px 12px rgba(${primaryDef.rgb}, 0.35)`
-                }}
-                title={isSpriteDirty ? "Unsaved changes! Click to save" : "Save Project"}
-                aria-label="Save"
-              >
-                <Save size={16} />
-              </button>
+                    refreshSavedProjects();
+                    showToast(`Saved ${project.name}`, 'success');
+                  }}
+                  className={`w-8 h-8 flex items-center justify-center text-white rounded-xl transition shadow-md active:scale-95 ${
+                    isSpriteDirty ? "animate-pulse ring-2 ring-red-400" : ""
+                  }`}
+                  style={{
+                    backgroundColor: isSpriteDirty ? '#dc2626' : primaryDef.hex,
+                    boxShadow: isSpriteDirty ? '0 0 16px rgba(220, 38, 38, 0.9)' : `0 4px 12px rgba(${primaryDef.rgb}, 0.35)`
+                  }}
+                  title={isSpriteDirty ? "Unsaved changes! Click to save" : "Save Project"}
+                  aria-label="Save"
+                >
+                  <Save size={16} />
+                </button>
+              </div>
             </>
           )}
 
           {!project && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0 relative z-40">
+              <ProfileBadgeSwitcher
+                onOpenConfigModal={() => setIsAppProfileConfigModalOpen(true)}
+                onShowToast={(msg, type) => showToast(msg, type === 'warning' ? 'info' : type)}
+              />
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
@@ -1301,6 +1323,7 @@ export const EditorLayout: React.FC = () => {
             onOpenExplorer={() => setIsExplorerModalOpen(true)}
             onOpenModulesModal={() => setIsModulesModalOpen(true)}
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
+            onOpenAppProfileConfigModal={() => setIsAppProfileConfigModalOpen(true)}
             onExportBundle={handleExportBundle}
           />
         )}
@@ -2471,6 +2494,17 @@ export const EditorLayout: React.FC = () => {
       <ThemeModal
         isOpen={isThemeModalOpen}
         onClose={() => setIsThemeModalOpen(false)}
+      />
+
+      {/* Global App Profiles & Config Modal */}
+      <AppProfileConfigModal
+        isOpen={isAppProfileConfigModalOpen}
+        onClose={() => setIsAppProfileConfigModalOpen(false)}
+        onShowToast={(msg, type) => showToast(msg, type === 'warning' ? 'info' : type)}
+        onOpenThemeModal={() => {
+          setIsAppProfileConfigModalOpen(false);
+          setIsThemeModalOpen(true);
+        }}
       />
 
       {/* Toast Notification Alerts */}

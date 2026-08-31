@@ -31,6 +31,7 @@ interface ProjectDashboardProps {
   onOpenExplorer: () => void;
   onOpenModulesModal?: () => void;
   onOpenThemeModal?: () => void;
+  onOpenAppProfileConfigModal?: () => void;
   onExportBundle: () => void;
 }
 
@@ -41,6 +42,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onOpenExplorer,
   onOpenModulesModal,
   onOpenThemeModal,
+  onOpenAppProfileConfigModal,
   onExportBundle
 }) => {
   const [isEditingMetadata, setIsEditingMetadata] = React.useState(false);
@@ -192,6 +194,18 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 >
                   <Palette size={14} style={{ color: primaryDef.hex }} />
                   <span className="hidden sm:inline">Theme</span>
+                </button>
+              )}
+
+              {onOpenAppProfileConfigModal && (
+                <button
+                  type="button"
+                  onClick={onOpenAppProfileConfigModal}
+                  className="px-3.5 py-2 rounded-2xl border text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 transition hover:text-white bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20"
+                  title="User Profiles & App Configuration"
+                >
+                  <User size={14} className="text-amber-400" />
+                  <span>User Profiles & Config</span>
                 </button>
               )}
             </div>

@@ -14,6 +14,7 @@ import {
   UNIFIED_INPUT_TEMPLATE,
   ensureUIConfigDefaults
 } from '../engine/masonProjectSchema';
+import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { 
   Layout, 
@@ -124,7 +125,13 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
   };
 
   // Main UI Navigation Tabs
-  const [mainTab, setMainTab] = useState<MainTab>('menus_designer');
+  const [mainTab, setMainTabState] = useState<MainTab>(
+    () => getSavedModuleTab('ui', 'menus_designer') as any
+  );
+  const setMainTab = (tab: MainTab) => {
+    setMainTabState(tab);
+    saveModuleTab('ui', tab);
+  };
   const [isTestMode, setIsTestMode] = useState<boolean>(false);
   const [isStyleDrawerOpen, setIsStyleDrawerOpen] = useState<boolean>(false);
   const [canvasResolution, setCanvasResolution] = useState<CanvasResolution>('16:9');

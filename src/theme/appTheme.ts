@@ -90,16 +90,31 @@ export interface AppThemeConfig {
 }
 
 export const DEFAULT_CUSTOM_HEXES: Record<string, string> = {
-  primary: '#ff007f',
+  primary: '#ffffff',
   backgroundTone: '#0a0814',
-  sprites: '#00f59b',
-  maps: '#00e5ff',
-  biomes: '#00ff66',
-  prefabs: '#ff0055',
-  particles: '#ffaa00',
-  ui: '#ffd000',
-  gamestructure: '#b800ff'
+  sprites: '#ffffff',
+  maps: '#ffffff',
+  biomes: '#ffffff',
+  prefabs: '#ffffff',
+  particles: '#ffffff',
+  ui: '#ffffff',
+  gamestructure: '#ffffff'
 };
+
+export function getThemeResolvedHexes(theme: AppThemeConfig): Record<string, string> {
+  const primaryDef = getColorDef(theme.primary, theme.primary === 'custom' ? theme.customHexes?.primary : undefined);
+  const bgDef = getBackgroundToneDef(theme.backgroundTone, theme.backgroundTone === 'custom' ? theme.customHexes?.backgroundTone : undefined);
+  const resolved: Record<string, string> = {
+    primary: primaryDef.hex,
+    backgroundTone: bgDef.hex,
+  };
+  const modKeys: (keyof ModuleColorMap)[] = ['sprites', 'maps', 'biomes', 'prefabs', 'particles', 'ui', 'gamestructure'];
+  modKeys.forEach(m => {
+    const accentKey = theme.moduleColors?.[m] || 'cyan';
+    resolved[m] = getColorDef(accentKey, accentKey === 'custom' ? theme.customHexes?.[m] : undefined).hex;
+  });
+  return resolved;
+}
 
 export interface ColorDef {
   name: string;
@@ -116,14 +131,14 @@ export interface ColorDef {
 export const COLOR_DEFINITIONS: Record<AccentColorKey, ColorDef> = {
   custom: {
     name: 'Custom Swatch',
-    hex: '#ff007f',
-    rgb: '255, 0, 127',
-    bgClass: 'bg-[#ff007f]',
-    textClass: 'text-[#ff007f]',
-    borderClass: 'border-[#ff007f]/50',
-    badgeClass: 'bg-[#ff007f]/20 border-[#ff007f]/40 text-[#ff007f]',
-    ringClass: 'ring-[#ff007f]/40',
-    gradientFromClass: 'from-[#ff007f]'
+    hex: '#ffffff',
+    rgb: '255, 255, 255',
+    bgClass: 'bg-[#ffffff] text-neutral-950',
+    textClass: 'text-[#ffffff]',
+    borderClass: 'border-[#ffffff]/50',
+    badgeClass: 'bg-[#ffffff]/20 border-[#ffffff]/40 text-[#ffffff]',
+    ringClass: 'ring-[#ffffff]/40',
+    gradientFromClass: 'from-[#ffffff]'
   },
   // ── 36 CHROMATIC HUES (10° Intervals around 360° Color Wheel at 100% Saturation & 50% Lightness) ──
   hue_0:   { name: 'Pure Red', hex: '#ff0000', rgb: '255, 0, 0', bgClass: 'bg-[#ff0000] hover:opacity-90', textClass: 'text-[#ff0000]', borderClass: 'border-[#ff0000]/50', badgeClass: 'bg-[#ff0000]/20 border-[#ff0000]/40 text-[#ff0000]', ringClass: 'ring-[#ff0000]/40', gradientFromClass: 'from-[#ff0000]' },
@@ -770,6 +785,14 @@ export function loadSavedAppTheme(): AppThemeConfig {
         if (!parsed.moduleColors.particles) {
           parsed.moduleColors.particles = 'hue_30';
         }
+        if (parsed.customHexes) {
+          if (parsed.customHexes.backgroundTone === '#ffffff' || parsed.customHexes.backgroundTone === '#fff') {
+            parsed.customHexes.backgroundTone = '#0a0814';
+          }
+        }
+        if (parsed.backgroundTone === 'custom' && (!parsed.customHexes?.backgroundTone || parsed.customHexes.backgroundTone === '#ffffff' || parsed.customHexes.backgroundTone === '#fff')) {
+          parsed.backgroundTone = 'void';
+        }
         return parsed;
       }
     }
@@ -846,7 +869,11 @@ export function getColorDef(colorKey: AccentColorKey, customHex?: string): Color
 
 export function getBackgroundToneDef(toneKey: BackgroundToneKey, customHex?: string): BackgroundToneDef {
   if (toneKey === 'custom') {
-    return createBackgroundToneFromHex(customHex || DEFAULT_CUSTOM_HEXES.backgroundTone, `Custom Dark (${customHex?.toUpperCase() || '#0A0814'})`);
+    let hexToUse = customHex || DEFAULT_CUSTOM_HEXES.backgroundTone;
+    if (!hexToUse || hexToUse.toLowerCase() === '#ffffff' || hexToUse.toLowerCase() === '#fff') {
+      hexToUse = '#0a0814';
+    }
+    return createBackgroundToneFromHex(hexToUse, `Custom Dark (${hexToUse.toUpperCase()})`);
   }
   return BACKGROUND_TONES[toneKey] || BACKGROUND_TONES.void;
 }

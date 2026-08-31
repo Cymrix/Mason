@@ -16,19 +16,22 @@ import {
   Compass,
   Zap,
   Palette,
-  Cloud
+  Cloud,
+  User
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
 import { MASON_FULL_VERSION } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
 import { MasonBrandIcon } from './MasonBrandIcon';
+import { getActiveProfile } from '../utils/appProfileSystem';
 
 interface HamburgerMenuProps {
   project: MasonProject | null;
   onOpenModulesModal: () => void;
   onOpenExplorerModal: () => void;
   onOpenThemeModal: () => void;
+  onOpenAppProfileConfigModal?: () => void;
   onShowProjectInfo: () => void;
   onNewProject: () => void;
   onLoadProject: () => void;
@@ -45,6 +48,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onOpenModulesModal,
   onOpenExplorerModal,
   onOpenThemeModal,
+  onOpenAppProfileConfigModal,
   onShowProjectInfo,
   onNewProject,
   onLoadProject,
@@ -59,6 +63,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { theme, primaryDef } = useAppTheme();
+  const activeProf = getActiveProfile();
 
   // Close when clicking outside
   useEffect(() => {
@@ -234,6 +239,32 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
               </div>
               <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
             </button>
+
+            {/* User Profiles & App Config Option */}
+            {onOpenAppProfileConfigModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenAppProfileConfigModal();
+                }}
+                className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-neutral-200 hover:bg-neutral-800 flex items-center justify-between group transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center text-xs shadow-sm">
+                    <User size={12} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-neutral-100 group-hover:text-amber-200 transition">User Profiles & Config</span>
+                      <span className="text-xs">{activeProf.avatar}</span>
+                    </div>
+                    <p className="text-[10px] text-neutral-400 truncate max-w-[170px]">Profile: {activeProf.name}</p>
+                  </div>
+                </div>
+                <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
+              </button>
+            )}
           </div>
 
           <div className="h-px bg-neutral-800 my-1.5"></div>

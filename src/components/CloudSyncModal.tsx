@@ -29,8 +29,18 @@ import {
   FolderTree,
   LogOut,
   History,
-  Settings
+  Settings,
+  Bookmark,
+  BookmarkCheck,
+  Star
 } from 'lucide-react';
+import { 
+  LocationBookmark, 
+  getLocationBookmarks, 
+  toggleLocationBookmark, 
+  removeLocationBookmark, 
+  isLocationBookmarked 
+} from '../utils/locationBookmarksStorage';
 import { ProjectData } from '../utils/projectStorage';
 import { 
   getGoogleDriveToken, 
@@ -147,6 +157,78 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [customSaveFileName, setCustomSaveFileName] = useState('');
   const [isBackupSave, setIsBackupSave] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  // Location Bookmarks state
+  const [bookmarks, setBookmarks] = useState<LocationBookmark[]>(getLocationBookmarks);
+
+  // Sync bookmarks across windows / components
+  useEffect(() => {
+    const syncBookmarks = () => setBookmarks(getLocationBookmarks());
+    window.addEventListener('mason_bookmarks_updated', syncBookmarks);
+    return () => window.removeEventListener('mason_bookmarks_updated', syncBookmarks);
+  }, []);
+
+  // Check if current active location is bookmarked
+  const isCurrentBookmarked = React.useMemo(() => {
+    const curFolderId = activeProvider === 'gdrive' ? gdriveCurrentFolder.id : onedriveCurrentFolder.id;
+    return isLocationBookmarked(activeProvider, curFolderId);
+  }, [activeProvider, gdriveCurrentFolder.id, onedriveCurrentFolder.id, bookmarks]);
+
+  // Toggle bookmark for current location
+  const handleToggleBookmarkCurrentLocation = () => {
+    const curFolder = activeProvider === 'gdrive' ? gdriveCurrentFolder : onedriveCurrentFolder;
+    const curPathStack = activeProvider === 'gdrive' ? gdrivePathStack : onedrivePathStack;
+
+    const folderName = curFolder.name || (
+      activeProvider === 'gdrive' ? 'Google Drive Root' : 'OneDrive Root'
+    );
+
+    const res = toggleLocationBookmark(
+      activeProvider,
+      curFolder.id,
+      folderName,
+      curPathStack
+    );
+
+    setBookmarks(res.bookmarks);
+    if (onShowToast) {
+      onShowToast(
+        res.isBookmarked 
+          ? `Bookmarked "${folderName}" for quick access!` 
+          : `Removed bookmark for "${folderName}"`,
+        res.isBookmarked ? 'success' : 'info'
+      );
+    }
+  };
+
+  // Jump directly to a saved bookmark
+  const handleJumpToBookmark = (bm: LocationBookmark) => {
+    if (bm.provider === 'gdrive' || bm.provider === 'onedrive') {
+      setActiveProviderState(bm.provider);
+      setActiveCloudProvider(bm.provider);
+      const crumb = { id: bm.folderId, name: bm.folderName };
+      if (bm.provider === 'gdrive') {
+        setGdriveCurrentFolder(crumb);
+        setGdrivePathStack(bm.pathStack && bm.pathStack.length > 0 ? bm.pathStack : [crumb]);
+        fetchGDriveFolder(bm.folderId);
+      } else {
+        setOnedriveCurrentFolder(crumb);
+        setOnedrivePathStack(bm.pathStack && bm.pathStack.length > 0 ? bm.pathStack : [crumb]);
+        fetchOneDriveFolder(bm.folderId);
+      }
+      if (onShowToast) {
+        onShowToast(`Switched to bookmark: ${bm.label}`, 'info');
+      }
+    }
+  };
+
+  // Remove a single bookmark
+  const handleRemoveBookmark = (e: React.MouseEvent, id: string, label: string) => {
+    e.stopPropagation();
+    const updated = removeLocationBookmark(id);
+    setBookmarks(updated);
+    if (onShowToast) onShowToast(`Removed bookmark "${label}"`, 'info');
+  };
 
   // In-Modal Confirmation State for Deletion & Restoration
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
@@ -1033,6 +1115,49 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           {/* MAIN TAB 1: EXPLORE & PICK LOCATION */}
           {activeTab === 'explore' && (
             <div className="space-y-3">
+
+              {/* Quick Location Bookmarks Bar */}
+              {bookmarks.length > 0 && (
+                <div className="px-3 py-2 bg-stone-950/90 border border-stone-800 rounded-xl flex items-center gap-2 overflow-x-auto text-xs">
+                  <div className="flex items-center gap-1 shrink-0 text-amber-400 font-bold text-[11px] uppercase tracking-wider pr-2 border-r border-stone-800">
+                    <Bookmark className="w-3.5 h-3.5 fill-amber-400/20" />
+                    <span>Bookmarks ({bookmarks.length})</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                    {bookmarks.map((bm) => {
+                      const isActive = activeProvider === bm.provider && activeCurrentFolder.id === bm.folderId;
+                      return (
+                        <div
+                          key={bm.id}
+                          onClick={() => handleJumpToBookmark(bm)}
+                          className={`group cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition shrink-0 ${
+                            isActive
+                              ? 'bg-amber-500/20 text-amber-200 border-amber-500/50 shadow-sm shadow-amber-950/40'
+                              : 'bg-stone-900 hover:bg-stone-850 text-stone-300 hover:text-white border-stone-800 hover:border-stone-700'
+                          }`}
+                          title={`Jump to ${bm.label} (${bm.provider})`}
+                        >
+                          {bm.provider === 'gdrive' && <Cloud className="w-3 h-3 text-emerald-400 shrink-0" />}
+                          {bm.provider === 'onedrive' && <Cloud className="w-3 h-3 text-blue-400 shrink-0" />}
+                          {bm.provider === 'virtual' && <HardDrive className="w-3 h-3 text-amber-400 shrink-0" />}
+                          
+                          <span className="truncate max-w-[130px]">{bm.label}</span>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleRemoveBookmark(e, bm.id, bm.label)}
+                            className="opacity-60 group-hover:opacity-100 p-0.5 hover:bg-rose-500/20 hover:text-rose-300 rounded transition text-stone-400"
+                            title="Remove bookmark"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               
               {/* Folder Navigation & Toolbar */}
               <div className="p-3.5 rounded-xl bg-stone-950/80 border border-stone-800 space-y-3">
@@ -1083,6 +1208,22 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
                   {/* Actions Toolbar */}
                   <div className="flex items-center gap-2 flex-wrap">
+                    {/* Bookmark Current Location Button */}
+                    <button
+                      type="button"
+                      onClick={handleToggleBookmarkCurrentLocation}
+                      disabled={!activeToken}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border ${
+                        isCurrentBookmarked
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                          : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border-stone-700'
+                      }`}
+                      title={isCurrentBookmarked ? 'Location Bookmarked (Click to remove)' : 'Bookmark current cloud folder'}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${isCurrentBookmarked ? 'fill-amber-400 text-amber-400' : 'text-stone-400'}`} />
+                      <span>{isCurrentBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setShowCreateFolder(!showCreateFolder)}

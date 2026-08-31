@@ -65,6 +65,8 @@ function getQuadBezierArrowHeads(
   });
 }
 
+import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
+
 interface GameStructureModuleProps {
   project: MasonProject;
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
@@ -90,7 +92,13 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
   };
   const currentStructureFile: GameStructureFile = gameFiles.find(g => g.fileName === activeFileName) || gameFiles[0] || defaultGameStructureFile;
 
-  const [activeTab, setActiveTab] = useState<'world_graph' | 'entry_bindings' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags'>('world_graph');
+  const [activeTab, setActiveTabState] = useState<'world_graph' | 'entry_bindings' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags'>(
+    () => getSavedModuleTab('gamestructure', 'world_graph') as any
+  );
+  const setActiveTab = (tab: 'world_graph' | 'entry_bindings' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags') => {
+    setActiveTabState(tab);
+    saveModuleTab('gamestructure', tab);
+  };
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const [selectedMapFileName, setSelectedMapFileName] = useState<string | null>(null);
   const [previewingMainMenu, setPreviewingMainMenu] = useState(false);

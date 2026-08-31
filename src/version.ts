@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.235';
-export const MASON_VERSION_DISPLAY = 'v0.235';
-export const MASON_FULL_VERSION = 'v0.235';
+export const MASON_VERSION = '0.246';
+export const MASON_VERSION_DISPLAY = 'v0.246';
+export const MASON_FULL_VERSION = 'v0.246';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,102 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.246',
+    date: '2026-08-31',
+    changes: [
+      'Isolated custom theme colors from static presets, preserving custom hexes separately when selecting static preset cards.',
+      'Ensured Custom Theme Card swatches reflect stored custom palette colors independently of the active static preset.',
+      'Enabled seamless bidirectional switching between saved custom themes and static presets without state loss.'
+    ]
+  },
+  {
+    version: 'v0.245',
+    date: '2026-08-31',
+    changes: [
+      'Updated Custom Theme Card in Theme Modal to feature full 8-module palette spectrum swatches and background tone info.',
+      'Configured Custom Theme Card click behavior to directly activate the custom theme without redirecting to the swatches tab.',
+      'Removed "User Configured" and "Open Swatches" links from the Custom Theme Card to align with preset card behavior.',
+      'Ensured Custom Theme Card spectrum swatches dynamically mirror live custom color modifications in real-time.'
+    ]
+  },
+  {
+    version: 'v0.244',
+    date: '2026-08-31',
+    changes: [
+      'Fixed white preview screen caused by background tone defaulting to pure white (#ffffff).',
+      'Restored ambient dark background tone (#0a0814) for custom themes while preserving pure white custom accent defaults.',
+      'Added sanitization in loadSavedAppTheme and getBackgroundToneDef to auto-heal pure white background tones from local storage.'
+    ]
+  },
+  {
+    version: 'v0.243',
+    date: '2026-08-31',
+    changes: [
+      'Restarted and verified Node.js development server process on port 3000.'
+    ]
+  },
+  {
+    version: 'v0.242',
+    date: '2026-08-31',
+    changes: [
+      'Fixed ReferenceError: updateTheme is not defined by destructuring updateTheme from useAppTheme context in ThemeModal component.'
+    ]
+  },
+  {
+    version: 'v0.241',
+    date: '2026-08-31',
+    changes: [
+      'Configured Configure Theme button in App Profile Configuration modal to automatically dismiss the Profile modal when opening the Theme Palette modal.'
+    ]
+  },
+  {
+    version: 'v0.240',
+    date: '2026-08-31',
+    changes: [
+      'Removed Canvas Grid Defaults section from App Profile Configuration modal.',
+      'Updated Custom Theme defaults to pure white (#ffffff) for all custom color hex swatches.',
+      'Synchronized Custom Theme palette automatically whenever preset colors or module color swatches are changed.',
+      'Transformed Profile Config Theme setting into an active theme info card with direct link to the Theme Palette & Custom Mixer modal.'
+    ]
+  },
+  {
+    version: 'v0.239',
+    date: '2026-08-31',
+    changes: [
+      'Updated Mason Profile Config defaults: set 10-minute auto-backups as default and removed unneeded UI density & grid snap config items.',
+      'Added Custom Theme Palette option and expanded preset list in ThemeModal and Profile Configuration.',
+      'Implemented Module Tab Memory & Persistence across Game Structure, Biomes, ParticleFX, Prefabs, and UI/HUD modules.',
+      'Confirmed Location Bookmarks integration across Import, Cloud Storage Explorer, and Save Location modals.'
+    ]
+  },
+  {
+    version: 'v0.238',
+    date: '2026-08-31',
+    changes: [
+      'Surfaced "User Profiles & Config" menu items across the Main Hamburger Menu (top-left) and Project Dashboard quick action buttons.',
+      'Ensured seamless access to the User Profiles tab regardless of screen size or active navigation view.'
+    ]
+  },
+  {
+    version: 'v0.237',
+    date: '2026-08-31',
+    changes: [
+      'Implemented Global Mason App Config & User Profiles system with instant cross-app browser caching.',
+      'Added User Profile Switcher Badge in top navbar with quick dropdown and profile management.',
+      'Created AppProfileConfigModal for switching/editing user profiles, customizing editor defaults, and exporting/importing .json config files.',
+      'Integrated Location Bookmarks bar and 1-click Bookmark button into Cloud Drives Explorer & Save Location Modal (CloudSyncModal).'
+    ]
+  },
+  {
+    version: 'v0.236',
+    date: '2026-08-31',
+    changes: [
+      'Added Location Bookmarks system in Import and Cloud Drive modals (Google Drive, OneDrive, Virtual Drive).',
+      'Implemented persistent bookmarking in localStorage with real-time cross-tab/modal event synchronization.',
+      'Added "Bookmark Location" toggle buttons and a Quick Bookmarks bar for 1-click folder navigation.'
+    ]
+  },
   {
     version: 'v0.235',
     date: '2026-08-31',

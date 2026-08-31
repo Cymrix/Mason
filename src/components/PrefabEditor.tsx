@@ -33,6 +33,7 @@ import { PrefabCompositionStudio } from './shared/PrefabCompositionStudio';
 import { PrefabBoneIKStudio } from './shared/PrefabBoneIKStudio';
 import { PrefabBehaviorsTab } from './shared/PrefabBehaviorsTab';
 import { SpriteEditorModal, SpriteSaveResult } from './SpriteEditorModal';
+import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 import { 
   Paintbrush,
   Play, 
@@ -291,7 +292,13 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   };
 
   // Primary Studio View Tabs: 'composition' | 'bones_ik' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'
-  const [activeTab, setActiveTab] = useState<'composition' | 'bones_ik' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'>('composition');
+  const [activeTab, setActiveTabState] = useState<'composition' | 'bones_ik' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors'>(
+    () => getSavedModuleTab('prefabs', 'composition') as any
+  );
+  const setActiveTab = (tab: 'composition' | 'bones_ik' | 'animation_studio' | 'spritesheet_manager' | 'variables' | 'states' | 'behaviors') => {
+    setActiveTabState(tab);
+    saveModuleTab('prefabs', tab);
+  };
 
   // Behavior Rules Accordion State (Collapsed by default!)
   const [expandedRuleIds, setExpandedRuleIds] = useState<Set<string>>(new Set());

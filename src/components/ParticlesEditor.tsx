@@ -56,6 +56,7 @@ import { useAppTheme } from '../theme/ThemeContext';
 import { exportParticleFile, createNewParticleInProject } from '../utils/masonStorage';
 import { SpritesheetSliceModal, SpritesheetSliceResult } from './shared/spritesheet';
 import { ViewportHUD } from './shared/viewport';
+import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 
 interface ParticlesEditorProps {
   project: MasonProject;
@@ -476,7 +477,13 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const activeParticleData = activeFile?.particleData || DEFAULT_PARTICLE_SYSTEMS[0];
 
   // UI State
-  const [activeTab, setActiveTab] = useState<'initialize' | 'animation' | 'spritesheets' | 'presets'>('initialize');
+  const [activeTab, setActiveTabState] = useState<'initialize' | 'animation' | 'spritesheets' | 'presets'>(
+    () => getSavedModuleTab('particles', 'initialize') as any
+  );
+  const setActiveTab = (tab: 'initialize' | 'animation' | 'spritesheets' | 'presets') => {
+    setActiveTabState(tab);
+    saveModuleTab('particles', tab);
+  };
   const [selectedTrack, setSelectedTrack] = useState<string>('size');
   const [addedProps, setAddedProps] = useState<string[]>([]);
   const [paramSearch, setParamSearch] = useState<string>('');

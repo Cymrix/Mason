@@ -10,6 +10,7 @@ import {
   DEFAULT_CUSTOM_HEXES,
   getColorDef,
   getBackgroundToneDef,
+  getThemeResolvedHexes,
   loadSavedAppTheme, 
   saveAppTheme,
   applyThemeCSSVariables
@@ -49,15 +50,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setPresetTheme = (themeId: string) => {
     const preset = PRESET_APP_THEMES.find(t => t.id === themeId);
     if (preset) {
-      updateTheme(() => preset);
+      updateTheme(prev => ({
+        ...preset,
+        customHexes: prev.customHexes || DEFAULT_CUSTOM_HEXES
+      }));
     }
   };
 
   const setPrimaryColor = (colorKey: AccentColorKey, customHex?: string) => {
     updateTheme(prev => {
-      const nextHexes = { ...(prev.customHexes || {}) };
+      const nextHexes = { ...DEFAULT_CUSTOM_HEXES, ...(prev.customHexes || {}) };
       if (customHex) {
         nextHexes.primary = customHex;
+      } else if (colorKey !== 'custom') {
+        nextHexes.primary = COLOR_DEFINITIONS[colorKey]?.hex || '#ffffff';
       }
       return {
         ...prev,
@@ -65,7 +71,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         customHexes: nextHexes,
         isCustom: true,
         name: colorKey === 'custom' 
-          ? `Custom (${nextHexes.primary?.toUpperCase() || '#FF007F'})`
+          ? `Custom (${nextHexes.primary.toUpperCase()})`
           : `Custom (${COLOR_DEFINITIONS[colorKey]?.name || colorKey})`
       };
     });
@@ -73,9 +79,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setModuleColor = (moduleId: keyof AppThemeConfig['moduleColors'], colorKey: AccentColorKey, customHex?: string) => {
     updateTheme(prev => {
-      const nextHexes = { ...(prev.customHexes || {}) };
+      const nextHexes = { ...DEFAULT_CUSTOM_HEXES, ...(prev.customHexes || {}) };
       if (customHex) {
         nextHexes[moduleId] = customHex;
+      } else if (colorKey !== 'custom') {
+        nextHexes[moduleId] = COLOR_DEFINITIONS[colorKey]?.hex || '#ffffff';
       }
       return {
         ...prev,
@@ -91,9 +99,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setBackgroundTone = (toneKey: BackgroundToneKey, customHex?: string) => {
     updateTheme(prev => {
-      const nextHexes = { ...(prev.customHexes || {}) };
+      const nextHexes = { ...DEFAULT_CUSTOM_HEXES, ...(prev.customHexes || {}) };
       if (customHex) {
         nextHexes.backgroundTone = customHex;
+      } else if (toneKey !== 'custom') {
+        nextHexes.backgroundTone = BACKGROUND_TONES[toneKey]?.hex || '#0a0814';
       }
       return {
         ...prev,
@@ -106,7 +116,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setCustomHexColor = (target: 'primary' | 'backgroundTone' | keyof AppThemeConfig['moduleColors'], hex: string) => {
     updateTheme(prev => {
-      const nextHexes = { ...(prev.customHexes || {}) };
+      const nextHexes = { ...DEFAULT_CUSTOM_HEXES, ...(prev.customHexes || {}) };
       nextHexes[target] = hex;
 
       if (target === 'primary') {

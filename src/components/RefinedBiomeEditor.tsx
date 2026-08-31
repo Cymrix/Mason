@@ -82,6 +82,8 @@ const TRAVERSAL_TAG_LIST: { tag: TraversalModifierTag; label: string }[] = [
   { tag: 'sinkable', label: 'Sinkable' }
 ];
 
+import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
+
 interface ImageUploadThumbnailFieldProps {
   label: string;
   sublabel?: string;
@@ -313,9 +315,14 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
 
   const selectedBiome = currentBiomeFile.biomeData;
 
-  const [activeSubTab, setActiveSubTab] = useState<
+  const [activeSubTab, setActiveSubTabState] = useState<
     'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors'
-  >('tile_types');
+  >(() => getSavedModuleTab('biomes', 'tile_types') as any);
+
+  const setActiveSubTab = (tab: 'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors') => {
+    setActiveSubTabState(tab);
+    saveModuleTab('biomes', tab);
+  };
   const [selectedTileTypeIndex, setSelectedTileTypeIndex] = useState<number>(0);
   const [previewModalImage, setPreviewModalImage] = useState<{ title: string; url: string } | null>(null);
 

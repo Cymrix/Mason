@@ -22,8 +22,19 @@ import {
   ExternalLink,
   Sliders,
   FolderTree,
-  FileCheck
+  FileCheck,
+  Bookmark,
+  BookmarkCheck,
+  BookmarkPlus,
+  Star
 } from 'lucide-react';
+import { 
+  LocationBookmark, 
+  getLocationBookmarks, 
+  toggleLocationBookmark, 
+  removeLocationBookmark, 
+  isLocationBookmarked 
+} from '../utils/locationBookmarksStorage';
 import { MasonProject, ImageFile, SpriteFile } from '../engine/masonProjectSchema';
 import { getActiveMasonProject } from '../utils/masonStorage';
 import { 
@@ -164,6 +175,72 @@ export const CloudImageImportModal: React.FC<CloudImageImportModalProps> = ({
   // Local file upload input ref & state
   const localFileInputRef = useRef<HTMLInputElement>(null);
   const [localDragging, setLocalDragging] = useState(false);
+
+  // Location Bookmarks state
+  const [bookmarks, setBookmarks] = useState<LocationBookmark[]>(getLocationBookmarks);
+
+  // Sync bookmarks across windows / components
+  useEffect(() => {
+    const syncBookmarks = () => setBookmarks(getLocationBookmarks());
+    window.addEventListener('mason_bookmarks_updated', syncBookmarks);
+    return () => window.removeEventListener('mason_bookmarks_updated', syncBookmarks);
+  }, []);
+
+  // Check if current active location is bookmarked
+  const isCurrentBookmarked = useMemo(() => {
+    if (activeTab === 'local') return false;
+    return isLocationBookmarked(activeTab, currentFolder.id);
+  }, [activeTab, currentFolder.id, bookmarks]);
+
+  // Toggle bookmark for current location
+  const handleToggleBookmarkCurrentLocation = () => {
+    if (activeTab === 'local') return;
+    const folderName = currentFolder.name || (
+      activeTab === 'gdrive' ? 'Google Drive Root' :
+      activeTab === 'onedrive' ? 'OneDrive Root' :
+      'Virtual Drive'
+    );
+
+    const res = toggleLocationBookmark(
+      activeTab,
+      currentFolder.id,
+      folderName,
+      pathStack
+    );
+
+    setBookmarks(res.bookmarks);
+    if (onShowToast) {
+      onShowToast(
+        res.isBookmarked 
+          ? `Bookmarked "${folderName}" for quick access!` 
+          : `Removed bookmark for "${folderName}"`,
+        res.isBookmarked ? 'success' : 'info'
+      );
+    }
+  };
+
+  // Jump directly to a saved bookmark
+  const handleJumpToBookmark = (bm: LocationBookmark) => {
+    setActiveTab(bm.provider);
+    const targetFolder = { id: bm.folderId, name: bm.folderName };
+    setCurrentFolder(targetFolder);
+    setPathStack(bm.pathStack && bm.pathStack.length > 0 ? bm.pathStack : [targetFolder]);
+
+    if (bm.provider === 'gdrive' || bm.provider === 'onedrive') {
+      loadFolder(bm.folderId);
+    }
+    if (onShowToast) {
+      onShowToast(`Switched to bookmark: ${bm.label}`, 'info');
+    }
+  };
+
+  // Remove a single bookmark
+  const handleRemoveBookmark = (e: React.MouseEvent, id: string, label: string) => {
+    e.stopPropagation();
+    const updated = removeLocationBookmark(id);
+    setBookmarks(updated);
+    if (onShowToast) onShowToast(`Removed bookmark "${label}"`, 'info');
+  };
 
   // Synchronize cloud tokens and load folder contents on mount / open
   useEffect(() => {
@@ -707,6 +784,50 @@ export const CloudImageImportModal: React.FC<CloudImageImportModalProps> = ({
           
           {/* Left Column: Explorer, Virtual Drive List, or Local Dropzone */}
           <div className="flex-1 flex flex-col border-r border-neutral-800 overflow-hidden">
+
+            {/* Quick Location Bookmarks Bar */}
+            {bookmarks.length > 0 && (
+              <div className="px-3 py-2 bg-neutral-950/80 border-b border-neutral-800/80 flex items-center gap-2 overflow-x-auto scrollbar-none text-xs">
+                <div className="flex items-center gap-1 shrink-0 text-amber-400 font-bold text-[11px] uppercase tracking-wider pr-2 border-r border-neutral-800">
+                  <Bookmark className="w-3.5 h-3.5 fill-amber-400/20" />
+                  <span>Bookmarks ({bookmarks.length})</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                  {bookmarks.map((bm) => {
+                    const isActive = activeTab === bm.provider && currentFolder.id === bm.folderId;
+                    return (
+                      <div
+                        key={bm.id}
+                        onClick={() => handleJumpToBookmark(bm)}
+                        className={`group cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition shrink-0 ${
+                          isActive
+                            ? 'bg-amber-500/20 text-amber-200 border-amber-500/50 shadow-sm shadow-amber-950/40'
+                            : 'bg-neutral-900/90 hover:bg-neutral-850 text-neutral-300 hover:text-white border-neutral-800 hover:border-neutral-700'
+                        }`}
+                        title={`Jump to ${bm.label} (${bm.provider})`}
+                      >
+                        {bm.provider === 'gdrive' && <Cloud className="w-3 h-3 text-emerald-400 shrink-0" />}
+                        {bm.provider === 'onedrive' && <Cloud className="w-3 h-3 text-blue-400 shrink-0" />}
+                        {bm.provider === 'virtual' && <HardDrive className="w-3 h-3 text-amber-400 shrink-0" />}
+                        
+                        <span className="truncate max-w-[130px]">{bm.label}</span>
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveBookmark(e, bm.id, bm.label)}
+                          className="opacity-60 group-hover:opacity-100 p-0.5 hover:bg-rose-500/20 hover:text-rose-300 rounded transition text-neutral-400"
+                          title="Remove bookmark"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {activeTab === 'virtual' ? (
               /* Virtual Drive Explorer */
               <div className="flex-1 flex flex-col overflow-hidden">
@@ -731,6 +852,21 @@ export const CloudImageImportModal: React.FC<CloudImageImportModalProps> = ({
                       </button>
                     )}
                   </div>
+
+                  {/* Bookmark Virtual Drive Button */}
+                  <button
+                    type="button"
+                    onClick={handleToggleBookmarkCurrentLocation}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border shrink-0 ${
+                      isCurrentBookmarked
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                        : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border-neutral-700'
+                    }`}
+                    title={isCurrentBookmarked ? 'Location Bookmarked (Click to remove)' : 'Bookmark Virtual Drive'}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${isCurrentBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    <span>{isCurrentBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+                  </button>
                 </div>
 
                 {/* Virtual Items Grid */}
@@ -826,16 +962,33 @@ export const CloudImageImportModal: React.FC<CloudImageImportModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Refresh Button */}
-                  <button
-                    type="button"
-                    onClick={() => loadFolder(currentFolder.id)}
-                    disabled={loading || !isConnected}
-                    className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition disabled:opacity-40"
-                    title="Refresh folder"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
-                  </button>
+                  {/* Toolbar Actions: Bookmark & Refresh */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleToggleBookmarkCurrentLocation}
+                      disabled={!isConnected}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border disabled:opacity-40 ${
+                        isCurrentBookmarked
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                          : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border-neutral-700'
+                      }`}
+                      title={isCurrentBookmarked ? 'Location Bookmarked (Click to remove)' : 'Bookmark current folder location'}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${isCurrentBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      <span>{isCurrentBookmarked ? 'Bookmarked' : 'Bookmark Location'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => loadFolder(currentFolder.id)}
+                      disabled={loading || !isConnected}
+                      className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition disabled:opacity-40"
+                      title="Refresh folder"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Search & Filter Bar */}

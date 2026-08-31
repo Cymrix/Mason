@@ -29,6 +29,7 @@ import {
   DEFAULT_CUSTOM_HEXES,
   getColorDef,
   getBackgroundToneDef,
+  getThemeResolvedHexes,
   AccentColorKey, 
   BackgroundToneKey,
   ThemeCategory,
@@ -56,6 +57,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
     setModuleColor, 
     setBackgroundTone, 
     setCustomHexColor,
+    updateTheme,
     resetTheme 
   } = useAppTheme();
 
@@ -71,6 +73,22 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
     if (presetFilter === 'all') return true;
     return p.category === presetFilter;
   });
+
+  const customResolved = {
+    ...DEFAULT_CUSTOM_HEXES,
+    ...(theme.customHexes || {})
+  };
+
+  const customColor = getColorDef('custom', customResolved.primary);
+  const customBg = getBackgroundToneDef('custom', customResolved.backgroundTone);
+
+  const customSpritesDef = getColorDef('custom', customResolved.sprites);
+  const customMapsDef = getColorDef('custom', customResolved.maps);
+  const customBiomesDef = getColorDef('custom', customResolved.biomes);
+  const customCharDef = getColorDef('custom', customResolved.prefabs);
+  const customParticlesDef = getColorDef('custom', customResolved.particles);
+  const customUiDef = getColorDef('custom', customResolved.ui);
+  const customGameDef = getColorDef('custom', customResolved.gamestructure);
 
   const renderModuleColorRow = (
     moduleId: keyof typeof theme.moduleColors,
@@ -306,6 +324,193 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
           {/* TAB 1: PRESET THEMES */}
           {activeTab === 'presets' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Custom Theme Card */}
+                <div
+                  onClick={() => {
+                    updateTheme(prev => ({
+                      ...prev,
+                      isCustom: true,
+                      primary: 'custom',
+                      backgroundTone: 'custom',
+                      moduleColors: {
+                        sprites: 'custom',
+                        maps: 'custom',
+                        biomes: 'custom',
+                        prefabs: 'custom',
+                        particles: 'custom',
+                        ui: 'custom',
+                        gamestructure: 'custom'
+                      },
+                      name: 'Custom Theme Palette',
+                      customHexes: prev.customHexes || DEFAULT_CUSTOM_HEXES
+                    }));
+                  }}
+                  className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-150 flex flex-col justify-between gap-3 relative group ${
+                    theme.isCustom
+                      ? 'border-neutral-500 bg-neutral-850 ring-2 shadow-xl'
+                      : 'border-neutral-800 bg-neutral-950/70 hover:border-neutral-700 hover:bg-neutral-900/60'
+                  }`}
+                  style={theme.isCustom ? { 
+                    borderColor: customColor.hex, 
+                    boxShadow: `0 0 0 2px rgba(${customColor.rgb}, 0.5)` 
+                  } : {}}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3.5 h-3.5 rounded-full shadow-sm"
+                          style={{ backgroundColor: customColor.hex }}
+                        />
+                        <h3 className="font-bold text-sm text-neutral-100 group-hover:text-white transition flex items-center gap-1.5">
+                          <span>Custom Theme Palette</span>
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        </h3>
+                      </div>
+
+                      {theme.isCustom && (
+                        <span 
+                          className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border"
+                          style={{
+                            backgroundColor: `rgba(${customColor.rgb}, 0.2)`,
+                            borderColor: `rgba(${customColor.rgb}, 0.4)`,
+                            color: customColor.hex
+                          }}
+                        >
+                          <Check size={11} />
+                          Active
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-neutral-400 mt-1.5 leading-relaxed">
+                      User-defined custom color palette with tailored accent highlights across all game engine modules.
+                    </p>
+                  </div>
+
+                  {/* 7-Module Spectrum Strip */}
+                  <div className="pt-2.5 border-t border-neutral-800/80 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-neutral-400">Palette Spectrum:</span>
+                      <span className="text-neutral-500">{customBg.name}</span>
+                    </div>
+
+                    <div className="grid grid-cols-8 gap-1 bg-neutral-900/90 p-1 rounded-xl border border-neutral-800/80 text-[9px] font-mono font-bold text-center">
+                      {/* App Primary */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customColor.rgb}, 0.2)`,
+                          borderColor: customColor.hex,
+                          color: customColor.hex
+                        }}
+                        title={`Primary / App Header: ${customColor.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">APP</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customColor.hex }} />
+                      </div>
+
+                      {/* Image Editor */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customSpritesDef?.rgb || '0,0,0'}, 0.2)`,
+                          borderColor: customSpritesDef?.hex,
+                          color: customSpritesDef?.hex
+                        }}
+                        title={`Image & Sprite Studio (.sprite): ${customSpritesDef?.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">IMG</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customSpritesDef?.hex }} />
+                      </div>
+
+                      {/* Maps */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customMapsDef?.rgb || '0,0,0'}, 0.2)`,
+                          borderColor: customMapsDef?.hex,
+                          color: customMapsDef?.hex
+                        }}
+                        title={`Maps (.map): ${customMapsDef?.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">MAP</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customMapsDef?.hex }} />
+                      </div>
+
+                      {/* Biomes */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customBiomesDef?.rgb || '0,0,0'}, 0.2)`,
+                          borderColor: customBiomesDef?.hex,
+                          color: customBiomesDef?.hex
+                        }}
+                        title={`Biomes (.biome): ${customBiomesDef?.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">BIO</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customBiomesDef?.hex }} />
+                      </div>
+
+                      {/* Prefabs */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customCharDef?.rgb || '0,0,0'}, 0.2)`,
+                          borderColor: customCharDef?.hex,
+                          color: customCharDef?.hex
+                        }}
+                        title={`Prefabs & AI (.prefab): ${customCharDef?.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">CHR</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customCharDef?.hex }} />
+                      </div>
+
+                      {/* Particles */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customParticlesDef?.rgb || '0,0,0'}, 0.2)`,
+                          borderColor: customParticlesDef?.hex,
+                          color: customParticlesDef?.hex
+                        }}
+                        title={`Particles (.particle): ${customParticlesDef?.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">PAR</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customParticlesDef?.hex }} />
+                      </div>
+
+                      {/* UI */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customUiDef?.rgb || '0,0,0'}, 0.2)`,
+                          borderColor: customUiDef?.hex,
+                          color: customUiDef?.hex
+                        }}
+                        title={`UI & HUD (.ui): ${customUiDef?.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">HUD</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customUiDef?.hex }} />
+                      </div>
+
+                      {/* Game Graph */}
+                      <div 
+                        className="py-1 px-0.5 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-transform group-hover:scale-[1.02]"
+                        style={{
+                          backgroundColor: `rgba(${customGameDef?.rgb || '0,0,0'}, 0.2)`,
+                          borderColor: customGameDef?.hex,
+                          color: customGameDef?.hex
+                        }}
+                        title={`Game Graph (.gamestructure): ${customGameDef?.name}`}
+                      >
+                        <span className="text-[8px] opacity-70">STR</span>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: customGameDef?.hex }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               {filteredPresets.map(preset => {
                 const isSelected = theme.id === preset.id && !theme.isCustom;
                 const pColor = getColorDef(preset.primary, preset.customHexes?.primary);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   X, 
   Upload, 
+  Cloud,
   Grid, 
   Play, 
   Pause, 
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import { SpritesheetSliceModalProps, SpritesheetSliceResult } from './types';
 import { useCanvasPanZoom } from '../../../hooks/useCanvasPanZoom';
+import { CloudImageImportModal } from '../../CloudImageImportModal';
 
 const PIXEL_PRESETS = [16, 24, 32, 48, 64, 128, 256];
 const GRID_PRESETS = [
@@ -37,15 +39,18 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
+  project,
   initialImage,
+  initialImageSrc,
+  initialName,
   title = 'Configure & Slice Spritesheet',
   sheetLabel
 }) => {
   if (!isOpen) return null;
 
   // Active image data
-  const [imageSrc, setImageSrc] = useState<string>(initialImage?.url || '');
-  const [sheetName, setSheetName] = useState<string>(initialImage?.name || sheetLabel || 'Spritesheet');
+  const [imageSrc, setImageSrc] = useState<string>(initialImageSrc || initialImage?.url || '');
+  const [sheetName, setSheetName] = useState<string>(initialName || initialImage?.name || sheetLabel || 'Spritesheet');
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
 
@@ -98,6 +103,7 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showCloudPicker, setShowCloudPicker] = useState(false);
 
   // Auto-resize canvas buffer to match container DOM dimensions without stretching
   useEffect(() => {
@@ -473,6 +479,16 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setShowCloudPicker(true)}
+              className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 border border-neutral-700/70 text-neutral-200 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+              title="Import image or spritesheet from Cloud Drive, Local File, or Virtual Drive"
+            >
+              <Upload size={13} className="text-emerald-400" />
+              <span>Import</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
             >
@@ -496,6 +512,23 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Cloud Image Import Modal Integration */}
+        {showCloudPicker && (
+          <CloudImageImportModal
+            isOpen={showCloudPicker}
+            onClose={() => setShowCloudPicker(false)}
+            project={project}
+            mode="select_image"
+            title="Import"
+            activeSpriteName={sheetName}
+            onSelectImage={(dataUrl, fileName) => {
+              setImageSrc(dataUrl);
+              setSheetName(fileName.replace(/\.[^.]+$/, ''));
+              setShowCloudPicker(false);
+            }}
+          />
+        )}
 
         {/* Content Body: Left Workspace (Canvas Viewport) + Right Config Sidebar */}
         <div className="flex-1 flex overflow-hidden">
@@ -567,6 +600,41 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
                   X: {marginX + hoveredCell.col * (computedStats.tileWidth + spacingX)}px, 
                   Y: {marginY + hoveredCell.row * (computedStats.tileHeight + spacingY)}px
                 </span>
+              </div>
+            )}
+
+            {/* Empty Image State Prompt */}
+            {!imageSrc && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-950/95 p-6 z-20">
+                <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 mx-auto">
+                    <Grid size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Select Spritesheet Image</h3>
+                    <p className="text-xs text-neutral-400 mt-1">
+                      Import a spritesheet from your connected Cloud Drive or upload a PNG/WEBP image from your device to configure slicing.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCloudPicker(true)}
+                      className="py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
+                    >
+                      <Cloud size={15} className="text-emerald-400" />
+                      <span>Cloud Drive</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="py-2.5 px-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+                    >
+                      <Upload size={15} />
+                      <span>Local File</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

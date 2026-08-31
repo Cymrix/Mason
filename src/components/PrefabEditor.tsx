@@ -61,6 +61,7 @@ import {
   Maximize2,
   Sparkles,
   Upload,
+  Cloud,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -4061,7 +4062,26 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     </div>
 
                     {/* Image Preview / Upload Area */}
-                    <div className="relative group bg-neutral-950 border border-neutral-800 rounded-xl p-3 flex flex-col items-center justify-center min-h-[100px] overflow-hidden">
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSliceModalConfig({
+                          isOpen: true,
+                          sheetId: sheet.id,
+                          sheetLabel: sheet.name,
+                          initialImage: {
+                            url: sheet.imageUrl || sheet.dataUrl || '',
+                            name: sheet.name,
+                            tileWidth: sheet.tileWidth || 64,
+                            tileHeight: sheet.tileHeight || 64,
+                            cols: sheet.cols || 8,
+                            rows: sheet.rows || 4,
+                            splitMode: sheet.splitMode || 'pixels'
+                          }
+                        });
+                      }}
+                      className="relative group bg-neutral-950 border border-neutral-800 hover:border-purple-500/50 rounded-xl p-3 flex flex-col items-center justify-center min-h-[100px] overflow-hidden cursor-pointer transition"
+                    >
                       {sheet.imageUrl || sheet.dataUrl ? (
                         <div className="relative w-full flex flex-col items-center">
                           <img 
@@ -4079,19 +4099,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         <div className="text-center space-y-1">
                           <Upload size={24} className="mx-auto text-neutral-600 group-hover:text-purple-400 transition" />
                           <p className="text-xs font-bold text-neutral-300">Upload & Configure Slicing</p>
-                          <p className="text-[10px] text-neutral-500">Select PNG, WEBP or atlas sheet</p>
+                          <p className="text-[10px] text-neutral-500">Import from Cloud, Virtual Drive, or local file</p>
                         </div>
                       )}
-
-                      {/* File Upload Hidden Input Trigger */}
-                      <label className="absolute inset-0 cursor-pointer opacity-0">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                        />
-                      </label>
                     </div>
 
                     {/* Action Triggers: Edit Sprite & Configure / Slice Grid */}
@@ -4134,7 +4144,32 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                           <Grid size={13} className="text-purple-400" />
                           <span>Configure & Slice</span>
                         </button>
-                      ) : null}
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSliceModalConfig({
+                              isOpen: true,
+                              sheetId: sheet.id,
+                              sheetLabel: sheet.name,
+                              initialImage: {
+                                url: '',
+                                name: sheet.name,
+                                tileWidth: sheet.tileWidth || 64,
+                                tileHeight: sheet.tileHeight || 64,
+                                cols: sheet.cols || 8,
+                                rows: sheet.rows || 4,
+                                splitMode: sheet.splitMode || 'pixels'
+                              }
+                            });
+                          }}
+                          className="flex-1 py-2 px-2.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                        >
+                          <Grid size={13} className="text-purple-400" />
+                          <span>Configure & Slice</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Quick Sample Presets */}
@@ -5710,6 +5745,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         isOpen={sliceModalConfig.isOpen}
         onClose={() => setSliceModalConfig(prev => ({ ...prev, isOpen: false }))}
         onConfirm={handleSliceModalConfirm}
+        project={project}
         initialImage={sliceModalConfig.initialImage}
         sheetLabel={sliceModalConfig.sheetLabel}
       />

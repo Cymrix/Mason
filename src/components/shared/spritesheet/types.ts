@@ -1,3 +1,5 @@
+import { MasonProject } from '../../../engine/masonProjectSchema';
+
 export interface SpritesheetSliceResult {
   imageUrl: string;
   dataUrl?: string;
@@ -20,6 +22,9 @@ export interface SpritesheetSliceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (result: SpritesheetSliceResult) => void;
+  project?: MasonProject;
+  initialImageSrc?: string;
+  initialName?: string;
   initialImage?: {
     url: string;
     name?: string;

@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.229';
-export const MASON_VERSION_DISPLAY = 'v0.229';
-export const MASON_FULL_VERSION = 'v0.229';
+export const MASON_VERSION = '0.233';
+export const MASON_VERSION_DISPLAY = 'v0.233';
+export const MASON_FULL_VERSION = 'v0.233';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,45 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.233',
+    date: '2026-08-31',
+    changes: [
+      'Refactored CloudImageImportModal to a unified "Import" modal featuring Google Drive, OneDrive, Local File, and a new dedicated "Virtual Drive" browser tab to load existing project assets.',
+      'Context-aware Import modal: in Spritesheet / Sub-module mode (Prefab and Particle editors), hides "Import Destination" and "Load as Spritesheet / Single Image" toggles in favor of a clean single "Select Image for Slicing" action.',
+      'Unified slicing triggers across Prefab and Particle editors so clicking "Upload & Configure Slicing" opens the SpritesheetSliceModal directly instead of bypassing with raw file inputs.',
+      'Renamed "Load from Cloud" buttons in the SpritesheetSliceModal to "Import".'
+    ]
+  },
+  {
+    version: 'v0.232',
+    date: '2026-08-31',
+    changes: [
+      'Replaced the "Load Image" option in the Image & Sprite Editor internal hamburger/file menu (☰) with a clean "Import" button.',
+      'Configured the internal "Import" menu action to dispatch an OPEN_IMPORT_MODAL message to the parent wrapper, instantly triggering the Cloud & Local Drive import modal.',
+      'Added fallback handlers for standalone preview contexts.'
+    ]
+  },
+  {
+    version: 'v0.231',
+    date: '2026-08-31',
+    changes: [
+      'Refactored Cloud Drive image import workflow: removed extra standalone "Load from Cloud" toolbar button and consolidated subfolder menu actions into a unified "Import..." entry that directly opens the cloud and local import module.',
+      'Configured CloudImageImportModal to auto-detect and immediately use whichever Cloud Drive provider (Google Drive or Microsoft OneDrive) is already authenticated for the project, displaying user credentials and loading directory contents on open.',
+      'Integrated Cloud Drive spritesheet and texture loading directly into SpritesheetSliceModal and the spritesheet sub-modals for both PrefabEditor and ParticlesEditor.',
+      'Added high-visibility dropzone overlays and direct cloud browsing triggers for empty spritesheet and particle texture slots.'
+    ]
+  },
+  {
+    version: 'v0.230',
+    date: '2026-08-31',
+    changes: [
+      'Added Cloud Drive image and spritesheet loading capabilities to Image & Sprite Studio from Google Drive and Microsoft OneDrive with live folder browsing and thumbnail previews.',
+      'Created dedicated CloudImageImportModal with single image loading and integrated Spritesheet Slicing mode (supporting margins, spacing, row/column counts, and frame limits).',
+      'Implemented seamless project asset registration into fileSystem.images and synchronized iframe canvas states via postMessage (LOAD_SPRITE and LOAD_PROJECT).',
+      'Added direct Cloud Drive import action buttons in FileSubfolderHeader dropdown and active toolbar controls.'
+    ]
+  },
   {
     version: 'v0.229',
     date: '2026-08-31',

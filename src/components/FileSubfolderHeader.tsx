@@ -12,7 +12,9 @@ import {
   Edit2,
   Link2,
   Link2Off,
-  Maximize2
+  Maximize2,
+  Cloud,
+  Upload
 } from 'lucide-react';
 
 interface FileItem {
@@ -36,6 +38,9 @@ interface FileSubfolderHeaderProps {
   onDeleteFile?: (fileName: string) => void;
   onRenameFile?: (oldFileName: string, newName: string) => void;
   onBackToDashboard?: () => void;
+  onImportFile?: () => void;
+  onImportCloudFile?: () => void;
+  onImportLocalFile?: () => void;
   isDirty?: boolean;
   accentColor?: string; // e.g. "cyan", "emerald", "amber", "purple", "rose"
   centerContent?: React.ReactNode;
@@ -58,6 +63,9 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
   onDeleteFile,
   onRenameFile,
   onBackToDashboard,
+  onImportFile,
+  onImportCloudFile,
+  onImportLocalFile,
   isDirty = false,
   accentColor = 'cyan',
   centerContent,
@@ -210,7 +218,7 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
                   })}
                 </div>
 
-                <div className="pt-1.5 border-t border-neutral-800">
+                <div className="pt-1.5 border-t border-neutral-800 space-y-1">
                   <button
                     type="button"
                     onClick={() => {
@@ -222,6 +230,26 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
                     <Plus size={13} className={accentColor === 'emerald' ? 'text-emerald-400' : 'text-cyan-400'} />
                     <span>Create New {extension} File</span>
                   </button>
+
+                  {(onImportFile || onImportCloudFile || onImportLocalFile) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        if (onImportFile) {
+                          onImportFile();
+                        } else if (onImportCloudFile) {
+                          onImportCloudFile();
+                        } else if (onImportLocalFile) {
+                          onImportLocalFile();
+                        }
+                      }}
+                      className="w-full py-1.5 px-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                    >
+                      <Upload size={13} className={accentColor === 'emerald' ? 'text-emerald-400' : 'text-cyan-400'} />
+                      <span>Import...</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </>

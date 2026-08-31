@@ -14977,6 +14977,27 @@
     e.target.value = '';
   });
 
+  document.getElementById('importBtn')?.addEventListener('click', () => {
+    const fileMenu = document.getElementById('fileMenu');
+    if (fileMenu) fileMenu.style.display = 'none';
+
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'OPEN_IMPORT_MODAL' }, '*');
+    } else {
+      const tempInput = document.createElement('input');
+      tempInput.type = 'file';
+      tempInput.accept = 'image/*';
+      tempInput.style.display = 'none';
+      tempInput.onchange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) loadImageFileAndHandle(file);
+      };
+      document.body.appendChild(tempInput);
+      tempInput.click();
+      setTimeout(() => tempInput.remove(), 1000);
+    }
+  });
+
   // ---------- New Project Modal ----------
   const newProjectModalOverlay = document.getElementById('newProjectModalOverlay');
   const newProjPresetSelect = document.getElementById('newProjPresetSelect');

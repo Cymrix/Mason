@@ -5,7 +5,10 @@ import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { createNewSpriteInProject, saveActiveMasonProject } from '../utils/masonStorage';
 import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
 import { VirtualExportImageModal, PendingExportData } from './VirtualExportImageModal';
-import { Image as ImageIcon, AlertTriangle, Save, Trash2, X } from 'lucide-react';
+import { CloudImageImportModal } from './CloudImageImportModal';
+import { SpritesheetSliceModal } from './shared/spritesheet/SpritesheetSliceModal';
+import { SpritesheetSliceResult } from './shared/spritesheet/types';
+import { Image as ImageIcon, AlertTriangle, Save, Trash2, X, Cloud, Scissors, Upload } from 'lucide-react';
 
 interface SpriteEditorWrapperProps {
   project: MasonProject;
@@ -38,6 +41,16 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
   // Pending action state when unsaved changes exist
   const [pendingUnsavedAction, setPendingUnsavedAction] = useState<UnsavedAction | null>(null);
   const [isSavingPending, setIsSavingPending] = useState(false);
+
+  // Cloud image and spritesheet import modal states
+  const [showCloudImageModal, setShowCloudImageModal] = useState(false);
+  const [showSliceModal, setShowSliceModal] = useState(false);
+  const [sliceModalConfig, setSliceModalConfig] = useState<{
+    imageUrl: string;
+    fileName: string;
+    targetMode: 'new' | 'replace';
+    newSpriteName?: string;
+  } | null>(null);
 
   // Fallback local toast if parent doesn't provide one
   const [localToast, setLocalToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -651,6 +664,360 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     });
   }, [onUpdateProject, spriteDimensions]);
 
+  // Import a single image from Cloud Drive or local machine
+  const handleImportSingleImage = useCallback(async (
+    dataUrl: string, 
+    fileName: string, 
+    targetMode: 'new' | 'replace', 
+    newSpriteName?: string
+  ) => {
+    // 1. Measure image dimensions
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise<void>((resolve) => {
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+      img.src = dataUrl;
+    });
+
+    const w = img.naturalWidth || 32;
+    const h = img.naturalHeight || 32;
+    const cleanBase = (newSpriteName || fileName).replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').trim();
+    const finalDisplayName = newSpriteName?.trim() || cleanBase || 'Imported Image';
+
+    if (targetMode === 'new') {
+      const uniqueFileName = `${cleanBase.toLowerCase()}.sprite`;
+      let finalFileName = uniqueFileName;
+      let counter = 2;
+      const existingSprites = projectRef.current.fileSystem.sprites || [];
+      while (existingSprites.some(s => s.fileName.toLowerCase() === finalFileName.toLowerCase())) {
+        finalFileName = `${cleanBase.toLowerCase()}_${counter}.sprite`;
+        counter++;
+      }
+
+      const pngFileName = `${finalFileName.replace(/\.sprite$/, '')}.png`;
+
+      const newSpriteFile: SpriteFile = {
+        id: `sprite_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        name: finalDisplayName,
+        fileName: finalFileName,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        spriteData: {
+          version: 1,
+          width: w,
+          height: h,
+          fps: 8,
+          layers: [{ id: 'layer_1', name: 'Background', visible: true, opacity: 1 }],
+          frames: [{
+            id: 'frame_1',
+            name: 'Frame 1',
+            duration: 125,
+            layers: [{ id: 'layer_1', name: 'Background', data: dataUrl, visible: true, opacity: 1 }]
+          }]
+        },
+        linkedImageFileNames: [pngFileName]
+      };
+
+      const newImageFile: ImageFile = {
+        id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        name: finalDisplayName,
+        fileName: pngFileName,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        dataUrl,
+        width: w,
+        height: h,
+        sourceSpriteFileName: finalFileName
+      };
+
+      onUpdateProject(prev => {
+        const sprites = [...(prev.fileSystem.sprites || []), newSpriteFile];
+        const images = [...(prev.fileSystem.images || []).filter(img => img.fileName !== pngFileName), newImageFile];
+        const updated = {
+          ...prev,
+          activeFiles: {
+            ...prev.activeFiles,
+            spriteFileName: finalFileName
+          },
+          fileSystem: {
+            ...prev.fileSystem,
+            sprites,
+            images
+          }
+        };
+        saveActiveMasonProject(updated, `Imported "${finalFileName}" from Cloud Drive`);
+        return updated;
+      });
+
+      setActiveFileName(finalFileName);
+      activeFileNameRef.current = finalFileName;
+      setSpriteDimensions({ w, h });
+      setSpriteFrameCount(1);
+
+      // Notify iframe
+      setTimeout(() => {
+        postToIframe({
+          type: 'LOAD_SPRITE',
+          projectName: finalDisplayName,
+          imageDataUrl: dataUrl,
+          width: w,
+          height: h
+        });
+      }, 80);
+
+      triggerToast(`Loaded "${finalDisplayName}" (${w}×${h} px) into Image Studio`, 'success');
+    } else {
+      // Replace active sprite
+      const curActiveFileName = activeFileNameRef.current;
+      const pngFileName = `${curActiveFileName.replace(/\.sprite$/, '')}.png`;
+
+      onUpdateProject(prev => {
+        const sprites = (prev.fileSystem.sprites || []).map(s => {
+          if (s.fileName === curActiveFileName) {
+            return {
+              ...s,
+              name: newSpriteName?.trim() || s.name,
+              updatedAt: new Date().toISOString(),
+              spriteData: {
+                version: 1,
+                width: w,
+                height: h,
+                fps: 8,
+                layers: [{ id: 'layer_1', name: 'Background', visible: true, opacity: 1 }],
+                frames: [{
+                  id: 'frame_1',
+                  name: 'Frame 1',
+                  duration: 125,
+                  layers: [{ id: 'layer_1', name: 'Background', data: dataUrl, visible: true, opacity: 1 }]
+                }]
+              },
+              linkedImageFileNames: Array.from(new Set([...(s.linkedImageFileNames || []), pngFileName]))
+            };
+          }
+          return s;
+        });
+
+        const images = (prev.fileSystem.images || []).filter(img => img.fileName !== pngFileName);
+        images.push({
+          id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          name: finalDisplayName,
+          fileName: pngFileName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          dataUrl,
+          width: w,
+          height: h,
+          sourceSpriteFileName: curActiveFileName
+        });
+
+        const updated = {
+          ...prev,
+          fileSystem: { ...prev.fileSystem, sprites, images }
+        };
+        saveActiveMasonProject(updated, `Updated "${curActiveFileName}" with imported image`);
+        return updated;
+      });
+
+      setSpriteDimensions({ w, h });
+      setSpriteFrameCount(1);
+
+      postToIframe({
+        type: 'LOAD_SPRITE',
+        projectName: finalDisplayName,
+        imageDataUrl: dataUrl,
+        width: w,
+        height: h
+      });
+
+      triggerToast(`Updated active sprite with image (${w}×${h} px)`, 'success');
+    }
+  }, [onUpdateProject, triggerToast, postToIframe]);
+
+  // Open Spritesheet Slicer with selected cloud or local image
+  const handleImportSpritesheet = useCallback((
+    imageSrc: string, 
+    fileName: string, 
+    targetMode: 'new' | 'replace', 
+    newSpriteName?: string
+  ) => {
+    setSliceModalConfig({
+      imageUrl: imageSrc,
+      fileName,
+      targetMode,
+      newSpriteName
+    });
+    setShowSliceModal(true);
+  }, []);
+
+  // Commit slice result to project
+  const handleConfirmSliceResult = useCallback(async (result: SpritesheetSliceResult) => {
+    if (!sliceModalConfig) return;
+    const { targetMode, newSpriteName, fileName } = sliceModalConfig;
+
+    const sliceOutcome = await sliceSpritesheetToFrames(
+      result.imageUrl,
+      result.cols,
+      result.rows,
+      result.tileWidth,
+      result.tileHeight,
+      {
+        marginX: result.marginX,
+        marginY: result.marginY,
+        spacingX: result.spacingX,
+        spacingY: result.spacingY,
+        totalFrames: result.totalFrames
+      }
+    );
+
+    const tw = sliceOutcome.width || result.tileWidth || 32;
+    const th = sliceOutcome.height || result.tileHeight || 32;
+    const cleanBase = (newSpriteName || result.name || fileName).replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').trim();
+    const finalDisplayName = newSpriteName?.trim() || result.name || cleanBase || 'Sliced Spritesheet';
+
+    const spriteProjectData = {
+      version: 1,
+      width: tw,
+      height: th,
+      fps: 8,
+      layers: [{ id: 'layer_1', name: 'Layer 1', visible: true, opacity: 1 }],
+      frames: sliceOutcome.frames.map((f, idx) => ({
+        id: `frame_${idx + 1}`,
+        name: f.name || `Frame ${idx + 1}`,
+        duration: 125,
+        layers: f.layers.map((l, lIdx) => ({
+          id: `layer_${lIdx + 1}`,
+          name: l.name || `Layer ${lIdx + 1}`,
+          data: l.data || '',
+          visible: true,
+          opacity: 1
+        }))
+      }))
+    };
+
+    if (targetMode === 'new') {
+      const uniqueFileName = `${cleanBase.toLowerCase()}.sprite`;
+      let finalFileName = uniqueFileName;
+      let counter = 2;
+      const existingSprites = projectRef.current.fileSystem.sprites || [];
+      while (existingSprites.some(s => s.fileName.toLowerCase() === finalFileName.toLowerCase())) {
+        finalFileName = `${cleanBase.toLowerCase()}_${counter}.sprite`;
+        counter++;
+      }
+
+      const pngFileName = `${finalFileName.replace(/\.sprite$/, '')}.png`;
+
+      const newSpriteFile: SpriteFile = {
+        id: `sprite_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        name: finalDisplayName,
+        fileName: finalFileName,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        spriteData: spriteProjectData,
+        linkedImageFileNames: [pngFileName]
+      };
+
+      const newImageFile: ImageFile = {
+        id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        name: finalDisplayName,
+        fileName: pngFileName,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        dataUrl: result.imageUrl,
+        width: result.imageWidth,
+        height: result.imageHeight,
+        sourceSpriteFileName: finalFileName
+      };
+
+      onUpdateProject(prev => {
+        const sprites = [...(prev.fileSystem.sprites || []), newSpriteFile];
+        const images = [...(prev.fileSystem.images || []).filter(img => img.fileName !== pngFileName), newImageFile];
+        const updated = {
+          ...prev,
+          activeFiles: {
+            ...prev.activeFiles,
+            spriteFileName: finalFileName
+          },
+          fileSystem: {
+            ...prev.fileSystem,
+            sprites,
+            images
+          }
+        };
+        saveActiveMasonProject(updated, `Imported spritesheet "${finalFileName}" with ${sliceOutcome.frames.length} frames`);
+        return updated;
+      });
+
+      setActiveFileName(finalFileName);
+      activeFileNameRef.current = finalFileName;
+      setSpriteDimensions({ w: tw, h: th });
+      setSpriteFrameCount(sliceOutcome.frames.length);
+
+      setTimeout(() => {
+        postToIframe({
+          type: 'LOAD_PROJECT',
+          projectName: finalDisplayName,
+          projectData: spriteProjectData
+        });
+      }, 80);
+
+      triggerToast(`Loaded spritesheet "${finalDisplayName}" with ${sliceOutcome.frames.length} frames (${tw}×${th} px)`, 'success');
+    } else {
+      // Replace active sprite
+      const curActiveFileName = activeFileNameRef.current;
+      const pngFileName = `${curActiveFileName.replace(/\.sprite$/, '')}.png`;
+
+      onUpdateProject(prev => {
+        const sprites = (prev.fileSystem.sprites || []).map(s => {
+          if (s.fileName === curActiveFileName) {
+            return {
+              ...s,
+              name: finalDisplayName,
+              updatedAt: new Date().toISOString(),
+              spriteData: spriteProjectData,
+              linkedImageFileNames: Array.from(new Set([...(s.linkedImageFileNames || []), pngFileName]))
+            };
+          }
+          return s;
+        });
+
+        const images = (prev.fileSystem.images || []).filter(img => img.fileName !== pngFileName);
+        images.push({
+          id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          name: finalDisplayName,
+          fileName: pngFileName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          dataUrl: result.imageUrl,
+          width: result.imageWidth,
+          height: result.imageHeight,
+          sourceSpriteFileName: curActiveFileName
+        });
+
+        const updated = {
+          ...prev,
+          fileSystem: { ...prev.fileSystem, sprites, images }
+        };
+        saveActiveMasonProject(updated, `Updated "${curActiveFileName}" with sliced spritesheet`);
+        return updated;
+      });
+
+      setSpriteDimensions({ w: tw, h: th });
+      setSpriteFrameCount(sliceOutcome.frames.length);
+
+      postToIframe({
+        type: 'LOAD_PROJECT',
+        projectName: finalDisplayName,
+        projectData: spriteProjectData
+      });
+
+      triggerToast(`Updated "${curActiveFileName}" with ${sliceOutcome.frames.length} frames (${tw}×${th} px)`, 'success');
+    }
+
+    setShowSliceModal(false);
+    setSliceModalConfig(null);
+  }, [sliceModalConfig, onUpdateProject, triggerToast, postToIframe]);
+
   // Handle postMessages from iframe
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -732,6 +1099,8 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         }
       } else if (e.data.type === 'SPRITE_DIRTY') {
         setIsDirty(!!e.data.isDirty);
+      } else if (e.data.type === 'OPEN_IMPORT_MODAL' || e.data.type === 'OPEN_CLOUD_IMPORT') {
+        setShowCloudImageModal(true);
       }
     };
 
@@ -818,6 +1187,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         defaultWidth={32}
         defaultHeight={32}
         onBackToDashboard={handleBackToDashboard}
+        onImportFile={() => setShowCloudImageModal(true)}
         files={spriteFiles.map(f => ({
           id: f.id,
           name: f.name,
@@ -940,6 +1310,33 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
           onClose={() => setPendingExportData(null)}
           onUpdateProject={onUpdateProject}
           onShowToast={triggerToast}
+        />
+      )}
+
+      {/* Cloud & Local Image / Spritesheet Browser Modal */}
+      {showCloudImageModal && (
+        <CloudImageImportModal
+          isOpen={showCloudImageModal}
+          onClose={() => setShowCloudImageModal(false)}
+          project={project}
+          activeSpriteName={activeFile?.name || activeFileName}
+          onImportSingleImage={handleImportSingleImage}
+          onImportSpritesheet={handleImportSpritesheet}
+        />
+      )}
+
+      {/* Spritesheet Slicer & Grid Metric Calibration Modal */}
+      {showSliceModal && sliceModalConfig && (
+        <SpritesheetSliceModal
+          isOpen={showSliceModal}
+          project={project}
+          initialImageSrc={sliceModalConfig.imageUrl}
+          initialName={sliceModalConfig.newSpriteName || sliceModalConfig.fileName.replace(/\.[^.]+$/, '')}
+          onClose={() => {
+            setShowSliceModal(false);
+            setSliceModalConfig(null);
+          }}
+          onConfirm={handleConfirmSliceResult}
         />
       )}
 

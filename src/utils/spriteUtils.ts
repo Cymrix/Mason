@@ -9,7 +9,14 @@ export async function sliceSpritesheetToFrames(
   cols: number = 1,
   rows: number = 1,
   tileWidth: number = 32,
-  tileHeight: number = 32
+  tileHeight: number = 32,
+  options?: {
+    marginX?: number;
+    marginY?: number;
+    spacingX?: number;
+    spacingY?: number;
+    totalFrames?: number;
+  }
 ): Promise<{
   frames: Array<{
     name: string;
@@ -38,10 +45,17 @@ export async function sliceSpritesheetToFrames(
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const numCols = cols > 0 ? cols : Math.floor(img.naturalWidth / (tileWidth || 32)) || 1;
-      const numRows = rows > 0 ? rows : Math.floor(img.naturalHeight / (tileHeight || 32)) || 1;
-      const tw = tileWidth > 0 ? tileWidth : Math.floor(img.naturalWidth / numCols) || 32;
-      const th = tileHeight > 0 ? tileHeight : Math.floor(img.naturalHeight / numRows) || 32;
+      const marginX = Math.max(0, options?.marginX || 0);
+      const marginY = Math.max(0, options?.marginY || 0);
+      const spacingX = Math.max(0, options?.spacingX || 0);
+      const spacingY = Math.max(0, options?.spacingY || 0);
+
+      const numCols = cols > 0 ? cols : Math.max(1, Math.floor((img.naturalWidth - marginX) / ((tileWidth || 32) + spacingX)));
+      const numRows = rows > 0 ? rows : Math.max(1, Math.floor((img.naturalHeight - marginY) / ((tileHeight || 32) + spacingY)));
+      const tw = tileWidth > 0 ? tileWidth : Math.max(1, Math.floor((img.naturalWidth - marginX - (numCols - 1) * spacingX) / numCols));
+      const th = tileHeight > 0 ? tileHeight : Math.max(1, Math.floor((img.naturalHeight - marginY - (numRows - 1) * spacingY) / numRows));
+
+      const maxFrames = options?.totalFrames && options.totalFrames > 0 ? options.totalFrames : numCols * numRows;
 
       const frames: Array<{
         name: string;
@@ -52,6 +66,11 @@ export async function sliceSpritesheetToFrames(
       let frameIdx = 1;
       for (let r = 0; r < numRows; r++) {
         for (let c = 0; c < numCols; c++) {
+          if (frames.length >= maxFrames) break;
+
+          const sx = marginX + c * (tw + spacingX);
+          const sy = marginY + r * (th + spacingY);
+
           const canvas = document.createElement('canvas');
           canvas.width = tw;
           canvas.height = th;
@@ -60,7 +79,7 @@ export async function sliceSpritesheetToFrames(
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(
               img,
-              c * tw, r * th, tw, th,
+              sx, sy, tw, th,
               0, 0, tw, th
             );
           }

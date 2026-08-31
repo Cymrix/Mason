@@ -27,6 +27,7 @@ import {
   FileText,
   Compass,
   Upload,
+  Cloud,
   ChevronDown,
   ChevronUp,
   Grid,
@@ -5432,42 +5433,39 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                     )}
                   </div>
 
-                  <div className="border border-dashed border-neutral-800 rounded-lg p-4 bg-neutral-900/30 flex flex-col items-center justify-center text-center space-y-2 relative">
-                    <Upload size={24} className="text-neutral-500" />
-                    <div>
-                      <div className="text-xs font-bold text-neutral-300">Upload & Configure Atlas</div>
-                      <p className="text-[9px] text-neutral-500">Supports transparent pixel sheets & custom slicing</p>
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (evt) => {
-                            const dataUrl = evt.target?.result as string;
-                            if (dataUrl) {
-                              setParticleSliceModalConfig({
-                                isOpen: true,
-                                sheetLabel: file.name.replace(/\.[^/.]+$/, ''),
-                                initialImage: {
-                                  url: dataUrl,
-                                  name: file.name.replace(/\.[^/.]+$/, ''),
-                                  tileWidth: activeParticleData.visuals.spritesheet?.tileWidth || 64,
-                                  tileHeight: activeParticleData.visuals.spritesheet?.tileHeight || 64,
-                                  cols: activeParticleData.visuals.spritesheet?.cols || 8,
-                                  rows: activeParticleData.visuals.spritesheet?.rows || 1,
-                                  splitMode: activeParticleData.visuals.spritesheet?.splitMode || 'columns'
-                                }
-                              });
-                            }
-                          };
-                          reader.readAsDataURL(file);
+                  <div 
+                    onClick={() => {
+                      setParticleSliceModalConfig({
+                        isOpen: true,
+                        sheetLabel: activeParticleData.visuals.spritesheet?.name || 'Particle Atlas',
+                        initialImage: {
+                          url: activeParticleData.visuals.spritesheet?.imageUrl || activeParticleData.visuals.spritesheet?.dataUrl || '',
+                          name: activeParticleData.visuals.spritesheet?.name || 'Particle Atlas',
+                          tileWidth: activeParticleData.visuals.spritesheet?.tileWidth || 64,
+                          tileHeight: activeParticleData.visuals.spritesheet?.tileHeight || 64,
+                          cols: activeParticleData.visuals.spritesheet?.cols || 8,
+                          rows: activeParticleData.visuals.spritesheet?.rows || 1,
+                          splitMode: activeParticleData.visuals.spritesheet?.splitMode || 'columns'
                         }
-                      }}
-                    />
+                      });
+                    }}
+                    className="border border-dashed border-neutral-800 hover:border-purple-500/50 rounded-lg p-4 bg-neutral-900/30 hover:bg-neutral-900/60 flex flex-col items-center justify-center text-center space-y-3 cursor-pointer transition"
+                  >
+                    <div className="flex items-center justify-center gap-2 text-neutral-500">
+                      <Cloud size={22} className="text-emerald-400" />
+                      <Upload size={22} className="text-purple-400" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-neutral-300">Import & Configure Spritesheet Atlas</div>
+                      <p className="text-[9px] text-neutral-500">Load from Cloud Drive, Virtual Drive, or local file</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="w-full py-2 px-3 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                    >
+                      <Upload size={13} className="text-purple-400" />
+                      <span>Configure & Slice Atlas</span>
+                    </button>
                   </div>
 
                   {/* Slicer Trigger for Active Atlas */}
@@ -5895,6 +5893,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           isOpen={particleSliceModalConfig.isOpen}
           onClose={() => setParticleSliceModalConfig({ isOpen: false })}
           onConfirm={handleParticleSliceConfirm}
+          project={project}
           initialImage={particleSliceModalConfig.initialImage}
           sheetLabel={particleSliceModalConfig.sheetLabel}
           title="Particle Spritesheet Slicing & Pre-Configuration"

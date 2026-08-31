@@ -491,3 +491,63 @@ export const loadProjectFromOneDrive = async (fileInfo: { id: string; downloadUr
   return parseProjectJson(text);
 };
 
+/**
+ * Downloads any file from Microsoft OneDrive as a Base64 Data URL (e.g. images, spritesheets)
+ */
+export const downloadFileAsDataUrlFromOneDrive = async (fileInfo: { id: string; downloadUrl?: string }): Promise<string> => {
+  const token = getOneDriveToken();
+  if (!token) throw new Error('Not connected to Microsoft OneDrive. Please connect your account.');
+
+  let res: Response;
+  if (fileInfo.downloadUrl) {
+    res = await fetch(fileInfo.downloadUrl);
+  } else {
+    res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileInfo.id}/content`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  }
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      disconnectOneDrive();
+      throw new Error('Microsoft OneDrive session expired. Please reconnect.');
+    }
+    throw new Error(`Failed to download file from OneDrive (${res.status})`);
+  }
+
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to convert OneDrive image blob to Data URL'));
+    reader.readAsDataURL(blob);
+  });
+};
+
+/**
+ * Downloads any text or JSON file from Microsoft OneDrive
+ */
+export const downloadFileAsTextFromOneDrive = async (fileInfo: { id: string; downloadUrl?: string }): Promise<string> => {
+  const token = getOneDriveToken();
+  if (!token) throw new Error('Not connected to Microsoft OneDrive.');
+
+  let res: Response;
+  if (fileInfo.downloadUrl) {
+    res = await fetch(fileInfo.downloadUrl);
+  } else {
+    res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileInfo.id}/content`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  }
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      disconnectOneDrive();
+      throw new Error('Microsoft OneDrive session expired. Please reconnect.');
+    }
+    throw new Error(`Failed to download file from OneDrive (${res.status})`);
+  }
+
+  return await res.text();
+};
+

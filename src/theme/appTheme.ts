@@ -1,4 +1,5 @@
 export type AccentColorKey = 
+  | 'custom'
   | 'hue_0'   | 'hue_10'  | 'hue_20'  | 'hue_30'  | 'hue_40'  | 'hue_50'
   | 'hue_60'  | 'hue_70'  | 'hue_80'  | 'hue_90'  | 'hue_100' | 'hue_110'
   | 'hue_120' | 'hue_130' | 'hue_140' | 'hue_150' | 'hue_160' | 'hue_170'
@@ -37,6 +38,7 @@ export type AccentColorKey =
   | 'okabe_redpurple';
 
 export type BackgroundToneKey = 
+  | 'custom'
   | 'void' 
   | 'slate' 
   | 'navy' 
@@ -62,6 +64,18 @@ export interface ModuleColorMap {
   gamestructure: AccentColorKey;
 }
 
+export interface CustomColorHexes {
+  primary?: string;
+  backgroundTone?: string;
+  sprites?: string;
+  maps?: string;
+  biomes?: string;
+  prefabs?: string;
+  particles?: string;
+  ui?: string;
+  gamestructure?: string;
+}
+
 export interface AppThemeConfig {
   id: string;
   name: string;
@@ -71,8 +85,21 @@ export interface AppThemeConfig {
   primary: AccentColorKey;
   backgroundTone: BackgroundToneKey;
   moduleColors: ModuleColorMap;
+  customHexes?: CustomColorHexes;
   isCustom?: boolean;
 }
+
+export const DEFAULT_CUSTOM_HEXES: Record<string, string> = {
+  primary: '#ff007f',
+  backgroundTone: '#0a0814',
+  sprites: '#00f59b',
+  maps: '#00e5ff',
+  biomes: '#00ff66',
+  prefabs: '#ff0055',
+  particles: '#ffaa00',
+  ui: '#ffd000',
+  gamestructure: '#b800ff'
+};
 
 export interface ColorDef {
   name: string;
@@ -87,6 +114,17 @@ export interface ColorDef {
 }
 
 export const COLOR_DEFINITIONS: Record<AccentColorKey, ColorDef> = {
+  custom: {
+    name: 'Custom Swatch',
+    hex: '#ff007f',
+    rgb: '255, 0, 127',
+    bgClass: 'bg-[#ff007f]',
+    textClass: 'text-[#ff007f]',
+    borderClass: 'border-[#ff007f]/50',
+    badgeClass: 'bg-[#ff007f]/20 border-[#ff007f]/40 text-[#ff007f]',
+    ringClass: 'ring-[#ff007f]/40',
+    gradientFromClass: 'from-[#ff007f]'
+  },
   // ── 36 CHROMATIC HUES (10° Intervals around 360° Color Wheel at 100% Saturation & 50% Lightness) ──
   hue_0:   { name: 'Pure Red', hex: '#ff0000', rgb: '255, 0, 0', bgClass: 'bg-[#ff0000] hover:opacity-90', textClass: 'text-[#ff0000]', borderClass: 'border-[#ff0000]/50', badgeClass: 'bg-[#ff0000]/20 border-[#ff0000]/40 text-[#ff0000]', ringClass: 'ring-[#ff0000]/40', gradientFromClass: 'from-[#ff0000]' },
   hue_10:  { name: 'Scarlet Red', hex: '#ff2b00', rgb: '255, 43, 0', bgClass: 'bg-[#ff2b00] hover:opacity-90', textClass: 'text-[#ff2b00]', borderClass: 'border-[#ff2b00]/50', badgeClass: 'bg-[#ff2b00]/20 border-[#ff2b00]/40 text-[#ff2b00]', ringClass: 'ring-[#ff2b00]/40', gradientFromClass: 'from-[#ff2b00]' },
@@ -333,6 +371,16 @@ export interface BackgroundToneDef {
 }
 
 export const BACKGROUND_TONES: Record<BackgroundToneKey, BackgroundToneDef> = {
+  custom: {
+    name: 'Custom Dark',
+    bgClass: 'bg-[#0a0814]',
+    cardClass: 'bg-[#141024]/90',
+    borderClass: 'border-[#251c3d]',
+    hex: '#0a0814',
+    cardHex: '#141024',
+    borderHex: '#251c3d',
+    description: 'User-customized ambient dark background tone'
+  },
   void: {
     name: 'Void Black',
     bgClass: 'bg-neutral-950',
@@ -731,6 +779,78 @@ export function loadSavedAppTheme(): AppThemeConfig {
   return PRESET_APP_THEMES[0];
 }
 
+export function hexToRgbString(hex: string): string {
+  const clean = hex.replace('#', '');
+  let r = 255, g = 0, b = 127;
+  if (clean.length === 3) {
+    r = parseInt(clean[0] + clean[0], 16) || 0;
+    g = parseInt(clean[1] + clean[1], 16) || 0;
+    b = parseInt(clean[2] + clean[2], 16) || 0;
+  } else if (clean.length >= 6) {
+    r = parseInt(clean.substring(0, 2), 16) || 0;
+    g = parseInt(clean.substring(2, 4), 16) || 0;
+    b = parseInt(clean.substring(4, 6), 16) || 0;
+  }
+  return `${r}, ${g}, ${b}`;
+}
+
+export function createColorDefFromHex(hex: string, name: string = 'Custom Color'): ColorDef {
+  const cleanHex = hex.startsWith('#') ? hex : `#${hex}`;
+  const rgb = hexToRgbString(cleanHex);
+  return {
+    name,
+    hex: cleanHex,
+    rgb,
+    bgClass: `bg-[${cleanHex}]`,
+    textClass: `text-[${cleanHex}]`,
+    borderClass: `border-[${cleanHex}]/50`,
+    badgeClass: `bg-[${cleanHex}]/20 border-[${cleanHex}]/40 text-[${cleanHex}]`,
+    ringClass: `ring-[${cleanHex}]/40`,
+    gradientFromClass: `from-[${cleanHex}]`
+  };
+}
+
+export function createBackgroundToneFromHex(hex: string, name: string = 'Custom Dark'): BackgroundToneDef {
+  const cleanHex = hex.startsWith('#') ? hex : `#${hex}`;
+  const rgbStr = hexToRgbString(cleanHex);
+  const [r, g, b] = rgbStr.split(',').map(n => parseInt(n.trim(), 10) || 0);
+  
+  const cardR = Math.min(255, r + 12);
+  const cardG = Math.min(255, g + 12);
+  const cardB = Math.min(255, b + 14);
+  const cardHex = `#${cardR.toString(16).padStart(2, '0')}${cardG.toString(16).padStart(2, '0')}${cardB.toString(16).padStart(2, '0')}`;
+  
+  const borderR = Math.min(255, r + 25);
+  const borderG = Math.min(255, g + 25);
+  const borderB = Math.min(255, b + 30);
+  const borderHex = `#${borderR.toString(16).padStart(2, '0')}${borderG.toString(16).padStart(2, '0')}${borderB.toString(16).padStart(2, '0')}`;
+
+  return {
+    name,
+    bgClass: `bg-[${cleanHex}]`,
+    cardClass: `bg-[${cardHex}]/90`,
+    borderClass: `border-[${borderHex}]`,
+    hex: cleanHex,
+    cardHex,
+    borderHex,
+    description: 'User-customized ambient dark background tone'
+  };
+}
+
+export function getColorDef(colorKey: AccentColorKey, customHex?: string): ColorDef {
+  if (colorKey === 'custom') {
+    return createColorDefFromHex(customHex || DEFAULT_CUSTOM_HEXES.primary, `Custom (${customHex?.toUpperCase() || '#FF007F'})`);
+  }
+  return COLOR_DEFINITIONS[colorKey] || COLOR_DEFINITIONS.indigo;
+}
+
+export function getBackgroundToneDef(toneKey: BackgroundToneKey, customHex?: string): BackgroundToneDef {
+  if (toneKey === 'custom') {
+    return createBackgroundToneFromHex(customHex || DEFAULT_CUSTOM_HEXES.backgroundTone, `Custom Dark (${customHex?.toUpperCase() || '#0A0814'})`);
+  }
+  return BACKGROUND_TONES[toneKey] || BACKGROUND_TONES.void;
+}
+
 export function getContrastTextColor(color: string | ColorDef | undefined | null): string {
   if (!color) return '#ffffff';
   
@@ -777,19 +897,19 @@ export function saveAppTheme(theme: AppThemeConfig): void {
 export function applyThemeCSSVariables(theme: AppThemeConfig): void {
   try {
     const root = document.documentElement;
-    const primaryDef = COLOR_DEFINITIONS[theme.primary] || COLOR_DEFINITIONS.indigo;
-    const bgDef = BACKGROUND_TONES[theme.backgroundTone] || BACKGROUND_TONES.void;
+    const primaryDef = getColorDef(theme.primary, theme.customHexes?.primary);
+    const bgDef = getBackgroundToneDef(theme.backgroundTone, theme.customHexes?.backgroundTone);
 
     root.style.setProperty('--mason-primary', primaryDef.hex);
     root.style.setProperty('--mason-primary-rgb', primaryDef.rgb);
 
-    root.style.setProperty('--mason-sprites-color', COLOR_DEFINITIONS[theme.moduleColors.sprites]?.hex || '#10b981');
-    root.style.setProperty('--mason-maps-color', COLOR_DEFINITIONS[theme.moduleColors.maps]?.hex || '#06b6d4');
-    root.style.setProperty('--mason-biomes-color', COLOR_DEFINITIONS[theme.moduleColors.biomes]?.hex || '#10b981');
-    root.style.setProperty('--mason-prefabs-color', COLOR_DEFINITIONS[theme.moduleColors.prefabs]?.hex || '#f43f5e');
-    root.style.setProperty('--mason-particles-color', COLOR_DEFINITIONS[theme.moduleColors.particles]?.hex || '#f59e0b');
-    root.style.setProperty('--mason-ui-color', COLOR_DEFINITIONS[theme.moduleColors.ui]?.hex || '#f59e0b');
-    root.style.setProperty('--mason-gamestructure-color', COLOR_DEFINITIONS[theme.moduleColors.gamestructure]?.hex || '#a855f7');
+    root.style.setProperty('--mason-sprites-color', getColorDef(theme.moduleColors.sprites, theme.customHexes?.sprites).hex);
+    root.style.setProperty('--mason-maps-color', getColorDef(theme.moduleColors.maps, theme.customHexes?.maps).hex);
+    root.style.setProperty('--mason-biomes-color', getColorDef(theme.moduleColors.biomes, theme.customHexes?.biomes).hex);
+    root.style.setProperty('--mason-prefabs-color', getColorDef(theme.moduleColors.prefabs, theme.customHexes?.prefabs).hex);
+    root.style.setProperty('--mason-particles-color', getColorDef(theme.moduleColors.particles, theme.customHexes?.particles).hex);
+    root.style.setProperty('--mason-ui-color', getColorDef(theme.moduleColors.ui, theme.customHexes?.ui).hex);
+    root.style.setProperty('--mason-gamestructure-color', getColorDef(theme.moduleColors.gamestructure, theme.customHexes?.gamestructure).hex);
     root.style.setProperty('--mason-bg-base', bgDef.hex);
     root.style.setProperty('--mason-bg-card', bgDef.cardHex);
     root.style.setProperty('--mason-border-base', bgDef.borderHex);

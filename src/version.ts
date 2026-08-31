@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.226';
-export const MASON_VERSION_DISPLAY = 'v0.226';
-export const MASON_FULL_VERSION = 'v0.226';
+export const MASON_VERSION = '0.229';
+export const MASON_VERSION_DISPLAY = 'v0.229';
+export const MASON_FULL_VERSION = 'v0.229';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,34 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.229',
+    date: '2026-08-31',
+    changes: [
+      'Added dedicated "🌪️ Turbulence & Noise" parameter card with velocity jitter controls (0-100 px/s) to the particle module for blizzard flurries, heat shimmers, and fire embers.',
+      'Centralized all particle parameter addition and removal handlers (handleAddParam & handleRemoveParam) ensuring immediate live physics simulation updates and state synchronization upon parameter removal.',
+      'Verified and aligned all particle presets (including Blizzard Flurries, Fire Embers, Smoke, Fireworks, etc.) to use canonical parameters and sync dynamic parameter library states.',
+      'Confirmed custom color swatch pickers on all theme items across the primary accent, individual modules, and background tones.'
+    ]
+  },
+  {
+    version: 'v0.228',
+    date: '2026-08-31',
+    changes: [
+      'Added interactive custom color swatches to all theme items in ThemeModal (Main App Accent, Image/Sprite Studio, Maps, Biomes, Prefabs, Particles, UI/HUD, Game Graph, and App Background Tone).',
+      'Integrated instant native color pickers and hex indicators with real-time CSS variable synchronization across the workspace and preview.',
+      'Refined color resolution and preview cards to seamlessly support custom user palettes.'
+    ]
+  },
+  {
+    version: 'v0.227',
+    date: '2026-08-31',
+    changes: [
+      'Added a dedicated interactive "Custom" color swatch to every theme item (Main App Accent, Image/Sprite Studio, Maps, Biomes, Prefabs, Particles, UI/HUD, Game Graph, and App Background Tone).',
+      'Integrated native instant color pickers and Hex editors for unlimited theme color customization across all modules and background tones.',
+      'Updated ThemeContext and Theme Engine with custom hex calculation, live dynamic CSS variables, and instant workspace preview synchronization.'
+    ]
+  },
   {
     version: 'v0.226',
     date: '2026-08-30',

@@ -179,6 +179,9 @@ export function getTrackNodesForData(visuals: any, track: string): { time: numbe
   if (track === "angle") {
     return [{ time: 0, value: 270 }, { time: 1, value: 270 }];
   }
+  if (track === "turbulence") {
+    return [{ time: 0, value: 20 }, { time: 1, value: 20 }];
+  }
   if (track === "trails") {
     return [{ time: 0, value: 10 }, { time: 1, value: 10 }];
   }
@@ -330,8 +333,8 @@ export function evaluateColorAlpha(
   progress: number,
   visuals: any
 ): { color: string; alpha: number; r: number; g: number; b: number } {
-  const colHex = evaluateTrackValue(progress, "color", visuals);
-  const alphaVal = evaluateTrackValue(progress, "alpha", visuals);
+  const colHex = visuals?.animateColor === false ? (visuals?.startColor || "#ffffff") : evaluateTrackValue(progress, "color", visuals);
+  const alphaVal = visuals?.animateAlpha === false ? (visuals?.startAlpha !== undefined ? visuals.startAlpha : 1.0) : evaluateTrackValue(progress, "alpha", visuals);
   const rgb = hexToRgb(colHex);
   return { color: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alphaVal})`, alpha: alphaVal, r: rgb.r, g: rgb.g, b: rgb.b };
 }
@@ -340,6 +343,9 @@ export function evaluateSize(
   progress: number,
   visuals: any
 ): number {
+  if (visuals?.animateSize === false) {
+    return Math.max(0.1, visuals?.startSize ?? 8);
+  }
   return Math.max(0.1, evaluateTrackValue(progress, "size", visuals));
 }
 

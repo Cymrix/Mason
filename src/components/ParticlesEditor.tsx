@@ -389,7 +389,14 @@ const AVAILABLE_INITIALIZE_PROPS = [
     label: '📐 Angle & Spread',
     category: 'forces' as const,
     badge: 'Directional Cone',
-    desc: 'Launch angle range and turbulence noise.'
+    desc: 'Launch angle orientation and emission cone spread.'
+  },
+  {
+    id: 'turbulence',
+    label: '🌪️ Turbulence & Noise',
+    category: 'forces' as const,
+    badge: 'Velocity Jitter',
+    desc: 'Applies organic velocity noise perturbations for flurries, embers, and rising heat.'
   },
   {
     id: 'pull',
@@ -413,6 +420,33 @@ const AVAILABLE_INITIALIZE_PROPS = [
     desc: 'Despawn instantly when hitting a solid surface.'
   }
 ];
+
+export const getPropsFromParticleData = (data: ParticleSystemData): string[] => {
+  const props: string[] = [];
+  if (!data) return props;
+  const k = data.kinematics || ({} as any);
+  const v = data.visuals || ({} as any);
+  const ph = data.physics || ({} as any);
+
+  if (v.animateSize !== false) props.push('size_curve');
+  if (v.animateColor !== false) props.push('color_flow');
+  if (v.animateAlpha !== false) props.push('alpha_opac');
+  if (v.animateRotation || (k.minAngularVelocity ?? 0) !== 0 || (k.maxAngularVelocity ?? 0) !== 0) props.push('rotation');
+  if ((k.minSpeed ?? 0) !== 0 || (k.maxSpeed ?? 0) !== 0) props.push('launch_speed');
+  if ((k.gravityX ?? 0) !== 0 || (k.gravityY ?? 0) !== 0 || (k.gravityScale ?? 0) !== 0 || (k.gravityScaleX ?? 0) !== 0) props.push('gravity');
+  if ((k.drag ?? 1.0) !== 1.0 || (k.angularDrag !== undefined && k.angularDrag !== 1.0)) props.push('drag');
+  if ((k.windForce ?? 0) !== 0 || (k.windSensitivity !== undefined && k.windSensitivity !== 1.0)) props.push('wind');
+  if ((k.angleDeg ?? 270) !== 270 || (k.spreadDeg ?? 0) !== 0) props.push('angle');
+  if ((k.turbulenceJitter ?? 0) > 0) props.push('turbulence');
+  if (k.emitterPull) props.push('pull');
+  if ((v.glowBlurRadius ?? 0) > 0 || v.isEmissive) props.push('bloom');
+  if (v.startMotionBlur !== undefined || v.endMotionBlur !== undefined || v.animateMotionBlur) props.push('motionBlur');
+  if (v.hasTrails) props.push('trails');
+  if (ph.collideWithMapSolids || ph.fluidSelfCollision) props.push('physics');
+  if (ph.destroyOnCollision) props.push('destroy_on_hit');
+
+  return Array.from(new Set(props));
+};
 
 export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   project,
@@ -476,6 +510,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     if (addedProps.includes('gravity') || (v as any).animateGravity) list.push('gravity');
     if (addedProps.includes('wind') || (v as any).animateWind) list.push('wind');
     if (addedProps.includes('angle') || (v as any).animateAngle) list.push('angle');
+    if (addedProps.includes('turbulence') || (k.turbulenceJitter ?? 0) > 0) list.push('turbulence');
     if (addedProps.includes('trails') || (v as any).animateTrails) list.push('trails');
 
     return Array.from(new Set(list));
@@ -487,31 +522,182 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     }
   }, [visibleTracks, selectedTrack]);
 
+  // Synchronize active customizable parameters whenever active particle data changes
   useEffect(() => {
-    // Populate added properties based on loaded system configuration
-    const props: string[] = [];
-    const k = activeParticleData.kinematics;
-    const v = activeParticleData.visuals;
-    const ph = activeParticleData.physics;
-
-    if (v.animateSize !== false) props.push('size_curve');
-    if (v.animateColor !== false) props.push('color_flow');
-    if (v.animateAlpha !== false) props.push('alpha_opac');
-    if (v.animateRotation) props.push('rotation');
-    if (k.minSpeed !== 0 || k.maxSpeed !== 0) props.push('launch_speed');
-    if ((k.gravityX ?? 0) !== 0 || (k.gravityY ?? 0) !== 0) props.push('gravity');
-    if (k.drag !== 1.0) props.push('drag');
-    if ((k.windForce ?? 0) !== 0) props.push('wind');
-    if (k.emitterPull) props.push('pull');
-    if ((k.angleDeg ?? 270) !== 270 || (k.spreadDeg ?? 45) !== 45 || (k.turbulenceJitter ?? 0) !== 0) props.push('angle');
-    if ((v.glowBlurRadius ?? 8) > 0) props.push('bloom');
-    if (v.startMotionBlur !== undefined || v.endMotionBlur !== undefined) props.push('motionBlur');
-    if (v.hasTrails) props.push('trails');
-    if (ph.collideWithMapSolids) props.push('physics');
-    if (ph.destroyOnCollision) props.push('destroy_on_hit');
-
-    setAddedProps(props);
+    setAddedProps(getPropsFromParticleData(activeParticleData));
   }, [activeParticleData.id]);
+
+  const handleAddParam = (propId: string) => {
+    setAddedProps(prev => [...prev.filter(x => x !== propId), propId]);
+    updateActiveParticle(pr => {
+      const updated = JSON.parse(JSON.stringify(pr));
+      if (propId === 'size_curve') {
+        updated.visuals.animateSize = true;
+        if (updated.visuals.startSize === updated.visuals.endSize) {
+          updated.visuals.endSize = Math.max(1, Math.round((updated.visuals.startSize ?? 8) * 0.3));
+        }
+      } else if (propId === 'color_flow') {
+        updated.visuals.animateColor = true;
+      } else if (propId === 'alpha_opac') {
+        updated.visuals.animateAlpha = true;
+      } else if (propId === 'rotation') {
+        updated.visuals.animateRotation = true;
+        if ((updated.kinematics.minAngularVelocity ?? 0) === 0 && (updated.kinematics.maxAngularVelocity ?? 0) === 0) {
+          updated.kinematics.minAngularVelocity = -90;
+          updated.kinematics.maxAngularVelocity = 90;
+          updated.kinematics.angularDrag = 0.98;
+        }
+      } else if (propId === 'launch_speed') {
+        if ((updated.kinematics.minSpeed ?? 0) === 0 && (updated.kinematics.maxSpeed ?? 0) === 0) {
+          updated.kinematics.minSpeed = 60;
+          updated.kinematics.maxSpeed = 140;
+        }
+      } else if (propId === 'gravity') {
+        if ((updated.kinematics.gravityY ?? 0) === 0 && (updated.kinematics.gravityX ?? 0) === 0) {
+          updated.kinematics.gravityY = 180;
+          updated.kinematics.gravityX = 0;
+        }
+      } else if (propId === 'drag') {
+        if ((updated.kinematics.drag ?? 1.0) === 1.0) {
+          updated.kinematics.drag = 0.98;
+          updated.kinematics.angularDrag = 0.98;
+        }
+      } else if (propId === 'wind') {
+        if ((updated.kinematics.windForce ?? 0) === 0) {
+          updated.kinematics.windForce = 30;
+          updated.kinematics.windSensitivity = 1.0;
+        }
+      } else if (propId === 'angle') {
+        if ((updated.kinematics.spreadDeg ?? 0) === 0) {
+          updated.kinematics.angleDeg = updated.kinematics.angleDeg ?? 270;
+          updated.kinematics.spreadDeg = 45;
+        }
+      } else if (propId === 'turbulence') {
+        if ((updated.kinematics.turbulenceJitter ?? 0) === 0) {
+          updated.kinematics.turbulenceJitter = 20;
+        }
+      } else if (propId === 'pull') {
+        updated.kinematics.emitterPull = true;
+        updated.kinematics.emitterPullRadius = updated.kinematics.emitterPullRadius ?? 150;
+        updated.kinematics.emitterPullStrength = updated.kinematics.emitterPullStrength ?? 1.0;
+        updated.kinematics.emitterPullFalloff = updated.kinematics.emitterPullFalloff ?? 1.0;
+      } else if (propId === 'bloom') {
+        if ((updated.visuals.glowBlurRadius ?? 0) === 0) {
+          updated.visuals.glowBlurRadius = 10;
+          updated.visuals.isEmissive = true;
+          updated.visuals.emissiveStartStrength = 35;
+          updated.visuals.emissiveEndStrength = 0;
+        }
+      } else if (propId === 'motionBlur') {
+        updated.visuals.animateMotionBlur = true;
+        updated.visuals.startMotionBlur = updated.visuals.startMotionBlur ?? 1;
+        updated.visuals.endMotionBlur = updated.visuals.endMotionBlur ?? 1;
+      } else if (propId === 'trails') {
+        updated.visuals.hasTrails = true;
+        updated.visuals.trailLength = updated.visuals.trailLength || 10;
+        updated.visuals.trailWidthScale = updated.visuals.trailWidthScale || 1.0;
+        updated.visuals.trailTaper = updated.visuals.trailTaper ?? true;
+        updated.visuals.trailTaperLength = updated.visuals.trailTaperLength || 10;
+      } else if (propId === 'physics') {
+        updated.physics.collideWithMapSolids = true;
+        updated.physics.collisionRestitution = updated.physics.collisionRestitution ?? 0.4;
+      } else if (propId === 'destroy_on_hit') {
+        updated.physics.destroyOnCollision = true;
+      }
+      return updated;
+    });
+  };
+
+  const handleRemoveParam = (propId: string) => {
+    setAddedProps(prev => prev.filter(x => x !== propId));
+    updateActiveParticle(pr => {
+      const updated = JSON.parse(JSON.stringify(pr));
+      if (propId === 'size_curve') {
+        updated.visuals.animateSize = false;
+        updated.visuals.midSize = undefined;
+      } else if (propId === 'color_flow') {
+        updated.visuals.animateColor = false;
+        updated.visuals.midColor = undefined;
+      } else if (propId === 'alpha_opac') {
+        updated.visuals.animateAlpha = false;
+        updated.visuals.startAlpha = 1.0;
+        updated.visuals.endAlpha = 1.0;
+        updated.visuals.midAlpha = undefined;
+      } else if (propId === 'rotation') {
+        updated.visuals.animateRotation = false;
+        updated.visuals.startRotationDeg = 0;
+        updated.visuals.endRotationDeg = 0;
+        updated.visuals.midRotationDeg = undefined;
+        updated.kinematics.minAngularVelocity = 0;
+        updated.kinematics.maxAngularVelocity = 0;
+        updated.kinematics.angularDrag = 1.0;
+      } else if (propId === 'launch_speed') {
+        updated.kinematics.minSpeed = 0;
+        updated.kinematics.maxSpeed = 0;
+      } else if (propId === 'gravity') {
+        updated.kinematics.gravityX = 0;
+        updated.kinematics.gravityY = 0;
+        updated.kinematics.gravityScale = 0;
+        updated.kinematics.gravityScaleX = 0;
+      } else if (propId === 'drag') {
+        updated.kinematics.drag = 1.0;
+        updated.kinematics.angularDrag = 1.0;
+        updated.kinematics.startDrag = 1.0;
+        updated.kinematics.midDrag = undefined;
+        updated.kinematics.endDrag = 1.0;
+      } else if (propId === 'wind') {
+        updated.kinematics.windForce = 0;
+        updated.kinematics.windSensitivity = 0;
+      } else if (propId === 'angle') {
+        updated.kinematics.angleDeg = 270;
+        updated.kinematics.spreadDeg = 0;
+      } else if (propId === 'turbulence') {
+        updated.kinematics.turbulenceJitter = 0;
+      } else if (propId === 'pull') {
+        updated.kinematics.emitterPull = false;
+        updated.kinematics.emitterPullStrength = 0;
+      } else if (propId === 'bloom') {
+        updated.visuals.glowBlurRadius = 0;
+        updated.visuals.isEmissive = false;
+        updated.visuals.emissiveStartStrength = 0;
+        updated.visuals.emissiveEndStrength = 0;
+      } else if (propId === 'motionBlur') {
+        updated.visuals.animateMotionBlur = false;
+        updated.visuals.startMotionBlur = undefined;
+        updated.visuals.endMotionBlur = undefined;
+        updated.visuals.midMotionBlur = undefined;
+      } else if (propId === 'trails') {
+        updated.visuals.hasTrails = false;
+        updated.visuals.trailLength = 0;
+      } else if (propId === 'physics') {
+        updated.physics.collideWithMapSolids = false;
+        updated.physics.fluidSelfCollision = false;
+      } else if (propId === 'destroy_on_hit') {
+        updated.physics.destroyOnCollision = false;
+      }
+      return updated;
+    });
+
+    // Real-time synchronization: immediately strip removed property effect from all active live engine particles
+    if (engineRef.current && engineRef.current.particles) {
+      engineRef.current.particles.forEach(p => {
+        if (propId === 'gravity') { p.gravityX = 0; p.gravityY = 0; }
+        else if (propId === 'wind') { p.windForce = 0; }
+        else if (propId === 'turbulence') { p.turbulenceJitter = 0; }
+        else if (propId === 'drag') { p.drag = 1.0; p.angularDrag = 1.0; }
+        else if (propId === 'pull') { p.emitterPull = false; }
+        else if (propId === 'bloom') { p.glowBlurRadius = 0; p.isEmissive = false; }
+        else if (propId === 'trails') { p.hasTrails = false; p.trailHistory = []; }
+        else if (propId === 'physics') { p.collides = false; }
+        else if (propId === 'destroy_on_hit') { p.destroyOnCollision = false; }
+        else if (propId === 'rotation') { p.animateRotation = false; p.vRot = 0; }
+        else if (propId === 'size_curve') { p.animateSize = false; }
+        else if (propId === 'color_flow') { p.animateColor = false; }
+        else if (propId === 'alpha_opac') { p.animateAlpha = false; }
+        else if (propId === 'motionBlur') { p.animateMotionBlur = false; }
+      });
+    }
+  };
 
   // Reset engine particles and timing refs whenever switching active particle file or system
   useEffect(() => {
@@ -2251,12 +2437,16 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   };
 
   const handleLoadPreset = (preset: ParticleSystemData) => {
-    updateActiveParticle(() => ({
+    const loadedData: ParticleSystemData = {
       ...JSON.parse(JSON.stringify(preset)),
       id: activeParticleData.id,
       name: activeParticleData.name
-    }));
-    engineRef.current.particles = [];
+    };
+    updateActiveParticle(() => loadedData);
+    setAddedProps(getPropsFromParticleData(loadedData));
+    if (engineRef.current) {
+      engineRef.current.clear();
+    }
     showToast(`Loaded preset parameters: ${preset.name}`);
   };
 
@@ -3423,13 +3613,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'size_curve'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, animateSize: false }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('size_curve')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove Size Curve Module"
                       >
@@ -3465,13 +3649,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'color_flow'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, animateColor: false }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('color_flow')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove Color Flow Module"
                       >
@@ -3508,13 +3686,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'alpha_opac'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, animateAlpha: false }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('alpha_opac')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove Alpha Opacity Module"
                       >
@@ -3552,14 +3724,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'rotation'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, animateRotation: false },
-                            kinematics: { ...p.kinematics, minAngularVelocity: 0, maxAngularVelocity: 0 }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('rotation')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove Rotation Module"
                       >
@@ -3620,13 +3785,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'launch_speed'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            kinematics: { ...p.kinematics, minSpeed: 0, maxSpeed: 0 }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('launch_speed')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove speed constraints"
                       >
@@ -3668,13 +3827,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'gravity'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            kinematics: { ...p.kinematics, gravityX: 0, gravityY: 0 }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('gravity')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove gravity forces"
                       >
@@ -3716,13 +3869,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'motionBlur'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, startMotionBlur: undefined, endMotionBlur: undefined }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('motionBlur')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove motion blur"
                       >
@@ -3751,13 +3898,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'drag'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            kinematics: { ...p.kinematics, drag: 1.0 }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('drag')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove drag"
                       >
@@ -3779,7 +3920,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   </div>
                 )}
 
-                                {addedProps.includes('pull') && (
+                {addedProps.includes('pull') && (
                   <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
                     <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs font-bold text-white">
@@ -3787,13 +3928,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'pull'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            kinematics: { ...p.kinematics, emitterPull: false }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('pull')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove pull"
                       >
@@ -3847,13 +3982,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'wind'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            kinematics: { ...p.kinematics, windForce: 0 }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('wind')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove wind forces"
                       >
@@ -3882,20 +4011,14 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'angle'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            kinematics: { ...p.kinematics, angleDeg: 270, spreadDeg: 45, turbulenceJitter: 0 }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('angle')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove angle parameters"
                       >
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <div className="p-3 bg-neutral-950/20 text-xs grid grid-cols-3 gap-1.5">
+                    <div className="p-3 bg-neutral-950/20 text-xs grid grid-cols-2 gap-2">
                       <div>
                         <label className="text-[9px] font-bold text-neutral-400 block mb-1">Angle (deg)</label>
                         <input
@@ -3913,22 +4036,57 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           type="number"
                           min="0"
                           max="360"
-                          value={activeParticleData.kinematics.spreadDeg ?? 45}
+                          value={activeParticleData.kinematics.spreadDeg ?? 0}
                           onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, spreadDeg: Number(e.target.value) } }))}
                           className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
                         />
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {addedProps.includes('turbulence') && (
+                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span>🌪️ Turbulence & Noise</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveParam('turbulence')}
+                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                        title="Remove turbulence parameter"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
                       <div>
-                        <label className="text-[9px] font-bold text-neutral-400 block mb-1">Turbulence</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-neutral-400">Velocity Noise Jitter</label>
+                          <span className="font-mono text-[10px] text-amber-400 font-bold">
+                            {activeParticleData.kinematics.turbulenceJitter ?? 0} px/s
+                          </span>
+                        </div>
                         <input
-                          type="number"
+                          type="range"
                           min="0"
                           max="100"
+                          step="1"
                           value={activeParticleData.kinematics.turbulenceJitter ?? 0}
                           onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, turbulenceJitter: Number(e.target.value) } }))}
-                          className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                          className="w-full accent-amber-500 cursor-pointer"
                         />
+                        <div className="flex justify-between text-[8.5px] text-neutral-500 font-mono mt-0.5">
+                          <span>0 (Direct)</span>
+                          <span>25 (Flurries)</span>
+                          <span>60 (Blizzard)</span>
+                          <span>100 (Wild)</span>
+                        </div>
                       </div>
+                      <p className="text-[9.5px] text-neutral-400 leading-normal">
+                        Applies continuous organic multi-frequency noise to particle velocities, creating fluttering blizzard flurries, rising heat shimmers, and swirling fire embers.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -3941,13 +4099,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'bloom'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, glowBlurRadius: 0 }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('bloom')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove glow bloom"
                       >
@@ -3976,13 +4128,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'trails'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, hasTrails: false }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('trails')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove trails"
                       >
@@ -4049,13 +4195,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'physics'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            physics: { ...p.physics, collideWithMapSolids: false }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('physics')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove collision parameters"
                       >
@@ -4142,13 +4282,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAddedProps(prev => prev.filter(p => p !== 'destroy_on_hit'));
-                          updateActiveParticle(p => ({
-                            ...p,
-                            physics: { ...p.physics, destroyOnCollision: false }
-                          }));
-                        }}
+                        onClick={() => handleRemoveParam('destroy_on_hit')}
                         className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
                         title="Remove destroy parameter"
                       >
@@ -4267,35 +4401,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                               type="button"
                               onClick={() => {
                                 if (alreadyAdded) {
-                                  // Remove property
-                                  setAddedProps(prev => prev.filter(x => x !== p.id));
-                                  if (p.id === 'size_curve') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateSize: false } }));
-                                  else if (p.id === 'color_flow') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateColor: false } }));
-                                  else if (p.id === 'alpha_opac') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateAlpha: false } }));
-                                  else if (p.id === 'rotation') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateRotation: false } }));
-                                  else if (p.id === 'bloom') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, glowBlurRadius: 0 } }));
-                                  else if (p.id === 'motionBlur') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateMotionBlur: false } }));
-                                  else if (p.id === 'trails') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, hasTrails: false } }));
-                                  else if (p.id === 'physics') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, collideWithMapSolids: false } }));
-                                  else if (p.id === 'destroy_on_hit') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, destroyOnCollision: false } }));
+                                  handleRemoveParam(p.id);
                                 } else {
-                                  // Add property
-                                  setAddedProps(prev => [...prev, p.id]);
-                                  if (p.id === 'size_curve') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateSize: true } }));
-                                  else if (p.id === 'color_flow') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateColor: true } }));
-                                  else if (p.id === 'alpha_opac') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateAlpha: true } }));
-                                  else if (p.id === 'rotation') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, animateRotation: true }, kinematics: { ...pr.kinematics, minAngularVelocity: -90, maxAngularVelocity: 90 } }));
-                                  else if (p.id === 'launch_speed') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, minSpeed: 60, maxSpeed: 140 } }));
-                                  else if (p.id === 'gravity') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, gravityY: 180, gravityX: 0 } }));
-                                  else if (p.id === 'drag') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, drag: 0.98 } }));
-                                  else if (p.id === 'wind') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, windForce: 30 } }));
-                                  else if (p.id === 'angle') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, angleDeg: 270, spreadDeg: 45, turbulenceJitter: 0 } }));
-                                  else if (p.id === 'bloom') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, glowBlurRadius: 8 } }));
-                                  else if (p.id === 'motionBlur') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, startMotionBlur: 1, endMotionBlur: 1, animateMotionBlur: true } }));
-                                  else if (p.id === 'trails') updateActiveParticle(pr => ({ ...pr, visuals: { ...pr.visuals, hasTrails: true, trailLength: 10, trailWidthScale: 1.0, trailTaper: true, trailTaperLength: 10 } }));
-                                  else if (p.id === 'pull') updateActiveParticle(pr => ({ ...pr, kinematics: { ...pr.kinematics, emitterPull: true, emitterPullRadius: 150, emitterPullStrength: 1.0, emitterPullFalloff: 1.0 } }));
-                                  else if (p.id === 'physics') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, collideWithMapSolids: true, collisionRestitution: 0.4 } }));
-                                  else if (p.id === 'destroy_on_hit') updateActiveParticle(pr => ({ ...pr, physics: { ...pr.physics, destroyOnCollision: true } }));
+                                  handleAddParam(p.id);
                                 }
                               }}
                               className={`w-full py-1 px-2 rounded-lg text-[9.5px] font-bold transition flex items-center justify-center gap-1 ${

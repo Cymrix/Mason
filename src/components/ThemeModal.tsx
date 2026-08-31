@@ -26,6 +26,9 @@ import {
   HUE_ORDERED_COLOR_KEYS,
   BACKGROUND_TONES, 
   PRESET_APP_THEMES, 
+  DEFAULT_CUSTOM_HEXES,
+  getColorDef,
+  getBackgroundToneDef,
   AccentColorKey, 
   BackgroundToneKey,
   ThemeCategory,
@@ -52,6 +55,7 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
     setPrimaryColor, 
     setModuleColor, 
     setBackgroundTone, 
+    setCustomHexColor,
     resetTheme 
   } = useAppTheme();
 
@@ -61,12 +65,110 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
   if (!isOpen) return null;
 
   const colorKeys = HUE_ORDERED_COLOR_KEYS;
-  const toneKeys = Object.keys(BACKGROUND_TONES) as BackgroundToneKey[];
+  const toneKeys = Object.keys(BACKGROUND_TONES).filter(k => k !== 'custom') as BackgroundToneKey[];
 
   const filteredPresets = PRESET_APP_THEMES.filter(p => {
     if (presetFilter === 'all') return true;
     return p.category === presetFilter;
   });
+
+  const renderModuleColorRow = (
+    moduleId: keyof typeof theme.moduleColors,
+    title: string,
+    subtitle: string,
+    icon: React.ReactNode
+  ) => {
+    const modDef = getModuleColorDef(moduleId);
+    const isCustomSelected = theme.moduleColors[moduleId] === 'custom';
+    const customHex = theme.customHexes?.[moduleId] || DEFAULT_CUSTOM_HEXES[moduleId] || '#00f59b';
+
+    return (
+      <div className="pt-3 first:pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div 
+            className="w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 transition-colors"
+            style={{ 
+              backgroundColor: `rgba(${modDef.rgb}, 0.2)`,
+              borderColor: modDef.hex,
+              color: modDef.hex
+            }}
+          >
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-bold text-neutral-200 flex items-center gap-1.5">
+              <span>{title}</span>
+              {isCustomSelected && (
+                <span 
+                  className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border"
+                  style={{
+                    backgroundColor: `rgba(${modDef.rgb}, 0.2)`,
+                    borderColor: `rgba(${modDef.rgb}, 0.4)`,
+                    color: modDef.hex
+                  }}
+                >
+                  Custom {customHex.toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="text-[10px] text-neutral-400 truncate">{subtitle}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md shrink-0">
+          {/* Custom Swatch for this module */}
+          <div className="relative shrink-0 flex items-center">
+            <label 
+              className={`w-6 h-6 rounded-lg border transition-all flex items-center justify-center text-white cursor-pointer relative ${
+                isCustomSelected 
+                  ? 'ring-2 ring-white scale-110 shadow-lg' 
+                  : 'opacity-80 hover:opacity-100 border-dashed border-neutral-500 hover:border-white'
+              }`}
+              style={{ 
+                backgroundColor: customHex, 
+                borderColor: isCustomSelected ? '#ffffff' : customHex 
+              }}
+              title={`Custom Swatch (${customHex}) - Click to pick any custom color`}
+            >
+              <input
+                type="color"
+                value={customHex}
+                onChange={(e) => setCustomHexColor(moduleId, e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+              {isCustomSelected ? (
+                <Check size={12} className="drop-shadow" />
+              ) : (
+                <Paintbrush size={11} className="drop-shadow opacity-90" />
+              )}
+            </label>
+          </div>
+
+          <div className="w-px h-4 bg-neutral-800 shrink-0 mx-0.5" />
+
+          {/* Standard chromatic swatches */}
+          {colorKeys.map(k => {
+            const cDef = COLOR_DEFINITIONS[k];
+            const isSelected = theme.moduleColors[moduleId] === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setModuleColor(moduleId, k)}
+                className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
+                  isSelected ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
+                }`}
+                style={{ backgroundColor: cDef.hex, borderColor: cDef.hex }}
+                title={cDef.name}
+              >
+                {isSelected && <Check size={12} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 select-none">
@@ -206,16 +308,16 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredPresets.map(preset => {
                 const isSelected = theme.id === preset.id && !theme.isCustom;
-                const pColor = COLOR_DEFINITIONS[preset.primary] || COLOR_DEFINITIONS.indigo;
-                const pBg = BACKGROUND_TONES[preset.backgroundTone] || BACKGROUND_TONES.void;
+                const pColor = getColorDef(preset.primary, preset.customHexes?.primary);
+                const pBg = getBackgroundToneDef(preset.backgroundTone, preset.customHexes?.backgroundTone);
 
-                const spritesDef = COLOR_DEFINITIONS[preset.moduleColors.sprites];
-                const mapsDef = COLOR_DEFINITIONS[preset.moduleColors.maps];
-                const biomesDef = COLOR_DEFINITIONS[preset.moduleColors.biomes];
-                const charDef = COLOR_DEFINITIONS[preset.moduleColors.prefabs];
-                const particlesDef = COLOR_DEFINITIONS[preset.moduleColors.particles];
-                const uiDef = COLOR_DEFINITIONS[preset.moduleColors.ui];
-                const gameDef = COLOR_DEFINITIONS[preset.moduleColors.gamestructure];
+                const spritesDef = getColorDef(preset.moduleColors.sprites, preset.customHexes?.sprites);
+                const mapsDef = getColorDef(preset.moduleColors.maps, preset.customHexes?.maps);
+                const biomesDef = getColorDef(preset.moduleColors.biomes, preset.customHexes?.biomes);
+                const charDef = getColorDef(preset.moduleColors.prefabs, preset.customHexes?.prefabs);
+                const particlesDef = getColorDef(preset.moduleColors.particles, preset.customHexes?.particles);
+                const uiDef = getColorDef(preset.moduleColors.ui, preset.customHexes?.ui);
+                const gameDef = getColorDef(preset.moduleColors.gamestructure, preset.customHexes?.gamestructure);
 
                 const familyAnalysis = analyzeThemeFamilies(preset);
 
@@ -410,17 +512,75 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                 <div>
                   <h3 className="font-bold text-sm text-neutral-100 flex items-center gap-2">
                     <span 
-                      className="w-3 h-3 rounded-full" 
+                      className="w-3 h-3 rounded-full shadow-sm" 
                       style={{ backgroundColor: primaryDef.hex }} 
                     />
                     Main App & Dashboard Accent
+                    {theme.primary === 'custom' && (
+                      <span 
+                        className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border"
+                        style={{
+                          backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
+                          borderColor: `rgba(${primaryDef.rgb}, 0.4)`,
+                          color: primaryDef.hex
+                        }}
+                      >
+                        Custom {(theme.customHexes?.primary || DEFAULT_CUSTOM_HEXES.primary).toUpperCase()}
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    Primary theme color ordered linearly by chromatic hue.
+                    Primary theme color ordered linearly by chromatic hue, or configure your own custom hex swatch.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-1">
+                  {/* Custom Swatch Card */}
+                  <div
+                    className={`p-2 rounded-xl border flex items-center justify-between gap-1.5 transition text-left relative ${
+                      theme.primary === 'custom'
+                        ? 'border-white/60 bg-neutral-800 ring-2'
+                        : 'border-dashed border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800/80 hover:border-neutral-500'
+                    }`}
+                    style={theme.primary === 'custom' ? { 
+                      borderColor: primaryDef.hex,
+                      boxShadow: `0 0 0 2px ${primaryDef.hex}` 
+                    } : {}}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setPrimaryColor('custom')}
+                      className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                      title={`Custom Accent Color (${theme.customHexes?.primary || DEFAULT_CUSTOM_HEXES.primary})`}
+                    >
+                      <div 
+                        className="w-4 h-4 rounded-full shrink-0 shadow-sm flex items-center justify-center text-white relative border border-white/20"
+                        style={{ backgroundColor: theme.customHexes?.primary || DEFAULT_CUSTOM_HEXES.primary }}
+                      >
+                        {theme.primary === 'custom' && <Check size={10} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-semibold text-neutral-200 block truncate">
+                          Custom
+                        </span>
+                        <span className="text-[9px] font-mono text-neutral-400 block truncate">
+                          {(theme.customHexes?.primary || DEFAULT_CUSTOM_HEXES.primary).toUpperCase()}
+                        </span>
+                      </div>
+                    </button>
+
+                    <label className="cursor-pointer p-1 rounded-md bg-neutral-800/90 hover:bg-neutral-700 text-neutral-300 hover:text-white transition relative shrink-0" title="Pick custom color">
+                      <Paintbrush size={11} />
+                      <input
+                        type="color"
+                        value={theme.customHexes?.primary || DEFAULT_CUSTOM_HEXES.primary}
+                        onChange={(e) => setCustomHexColor('primary', e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Standard chromatic swatches */}
                   {colorKeys.map(k => {
                     const cDef = COLOR_DEFINITIONS[k];
                     const isSelected = theme.primary === k;
@@ -463,271 +623,59 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                     Individual Module Accent Colors
                   </h3>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    Configure custom colors for each mini-app module (ordered linearly by chromatic hue).
+                    Configure custom swatches or chromatic presets for each mini-app module.
                   </p>
                 </div>
 
                 <div className="space-y-3 divide-y divide-neutral-850">
-                  
-                  {/* Image Editor Module */}
-                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('sprites').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('sprites').hex,
-                          color: getModuleColorDef('sprites').hex
-                        }}
-                      >
-                        <Paintbrush size={15} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">Image & Sprite Studio (.sprite)</div>
-                        <div className="text-[10px] text-neutral-400">Pixel art studio, spray brush & sprite frame editing</div>
-                      </div>
-                    </div>
+                  {renderModuleColorRow(
+                    'sprites',
+                    'Image & Sprite Studio (.sprite)',
+                    'Pixel art studio, spray brush & sprite frame editing',
+                    <Paintbrush size={15} />
+                  )}
 
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
-                      {colorKeys.map(k => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setModuleColor('sprites', k)}
-                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.sprites === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
-                          title={COLOR_DEFINITIONS[k].name}
-                        >
-                          {theme.moduleColors.sprites === k && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {renderModuleColorRow(
+                    'maps',
+                    'Maps Module (.map)',
+                    'Strata painting & level geometry',
+                    <Map size={15} />
+                  )}
 
-                  {/* Maps Module */}
-                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('maps').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('maps').hex,
-                          color: getModuleColorDef('maps').hex
-                        }}
-                      >
-                        <Map size={15} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">Maps Module (.map)</div>
-                        <div className="text-[10px] text-neutral-400">Strata painting & level geometry</div>
-                      </div>
-                    </div>
+                  {renderModuleColorRow(
+                    'biomes',
+                    'Biomes Module (.biome)',
+                    'Parallax depth & dual-noise strata',
+                    <TreePine size={15} />
+                  )}
 
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
-                      {colorKeys.map(k => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setModuleColor('maps', k)}
-                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.maps === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
-                          title={COLOR_DEFINITIONS[k].name}
-                        >
-                          {theme.moduleColors.maps === k && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {renderModuleColorRow(
+                    'prefabs',
+                    'Prefab Creator & AI (.prefab)',
+                    'Spritesheets, hitboxes & IFTTT AI rules',
+                    <Users size={15} />
+                  )}
 
-                  {/* Biomes Module */}
-                  <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('biomes').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('biomes').hex,
-                          color: getModuleColorDef('biomes').hex
-                        }}
-                      >
-                        <TreePine size={15} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">Biomes Module (.biome)</div>
-                        <div className="text-[10px] text-neutral-400">Parallax depth & dual-noise strata</div>
-                      </div>
-                    </div>
+                  {renderModuleColorRow(
+                    'particles',
+                    'Particles & VFX Module (.particle)',
+                    'GPU physics particles, weather & spell FX',
+                    <Sparkles size={15} />
+                  )}
 
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
-                      {colorKeys.map(k => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setModuleColor('biomes', k)}
-                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.biomes === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
-                          title={COLOR_DEFINITIONS[k].name}
-                        >
-                          {theme.moduleColors.biomes === k && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {renderModuleColorRow(
+                    'ui',
+                    'UI & HUD Module (.ui)',
+                    'Gothic obsidian orbs, radar & gauges',
+                    <Sliders size={15} />
+                  )}
 
-                  {/* Prefabs Module */}
-                  <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('prefabs').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('prefabs').hex,
-                          color: getModuleColorDef('prefabs').hex
-                        }}
-                      >
-                        <Users size={15} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">Prefab Creator & AI (.prefab)</div>
-                        <div className="text-[10px] text-neutral-400">Spritesheets, hitboxes & IFTTT AI rules</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
-                      {colorKeys.map(k => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setModuleColor('prefabs', k)}
-                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.prefabs === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
-                          title={COLOR_DEFINITIONS[k].name}
-                        >
-                          {theme.moduleColors.prefabs === k && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Particles Module */}
-                  <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('particles').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('particles').hex,
-                          color: getModuleColorDef('particles').hex
-                        }}
-                      >
-                        <Sparkles size={15} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">Particles & VFX Module (.particle)</div>
-                        <div className="text-[10px] text-neutral-400">GPU physics particles, weather & spell FX</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
-                      {colorKeys.map(k => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setModuleColor('particles', k)}
-                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.particles === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
-                          title={COLOR_DEFINITIONS[k].name}
-                        >
-                          {theme.moduleColors.particles === k && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* UI Module */}
-                  <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('ui').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('ui').hex,
-                          color: getModuleColorDef('ui').hex
-                        }}
-                      >
-                        <Sliders size={15} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">UI & HUD Module (.ui)</div>
-                        <div className="text-[10px] text-neutral-400">Gothic obsidian orbs, radar & gauges</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
-                      {colorKeys.map(k => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setModuleColor('ui', k)}
-                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.ui === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
-                          title={COLOR_DEFINITIONS[k].name}
-                        >
-                          {theme.moduleColors.ui === k && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Game Structure Module */}
-                  <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7 h-7 rounded-lg border flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: `rgba(${getModuleColorDef('gamestructure').rgb}, 0.2)`,
-                          borderColor: getModuleColorDef('gamestructure').hex,
-                          color: getModuleColorDef('gamestructure').hex
-                        }}
-                      >
-                        <Network size={15} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">Game Graph Module (.gamestructure)</div>
-                        <div className="text-[10px] text-neutral-400">Finite state machine & world game flow</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full sm:max-w-md">
-                      {colorKeys.map(k => (
-                        <button
-                          key={k}
-                          type="button"
-                          onClick={() => setModuleColor('gamestructure', k)}
-                          className={`w-6 h-6 rounded-lg border transition flex items-center justify-center text-white shrink-0 ${
-                            theme.moduleColors.gamestructure === k ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: COLOR_DEFINITIONS[k].hex, borderColor: COLOR_DEFINITIONS[k].hex }}
-                          title={COLOR_DEFINITIONS[k].name}
-                        >
-                          {theme.moduleColors.gamestructure === k && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
+                  {renderModuleColorRow(
+                    'gamestructure',
+                    'Game Graph Module (.gamestructure)',
+                    'Finite state machine & world game flow',
+                    <Network size={15} />
+                  )}
                 </div>
               </div>
 
@@ -740,14 +688,72 @@ export const ThemeModal: React.FC<ThemeModalProps> = ({
                       style={{ backgroundColor: bgDef.hex }} 
                     />
                     <span>App Background Tone</span>
+                    {theme.backgroundTone === 'custom' && (
+                      <span 
+                        className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border"
+                        style={{
+                          backgroundColor: `rgba(${primaryDef.rgb}, 0.2)`,
+                          borderColor: `rgba(${primaryDef.rgb}, 0.4)`,
+                          color: primaryDef.hex
+                        }}
+                      >
+                        Custom {(theme.customHexes?.backgroundTone || DEFAULT_CUSTOM_HEXES.backgroundTone).toUpperCase()}
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    Choose the ambient dark tone for the workspace canvas, project dashboard, and UI chrome.
+                    Choose the ambient dark tone for the workspace canvas, project dashboard, and UI chrome, or pick a custom tone.
                   </p>
                 </div>
 
                 {/* Swatch Cards Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pt-1">
+                  {/* Custom Background Tone Card */}
+                  <div
+                    className={`p-2.5 rounded-xl border text-left transition flex items-center justify-between gap-2 relative group ${
+                      theme.backgroundTone === 'custom'
+                        ? 'ring-2 shadow-lg border-white/60 bg-neutral-800'
+                        : 'border-dashed border-neutral-700 bg-neutral-900/60 hover:border-neutral-500'
+                    }`}
+                    style={{ 
+                      backgroundColor: theme.customHexes?.backgroundTone || DEFAULT_CUSTOM_HEXES.backgroundTone,
+                      borderColor: theme.backgroundTone === 'custom' ? primaryDef.hex : undefined,
+                      boxShadow: theme.backgroundTone === 'custom' ? `0 0 0 2px ${primaryDef.hex}` : undefined
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setBackgroundTone('custom')}
+                      className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                      title="Custom Dark Tone"
+                    >
+                      <div 
+                        className="w-5 h-5 rounded-lg shrink-0 border border-neutral-600 flex items-center justify-center shadow-inner"
+                        style={{ backgroundColor: getBackgroundToneDef('custom', theme.customHexes?.backgroundTone).cardHex }}
+                      >
+                        {theme.backgroundTone === 'custom' && <Check size={11} style={{ color: primaryDef.hex }} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-neutral-100 truncate group-hover:text-white transition">
+                          Custom Tone
+                        </div>
+                        <div className="text-[9px] font-mono text-neutral-400 truncate">
+                          {(theme.customHexes?.backgroundTone || DEFAULT_CUSTOM_HEXES.backgroundTone).toUpperCase()}
+                        </div>
+                      </div>
+                    </button>
+
+                    <label className="cursor-pointer p-1.5 rounded-lg bg-neutral-900/80 hover:bg-neutral-700/80 border border-neutral-700 text-neutral-300 hover:text-white transition relative shrink-0" title="Pick custom dark tone">
+                      <Paintbrush size={11} />
+                      <input
+                        type="color"
+                        value={theme.customHexes?.backgroundTone || DEFAULT_CUSTOM_HEXES.backgroundTone}
+                        onChange={(e) => setCustomHexColor('backgroundTone', e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </label>
+                  </div>
+
                   {toneKeys.map(t => {
                     const bgOption = BACKGROUND_TONES[t];
                     const isSelected = theme.backgroundTone === t;

@@ -7,6 +7,9 @@ import {
   COLOR_DEFINITIONS, 
   BACKGROUND_TONES, 
   PRESET_APP_THEMES, 
+  DEFAULT_CUSTOM_HEXES,
+  getColorDef,
+  getBackgroundToneDef,
   loadSavedAppTheme, 
   saveAppTheme,
   applyThemeCSSVariables
@@ -18,9 +21,10 @@ interface ThemeContextType {
   bgDef: typeof BACKGROUND_TONES[BackgroundToneKey];
   getModuleColorDef: (moduleId: string) => ColorDef;
   setPresetTheme: (themeId: string) => void;
-  setPrimaryColor: (colorKey: AccentColorKey) => void;
-  setModuleColor: (moduleId: keyof AppThemeConfig['moduleColors'], colorKey: AccentColorKey) => void;
-  setBackgroundTone: (toneKey: BackgroundToneKey) => void;
+  setPrimaryColor: (colorKey: AccentColorKey, customHex?: string) => void;
+  setModuleColor: (moduleId: keyof AppThemeConfig['moduleColors'], colorKey: AccentColorKey, customHex?: string) => void;
+  setBackgroundTone: (toneKey: BackgroundToneKey, customHex?: string) => void;
+  setCustomHexColor: (target: 'primary' | 'backgroundTone' | keyof AppThemeConfig['moduleColors'], hex: string) => void;
   updateTheme: (updater: (prev: AppThemeConfig) => AppThemeConfig) => void;
   resetTheme: () => void;
 }
@@ -49,32 +53,89 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const setPrimaryColor = (colorKey: AccentColorKey) => {
-    updateTheme(prev => ({
-      ...prev,
-      primary: colorKey,
-      isCustom: true,
-      name: `Custom (${COLOR_DEFINITIONS[colorKey]?.name || colorKey})`
-    }));
+  const setPrimaryColor = (colorKey: AccentColorKey, customHex?: string) => {
+    updateTheme(prev => {
+      const nextHexes = { ...(prev.customHexes || {}) };
+      if (customHex) {
+        nextHexes.primary = customHex;
+      }
+      return {
+        ...prev,
+        primary: colorKey,
+        customHexes: nextHexes,
+        isCustom: true,
+        name: colorKey === 'custom' 
+          ? `Custom (${nextHexes.primary?.toUpperCase() || '#FF007F'})`
+          : `Custom (${COLOR_DEFINITIONS[colorKey]?.name || colorKey})`
+      };
+    });
   };
 
-  const setModuleColor = (moduleId: keyof AppThemeConfig['moduleColors'], colorKey: AccentColorKey) => {
-    updateTheme(prev => ({
-      ...prev,
-      moduleColors: {
-        ...prev.moduleColors,
-        [moduleId]: colorKey
-      },
-      isCustom: true
-    }));
+  const setModuleColor = (moduleId: keyof AppThemeConfig['moduleColors'], colorKey: AccentColorKey, customHex?: string) => {
+    updateTheme(prev => {
+      const nextHexes = { ...(prev.customHexes || {}) };
+      if (customHex) {
+        nextHexes[moduleId] = customHex;
+      }
+      return {
+        ...prev,
+        moduleColors: {
+          ...prev.moduleColors,
+          [moduleId]: colorKey
+        },
+        customHexes: nextHexes,
+        isCustom: true
+      };
+    });
   };
 
-  const setBackgroundTone = (toneKey: BackgroundToneKey) => {
-    updateTheme(prev => ({
-      ...prev,
-      backgroundTone: toneKey,
-      isCustom: true
-    }));
+  const setBackgroundTone = (toneKey: BackgroundToneKey, customHex?: string) => {
+    updateTheme(prev => {
+      const nextHexes = { ...(prev.customHexes || {}) };
+      if (customHex) {
+        nextHexes.backgroundTone = customHex;
+      }
+      return {
+        ...prev,
+        backgroundTone: toneKey,
+        customHexes: nextHexes,
+        isCustom: true
+      };
+    });
+  };
+
+  const setCustomHexColor = (target: 'primary' | 'backgroundTone' | keyof AppThemeConfig['moduleColors'], hex: string) => {
+    updateTheme(prev => {
+      const nextHexes = { ...(prev.customHexes || {}) };
+      nextHexes[target] = hex;
+
+      if (target === 'primary') {
+        return {
+          ...prev,
+          primary: 'custom',
+          customHexes: nextHexes,
+          isCustom: true,
+          name: `Custom (${hex.toUpperCase()})`
+        };
+      } else if (target === 'backgroundTone') {
+        return {
+          ...prev,
+          backgroundTone: 'custom',
+          customHexes: nextHexes,
+          isCustom: true
+        };
+      } else {
+        return {
+          ...prev,
+          moduleColors: {
+            ...prev.moduleColors,
+            [target]: 'custom'
+          },
+          customHexes: nextHexes,
+          isCustom: true
+        };
+      }
+    });
   };
 
   const resetTheme = () => {
@@ -83,17 +144,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const primaryDef = useMemo(() => {
-    return COLOR_DEFINITIONS[theme.primary] || COLOR_DEFINITIONS.indigo;
-  }, [theme.primary]);
+    return getColorDef(theme.primary, theme.customHexes?.primary || DEFAULT_CUSTOM_HEXES.primary);
+  }, [theme.primary, theme.customHexes?.primary]);
 
   const bgDef = useMemo(() => {
-    return BACKGROUND_TONES[theme.backgroundTone] || BACKGROUND_TONES.void;
-  }, [theme.backgroundTone]);
+    return getBackgroundToneDef(theme.backgroundTone, theme.customHexes?.backgroundTone || DEFAULT_CUSTOM_HEXES.backgroundTone);
+  }, [theme.backgroundTone, theme.customHexes?.backgroundTone]);
 
   const getModuleColorDef = (moduleId: string): ColorDef => {
     const modKey = moduleId as keyof AppThemeConfig['moduleColors'];
-    const accentKey = theme.moduleColors[modKey] || (moduleId === 'sprites' ? 'emerald' : 'cyan');
-    return COLOR_DEFINITIONS[accentKey] || COLOR_DEFINITIONS.cyan;
+    const accentKey = theme.moduleColors?.[modKey] || (moduleId === 'sprites' ? 'emerald' : 'cyan');
+    return getColorDef(accentKey, theme.customHexes?.[modKey] || DEFAULT_CUSTOM_HEXES[modKey] || DEFAULT_CUSTOM_HEXES.sprites);
   };
 
   return (
@@ -106,6 +167,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setPrimaryColor,
       setModuleColor,
       setBackgroundTone,
+      setCustomHexColor,
       updateTheme,
       resetTheme
     }}>
@@ -121,3 +183,4 @@ export const useAppTheme = (): ThemeContextType => {
   }
   return context;
 };
+

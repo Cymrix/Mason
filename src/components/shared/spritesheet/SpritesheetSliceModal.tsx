@@ -46,8 +46,6 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
   title = 'Configure & Slice Spritesheet',
   sheetLabel
 }) => {
-  if (!isOpen) return null;
-
   // Active image data
   const [imageSrc, setImageSrc] = useState<string>(initialImageSrc || initialImage?.url || '');
   const [sheetName, setSheetName] = useState<string>(initialName || initialImage?.name || sheetLabel || 'Spritesheet');
@@ -102,7 +100,6 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showCloudPicker, setShowCloudPicker] = useState(false);
 
   // Auto-resize canvas buffer to match container DOM dimensions without stretching
@@ -307,21 +304,6 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
     }
   }, [imageElement, currentFrameIndex, computedStats, marginX, marginY, spacingX, spacingY]);
 
-  // Handle local file upload
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSheetName(file.name.replace(/\.[^/.]+$/, ''));
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        setImageSrc(result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
   // Render Grid Overlay on Canvas
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -453,6 +435,29 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
     onClose();
   };
 
+  // Sync initial parameters whenever the modal becomes active or initial props change
+  useEffect(() => {
+    if (isOpen) {
+      if (initialImageSrc || initialImage?.url) {
+        setImageSrc(initialImageSrc || initialImage?.url || '');
+      }
+      if (initialName || initialImage?.name || sheetLabel) {
+        setSheetName(initialName || initialImage?.name || sheetLabel || 'Spritesheet');
+      }
+      if (initialImage?.splitMode) setSplitMode(initialImage.splitMode);
+      if (initialImage?.tileWidth) setTileWidth(initialImage.tileWidth);
+      if (initialImage?.tileHeight) setTileHeight(initialImage.tileHeight);
+      if (initialImage?.cols) setCols(initialImage.cols);
+      if (initialImage?.rows) setRows(initialImage.rows);
+      if (initialImage?.marginX !== undefined) setMarginX(initialImage.marginX);
+      if (initialImage?.marginY !== undefined) setMarginY(initialImage.marginY);
+      if (initialImage?.spacingX !== undefined) setSpacingX(initialImage.spacingX);
+      if (initialImage?.spacingY !== undefined) setSpacingY(initialImage.spacingY);
+    }
+  }, [isOpen, initialImageSrc, initialImage, initialName, sheetLabel]);
+
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 sm:p-6 select-none animate-in fade-in duration-150">
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-6xl h-[90vh] max-h-[860px] flex flex-col shadow-2xl overflow-hidden">
@@ -486,22 +491,6 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
               <Upload size={13} className="text-emerald-400" />
               <span>Import</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
-            >
-              <Upload size={13} />
-              <span>Replace Image</span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
 
             <button
               type="button"
@@ -613,25 +602,17 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
                   <div>
                     <h3 className="text-base font-bold text-white">Select Spritesheet Image</h3>
                     <p className="text-xs text-neutral-400 mt-1">
-                      Import a spritesheet from your connected Cloud Drive or upload a PNG/WEBP image from your device to configure slicing.
+                      Import a spritesheet from Cloud Drive, Virtual Drive, or your local device to configure slicing.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5 pt-2">
+                  <div className="pt-2">
                     <button
                       type="button"
                       onClick={() => setShowCloudPicker(true)}
-                      className="py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
-                    >
-                      <Cloud size={15} className="text-emerald-400" />
-                      <span>Cloud Drive</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="py-2.5 px-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+                      className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-lg shadow-purple-950/50"
                     >
                       <Upload size={15} />
-                      <span>Local File</span>
+                      <span>Import Image (Cloud, Virtual Drive, Local)</span>
                     </button>
                   </div>
                 </div>

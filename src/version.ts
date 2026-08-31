@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.233';
-export const MASON_VERSION_DISPLAY = 'v0.233';
-export const MASON_FULL_VERSION = 'v0.233';
+export const MASON_VERSION = '0.235';
+export const MASON_VERSION_DISPLAY = 'v0.235';
+export const MASON_FULL_VERSION = 'v0.235';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,21 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.235',
+    date: '2026-08-31',
+    changes: [
+      'Fixed React Rules of Hooks violation in SpritesheetSliceModal where early return (if (!isOpen) return null) preceded hook definitions, causing static flag runtime errors.'
+    ]
+  },
+  {
+    version: 'v0.234',
+    date: '2026-08-31',
+    changes: [
+      'Set "Grid (Cols×Rows)" as the default slicing mode across SpritesheetSliceModal and editor integrations.',
+      'Removed redundant "Replace Image" button and direct file input from SpritesheetSliceModal in favor of the unified Import modal (Google Drive, OneDrive, Virtual Drive, Local File).'
+    ]
+  },
   {
     version: 'v0.233',
     date: '2026-08-31',

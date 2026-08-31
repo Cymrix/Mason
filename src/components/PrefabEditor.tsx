@@ -3916,7 +3916,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                 const isSelected = (selectedSheetId === sheet.id) || (!selectedSheetId && sIdx === 0);
                 const sheetW = sheet.imageWidth || ((sheet.cols || 8) * (sheet.tileWidth || 64)) || 512;
                 const sheetH = sheet.imageHeight || ((sheet.rows || 4) * (sheet.tileHeight || 64)) || 256;
-                const splitMode = sheet.splitMode || 'pixels';
+                const splitMode = sheet.splitMode || 'columns';
 
                 const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
                   const file = e.target.files?.[0];
@@ -3939,7 +3939,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                         tileHeight: sheet.tileHeight || 64,
                         cols: sheet.cols || 8,
                         rows: sheet.rows || 4,
-                        splitMode: sheet.splitMode || 'pixels'
+                        splitMode: sheet.splitMode || 'columns'
                       }
                     });
                   };
@@ -4076,7 +4076,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                             tileHeight: sheet.tileHeight || 64,
                             cols: sheet.cols || 8,
                             rows: sheet.rows || 4,
-                            splitMode: sheet.splitMode || 'pixels'
+                            splitMode: sheet.splitMode || 'columns'
                           }
                         });
                       }}
@@ -4135,7 +4135,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                 tileHeight: sheet.tileHeight,
                                 cols: sheet.cols,
                                 rows: sheet.rows,
-                                splitMode: sheet.splitMode
+                                splitMode: sheet.splitMode || 'columns'
                               }
                             });
                           }}
@@ -4160,7 +4160,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                                 tileHeight: sheet.tileHeight || 64,
                                 cols: sheet.cols || 8,
                                 rows: sheet.rows || 4,
-                                splitMode: sheet.splitMode || 'pixels'
+                                splitMode: sheet.splitMode || 'columns'
                               }
                             });
                           }}

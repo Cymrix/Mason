@@ -1,0 +1,744 @@
+import { MasonProject } from '../engine/masonProjectSchema';
+import { saveProjectToGoogleDrive, saveModularProjectToGoogleDrive, getGoogleDriveToken } from './googleDriveStorage';
+import { saveProjectToOneDrive, saveModularProjectToOneDrive, getOneDriveToken } from './oneDriveStorage';
+import { getProjectMasonFileName } from './masonStorage';
+
+export type LinkedLocationType = 'local_idb' | 'local_file' | 'local_directory' | 'gdrive' | 'onedrive';
+
+export interface LinkedStorageLocation {
+  type: LinkedLocationType;
+  displayName: string;
+  targetId?: string;           // Cloud fileId, or folder ID, or local file handle key
+  targetFolderId?: string;     // Cloud parent folder ID or path
+  targetFolderName?: string;   // Cloud folder name or local directory name
+  fileName?: string;           // e.g. "MyWorld.mason"
+  lastSyncedAt?: string;       // ISO string
+  etag?: string;               // Cloud or local file checksum / modified timestamp for lock detection
+  isAutoSyncEnabled?: boolean; // If changes should auto-sync in the background
+  lockedBy?: {                 // Step 2 lock indicator
+    user: string;
+    timestamp: string;
+    clientId: string;
+  };
+}
+
+export interface FileLockInfo {
+  isLocked: boolean;
+  lockedBy?: string;
+  lockedAt?: string;
+  lockClientId?: string;
+  isStale?: boolean; // Lock expired (> 15 minutes without heartbeat)
+}
+
+export interface SyncResult {
+  success: boolean;
+  remoteConflictDetected?: boolean;
+  conflictDetails?: {
+    remoteModifiedAt?: string;
+    remoteVersion?: string;
+    remoteUser?: string;
+  };
+  error?: string;
+  syncedLocation?: LinkedStorageLocation;
+}
+
+// In-memory runtime handle storage for File System Access API (not serializable in JSON)
+let activeFileSystemFileHandle: any = null;
+let activeFileSystemDirHandle: any = null;
+
+export const getActiveFileSystemFileHandle = () => activeFileSystemFileHandle;
+export const setActiveFileSystemFileHandle = (handle: any) => { activeFileSystemFileHandle = handle; };
+
+export const getActiveFileSystemDirHandle = () => activeFileSystemDirHandle;
+export const setActiveFileSystemDirHandle = (handle: any) => { activeFileSystemDirHandle = handle; };
+
+// Unique client session ID for this browser tab to identify lock owners
+export const CURRENT_CLIENT_SESSION_ID = `mason_client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+/**
+ * Creates default local storage location metadata
+ */
+export const createDefaultStorageLocation = (projectName: string): LinkedStorageLocation => {
+  return {
+    type: 'local_idb',
+    displayName: 'Browser Workspace (IndexedDB)',
+    fileName: `${projectName}.mason`,
+    lastSyncedAt: new Date().toISOString(),
+    isAutoSyncEnabled: true
+  };
+};
+
+/**
+ * Checks if File System Access API is supported by the user's browser
+ */
+export const isFileSystemAccessSupported = (): boolean => {
+  return typeof window !== 'undefined' && 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
+};
+
+export const isDirectoryAccessSupported = (): boolean => {
+  return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+};
+
+/**
+ * Prompts user to pick a local file on their hard drive to bind to this project
+ */
+export const linkProjectToLocalFile = async (projectName: string): Promise<{ location: LinkedStorageLocation; handle: any } | null> => {
+  if (!isFileSystemAccessSupported()) {
+    throw new Error('File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.');
+  }
+
+  try {
+    const handle = await (window as any).showSaveFilePicker({
+      suggestedName: `${projectName}.mason`,
+      types: [{
+        description: 'Mason Project Bundle (*.mason)',
+        accept: {
+          'application/json': ['.mason', '.json']
+        }
+      }]
+    });
+
+    if (!handle) return null;
+
+    activeFileSystemFileHandle = handle;
+
+    const location: LinkedStorageLocation = {
+      type: 'local_file',
+      displayName: `Local File (${handle.name})`,
+      fileName: handle.name,
+      targetId: handle.name,
+      lastSyncedAt: new Date().toISOString(),
+      isAutoSyncEnabled: true
+    };
+
+    return { location, handle };
+  } catch (err: any) {
+    if (err.name === 'AbortError') return null;
+    throw err;
+  }
+};
+
+/**
+ * Prompts user to pick a local folder on their hard drive for modular multi-file sync (Step 1)
+ */
+export const linkProjectToLocalDirectory = async (projectName: string): Promise<{ location: LinkedStorageLocation; handle: any } | null> => {
+  if (!isDirectoryAccessSupported()) {
+    throw new Error('Directory Access is not supported in this browser. Please use Chrome, Edge, or Opera.');
+  }
+
+  try {
+    const dirHandle = await (window as any).showDirectoryPicker({
+      mode: 'readwrite'
+    });
+
+    if (!dirHandle) return null;
+
+    activeFileSystemDirHandle = dirHandle;
+
+    const location: LinkedStorageLocation = {
+      type: 'local_directory',
+      displayName: `Local Folder (${dirHandle.name})`,
+      targetFolderName: dirHandle.name,
+      targetId: dirHandle.name,
+      fileName: `${projectName}.mason`,
+      lastSyncedAt: new Date().toISOString(),
+      isAutoSyncEnabled: true
+    };
+
+    return { location, handle: dirHandle };
+  } catch (err: any) {
+    if (err.name === 'AbortError') return null;
+    throw err;
+  }
+};
+
+/**
+ * Writes modular files (Step 1: Modular Multi-File Structure) to a connected local directory
+ */
+export const writeModularProjectToDirectory = async (project: MasonProject, dirHandle: any): Promise<void> => {
+  if (!dirHandle) throw new Error('No directory handle available');
+
+  // 1. Write root project manifest file (e.g. mourne_edris.mason)
+  const manifestFileName = getProjectMasonFileName(project.name);
+  const manifestFileHandle = await dirHandle.getFileHandle(manifestFileName, { create: true });
+  const manifestWritable = await manifestFileHandle.createWritable();
+  
+  // Clean manifest copy containing metadata and index
+  const manifestData = {
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    author: project.author,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+    engineVersion: project.engineVersion,
+    activeModule: project.activeModule,
+    activeFiles: project.activeFiles,
+    storageLocation: project.storageLocation,
+    lockInfo: project.lockInfo,
+    taskBoard: project.taskBoard,
+    fileIndex: {
+      maps: (project.fileSystem?.maps || []).map(m => m.fileName),
+      biomes: (project.fileSystem?.biomes || []).map(b => b.fileName),
+      prefabs: (project.fileSystem?.prefabs || []).map(p => p.fileName),
+      ui: (project.fileSystem?.ui || []).map(u => u.fileName),
+      game: (project.fileSystem?.game || []).map(g => g.fileName),
+      particles: (project.fileSystem?.particles || []).map(p => p.fileName),
+      sprites: (project.fileSystem?.sprites || []).map(s => s.fileName),
+      behaviors: (project.fileSystem?.behaviors || []).map(b => b.fileName),
+      images: (project.fileSystem?.images || []).map(i => i.fileName)
+    }
+  };
+
+  await manifestWritable.write(JSON.stringify(manifestData, null, 2));
+  await manifestWritable.close();
+
+  // Helper to write subdirectories
+  const writeSubdirFiles = async (subdirName: string, files: any[]) => {
+    if (!files || files.length === 0) return;
+    const subDirHandle = await dirHandle.getDirectoryHandle(subdirName, { create: true });
+    for (const file of files) {
+      const fileName = file.fileName || `${file.id || 'file'}.json`;
+      const fileHandle = await subDirHandle.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(file, null, 2));
+      await writable.close();
+    }
+  };
+
+  // Write all modular sub-folders
+  await writeSubdirFiles('maps', project.fileSystem?.maps || []);
+  await writeSubdirFiles('biomes', project.fileSystem?.biomes || []);
+  await writeSubdirFiles('prefabs', project.fileSystem?.prefabs || []);
+  await writeSubdirFiles('ui', project.fileSystem?.ui || []);
+  await writeSubdirFiles('structure', project.fileSystem?.game || []);
+  await writeSubdirFiles('particles', project.fileSystem?.particles || []);
+  await writeSubdirFiles('sprites', project.fileSystem?.sprites || []);
+  await writeSubdirFiles('behaviors', project.fileSystem?.behaviors || []);
+  await writeSubdirFiles('assets', project.fileSystem?.images || []);
+};
+
+/**
+ * Saves a project to its configured target location (Local File, Local Folder, GDrive, OneDrive, or IDB)
+ * Includes Step 2 Lock & Conflict verification
+ */
+export const saveProjectToLinkedLocation = async (
+  project: MasonProject, 
+  forceOverride: boolean = false
+): Promise<SyncResult> => {
+  const location = project.storageLocation;
+  if (!location || location.type === 'local_idb') {
+    return {
+      success: true,
+      syncedLocation: {
+        ...(location || createDefaultStorageLocation(project.name)),
+        lastSyncedAt: new Date().toISOString()
+      }
+    };
+  }
+
+  // Pre-flight check: Verify target storage location connectivity and access permission
+  const accessCheck = await verifyLinkedStorageAccess(project);
+  if (!accessCheck.available) {
+    return {
+      success: false,
+      error: `Storage location unreachable: ${accessCheck.reason}`
+    };
+  }
+
+  // Check locks (Step 2)
+  if (!forceOverride && project.lockInfo?.isLocked) {
+    const isLockedByOther = project.lockInfo.lockClientId && project.lockInfo.lockClientId !== CURRENT_CLIENT_SESSION_ID;
+    if (isLockedByOther) {
+      return {
+        success: false,
+        remoteConflictDetected: true,
+        conflictDetails: {
+          remoteUser: project.lockInfo.lockedBy || 'Another Collaborator',
+          remoteModifiedAt: project.lockInfo.lockedAt
+        },
+        error: `Project is locked by ${project.lockInfo.lockedBy || 'another user'} to prevent conflicting changes.`
+      };
+    }
+  }
+
+  try {
+    if (location.type === 'local_file') {
+      let handle = activeFileSystemFileHandle;
+      if (!handle) {
+        // Try linking file picker
+        const linked = await linkProjectToLocalFile(project.name);
+        if (!linked) return { success: false, error: 'Save cancelled: No file selected' };
+        handle = linked.handle;
+      }
+
+      const writable = await handle.createWritable();
+      await writable.write(JSON.stringify(project, null, 2));
+      await writable.close();
+
+      const updatedLoc: LinkedStorageLocation = {
+        ...location,
+        displayName: `Local File (${handle.name})`,
+        fileName: handle.name,
+        lastSyncedAt: new Date().toISOString()
+      };
+
+      return { success: true, syncedLocation: updatedLoc };
+    }
+
+    if (location.type === 'local_directory') {
+      let dirHandle = activeFileSystemDirHandle;
+      if (!dirHandle) {
+        const linked = await linkProjectToLocalDirectory(project.name);
+        if (!linked) return { success: false, error: 'Save cancelled: No folder selected' };
+        dirHandle = linked.handle;
+      }
+
+      await writeModularProjectToDirectory(project, dirHandle);
+
+      const updatedLoc: LinkedStorageLocation = {
+        ...location,
+        displayName: `Local Folder (${dirHandle.name})`,
+        targetFolderName: dirHandle.name,
+        lastSyncedAt: new Date().toISOString()
+      };
+
+      return { success: true, syncedLocation: updatedLoc };
+    }
+
+    if (location.type === 'gdrive') {
+      const token = getGoogleDriveToken();
+      if (!token) {
+        return { success: false, error: 'Google Drive is not connected. Please connect via File Manager.' };
+      }
+
+      if (location.targetFolderId) {
+        await saveModularProjectToGoogleDrive(project, location.targetFolderId, location.targetFolderName);
+        const updatedLoc: LinkedStorageLocation = {
+          ...location,
+          displayName: `Google Drive Folder (${location.targetFolderName || 'Workspace Folder'})`,
+          lastSyncedAt: new Date().toISOString()
+        };
+        return { success: true, syncedLocation: updatedLoc };
+      } else {
+        const saved = await saveProjectToGoogleDrive(project as any, {
+          targetFolderId: location.targetFolderId,
+          customFileName: location.fileName || `${project.name}.mason`
+        });
+
+        const updatedLoc: LinkedStorageLocation = {
+          ...location,
+          targetId: saved.id,
+          fileName: saved.name,
+          displayName: `Google Drive (${location.targetFolderName || 'Root'})`,
+          lastSyncedAt: new Date().toISOString(),
+          etag: saved.modifiedTime
+        };
+
+        return { success: true, syncedLocation: updatedLoc };
+      }
+    }
+
+    if (location.type === 'onedrive') {
+      const token = await ensureOneDriveToken();
+      if (!token) {
+        return { success: false, error: 'OneDrive is not connected. Please connect via File Manager.' };
+      }
+
+      if (location.targetFolderId) {
+        await saveModularProjectToOneDrive(project, location.targetFolderId, location.targetFolderName);
+        const updatedLoc: LinkedStorageLocation = {
+          ...location,
+          displayName: `OneDrive Folder (${location.targetFolderName || 'Workspace Folder'})`,
+          lastSyncedAt: new Date().toISOString()
+        };
+        return { success: true, syncedLocation: updatedLoc };
+      } else {
+        const saved = await saveProjectToOneDrive(project as any, {
+          targetFolderId: location.targetFolderId,
+          customFileName: location.fileName || `${project.name}.mason`
+        });
+
+        const updatedLoc: LinkedStorageLocation = {
+          ...location,
+          targetId: saved.id,
+          fileName: saved.name,
+          displayName: `OneDrive (${location.targetFolderName || 'Root'})`,
+          lastSyncedAt: new Date().toISOString(),
+          etag: saved.modifiedTime
+        };
+
+        return { success: true, syncedLocation: updatedLoc };
+      }
+    }
+
+    return { success: true, syncedLocation: location };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Unknown save error' };
+  }
+};
+
+/**
+ * Reads a modular project structure from a connected local directory
+ */
+export const readModularProjectFromDirectory = async (dirHandle: any): Promise<MasonProject> => {
+  if (!dirHandle) throw new Error('No directory handle available');
+
+  // 1. Read root project manifest (e.g. mourne_edris.mason or project.mason)
+  let manifestFileHandle: any;
+  let foundManifestName: string | null = null;
+  const expectedManifestName = getProjectMasonFileName(dirHandle.name);
+
+  try {
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file' && entry.name.endsWith('.mason')) {
+        if (entry.name === expectedManifestName) {
+          foundManifestName = entry.name;
+          break;
+        }
+        if (!foundManifestName || entry.name === 'project.mason') {
+          foundManifestName = entry.name;
+        }
+      }
+    }
+
+    if (foundManifestName) {
+      manifestFileHandle = await dirHandle.getFileHandle(foundManifestName);
+    } else {
+      manifestFileHandle = await dirHandle.getFileHandle('project.mason');
+    }
+  } catch (e) {
+    throw new Error(`No .mason project manifest found in directory "${dirHandle.name}".`);
+  }
+
+  const manifestFile = await manifestFileHandle.getFile();
+  const manifestText = await manifestFile.text();
+  const manifestData = JSON.parse(manifestText);
+
+  // Helper to read all json files from a subdirectory
+  const readSubdirFiles = async (subdirName: string): Promise<any[]> => {
+    try {
+      const subDirHandle = await dirHandle.getDirectoryHandle(subdirName);
+      const items: any[] = [];
+      for await (const entry of subDirHandle.values()) {
+        if (entry.kind === 'file' && !entry.name.startsWith('.')) {
+          const f = await entry.getFile();
+          const t = await f.text();
+          try {
+            items.push(JSON.parse(t));
+          } catch (err) {
+            console.warn(`Failed parsing modular file: ${subdirName}/${entry.name}`, err);
+          }
+        }
+      }
+      return items;
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const maps = await readSubdirFiles('maps');
+  const biomes = await readSubdirFiles('biomes');
+  const prefabs = await readSubdirFiles('prefabs');
+  const ui = await readSubdirFiles('ui');
+  const game = await readSubdirFiles('structure');
+  const particles = await readSubdirFiles('particles');
+  const sprites = await readSubdirFiles('sprites');
+  const behaviors = await readSubdirFiles('behaviors');
+  const images = await readSubdirFiles('assets');
+
+  const loadedProject: MasonProject = {
+    id: manifestData.id || `proj_${Date.now()}`,
+    name: manifestData.name || dirHandle.name || 'Modular Project',
+    description: manifestData.description || '',
+    author: manifestData.author || '',
+    createdAt: manifestData.createdAt || new Date().toISOString(),
+    updatedAt: manifestData.updatedAt || new Date().toISOString(),
+    engineVersion: manifestData.engineVersion || '0.257',
+    activeModule: manifestData.activeModule || 'map_editor',
+    activeFiles: manifestData.activeFiles || {
+      mapFileName: maps[0]?.fileName || 'main_world.map',
+      biomeFileName: biomes[0]?.fileName || 'mourne_steppes.biome',
+      prefabFileName: prefabs[0]?.fileName || '',
+      uiFileName: ui[0]?.fileName || 'default_ui.ui',
+      gameStructureFileName: game[0]?.fileName || 'game_flow.structure',
+      particleFileName: particles[0]?.fileName || '',
+      spriteFileName: sprites[0]?.fileName || ''
+    },
+    storageLocation: {
+      type: 'local_directory',
+      displayName: `Local Folder (${dirHandle.name})`,
+      targetFolderName: dirHandle.name,
+      targetId: dirHandle.name,
+      fileName: getProjectMasonFileName(manifestData.name || dirHandle.name),
+      lastSyncedAt: new Date().toISOString(),
+      isAutoSyncEnabled: true
+    },
+    lockInfo: manifestData.lockInfo || {
+      isLocked: false,
+      lockClientId: CURRENT_CLIENT_SESSION_ID
+    },
+    taskBoard: manifestData.taskBoard,
+    fileSystem: {
+      maps,
+      biomes,
+      prefabs,
+      ui,
+      game,
+      particles,
+      sprites,
+      behaviors,
+      images
+    }
+  };
+
+  return loadedProject;
+};
+
+/**
+ * Acquires a collaborative lock on the project (Step 2 Concurrency Control)
+ */
+export const acquireProjectLock = (project: MasonProject, userName: string = 'User'): MasonProject => {
+  return {
+    ...project,
+    lockInfo: {
+      isLocked: true,
+      lockedBy: userName,
+      lockedAt: new Date().toISOString(),
+      lockClientId: CURRENT_CLIENT_SESSION_ID
+    }
+  };
+};
+
+export interface StorageAccessVerification {
+  available: boolean;
+  reason?: string;
+  locationType: LinkedLocationType;
+  displayName: string;
+}
+
+/**
+ * Verifies if the linked storage location for a project is currently accessible/reachable.
+ * Used on app launch, before saving, before backing up, and periodically in background.
+ */
+export const verifyLinkedStorageAccess = async (
+  project: MasonProject
+): Promise<StorageAccessVerification> => {
+  const loc = project?.storageLocation;
+  if (!loc || loc.type === 'local_idb') {
+    return {
+      available: true,
+      locationType: 'local_idb',
+      displayName: 'Browser Workspace (IndexedDB)'
+    };
+  }
+
+  const displayName = loc.displayName || loc.targetFolderName || loc.fileName || loc.type;
+
+  if (loc.type === 'local_directory') {
+    const handle = activeFileSystemDirHandle;
+    if (!handle) {
+      return {
+        available: false,
+        reason: `Local folder handle for "${displayName}" is missing or expired in current session. Re-select folder in File Manager.`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+    try {
+      if (typeof handle.queryPermission === 'function') {
+        const perm = await handle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') {
+          return {
+            available: false,
+            reason: `Permission to access local folder "${handle.name || displayName}" is not granted. Re-select folder in File Manager.`,
+            locationType: loc.type,
+            displayName
+          };
+        }
+      }
+      return { available: true, locationType: loc.type, displayName };
+    } catch (e: any) {
+      return {
+        available: false,
+        reason: `Local directory unreachable: ${e.message}`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+  }
+
+  if (loc.type === 'local_file') {
+    const handle = activeFileSystemFileHandle;
+    if (!handle) {
+      return {
+        available: false,
+        reason: `Local file handle for "${displayName}" is missing or expired in current session. Re-select file in File Manager.`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+    try {
+      if (typeof handle.queryPermission === 'function') {
+        const perm = await handle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') {
+          return {
+            available: false,
+            reason: `Permission to access local file "${handle.name || displayName}" is not granted. Re-select file in File Manager.`,
+            locationType: loc.type,
+            displayName
+          };
+        }
+      }
+      return { available: true, locationType: loc.type, displayName };
+    } catch (e: any) {
+      return {
+        available: false,
+        reason: `Local file unreachable: ${e.message}`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+  }
+
+  if (loc.type === 'gdrive') {
+    const token = getGoogleDriveToken();
+    if (!token) {
+      return {
+        available: false,
+        reason: `Google Drive is disconnected. Please re-authenticate Google Drive in profile or File Manager.`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+    try {
+      const targetId = loc.targetFolderId || loc.targetId || 'root';
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${targetId}?fields=id,name`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          return {
+            available: false,
+            reason: `Google Drive session has expired. Please re-connect Google Drive in File Manager.`,
+            locationType: loc.type,
+            displayName
+          };
+        }
+        if (res.status === 404) {
+          return {
+            available: false,
+            reason: `Target Google Drive folder or file (${targetId}) was not found or was deleted.`,
+            locationType: loc.type,
+            displayName
+          };
+        }
+      }
+      return { available: true, locationType: loc.type, displayName };
+    } catch (err: any) {
+      return {
+        available: false,
+        reason: `Google Drive network check failed: ${err.message}`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+  }
+
+  if (loc.type === 'onedrive') {
+    const token = await ensureOneDriveToken();
+    if (!token) {
+      return {
+        available: false,
+        reason: `OneDrive is disconnected. Please re-authenticate Microsoft OneDrive in profile or File Manager.`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+    try {
+      const targetId = loc.targetFolderId || loc.targetId || 'root';
+      const endpoint = targetId === 'root'
+        ? 'https://graph.microsoft.com/v1.0/me/drive/root'
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${targetId}`;
+      const res = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          return {
+            available: false,
+            reason: `OneDrive session has expired. Please re-connect OneDrive in File Manager.`,
+            locationType: loc.type,
+            displayName
+          };
+        }
+        if (res.status === 404) {
+          return {
+            available: false,
+            reason: `Target OneDrive folder or file (${targetId}) was not found or was deleted.`,
+            locationType: loc.type,
+            displayName
+          };
+        }
+      }
+      return { available: true, locationType: loc.type, displayName };
+    } catch (err: any) {
+      return {
+        available: false,
+        reason: `OneDrive network check failed: ${err.message}`,
+        locationType: loc.type,
+        displayName
+      };
+    }
+  }
+
+  return { available: true, locationType: loc.type, displayName };
+};
+
+/**
+ * Checks if a local directory already contains a valid Mason project
+ */
+export const checkExistingLocalDirProject = async (dirHandle: any): Promise<MasonProject | null> => {
+  if (!dirHandle) return null;
+  try {
+    const proj = await readModularProjectFromDirectory(dirHandle);
+    if (proj && (proj.name || proj.id)) return proj;
+  } catch (err) {
+    // Directory does not contain a valid .mason project manifest; check if non-empty
+    try {
+      let count = 0;
+      for await (const entry of dirHandle.values()) {
+        count++;
+        if (count > 0) break;
+      }
+      if (count > 0) {
+        return {
+          id: `existing_dir_${Date.now()}`,
+          name: dirHandle.name || 'Existing Directory Contents',
+          description: 'Non-empty local folder containing existing files',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          engineVersion: '0.268',
+          activeModule: 'map_editor'
+        } as MasonProject;
+      }
+    } catch {}
+  }
+  return null;
+};
+
+/**
+ * Releases a collaborative lock on the project (Step 2 Concurrency Control)
+ */
+export const releaseProjectLock = (project: MasonProject): MasonProject => {
+  return {
+    ...project,
+    lockInfo: {
+      isLocked: false,
+      lockedBy: undefined,
+      lockedAt: undefined,
+      lockClientId: undefined
+    }
+  };
+};
+

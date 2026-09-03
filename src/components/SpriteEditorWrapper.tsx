@@ -5,7 +5,7 @@ import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { createNewSpriteInProject, saveActiveMasonProject } from '../utils/masonStorage';
 import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
 import { VirtualExportImageModal, PendingExportData } from './VirtualExportImageModal';
-import { CloudImageImportModal } from './CloudImageImportModal';
+import { UnifiedFileManagerModal } from './UnifiedFileManagerModal';
 import { SpritesheetSliceModal } from './shared/spritesheet/SpritesheetSliceModal';
 import { SpritesheetSliceResult } from './shared/spritesheet/types';
 import { Image as ImageIcon, AlertTriangle, Save, Trash2, X, Cloud, Scissors, Upload } from 'lucide-react';
@@ -1313,15 +1313,17 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         />
       )}
 
-      {/* Cloud & Local Image / Spritesheet Browser Modal */}
+      {/* Unified File Manager Modal - Asset Import Mode */}
       {showCloudImageModal && (
-        <CloudImageImportModal
+        <UnifiedFileManagerModal
           isOpen={showCloudImageModal}
           onClose={() => setShowCloudImageModal(false)}
+          action="import_asset"
           project={project}
           activeSpriteName={activeFile?.name || activeFileName}
           onImportSingleImage={handleImportSingleImage}
           onImportSpritesheet={handleImportSpritesheet}
+          onShowToast={onShowToast}
         />
       )}
 

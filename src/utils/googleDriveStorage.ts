@@ -1,4 +1,5 @@
 import { ProjectData, parseProjectJson } from './projectStorage';
+import { getProjectMasonFileName } from './masonStorage';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
@@ -264,7 +265,7 @@ export const listGoogleDriveFolderContents = async (folderId?: string | null): P
   const query = `'${parentId}' in parents and trashed = false`;
   const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,modifiedTime,size,webViewLink)&orderBy=folder desc,name asc&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` }
   });
 
@@ -626,3 +627,353 @@ export const downloadFileAsTextFromGoogleDrive = async (fileId: string): Promise
 
   return await res.text();
 };
+
+/**
+ * Standard fetch wrapper with a default 10-second timeout to prevent stalling
+ */
+export const fetchWithTimeout = async (resource: RequestInfo | URL, options: RequestInit & { timeout?: number } = {}) => {
+  const { timeout = 10000, ...rest } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...rest,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error: any) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your cloud network connection.');
+    }
+    throw error;
+  }
+};
+
+/**
+ * Helper to ensure a subfolder exists inside a parent Google Drive folder
+ */
+export const ensureGoogleDriveSubfolder = async (parentFolderId: string, subfolderName: string): Promise<string> => {
+  let token = getGoogleDriveToken();
+  if (!token) throw new Error('Not connected to Google Drive.');
+
+  const parentId = parentFolderId || 'root';
+  const query = encodeURIComponent(`name = '${subfolderName.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const checkRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (checkRes.ok) {
+    const data = await checkRes.json();
+    if (data.files && data.files.length > 0) {
+      return data.files[0].id;
+    }
+  }
+
+  // Create subfolder
+  const created = await createGoogleDriveFolder(subfolderName, parentId);
+  return created.id;
+};
+
+/**
+ * Checks if a Google Drive folder contains a modular Mason project manifest (project.mason)
+ */
+export const checkIfGoogleDriveFolderIsModularProject = async (folderId: string): Promise<boolean> => {
+  const token = getGoogleDriveToken();
+  if (!token) return false;
+
+  const parentId = folderId || 'root';
+  try {
+    const items = await listGoogleDriveFolderContents(parentId);
+    return items.some(item => !item.isFolder && item.name.endsWith('.mason'));
+  } catch (e) {
+    console.warn('Failed to check modular project status in Google Drive:', e);
+  }
+  return false;
+};
+
+/**
+ * Saves a project in modular multi-file format to a selected Google Drive folder
+ * (writes project_name.mason manifest + maps/, biomes/, prefabs/, ui/, structure/, particles/, sprites/, behaviors/, assets/)
+ */
+export const saveModularProjectToGoogleDrive = async (
+  project: any,
+  folderId: string,
+  folderName?: string
+): Promise<{ success: boolean; folderId: string; folderName: string }> => {
+  let token = getGoogleDriveToken();
+  if (!token) throw new Error('Not connected to Google Drive.');
+
+  const parentFolderId = folderId || 'root';
+
+  // 1. Write project manifest (e.g. mourne_edris.mason)
+  const manifestData = {
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    author: project.author,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt || new Date().toISOString(),
+    engineVersion: project.engineVersion || '0.258',
+    activeModule: project.activeModule,
+    activeFiles: project.activeFiles,
+    storageLocation: {
+      type: 'gdrive',
+      targetFolderId: parentFolderId,
+      targetFolderName: folderName || 'Google Drive Folder',
+      displayName: `Google Drive: ${folderName || 'Project Folder'}`,
+      lastSyncedAt: new Date().toISOString(),
+      isAutoSyncEnabled: true
+    },
+    lockInfo: project.lockInfo,
+    taskBoard: project.taskBoard,
+    fileIndex: {
+      maps: (project.fileSystem?.maps || []).map((m: any) => m.fileName),
+      biomes: (project.fileSystem?.biomes || []).map((b: any) => b.fileName),
+      prefabs: (project.fileSystem?.prefabs || []).map((p: any) => p.fileName),
+      ui: (project.fileSystem?.ui || []).map((u: any) => u.fileName),
+      game: (project.fileSystem?.game || []).map((g: any) => g.fileName),
+      particles: (project.fileSystem?.particles || []).map((p: any) => p.fileName),
+      sprites: (project.fileSystem?.sprites || []).map((s: any) => s.fileName),
+      behaviors: (project.fileSystem?.behaviors || []).map((b: any) => b.fileName),
+      images: (project.fileSystem?.images || []).map((i: any) => i.fileName)
+    }
+  };
+
+  const manifestFileName = getProjectMasonFileName(project.name);
+  await saveFileToGoogleDrive(manifestFileName, JSON.stringify(manifestData, null, 2), 'application/json', {
+    targetFolderId: parentFolderId
+  });
+
+  // Helper to write files into a category subfolder
+  const writeSubdir = async (subfolderName: string, files: any[]) => {
+    if (!files || files.length === 0) return;
+    const subFolderId = await ensureGoogleDriveSubfolder(parentFolderId, subfolderName);
+    for (const file of files) {
+      const fileName = file.fileName || `${file.id || 'file'}.json`;
+      await saveFileToGoogleDrive(fileName, JSON.stringify(file, null, 2), 'application/json', {
+        targetFolderId: subFolderId
+      });
+    }
+  };
+
+  // Write all modular sub-directories in parallel / sequence
+  await Promise.all([
+    writeSubdir('maps', project.fileSystem?.maps || []),
+    writeSubdir('biomes', project.fileSystem?.biomes || []),
+    writeSubdir('prefabs', project.fileSystem?.prefabs || []),
+    writeSubdir('ui', project.fileSystem?.ui || []),
+    writeSubdir('structure', project.fileSystem?.game || []),
+    writeSubdir('particles', project.fileSystem?.particles || []),
+    writeSubdir('sprites', project.fileSystem?.sprites || []),
+    writeSubdir('behaviors', project.fileSystem?.behaviors || []),
+    writeSubdir('assets', project.fileSystem?.images || [])
+  ]);
+
+  return {
+    success: true,
+    folderId: parentFolderId,
+    folderName: folderName || 'Google Drive Folder'
+  };
+};
+
+/**
+ * Reads a modular project structure from a Google Drive workspace folder
+ */
+export const readModularProjectFromGoogleDrive = async (folderId: string, folderName?: string): Promise<any> => {
+  const token = getGoogleDriveToken();
+  if (!token) throw new Error('Not connected to Google Drive.');
+
+  const parentFolderId = folderId || 'root';
+
+  // 1. Fetch root items to find .mason manifest
+  const rootItems = await listGoogleDriveFolderContents(parentFolderId);
+  const expectedName = getProjectMasonFileName(folderName);
+  const manifestItem = 
+    rootItems.find(item => !item.isFolder && item.name === expectedName) ||
+    rootItems.find(item => !item.isFolder && item.name.endsWith('.mason')) ||
+    rootItems.find(item => item.name === 'project.mason');
+
+  if (!manifestItem) {
+    throw new Error('No .mason project manifest found in this Google Drive folder. Please ensure this folder was initialized as a Mason project workspace.');
+  }
+
+  const manifestText = await downloadFileAsTextFromGoogleDrive(manifestItem.id);
+  const manifestData = JSON.parse(manifestText);
+
+  // Helper to read all JSON files from a subfolder
+  const readSubdirFiles = async (subfolderName: string): Promise<any[]> => {
+    const subFolder = rootItems.find(item => item.isFolder && item.name.toLowerCase() === subfolderName.toLowerCase());
+    if (!subFolder) return [];
+
+    try {
+      const subItems = await listGoogleDriveFolderContents(subFolder.id);
+      const jsonFiles = subItems.filter(item => !item.isFolder && !item.name.startsWith('.'));
+      
+      const parsedFiles = await Promise.all(
+        jsonFiles.map(async (f) => {
+          try {
+            const content = await downloadFileAsTextFromGoogleDrive(f.id);
+            return JSON.parse(content);
+          } catch (e) {
+            console.warn(`Failed to parse file ${f.name} from Google Drive subfolder ${subfolderName}:`, e);
+            return null;
+          }
+        })
+      );
+
+      return parsedFiles.filter(Boolean);
+    } catch (e) {
+      console.warn(`Failed to read subfolder ${subfolderName} from Google Drive:`, e);
+      return [];
+    }
+  };
+
+  const [maps, biomes, prefabs, ui, game, particles, sprites, behaviors, images] = await Promise.all([
+    readSubdirFiles('maps'),
+    readSubdirFiles('biomes'),
+    readSubdirFiles('prefabs'),
+    readSubdirFiles('ui'),
+    readSubdirFiles('structure'),
+    readSubdirFiles('particles'),
+    readSubdirFiles('sprites'),
+    readSubdirFiles('behaviors'),
+    readSubdirFiles('assets')
+  ]);
+
+  const reconstructedProject = {
+    ...manifestData,
+    storageLocation: {
+      type: 'gdrive',
+      displayName: `Google Drive: ${folderName || manifestData.name || 'Project Folder'}`,
+      targetFolderId: parentFolderId,
+      targetFolderName: folderName || manifestData.name,
+      lastSyncedAt: new Date().toISOString(),
+      isAutoSyncEnabled: true
+    },
+    fileSystem: {
+      maps,
+      biomes,
+      prefabs,
+      ui,
+      game,
+      particles,
+      sprites,
+      behaviors,
+      images,
+      audio: manifestData.fileSystem?.audio || [],
+      docs: manifestData.fileSystem?.docs || []
+    }
+  };
+
+  return reconstructedProject;
+};
+
+/**
+ * Checks if a Google Drive folder already contains a valid Mason project
+ */
+export const checkExistingGDriveDirProject = async (folderId: string, folderName?: string): Promise<any | null> => {
+  if (!folderId) return null;
+  try {
+    const proj = await readModularProjectFromGoogleDrive(folderId, folderName);
+    if (proj && (proj.name || proj.id)) return proj;
+  } catch (err) {
+    // If manifest reading failed, check if folder contains any files or sub-folders
+    try {
+      const items = await listGoogleDriveFolderContents(folderId);
+      if (items && items.length > 0) {
+        return {
+          id: `existing_gdrive_${Date.now()}`,
+          name: folderName || 'Existing Drive Folder Contents',
+          description: 'Non-empty Google Drive folder containing existing files',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          engineVersion: '0.268',
+          activeModule: 'map_editor'
+        };
+      }
+    } catch {}
+  }
+  return null;
+};
+
+/**
+ * Saves an arbitrary string file content to Google Drive
+ */
+export const saveFileToGoogleDrive = async (
+  fileName: string,
+  content: string,
+  contentType: string,
+  options: {
+    targetFolderId?: string | null;
+  } = {}
+) => {
+  let token = getGoogleDriveToken();
+  if (!token) throw new Error('Not connected to Google Drive.');
+
+  const bodyBlob = new Blob([content], { type: contentType });
+  const parentFolderId = options.targetFolderId !== undefined 
+    ? (options.targetFolderId || 'root') 
+    : (getGoogleDriveSelectedFolder().id || 'root');
+
+  // Check if file already exists in target folder
+  const query = encodeURIComponent(`name = '${fileName.replace(/'/g, "\\'")}' and '${parentFolderId}' in parents and trashed = false`);
+  const checkRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (checkRes.status === 401) {
+    token = await authenticateGoogleDrive();
+  }
+
+  let fileId: string | null = null;
+  if (checkRes.ok) {
+    const data = await checkRes.json();
+    if (data.files && data.files.length > 0) {
+      fileId = data.files[0].id;
+    }
+  }
+
+  const metadata: any = {
+    name: fileName,
+    mimeType: contentType
+  };
+
+  if (!fileId && parentFolderId) {
+    metadata.parents = [parentFolderId];
+  }
+
+  const formData = new FormData();
+  formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  formData.append('file', bodyBlob);
+
+  let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,modifiedTime,size';
+  let method = 'POST';
+
+  if (fileId) {
+    url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id,name,mimeType,modifiedTime,size`;
+    method = 'PATCH';
+  }
+
+  const uploadRes = await fetchWithTimeout(url, {
+    method,
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData
+  });
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw new Error(`Google Drive Upload Error: ${uploadRes.status} ${errText}`);
+  }
+
+  const result = await uploadRes.json();
+  return {
+    id: result.id,
+    name: result.name,
+    mimeType: result.mimeType,
+    modifiedTime: result.modifiedTime || new Date().toISOString(),
+    size: result.size
+  };
+};
+

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mason-v0.223';
+const CACHE_NAME = 'mason-v0.252';
 const ASSETS_TO_CACHE = [
   '.',
   './index.html',
@@ -54,10 +54,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network first for API/RPC requests
-  if (url.pathname.startsWith('/api/')) {
+  // Network first for API/RPC requests and navigation documents
+  if (url.pathname.startsWith('/api/') || event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request) || caches.match('./index.html'))
     );
     return;
   }

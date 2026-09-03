@@ -30,7 +30,7 @@ import { ModulesModal } from './ModulesModal';
 import { ProjectDashboard } from './ProjectDashboard';
 import { MasonWelcomeLauncher } from './MasonWelcomeLauncher';
 import { CreateProjectModal } from './CreateProjectModal';
-import { LoadProjectModal } from './LoadProjectModal';
+import { UnifiedFileManagerModal } from './UnifiedFileManagerModal';
 import { ProjectExplorerModal } from './ProjectExplorerModal';
 import { BiomeMacroMapModal } from './BiomeMacroMapModal';
 import { ModuleRunnerContainer } from './ModuleRunnerContainer';
@@ -40,7 +40,6 @@ import { UIThemeModule } from './UIThemeModule';
 import { GameStructureModule } from './GameStructureModule';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { SpriteEditorWrapper } from './SpriteEditorWrapper';
-import { CloudSyncModal } from './CloudSyncModal';
 import { AppProfileConfigModal } from './AppProfileConfigModal';
 import { ProfileBadgeSwitcher } from './ProfileBadgeSwitcher';
 import {
@@ -90,14 +89,76 @@ import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle
 import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
 import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
 import { getBackupSettings, executeProjectBackup } from '../utils/projectBackupSystem';
+import { saveProjectToLinkedLocation, verifyLinkedStorageAccess, StorageAccessVerification } from '../utils/linkedSaveTarget';
 import { ThemeModal } from './ThemeModal';
 import { useAppTheme } from '../theme/ThemeContext';
-import { Palette } from 'lucide-react';
+import { Palette, Link2, FolderSync, Lock, Globe, Laptop, Check } from 'lucide-react';
 import { MasonBrandIcon } from './MasonBrandIcon';
 
 export const EditorLayout: React.FC = () => {
   // Master Mason Project State (null when no project is loaded)
   const [project, setProject] = useState<MasonProject | null>(() => getActiveMasonProject());
+  
+  // Storage Location Reachability & Connectivity State
+  const [storageAccessInfo, setStorageAccessInfo] = useState<StorageAccessVerification | null>(null);
+
+  // Health check for linked target location (on project change and load)
+  useEffect(() => {
+    if (!project) {
+      setStorageAccessInfo(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    const runVerification = async () => {
+      if (project.storageLocation && project.storageLocation.type !== 'local_idb') {
+        const access = await verifyLinkedStorageAccess(project);
+        if (isMounted) {
+          setStorageAccessInfo(access);
+          if (!access.available) {
+            showToast(`Linked storage target unavailable: ${access.reason}`, 'warning');
+          }
+        }
+      } else {
+        if (isMounted) {
+          setStorageAccessInfo({
+            available: true,
+            locationType: 'local_idb',
+            displayName: 'Browser Workspace (IndexedDB)'
+          });
+        }
+      }
+    };
+
+    runVerification();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    project?.id, 
+    project?.storageLocation?.type, 
+    project?.storageLocation?.targetFolderId, 
+    project?.storageLocation?.targetId
+  ]);
+
+  // Periodic background connectivity check (every 30 seconds)
+  useEffect(() => {
+    if (!project || !project.storageLocation || project.storageLocation.type === 'local_idb') return;
+
+    const interval = setInterval(async () => {
+      const access = await verifyLinkedStorageAccess(project);
+      setStorageAccessInfo(prev => {
+        if (prev?.available && !access.available) {
+          showToast(`Storage Connection Lost: ${access.reason}`, 'error');
+        }
+        return access;
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [project]);
   
   // App Theme Hook
   const { theme, primaryDef, bgDef, getModuleColorDef } = useAppTheme();
@@ -153,7 +214,9 @@ export const EditorLayout: React.FC = () => {
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
   const [isAppProfileConfigModalOpen, setIsAppProfileConfigModalOpen] = useState(false);
+  const [appProfileInitialTab, setAppProfileInitialTab] = useState<'profiles' | 'config' | 'export'>('profiles');
   const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'backups'>('explore');
+  const [cloudSavePayload, setCloudSavePayload] = useState<{ name: string; content: string; mimeType: string } | null>(null);
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -339,6 +402,116 @@ export const EditorLayout: React.FC = () => {
     }
   };
 
+  // Master Save Active Project Handler (Supports IndexedDB, Linked Files, and Modular Directories)
+  const handleSaveActiveProject = async () => {
+    if (!project) return;
+
+    let projectToSave = project;
+    // If sprite editor has unsaved changes, capture sprite state
+    if ((window as any).masonRequestSpriteSave) {
+      const savedProj = await (window as any).masonRequestSpriteSave();
+      if (savedProj) {
+        projectToSave = savedProj;
+      }
+    }
+
+    // Always update updatedAt timestamp and save to browser cache (IndexedDB)
+    projectToSave = {
+      ...projectToSave,
+      updatedAt: new Date().toISOString()
+    };
+    saveActiveMasonProject(projectToSave);
+    setProject(projectToSave);
+    refreshSavedProjects();
+
+    // If project has a linked target (Modular Directory, Local File, or Cloud), write to it
+    if (projectToSave.storageLocation && projectToSave.storageLocation.type !== 'local_idb') {
+      try {
+        // Pre-flight check before manual save
+        const accessCheck = await verifyLinkedStorageAccess(projectToSave);
+        if (!accessCheck.available) {
+          setStorageAccessInfo(accessCheck);
+          setAutoSyncStatus('error');
+          showToast(`Cannot save to linked target: ${accessCheck.reason}`, 'error');
+          return;
+        }
+
+        setAutoSyncStatus('syncing');
+        const res = await saveProjectToLinkedLocation(projectToSave);
+        if (res.success) {
+          setStorageAccessInfo({
+            available: true,
+            locationType: projectToSave.storageLocation.type,
+            displayName: projectToSave.storageLocation.displayName || ''
+          });
+          setAutoSyncStatus('synced');
+          setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+          showToast(`Saved ${projectToSave.name} to ${projectToSave.storageLocation.displayName || projectToSave.storageLocation.targetFolderName || projectToSave.storageLocation.fileName}`, 'success');
+          setTimeout(() => setAutoSyncStatus('idle'), 2500);
+        } else {
+          setAutoSyncStatus('error');
+          showToast(`Saved to cache, but linked write failed: ${res.error}`, 'error');
+        }
+      } catch (err: any) {
+        setAutoSyncStatus('error');
+        showToast(`Linked save error: ${err.message}`, 'error');
+      }
+    } else {
+      showToast(`Saved ${projectToSave.name} to browser storage`, 'success');
+    }
+  };
+
+  // Auto-Sync Status State
+  const [autoSyncStatus, setAutoSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
+  const lastProjectSerializedRef = useRef<string>('');
+
+  // Background Auto-Sync (debounced by 3.5s so it doesn't overload disk or network)
+  useEffect(() => {
+    if (!project) return;
+    const serialized = JSON.stringify({
+      id: project.id,
+      name: project.name,
+      fileSystem: project.fileSystem,
+      activeFiles: project.activeFiles
+    });
+
+    if (!lastProjectSerializedRef.current) {
+      lastProjectSerializedRef.current = serialized;
+      return;
+    }
+
+    if (lastProjectSerializedRef.current === serialized) {
+      return;
+    }
+
+    lastProjectSerializedRef.current = serialized;
+
+    const timer = setTimeout(async () => {
+      // 1. Always update browser cache (IndexedDB)
+      saveActiveMasonProject(project);
+
+      // 2. If project has a linked target with auto-sync enabled, write back
+      if (project.storageLocation && project.storageLocation.type !== 'local_idb' && project.storageLocation.isAutoSyncEnabled !== false) {
+        setAutoSyncStatus('syncing');
+        try {
+          const res = await saveProjectToLinkedLocation(project);
+          if (res.success) {
+            setAutoSyncStatus('synced');
+            setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+            setTimeout(() => setAutoSyncStatus('idle'), 2500);
+          } else {
+            setAutoSyncStatus('error');
+          }
+        } catch (e) {
+          setAutoSyncStatus('error');
+        }
+      }
+    }, 3500);
+
+    return () => clearTimeout(timer);
+  }, [project]);
+
   // Derived references for active project
   const currentMapFile = project ? (project.fileSystem.maps.find(m => m.fileName === project.activeFiles.mapFileName) || project.fileSystem.maps[0]) : null;
   const currentBiomeFile = project ? (project.fileSystem.biomes.find(b => b.fileName === project.activeFiles.biomeFileName) || project.fileSystem.biomes[0]) : null;
@@ -447,23 +620,7 @@ export const EditorLayout: React.FC = () => {
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (project) {
-          if ((window as any).masonRequestSpriteSave) {
-            (window as any).masonRequestSpriteSave().then((savedProj: any) => {
-              if (savedProj) {
-                saveActiveMasonProject(savedProj);
-              } else {
-                saveActiveMasonProject(project);
-              }
-              refreshSavedProjects();
-              showToast(`Saved ${project.name} to local storage`, 'success');
-            });
-          } else {
-            saveActiveMasonProject(project);
-            refreshSavedProjects();
-            showToast(`Saved ${project.name} to local storage`, 'success');
-          }
-        }
+        handleSaveActiveProject();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         handleUndo();
@@ -969,22 +1126,20 @@ export const EditorLayout: React.FC = () => {
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
             onOpenAppProfileConfigModal={() => setIsAppProfileConfigModalOpen(true)}
             onShowProjectInfo={() => handleLaunchModule(null)}
-            onNewProject={() => setIsCreateModalOpen(true)}
-            onLoadProject={() => setIsLoadModalOpen(true)}
-            onSaveProject={() => {
-              if (project) {
-                saveActiveMasonProject(project);
-                refreshSavedProjects();
-                showToast(`Saved ${project.name}`, 'success');
-              }
+            onSaveProject={handleSaveActiveProject}
+            onSaveAs={() => {
+              setCloudSavePayload(null);
+              setCloudSyncInitialMode('explore');
+              setIsCloudSyncModalOpen(true);
+            }}
+            onManageBackups={() => {
+              setCloudSavePayload(null);
+              setCloudSyncInitialMode('backups');
+              setIsCloudSyncModalOpen(true);
             }}
             onExportBundle={handleExportBundle}
             onCloseProject={handleCloseProject}
             onSelectModule={(modId) => handleLaunchModule(modId)}
-            onOpenCloudSyncModal={(mode = 'explore') => {
-              setCloudSyncInitialMode(mode);
-              setIsCloudSyncModalOpen(true);
-            }}
             activeModuleId={activeModuleId}
           />
 
@@ -1011,18 +1166,121 @@ export const EditorLayout: React.FC = () => {
             </button>
 
             {project ? (
-              <button
-                type="button"
-                onClick={() => handleLaunchModule(null)}
-                className="text-xs font-mono flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-neutral-700 transition"
-                title="Click to view Project Dashboard"
-              >
-                <span 
-                  className="w-1.5 h-1.5 rounded-full" 
-                  style={{ backgroundColor: primaryDef.hex }}
-                />
-                <span className="truncate max-w-[180px] sm:max-w-[240px] font-semibold text-neutral-200">{project.name}</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleLaunchModule(null)}
+                  className="text-xs font-mono flex items-center gap-1.5 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800 hover:border-neutral-700 transition"
+                  title="Click to view Project Dashboard"
+                >
+                  <span 
+                    className="w-1.5 h-1.5 rounded-full shrink-0" 
+                    style={{ backgroundColor: primaryDef.hex }}
+                  />
+                  <span className="truncate max-w-[140px] sm:max-w-[200px] font-semibold text-neutral-200">{project.name}</span>
+                </button>
+
+                {/* Target Location Indicator Chip */}
+                {project.storageLocation && project.storageLocation.type !== 'local_idb' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCloudSyncInitialMode('explore');
+                      setIsCloudSyncModalOpen(true);
+                    }}
+                    className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border transition ${
+                      storageAccessInfo && !storageAccessInfo.available
+                        ? 'bg-red-950/90 border-red-500/80 text-red-300 hover:bg-red-900/80 animate-pulse'
+                        : project.storageLocation.type === 'local_directory'
+                        ? 'bg-emerald-950/80 border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60'
+                        : project.storageLocation.type === 'local_file'
+                        ? 'bg-cyan-950/80 border-cyan-700/60 text-cyan-300 hover:bg-cyan-900/60'
+                        : project.storageLocation.type === 'gdrive'
+                        ? 'bg-sky-950/80 border-sky-700/60 text-sky-300 hover:bg-sky-900/60'
+                        : 'bg-blue-950/80 border-blue-700/60 text-blue-300 hover:bg-blue-900/60'
+                    }`}
+                    title={
+                      storageAccessInfo && !storageAccessInfo.available
+                        ? `Target Storage Disconnected: ${storageAccessInfo.reason}. Click to re-connect.`
+                        : `Linked Target: ${project.storageLocation.displayName || project.storageLocation.targetFolderName || project.storageLocation.fileName}. Click to change.`
+                    }
+                  >
+                    {storageAccessInfo && !storageAccessInfo.available ? (
+                      <>
+                        <AlertTriangle size={12} className="text-amber-400 shrink-0" />
+                        <span className="truncate max-w-[180px] lg:max-w-[240px] font-semibold text-red-200">
+                          Disconnected (Click to re-connect)
+                        </span>
+                      </>
+                    ) : project.storageLocation.type === 'local_directory' ? (
+                      <>
+                        <span className="text-xs">💻</span>
+                        <span className="truncate max-w-[180px] lg:max-w-[240px]">
+                          Local Disk: {project.storageLocation.targetFolderName || project.storageLocation.displayName}/
+                        </span>
+                      </>
+                    ) : project.storageLocation.type === 'local_file' ? (
+                      <>
+                        <span className="text-xs">💻</span>
+                        <span className="truncate max-w-[180px] lg:max-w-[240px]">
+                          Local Disk: {project.storageLocation.fileName || project.storageLocation.displayName}
+                        </span>
+                      </>
+                    ) : project.storageLocation.type === 'gdrive' ? (
+                      <>
+                        <span className="text-xs">☁️</span>
+                        <span className="truncate max-w-[180px] lg:max-w-[240px]">
+                          Google Drive: {project.storageLocation.fileName || project.storageLocation.targetFolderName || '/Games/MyGame.mason'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs">☁️</span>
+                        <span className="truncate max-w-[180px] lg:max-w-[240px]">
+                          OneDrive: {project.storageLocation.fileName || project.storageLocation.targetFolderName || '/Games/MyGame.mason'}
+                        </span>
+                      </>
+                    )}
+
+                    {/* Auto-Sync Live State */}
+                    {autoSyncStatus === 'syncing' ? (
+                      <span className="flex items-center gap-1 text-[10px] text-amber-300 font-sans ml-0.5">
+                        <RefreshCw size={10} className="animate-spin" />
+                        <span className="hidden xl:inline">Syncing...</span>
+                      </span>
+                    ) : autoSyncStatus === 'synced' ? (
+                      <span className="flex items-center gap-0.5 text-[10px] text-emerald-400 font-sans ml-0.5">
+                        <Check size={10} />
+                        <span className="hidden xl:inline">Synced</span>
+                      </span>
+                    ) : null}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCloudSyncInitialMode('explore');
+                      setIsCloudSyncModalOpen(true);
+                    }}
+                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border bg-neutral-950/80 border-neutral-800 text-neutral-400 hover:text-neutral-200 hover:border-neutral-700 transition"
+                    title="Storage: Browser Cache Only (Unlinked). Click to link to Local Disk or Cloud."
+                  >
+                    <span className="text-xs">🌐</span>
+                    <span className="truncate max-w-[180px] lg:max-w-[240px]">Browser Cache Only (Unlinked)</span>
+                  </button>
+                )}
+
+                {/* Concurrency Lock Badge */}
+                {project.lockInfo?.isLocked && (
+                  <span 
+                    className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[10px] font-mono"
+                    title={`File Locked by ${project.lockInfo.lockedBy} (Session ${project.lockInfo.lockClientId?.slice(0, 8)}...)`}
+                  >
+                    <Lock size={10} className="text-amber-400 shrink-0" />
+                    <span className="truncate max-w-[80px]">{project.lockInfo.lockedBy}</span>
+                  </span>
+                )}
+              </div>
             ) : (
               <span className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2.5 py-1 rounded-lg border border-neutral-800">
                 No Project Loaded
@@ -1188,21 +1446,6 @@ export const EditorLayout: React.FC = () => {
                 >
                   <FolderOpen size={16} className="text-amber-400" />
                 </button>
-
-                {/* Cloud Sync & Location Explorer Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCloudSyncInitialMode('explore');
-                    setIsCloudSyncModalOpen(true);
-                  }}
-                  className="w-8 h-8 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-sky-400 hover:text-sky-300 rounded-xl transition shadow-sm relative group shrink-0"
-                  title="Explore Cloud Drives & Pick Save Location (Google Drive & OneDrive)"
-                  aria-label="Cloud Drives Explorer"
-                >
-                  <Cloud size={16} />
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-sky-500 rounded-full border-2 border-neutral-950 animate-pulse" />
-                </button>
               </div>
 
               <div className="h-4 w-px bg-neutral-800 shrink-0" />
@@ -1218,20 +1461,7 @@ export const EditorLayout: React.FC = () => {
                 {/* Save Project Button (Icon Only) */}
                 <button
                   type="button"
-                  onClick={async () => {
-                    if ((window as any).masonRequestSpriteSave) {
-                      const savedProj = await (window as any).masonRequestSpriteSave();
-                      if (savedProj) {
-                        saveActiveMasonProject(savedProj);
-                      } else {
-                        saveActiveMasonProject(project);
-                      }
-                    } else {
-                      saveActiveMasonProject(project);
-                    }
-                    refreshSavedProjects();
-                    showToast(`Saved ${project.name}`, 'success');
-                  }}
+                  onClick={handleSaveActiveProject}
                   className={`w-8 h-8 flex items-center justify-center text-white rounded-xl transition shadow-md active:scale-95 ${
                     isSpriteDirty ? "animate-pulse ring-2 ring-red-400" : ""
                   }`}
@@ -1239,7 +1469,7 @@ export const EditorLayout: React.FC = () => {
                     backgroundColor: isSpriteDirty ? '#dc2626' : primaryDef.hex,
                     boxShadow: isSpriteDirty ? '0 0 16px rgba(220, 38, 38, 0.9)' : `0 4px 12px rgba(${primaryDef.rgb}, 0.35)`
                   }}
-                  title={isSpriteDirty ? "Unsaved changes! Click to save" : "Save Project"}
+                  title={isSpriteDirty ? "Unsaved changes! Click to save" : project?.storageLocation ? `Save to ${project.storageLocation.displayName || project.storageLocation.targetFolderName || project.storageLocation.fileName} (Ctrl+S)` : "Save Project (Ctrl+S)"}
                   aria-label="Save"
                 >
                   <Save size={16} />
@@ -2373,14 +2603,26 @@ export const EditorLayout: React.FC = () => {
         onCreateProject={handleCreateNewProject}
       />
 
-      {/* Load Project Modal */}
-      <LoadProjectModal
+      {/* Unified File Manager Modal - Load Project Mode */}
+      <UnifiedFileManagerModal
         isOpen={isLoadModalOpen}
         onClose={() => setIsLoadModalOpen(false)}
+        action="load_project"
         savedProjects={savedProjects}
         onSelectProject={handleSelectSavedProject}
         onDeleteProject={handleDeleteSavedProject}
         onImportBundle={handleImportBundle}
+        onOpenProfileSettings={(tab) => {
+          setAppProfileInitialTab(tab || 'config');
+          setIsAppProfileConfigModalOpen(true);
+        }}
+        onShowToast={(msg, type) => showToast(msg, type === 'warning' ? 'info' : type)}
+        onLoadProject={(loadedProjectData) => {
+          const masonProj = convertProjectDataToMasonProject(loadedProjectData);
+          setProject(masonProj);
+          refreshSavedProjects();
+          showToast(`Loaded "${masonProj.name}"!`, 'success');
+        }}
       />
 
       {/* Project Explorer Modal */}
@@ -2458,11 +2700,16 @@ export const EditorLayout: React.FC = () => {
         />
       )}
 
-      {/* Cloud Storage & Backups Sync Modal */}
-      <CloudSyncModal
+      {/* Unified File Manager Modal - Cloud Sync & Export Mode */}
+      <UnifiedFileManagerModal
         isOpen={isCloudSyncModalOpen}
-        onClose={() => setIsCloudSyncModalOpen(false)}
+        onClose={() => {
+          setIsCloudSyncModalOpen(false);
+          setCloudSavePayload(null);
+        }}
+        action={cloudSavePayload ? "export_file" : "save_project"}
         initialMode={cloudSyncInitialMode}
+        saveFilePayload={cloudSavePayload}
         currentProject={project ? {
           id: project.id,
           name: project.name,
@@ -2482,6 +2729,16 @@ export const EditorLayout: React.FC = () => {
           fullMasonProject: project
         } : null}
         onShowToast={(msg, type) => showToast(msg, type === 'warning' ? 'info' : type)}
+        onOpenProfileSettings={(tab) => {
+          setAppProfileInitialTab(tab || 'config');
+          setIsAppProfileConfigModalOpen(true);
+        }}
+        onProjectSaved={(savedProj) => {
+          setProject(savedProj);
+          saveActiveMasonProject(savedProj);
+          refreshSavedProjects();
+          showToast(`Active project saved as "${savedProj.name}"`, 'success');
+        }}
         onLoadProject={(loadedProjectData) => {
           const masonProj = convertProjectDataToMasonProject(loadedProjectData);
           setProject(masonProj);
@@ -2499,11 +2756,17 @@ export const EditorLayout: React.FC = () => {
       {/* Global App Profiles & Config Modal */}
       <AppProfileConfigModal
         isOpen={isAppProfileConfigModalOpen}
+        initialTab={appProfileInitialTab}
         onClose={() => setIsAppProfileConfigModalOpen(false)}
         onShowToast={(msg, type) => showToast(msg, type === 'warning' ? 'info' : type)}
         onOpenThemeModal={() => {
           setIsAppProfileConfigModalOpen(false);
           setIsThemeModalOpen(true);
+        }}
+        onSavePayloadToCloud={(payload) => {
+          setCloudSavePayload(payload);
+          setCloudSyncInitialMode('explore');
+          setIsCloudSyncModalOpen(true);
         }}
       />
 

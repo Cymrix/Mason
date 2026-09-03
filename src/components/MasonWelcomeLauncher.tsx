@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { ProjectIndexItem } from '../utils/masonStorage';
 import { MASON_MODULES } from '../engine/modulesRegistry';
-import { MASON_FULL_VERSION } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
 import { getGoogleDriveToken } from '../utils/googleDriveStorage';
 import { getOneDriveToken } from '../utils/oneDriveStorage';
@@ -56,8 +55,8 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
 
       <div className="max-w-5xl w-full space-y-8 relative z-10">
         
-        {/* Primary Action Buttons (Create, Local Load, Cloud Drive) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Primary Action Buttons (Create, Load Project) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           
           {/* 1. Create Project Card */}
           <button
@@ -100,7 +99,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
             </div>
           </button>
 
-          {/* 2. Load Local Project Card */}
+          {/* 2. Load Project Card */}
           <button
             type="button"
             onClick={onLoadProjectFromFile}
@@ -118,65 +117,21 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                   borderColor: bgDef.borderHex
                 }}
               >
-                <FolderOpen size={26} />
+                <FolderOpen size={26} className="text-amber-400" />
               </div>
 
               <div className="space-y-1">
                 <h2 className="text-base md:text-lg font-black text-white group-hover:text-neutral-200 transition">
-                  Load Local Project
+                  Load Project
                 </h2>
                 <p className="text-xs text-neutral-400 leading-relaxed">
-                  Open a <code className="font-mono text-amber-300">.mason</code> project bundle file from your disk or local browser cache.
+                  Open a <code className="font-mono text-amber-300">.mason</code> project bundle file from your local disk or connected Google Drive / OneDrive.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-mono text-neutral-300 font-bold pt-4">
-              <span>Browse Local Files</span>
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
-            </div>
-          </button>
-
-          {/* 3. Cloud Drive Projects Card */}
-          <button
-            type="button"
-            onClick={() => onOpenCloudSyncModal('explore')}
-            className="group relative overflow-hidden p-6 rounded-3xl border text-left transition-all hover:shadow-2xl active:scale-[0.98] cursor-pointer flex flex-col justify-between hover:border-sky-500/50"
-            style={{
-              backgroundColor: bgDef.cardHex,
-              borderColor: (isGDriveConnected || isOneDriveConnected) ? 'rgba(56, 189, 248, 0.4)' : bgDef.borderHex
-            }}
-          >
-            <div className="space-y-4">
-              <div 
-                className="w-12 h-12 rounded-2xl border flex items-center justify-center text-sky-400 group-hover:scale-110 transition duration-300 shadow-lg"
-                style={{
-                  backgroundColor: 'rgba(14, 165, 233, 0.15)',
-                  borderColor: 'rgba(56, 189, 248, 0.35)'
-                }}
-              >
-                <Cloud size={26} />
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base md:text-lg font-black text-white group-hover:text-sky-200 transition">
-                    Cloud Storage
-                  </h2>
-                  {(isGDriveConnected || isOneDriveConnected) && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
-                      Connected
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Browse Google Drive & Microsoft OneDrive folders, open cloud saves, and manage automated backups.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs font-mono text-sky-300 font-bold pt-4">
-              <span>Open Cloud Drive</span>
+            <div className="flex items-center gap-2 text-xs font-mono text-amber-300 font-bold pt-4">
+              <span>Open Project File</span>
               <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </button>
@@ -217,7 +172,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
                       <span>•</span>
                       <span>{p.biomeCount} biomes</span>
                       <span>•</span>
-                      <span>{new Date(p.updatedAt).toLocaleDateString()}</span>
+                      <span>{new Date(p.updatedAt).toLocaleDateString()} {new Date(p.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
 

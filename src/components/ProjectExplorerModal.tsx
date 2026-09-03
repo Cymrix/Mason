@@ -756,7 +756,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                         /{selectedFile.subfolder}/{selectedFile.file.fileName}
                       </h3>
                       <p className="text-xs text-neutral-400 mt-0.5">
-                        {selectedFile.file.name} • Updated {new Date(selectedFile.file.updatedAt || Date.now()).toLocaleTimeString()}
+                        {selectedFile.file.name} • Updated {new Date(selectedFile.file.updatedAt || Date.now()).toLocaleDateString()} {new Date(selectedFile.file.updatedAt || Date.now()).toLocaleTimeString()}
                       </p>
                     </div>
                   </div>

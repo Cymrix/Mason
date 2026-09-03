@@ -808,6 +808,16 @@ export const exportParticleFile = (file: ParticleSystemFile) => {
   downloadJsonFile(file.fileName.endsWith('.particle') ? file.fileName : `${file.fileName}.particle`, file);
 };
 
+export const getProjectMasonFileName = (projectName?: string): string => {
+  if (!projectName || !projectName.trim()) return 'project.mason';
+  const clean = projectName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return `${clean || 'project'}.mason`;
+};
+
 export const exportFullProjectBundle = (project: MasonProject) => {
   const safeName = (project.name || 'mason_world').trim().replace(/[/\\?%*:|"<>]/g, '_');
   downloadJsonFile(`${safeName}.mason`, project);
@@ -1050,6 +1060,14 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
     activeModule: 'maps',
     createdAt: projectData.createdAt || now,
     updatedAt: now,
+    storageLocation: projectData.storageLocation || {
+      type: 'local_file',
+      displayName: `Local File (${projName}.mason)`,
+      fileName: `${projName}.mason`,
+      targetId: projId,
+      lastSyncedAt: now,
+      isAutoSyncEnabled: true
+    },
     activeFiles: {
       mapFileName: mapFile.fileName,
       biomeFileName: biomeFiles[0]?.fileName || 'ashen_steppes.biome',

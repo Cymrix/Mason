@@ -351,15 +351,6 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
           )}
         </button>
 
-        <button
-          type="button"
-          onClick={() => currentFile && onExportFile(currentFile.fileName)}
-          className="p-1 bg-neutral-900 hover:bg-neutral-850 border border-neutral-700/80 rounded text-xs text-neutral-300 transition"
-          title={`Download ${currentFile?.fileName || extension}`}
-        >
-          <Download size={12} />
-        </button>
-
         {onDeleteFile && currentFile && (
           isConfirmingDelete ? (
             <div className="flex items-center gap-1 bg-red-950/90 border border-red-500/60 rounded p-0.5 animate-in fade-in zoom-in-95 duration-150">

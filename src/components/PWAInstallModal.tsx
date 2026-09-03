@@ -16,7 +16,6 @@ import {
   Layers,
   ArrowRight
 } from 'lucide-react';
-import { MASON_FULL_VERSION } from '../version';
 import { DetectedPlatform } from '../hooks/usePWA';
 
 interface PWAInstallModalProps {
@@ -81,9 +80,6 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-neutral-100">Install Mason PWA</h3>
-                <span className="text-[10px] font-mono font-bold bg-cyan-950 border border-cyan-500/30 text-cyan-400 px-2 py-0.5 rounded-full">
-                  {MASON_FULL_VERSION}
-                </span>
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">
                 Run Mason as a standalone desktop or mobile app with full offline support

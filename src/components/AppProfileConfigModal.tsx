@@ -23,7 +23,10 @@ import {
   AlertCircle,
   FileCode,
   Laptop,
-  Bookmark
+  Bookmark,
+  ExternalLink,
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import {
   MasonUserProfile,
@@ -40,12 +43,26 @@ import {
   importProfilesJSON
 } from '../utils/appProfileSystem';
 import { useAppTheme } from '../theme/ThemeContext';
+import {
+  getGoogleDriveToken,
+  getGoogleDriveUser,
+  authenticateGoogleDrive,
+  disconnectGoogleDrive
+} from '../utils/googleDriveStorage';
+import {
+  getOneDriveToken,
+  getOneDriveUser,
+  authenticateOneDrive,
+  disconnectOneDrive
+} from '../utils/oneDriveStorage';
 
 interface AppProfileConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   onShowToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   onOpenThemeModal?: () => void;
+  onSavePayloadToCloud?: (payload: { name: string; content: string; mimeType: string }) => void;
+  initialTab?: 'profiles' | 'config' | 'export';
 }
 
 const EMOJI_AVATARS = ['🧙‍♂️', '🎨', '🚀', '🛠️', '🎮', '🏰', '🗺️', '🧙', '🐉', '🔮', '⚡', '🌌', '⚙️', '💎'];
@@ -63,10 +80,12 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
   isOpen,
   onClose,
   onShowToast,
-  onOpenThemeModal
+  onOpenThemeModal,
+  onSavePayloadToCloud,
+  initialTab = 'profiles'
 }) => {
   const { theme, primaryDef, bgDef } = useAppTheme();
-  const [activeTab, setActiveTab] = useState<'profiles' | 'config' | 'export'>('profiles');
+  const [activeTab, setActiveTab] = useState<'profiles' | 'config' | 'export'>(initialTab);
   const [profiles, setProfiles] = useState<MasonUserProfile[]>(getAllProfiles);
   const [activeProf, setActiveProf] = useState<MasonUserProfile>(getActiveProfile);
 
@@ -85,8 +104,24 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
   // Config Form State
   const [currentConfig, setCurrentConfig] = useState<MasonAppConfig>(activeProf.config);
 
+  // Cloud connection states
+  const [gdriveToken, setGdriveToken] = useState<string | null>(getGoogleDriveToken);
+  const [gdriveUser, setGdriveUser] = useState<any>(getGoogleDriveUser);
+  const [isConnectingGDrive, setIsConnectingGDrive] = useState(false);
+
+  const [onedriveToken, setOnedriveToken] = useState<string | null>(getOneDriveToken);
+  const [onedriveUser, setOnedriveUser] = useState<any>(getOneDriveUser);
+  const [isConnectingOneDrive, setIsConnectingOneDrive] = useState(false);
+
   // Copy status
   const [copied, setCopied] = useState(false);
+
+  const refreshCloudConnections = () => {
+    setGdriveToken(getGoogleDriveToken());
+    setGdriveUser(getGoogleDriveUser());
+    setOnedriveToken(getOneDriveToken());
+    setOnedriveUser(getOneDriveUser());
+  };
 
   // Refresh data whenever modal opens or profiles update
   useEffect(() => {
@@ -96,7 +131,49 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
     setProfiles(all);
     setActiveProf(active);
     setCurrentConfig(active.config);
-  }, [isOpen]);
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+    refreshCloudConnections();
+  }, [isOpen, initialTab]);
+
+  const handleConnectGDrive = async () => {
+    setIsConnectingGDrive(true);
+    try {
+      await authenticateGoogleDrive();
+      refreshCloudConnections();
+      if (onShowToast) onShowToast('Google Drive connected successfully!', 'success');
+    } catch (err: any) {
+      if (onShowToast) onShowToast(`Google Drive connection error: ${err.message || err}`, 'error');
+    } finally {
+      setIsConnectingGDrive(false);
+    }
+  };
+
+  const handleDisconnectGDrive = () => {
+    disconnectGoogleDrive();
+    refreshCloudConnections();
+    if (onShowToast) onShowToast('Google Drive disconnected', 'info');
+  };
+
+  const handleConnectOneDrive = async () => {
+    setIsConnectingOneDrive(true);
+    try {
+      await authenticateOneDrive();
+      refreshCloudConnections();
+      if (onShowToast) onShowToast('Microsoft OneDrive connected successfully!', 'success');
+    } catch (err: any) {
+      if (onShowToast) onShowToast(`OneDrive connection error: ${err.message || err}`, 'error');
+    } finally {
+      setIsConnectingOneDrive(false);
+    }
+  };
+
+  const handleDisconnectOneDrive = () => {
+    disconnectOneDrive();
+    refreshCloudConnections();
+    if (onShowToast) onShowToast('Microsoft OneDrive disconnected', 'info');
+  };
 
   if (!isOpen) return null;
 
@@ -183,6 +260,22 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     onShowToast?.('Exported profile configuration JSON!', 'success');
+  };
+
+  // Export JSON save to cloud
+  const handleSaveToCloud = () => {
+    const jsonStr = exportProfilesJSON(activeProf.id);
+    const fileName = `mason_config_${activeProf.name.toLowerCase().replace(/\s+/g, '_')}.json`;
+    if (onSavePayloadToCloud) {
+      onSavePayloadToCloud({
+        name: fileName,
+        content: jsonStr,
+        mimeType: 'application/json'
+      });
+      onClose(); // Close the profile modal so they see the cloud sync modal clearly!
+    } else {
+      onShowToast?.('Cloud storage integration is not fully configured in layout.', 'error');
+    }
   };
 
   // Copy JSON to clipboard
@@ -324,7 +417,7 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
 
                 <div className="text-right">
                   <div className="text-[11px] text-neutral-400 font-mono">
-                    Updated: {new Date(activeProf.updatedAt).toLocaleDateString()}
+                    Updated: {new Date(activeProf.updatedAt).toLocaleDateString()} {new Date(activeProf.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                   <div className="text-xs text-amber-400 font-semibold mt-0.5">
                     Theme: <span className="capitalize">{activeProf.config.theme}</span>
@@ -619,71 +712,183 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
                 </div>
               </div>
 
-              {/* Section 3: Cloud Drives & Backup Defaults */}
+              {/* Section 3: Cloud Storage Connections & Backup Defaults */}
               <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-4">
-                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Cloud className="w-4 h-4" /> Cloud Storage & Auto-Backup System
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Cloud className="w-4 h-4" /> Cloud Storage Connections
+                  </h4>
+                  <span className="text-[10px] text-neutral-400">
+                    Locations appear in the File Sub-Module when connected
+                  </span>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                      Default Cloud Provider:
-                    </label>
-                    <select
-                      value={currentConfig.defaultCloudProvider}
-                      onChange={(e) => handleUpdateConfigValue('defaultCloudProvider', e.target.value as any)}
-                      className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                    >
-                      <option value="gdrive">Google Drive</option>
-                      <option value="onedrive">Microsoft OneDrive</option>
-                      <option value="virtual">Project Virtual Storage</option>
-                    </select>
+                {/* Cloud Provider Connection Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Google Drive Card */}
+                  <div className={`p-3.5 rounded-xl border transition-all ${
+                    gdriveToken ? 'bg-amber-950/20 border-amber-500/40' : 'bg-neutral-900 border-neutral-800'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                          <Cloud size={14} />
+                        </div>
+                        <span className="text-xs font-bold text-neutral-200">Google Drive</span>
+                      </div>
+                      {gdriveToken ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          <CheckCircle2 size={10} /> Connected
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-neutral-500 font-mono">Not Connected</span>
+                      )}
+                    </div>
+
+                    {gdriveToken ? (
+                      <div className="space-y-2 pt-1 border-t border-neutral-800/60">
+                        <div className="text-[11px] text-neutral-300 truncate font-mono">
+                          {gdriveUser?.email || gdriveUser?.displayName || 'Authorized Account'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleDisconnectGDrive}
+                          className="w-full py-1.5 px-3 rounded-lg bg-neutral-800 hover:bg-rose-950/40 hover:border-rose-500/50 hover:text-rose-300 text-neutral-300 text-xs font-semibold border border-neutral-700 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                        >
+                          <LogOut size={12} /> Disconnect Google Drive
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[11px] text-neutral-400">
+                          Connect Google Drive to save projects and access cloud backups.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleConnectGDrive}
+                          disabled={isConnectingGDrive}
+                          className="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-neutral-950 text-xs font-bold shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                        >
+                          {isConnectingGDrive ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin" /> Connecting...
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink size={12} /> Connect Google Drive
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                      Auto-Backup Interval:
-                    </label>
-                    <select
-                      value={currentConfig.autoBackupIntervalMinutes}
-                      onChange={(e) => handleUpdateConfigValue('autoBackupIntervalMinutes', parseInt(e.target.value, 10))}
-                      className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                    >
-                      <option value={3}>Every 3 Minutes</option>
-                      <option value={5}>Every 5 Minutes</option>
-                      <option value={10}>Every 10 Minutes (Default)</option>
-                      <option value={15}>Every 15 Minutes</option>
-                      <option value={30}>Every 30 Minutes</option>
-                    </select>
+                  {/* Microsoft OneDrive Card */}
+                  <div className={`p-3.5 rounded-xl border transition-all ${
+                    onedriveToken ? 'bg-sky-950/20 border-sky-500/40' : 'bg-neutral-900 border-neutral-800'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                          <Cloud size={14} />
+                        </div>
+                        <span className="text-xs font-bold text-neutral-200">Microsoft OneDrive</span>
+                      </div>
+                      {onedriveToken ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          <CheckCircle2 size={10} /> Connected
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-neutral-500 font-mono">Not Connected</span>
+                      )}
+                    </div>
+
+                    {onedriveToken ? (
+                      <div className="space-y-2 pt-1 border-t border-neutral-800/60">
+                        <div className="text-[11px] text-neutral-300 truncate font-mono">
+                          {onedriveUser?.displayName || onedriveUser?.userPrincipalName || onedriveUser?.email || 'Authorized Account'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleDisconnectOneDrive}
+                          className="w-full py-1.5 px-3 rounded-lg bg-neutral-800 hover:bg-rose-950/40 hover:border-rose-500/50 hover:text-rose-300 text-neutral-300 text-xs font-semibold border border-neutral-700 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                        >
+                          <LogOut size={12} /> Disconnect OneDrive
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[11px] text-neutral-400">
+                          Connect OneDrive to sync maps and assets across devices.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleConnectOneDrive}
+                          disabled={isConnectingOneDrive}
+                          className="w-full py-1.5 px-3 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/10 flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                        >
+                          {isConnectingOneDrive ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin" /> Connecting...
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink size={12} /> Connect OneDrive
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-6 pt-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="cfgAutoBackup"
-                      checked={currentConfig.autoBackupEnabled}
-                      onChange={(e) => handleUpdateConfigValue('autoBackupEnabled', e.target.checked)}
-                      className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                    />
-                    <label htmlFor="cfgAutoBackup" className="text-xs text-neutral-200 cursor-pointer select-none">
-                      Auto-Backup System Enabled
-                    </label>
-                  </div>
+                {/* Auto-Backup System Settings */}
+                <div className="pt-2 border-t border-neutral-850 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                        Auto-Backup Interval:
+                      </label>
+                      <select
+                        value={currentConfig.autoBackupIntervalMinutes}
+                        onChange={(e) => handleUpdateConfigValue('autoBackupIntervalMinutes', parseInt(e.target.value, 10))}
+                        className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      >
+                        <option value={3}>Every 3 Minutes</option>
+                        <option value={5}>Every 5 Minutes</option>
+                        <option value={10}>Every 10 Minutes (Default)</option>
+                        <option value={15}>Every 15 Minutes</option>
+                        <option value={30}>Every 30 Minutes</option>
+                      </select>
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="cfgLocationSync"
-                      checked={currentConfig.locationBookmarksSync}
-                      onChange={(e) => handleUpdateConfigValue('locationBookmarksSync', e.target.checked)}
-                      className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                    />
-                    <label htmlFor="cfgLocationSync" className="text-xs text-neutral-200 cursor-pointer select-none">
-                      Sync Location Bookmarks Cross-Modal
-                    </label>
+                    <div className="space-y-2.5 pt-1 sm:pt-6">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="cfgAutoBackup"
+                          checked={currentConfig.autoBackupEnabled}
+                          onChange={(e) => handleUpdateConfigValue('autoBackupEnabled', e.target.checked)}
+                          className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <label htmlFor="cfgAutoBackup" className="text-xs text-neutral-200 cursor-pointer select-none">
+                          Auto-Backup System Enabled
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="cfgLocationSync"
+                          checked={currentConfig.locationBookmarksSync}
+                          onChange={(e) => handleUpdateConfigValue('locationBookmarksSync', e.target.checked)}
+                          className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <label htmlFor="cfgLocationSync" className="text-xs text-neutral-200 cursor-pointer select-none">
+                          Sync Location Bookmarks Cross-Modal
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -735,6 +940,14 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
                       className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition active:scale-95"
                     >
                       <Download className="w-3.5 h-3.5" /> Download File
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveToCloud}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition active:scale-95"
+                    >
+                      <Cloud className="w-3.5 h-3.5" /> Save to Cloud
                     </button>
                   </div>
                 </div>

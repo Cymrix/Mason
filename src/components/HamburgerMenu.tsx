@@ -5,9 +5,9 @@ import {
   Layers, 
   Folder, 
   FileText, 
-  Plus, 
-  Upload, 
   Save, 
+  Copy,
+  Clock,
   Download, 
   LogOut, 
   Sparkles, 
@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
-import { MASON_FULL_VERSION } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
 import { MasonBrandIcon } from './MasonBrandIcon';
 import { getActiveProfile } from '../utils/appProfileSystem';
@@ -33,13 +32,12 @@ interface HamburgerMenuProps {
   onOpenThemeModal: () => void;
   onOpenAppProfileConfigModal?: () => void;
   onShowProjectInfo: () => void;
-  onNewProject: () => void;
-  onLoadProject: () => void;
   onSaveProject: () => void;
+  onSaveAs: () => void;
+  onManageBackups: () => void;
   onExportBundle: () => void;
   onCloseProject: () => void;
   onSelectModule: (moduleId: string) => void;
-  onOpenCloudSyncModal?: (mode?: 'explore' | 'backups') => void;
   activeModuleId: string | null;
 }
 
@@ -50,13 +48,12 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onOpenThemeModal,
   onOpenAppProfileConfigModal,
   onShowProjectInfo,
-  onNewProject,
-  onLoadProject,
   onSaveProject,
+  onSaveAs,
+  onManageBackups,
   onExportBundle,
   onCloseProject,
   onSelectModule,
-  onOpenCloudSyncModal,
   activeModuleId
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -271,44 +268,6 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
 
           {/* Project Management Actions */}
           <div className="p-1 space-y-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpen(false);
-                onNewProject();
-              }}
-              className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
-            >
-              <Plus size={14} className="text-emerald-400" />
-              <span>Create New Project...</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpen(false);
-                onLoadProject();
-              }}
-              className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
-            >
-              <Upload size={14} className="text-blue-400" />
-              <span>Load Existing Project...</span>
-            </button>
-
-            {onOpenCloudSyncModal && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  onOpenCloudSyncModal('explore');
-                }}
-                className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
-              >
-                <Cloud size={14} className="text-sky-400" />
-                <span>Explore Cloud Drives & Save Location...</span>
-              </button>
-            )}
-
             {project && (
               <>
                 <button
@@ -323,19 +282,29 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                   <span>Save Active Project</span>
                 </button>
 
-                {onOpenCloudSyncModal && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsOpen(false);
-                      onOpenCloudSyncModal('explore');
-                    }}
-                    className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
-                  >
-                    <Upload size={14} className="text-amber-400" />
-                    <span>Save Project to Cloud Location...</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onSaveAs();
+                  }}
+                  className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
+                >
+                  <Copy size={14} className="text-emerald-400" />
+                  <span>Save As...</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onManageBackups();
+                  }}
+                  className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
+                >
+                  <Clock size={14} className="text-sky-400" />
+                  <span>Manage Backups...</span>
+                </button>
 
                 <button
                   type="button"
@@ -364,12 +333,20 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 </button>
               </>
             )}
-          </div>
 
-          {/* Footer Version & Status */}
-          <div className="px-4 py-2 border-t border-neutral-800/80 bg-neutral-950/60 flex items-center justify-between text-[10px] font-mono text-neutral-500">
-            <span>Mason {MASON_FULL_VERSION}</span>
-            <span className="text-neutral-400">Web Studio</span>
+            {!project && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onManageBackups();
+                }}
+                className="w-full px-3 py-1.5 rounded-xl text-left text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 flex items-center gap-2.5 transition"
+              >
+                <Clock size={14} className="text-sky-400" />
+                <span>Manage Backups...</span>
+              </button>
+            )}
           </div>
 
         </div>

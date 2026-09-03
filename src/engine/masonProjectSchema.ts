@@ -1688,6 +1688,28 @@ export interface MasonProject {
   
   fileSystem: MasonFileSystem;
   taskBoard?: ProjectTaskBoardData;
+  storageLocation?: {
+    type: 'local_idb' | 'local_file' | 'local_directory' | 'gdrive' | 'onedrive';
+    displayName: string;
+    targetId?: string;
+    targetFolderId?: string;
+    targetFolderName?: string;
+    fileName?: string;
+    lastSyncedAt?: string;
+    etag?: string;
+    isAutoSyncEnabled?: boolean;
+    lockedBy?: {
+      user: string;
+      timestamp: string;
+      clientId: string;
+    };
+  };
+  lockInfo?: {
+    isLocked: boolean;
+    lockedBy?: string;
+    lockedAt?: string;
+    lockClientId?: string;
+  };
 }
 
 // ==========================================

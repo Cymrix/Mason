@@ -24,7 +24,7 @@ import {
   loadProjectFromGoogleDrive
 } from './googleDriveStorage';
 import { 
-  getOneDriveToken, 
+  getOneDriveToken, ensureOneDriveToken, 
   getOneDriveSelectedFolder, 
   listOneDriveFolderContents, 
   createOneDriveFolder, 
@@ -90,7 +90,7 @@ export const saveBackupSettings = (newSettings: Partial<BackupSettings>): Backup
 };
 
 /**
- * Lists all backup files directly from the actual 'backups/' directory in the active Cloud Drive,
+ * Lists all backup files directly from the actual 'Mason Backups/' directory in the active Cloud Drive,
  * or falls back to local storage if no cloud drive is active.
  */
 export async function fetchBackupFilesFromFolder(
@@ -104,12 +104,12 @@ export async function fetchBackupFilesFromFolder(
       const selectedFolder = getGoogleDriveSelectedFolder();
       const parentId = selectedFolder.id || 'root';
       const contents = await listGoogleDriveFolderContents(parentId);
-      let backupFolder = contents.find(i => i.isFolder && i.name.toLowerCase() === 'backups');
+      let backupFolder = contents.find(i => i.isFolder && (i.name.toLowerCase() === 'mason backups' || i.name.toLowerCase() === 'backups'));
 
       if (!backupFolder && parentId !== 'root') {
         // Also check root drive for backups folder
         const rootContents = await listGoogleDriveFolderContents('root');
-        backupFolder = rootContents.find(i => i.isFolder && i.name.toLowerCase() === 'backups');
+        backupFolder = rootContents.find(i => i.isFolder && (i.name.toLowerCase() === 'mason backups' || i.name.toLowerCase() === 'backups'));
       }
 
       if (backupFolder && backupFolder.id) {
@@ -128,14 +128,14 @@ export async function fetchBackupFilesFromFolder(
 
         return {
           items: files,
-          locationName: `Google Drive: ${selectedFolder.name}/backups`,
+          locationName: `Google Drive: ${selectedFolder.name}/Mason Backups`,
           isCloud: true
         };
       }
 
       return {
         items: [],
-        locationName: `Google Drive: ${selectedFolder.name}/backups (Empty/Created upon next backup)`,
+        locationName: `Google Drive: ${selectedFolder.name}/Mason Backups (Empty/Created upon next backup)`,
         isCloud: true
       };
     } catch (err) {
@@ -148,11 +148,11 @@ export async function fetchBackupFilesFromFolder(
       const selectedFolder = getOneDriveSelectedFolder();
       const parentId = selectedFolder.id || 'root';
       const contents = await listOneDriveFolderContents(parentId);
-      let backupFolder = contents.find(i => i.isFolder && i.name.toLowerCase() === 'backups');
+      let backupFolder = contents.find(i => i.isFolder && (i.name.toLowerCase() === 'mason backups' || i.name.toLowerCase() === 'backups'));
 
       if (!backupFolder && parentId !== 'root') {
         const rootContents = await listOneDriveFolderContents('root');
-        backupFolder = rootContents.find(i => i.isFolder && i.name.toLowerCase() === 'backups');
+        backupFolder = rootContents.find(i => i.isFolder && (i.name.toLowerCase() === 'mason backups' || i.name.toLowerCase() === 'backups'));
       }
 
       if (backupFolder && backupFolder.id) {
@@ -172,14 +172,14 @@ export async function fetchBackupFilesFromFolder(
 
         return {
           items: files,
-          locationName: `OneDrive: ${selectedFolder.name}/backups`,
+          locationName: `OneDrive: ${selectedFolder.name}/Mason Backups`,
           isCloud: true
         };
       }
 
       return {
         items: [],
-        locationName: `OneDrive: ${selectedFolder.name}/backups (Empty/Created upon next backup)`,
+        locationName: `OneDrive: ${selectedFolder.name}/Mason Backups (Empty/Created upon next backup)`,
         isCloud: true
       };
     } catch (err) {
@@ -296,7 +296,7 @@ export async function downloadBackupFileToClient(item: BackupFileItem): Promise<
       document.body.removeChild(a);
       return;
     }
-    const token = getOneDriveToken();
+    const token = await ensureOneDriveToken();
     if (!token) throw new Error('Not connected to Microsoft OneDrive.');
     const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -364,12 +364,12 @@ export async function executeProjectBackup(
       const selectedFolder = getGoogleDriveSelectedFolder();
       const parentId = selectedFolder.id || 'root';
 
-      // Find or create 'backups' sub-folder
+      // Find or create 'Mason Backups' sub-folder
       const contents = await listGoogleDriveFolderContents(parentId);
-      let backupFolder = contents.find(i => i.isFolder && i.name.toLowerCase() === 'backups');
+      let backupFolder = contents.find(i => i.isFolder && (i.name.toLowerCase() === 'mason backups' || i.name.toLowerCase() === 'backups'));
       
       if (!backupFolder) {
-        backupFolder = await createGoogleDriveFolder('backups', parentId);
+        backupFolder = await createGoogleDriveFolder('Mason Backups', parentId);
       }
 
       if (backupFolder && backupFolder.id) {
@@ -392,11 +392,11 @@ export async function executeProjectBackup(
           isBackup: true,
           customFileName: backupFileName,
           targetFolderId: backupFolder.id,
-          targetFolderName: 'backups'
+          targetFolderName: 'Mason Backups'
         });
         cloudBackupSaved = true;
 
-        // Prune older backups in Google Drive 'backups' folder
+        // Prune older backups in Google Drive 'Mason Backups' folder
         const backupItems = await listGoogleDriveFolderContents(backupFolder.id);
         const projectBackups = backupItems
           .filter(i => !i.isFolder && i.name.startsWith(safeName) && i.name.endsWith('.mason'))
@@ -417,12 +417,12 @@ export async function executeProjectBackup(
       const selectedFolder = getOneDriveSelectedFolder();
       const parentId = selectedFolder.id || 'root';
 
-      // Find or create 'backups' sub-folder
+      // Find or create 'Mason Backups' sub-folder
       const contents = await listOneDriveFolderContents(parentId);
-      let backupFolder = contents.find(i => i.isFolder && i.name.toLowerCase() === 'backups');
+      let backupFolder = contents.find(i => i.isFolder && (i.name.toLowerCase() === 'mason backups' || i.name.toLowerCase() === 'backups'));
 
       if (!backupFolder) {
-        backupFolder = await createOneDriveFolder('backups', parentId);
+        backupFolder = await createOneDriveFolder('Mason Backups', parentId);
       }
 
       if (backupFolder && backupFolder.id) {
@@ -444,11 +444,11 @@ export async function executeProjectBackup(
           isBackup: true,
           customFileName: backupFileName,
           targetFolderId: backupFolder.id,
-          targetFolderName: 'backups'
+          targetFolderName: 'Mason Backups'
         });
         cloudBackupSaved = true;
 
-        // Prune older backups in OneDrive 'backups' folder
+        // Prune older backups in OneDrive 'Mason Backups' folder
         const backupItems = await listOneDriveFolderContents(backupFolder.id);
         const projectBackups = backupItems
           .filter(i => !i.isFolder && i.name.startsWith(safeName) && i.name.endsWith('.mason'))

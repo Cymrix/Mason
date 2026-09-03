@@ -4,6 +4,16 @@
 
 export const registerServiceWorker = () => {
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    // In development mode, unregister any active service worker to prevent stale preview caching
+    if ((import.meta as any).env?.DEV) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
+        }
+      });
+      return;
+    }
+
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('./sw.js')

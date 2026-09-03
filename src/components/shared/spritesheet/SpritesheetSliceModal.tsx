@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { SpritesheetSliceModalProps, SpritesheetSliceResult } from './types';
 import { useCanvasPanZoom } from '../../../hooks/useCanvasPanZoom';
-import { CloudImageImportModal } from '../../CloudImageImportModal';
+import { UnifiedFileManagerModal } from '../../UnifiedFileManagerModal';
 
 const PIXEL_PRESETS = [16, 24, 32, 48, 64, 128, 256];
 const GRID_PRESETS = [
@@ -502,14 +502,14 @@ export const SpritesheetSliceModal: React.FC<SpritesheetSliceModalProps> = ({
           </div>
         </div>
 
-        {/* Cloud Image Import Modal Integration */}
+        {/* Unified File Manager Modal - Select Image Mode */}
         {showCloudPicker && (
-          <CloudImageImportModal
+          <UnifiedFileManagerModal
             isOpen={showCloudPicker}
             onClose={() => setShowCloudPicker(false)}
+            action="import_asset"
+            importMode="select_image"
             project={project}
-            mode="select_image"
-            title="Import"
             activeSpriteName={sheetName}
             onSelectImage={(dataUrl, fileName) => {
               setImageSrc(dataUrl);

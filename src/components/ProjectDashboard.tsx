@@ -1,6 +1,5 @@
 import React from 'react';
 import { MasonProject } from '../engine/masonProjectSchema';
-import { MASON_FULL_VERSION, MASON_VERSION_DISPLAY } from '../version';
 import { useAppTheme } from '../theme/ThemeContext';
 import { getContrastTextColor } from '../theme/appTheme';
 import { ProjectTaskBoard } from './dashboard/ProjectTaskBoard';
@@ -21,7 +20,12 @@ import {
   Sliders,
   Network,
   Palette,
-  Paintbrush
+  Paintbrush,
+  HardDrive,
+  Link2,
+  FolderSync,
+  Lock,
+  Cloud
 } from 'lucide-react';
 
 interface ProjectDashboardProps {
@@ -118,15 +122,6 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               >
                 Active Mason Project
               </span>
-              <span 
-                className="text-xs font-mono text-neutral-400 border px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: bgDef.hex,
-                  borderColor: bgDef.borderHex
-                }}
-              >
-                {MASON_VERSION_DISPLAY}
-              </span>
             </div>
 
             <h1 className="text-2xl md:text-3xl font-black text-neutral-100 tracking-tight">
@@ -150,6 +145,33 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
                 <Folder size={13} className="text-neutral-500" />
                 <span style={{ color: primaryDef.hex }} className="font-bold">{totalFiles} Project Files</span>
               </span>
+
+              {/* Linked Storage Target Status Badge */}
+              {project.storageLocation ? (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 text-[11px] font-mono">
+                  {project.storageLocation.type === 'local_directory' ? (
+                    <FolderSync size={12} className="text-emerald-400 shrink-0" />
+                  ) : project.storageLocation.type === 'gdrive' || project.storageLocation.type === 'onedrive' ? (
+                    <Cloud size={12} className="text-amber-400 shrink-0" />
+                  ) : (
+                    <Link2 size={12} className="text-cyan-400 shrink-0" />
+                  )}
+                  <span>Linked Target: {project.storageLocation.displayName || project.storageLocation.fileName || project.storageLocation.targetFolderName}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-900 border border-neutral-800 text-neutral-400 text-[11px] font-mono">
+                  <HardDrive size={12} className="text-neutral-500 shrink-0" />
+                  <span>Target: Browser Storage (Unlinked)</span>
+                </span>
+              )}
+
+              {/* Multi-User Concurrency Lock Badge */}
+              {project.lockInfo?.isLocked && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[11px] font-mono">
+                  <Lock size={12} className="text-amber-400 shrink-0" />
+                  <span>Locked by: {project.lockInfo.lockedBy}</span>
+                </span>
+              )}
             </div>
           </div>
 

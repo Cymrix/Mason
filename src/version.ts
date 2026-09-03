@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.246';
-export const MASON_VERSION_DISPLAY = 'v0.246';
-export const MASON_FULL_VERSION = 'v0.246';
+export const MASON_VERSION = '0.269';
+export const MASON_VERSION_DISPLAY = 'v0.269';
+export const MASON_FULL_VERSION = 'v0.269';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,188 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.269',
+    date: '2026-09-02',
+    notes: 'Upgraded OneDrive authentication to use the Authorization Code Flow with PKCE, allowing secure refresh tokens and indefinite persistence without requiring re-authentication. Explained Google Drive security restrictions.'
+  },
+  {
+    version: 'v0.268',
+    date: '2026-09-02',
+    notes: 'Implemented comprehensive storage location reachability & health checks (on launch, save, backup, and 30s background check), top-bar connection indicator badge, and non-empty folder conflict detection.'
+  },
+  {
+    version: 'v0.267',
+    date: '2026-09-02',
+    notes: 'Restarted dev server and synchronized application release version configuration.'
+  },
+  {
+    version: 'v0.266',
+    date: '2026-09-02',
+    notes: 'Implemented automatic storage location linking on project load across local and cloud drives, plus existing project detection & conflict resolution prompt (Overwrite vs. Load Found Project) when linking open projects to folders.'
+  },
+  {
+    version: 'v0.265',
+    date: '2026-09-02',
+    changes: [
+      'Updated File Sub-Module locations list to always show both Google Drive and Microsoft OneDrive cloud drives, displaying a button in the contents panel to navigate directly to the Editor & App Defaults tab in Profile Settings.'
+    ]
+  },
+  {
+    version: 'v0.264',
+    date: '2026-09-02',
+    changes: [
+      'Updated modular workspace project structure so root manifest file is dynamically named using the project name (e.g. mourne_edris.mason) across local directories, Google Drive, and OneDrive.'
+    ]
+  },
+  {
+    version: 'v0.263',
+    date: '2026-09-01',
+    changes: [
+      'Fixed modular file saving in local directories, Google Drive, and OneDrive so files retain clean native extensions (.map, .sprite, .biome, .prefab, .ui, .particle) without appending duplicate .json extensions.'
+    ]
+  },
+  {
+    version: 'v0.262',
+    date: '2026-09-01',
+    changes: [
+      'Fixed bookmark navigation persistence bug in Unified File Manager Modal so clicking Quick Access bookmarks instantly switches active view to Cloud/Virtual target without being reset to local disk.'
+    ]
+  },
+  {
+    version: 'v0.261',
+    date: '2026-09-01',
+    changes: [
+      'Removed "Save Map" label in save project mode and updated header/descriptions to "Save Project".',
+      'Fixed bookmark jumping in File Manager Modal so clicking Quick Access bookmarks seamlessly navigates to the target cloud or virtual folder without resetting.'
+    ]
+  },
+  {
+    version: 'v0.260',
+    date: '2026-09-01',
+    changes: [
+      'Removed the Link to Single .mason File option from the local computer storage location options in the File Manager Modal.'
+    ]
+  },
+  {
+    version: 'v0.259',
+    date: '2026-09-01',
+    changes: [
+      'Added Cloud Drive Workspace Folder support for Google Drive and Microsoft OneDrive.',
+      'Saving projects to Cloud Drives now creates/updates a modular multi-file folder workspace (project.mason manifest + maps/, biomes/, prefabs/, ui/, structure/, particles/, sprites/, behaviors/, assets/).',
+      'Added Link Workspace Folder and Open Workspace Folder capabilities for Cloud Drives in the Unified File Manager Modal.'
+    ]
+  },
+  {
+    version: 'v0.258',
+    date: '2026-09-01',
+    changes: [
+      'Implemented prominent Top Bar Target Location Indicator with dedicated visual chips for Local Disk (Folder/File), Google Drive, OneDrive, and Unlinked Browser Cache.',
+      'Configured Linked Save Button and Ctrl+S keyboard shortcut to seamlessly persist changes to local IndexedDB and push to linked cloud/disk handles.',
+      'Added Background Auto-Sync engine debounced by 3.5s with live spinner and confirmation indicator chips.'
+    ]
+  },
+  {
+    version: 'v0.257',
+    date: '2026-09-01',
+    changes: [
+      'Implemented Linked Save Targets with direct single-click save and auto-synchronization to linked modular folders and local .mason files.',
+      'Completed Multi-User Step 1: Modular File Architecture with manifest + granular subfolder JSON structure (.map, .biome, .prefab, .particle, .ui, .game, .sprite).',
+      'Completed Multi-User Step 2: Concurrency file locking and client session ID verification to prevent multi-user overwrites across separate computers.',
+      'Wired master Save button in top navigation bar and Hamburger Menu to automatically route saves through saveProjectToLinkedLocation when linked targets exist.',
+      'Added dynamic Linked Target and Concurrency Lock status badges to top bar header and Project Dashboard.'
+    ]
+  },
+  {
+    version: 'v0.256',
+    date: '2026-09-01',
+    changes: [
+      'Enhanced backup retention and save interval sliders with high contrast background and borders for clear visibility.',
+      'Wired Save As and Manage Backups in Main Menu and EditorLayout with onProjectSaved to update active project state on new saves.',
+      'Removed export/download button from top module bar across all modules.',
+      'Simplified spritesheet asset import UI by removing redundant inline import buttons and unifying under the primary Import Selected Asset action.',
+      'Integrated project version mismatch check with confirmation prompt when opening older or newer Mason project files.'
+    ]
+  },
+  {
+    version: 'v0.255',
+    date: '2026-09-01',
+    changes: [
+      'Removed the redundant Google Drive / OneDrive switcher toggle button from the cloud explorer search header to keep location navigation purely driven by the sidebar.'
+    ]
+  },
+  {
+    version: 'v0.254',
+    date: '2026-09-01',
+    changes: [
+      'Streamlined file sub-module left sidebar: converted connected cloud drives (Google Drive and OneDrive) into single discrete location buttons mirroring Local Computer Disk.',
+      'Removed nested sidebar directory tree accordions in favor of seamless main workspace folder browsing and navigation.'
+    ]
+  },
+  {
+    version: 'v0.253',
+    date: '2026-09-01',
+    changes: [
+      'Relocated Cloud Drive authentication and connection management directly to Profile Settings with dedicated Connect/Disconnect buttons for Google Drive and Microsoft OneDrive.',
+      'Removed Default Cloud Provider dropdown in favor of individual multi-provider connection states.',
+      'Updated Windows File Explorer style sub-module sidebar to conditionally display Google Drive and OneDrive root nodes only when actively connected.',
+      'Filtered Quick Access directory bookmarks to only display locations from currently connected providers.'
+    ]
+  },
+  {
+    version: 'v0.252',
+    date: '2026-09-01',
+    changes: [
+      'Removed Saved Project Slots local database concept in favor of direct single live project workflow.',
+      'Streamlined Local PC storage view to focus directly on local disk project bundle upload/download and cloud/virtual file management.'
+    ]
+  },
+  {
+    version: 'v0.251',
+    date: '2026-09-01',
+    changes: [
+      'Transformed UnifiedFileManagerModal into a full Windows File Explorer style sub-module with interactive directory tree navigation.',
+      'Added expandable cloud folder tree (Google Drive & OneDrive) and local/virtual workspace storage nodes in the left sidebar.',
+      'Updated contextual action text, file prompts, and primary action buttons (Load, Save, Import, Export) to dynamically adapt to trigger actions.',
+      'Added Windows-style bottom file status bar with active location path prompt, file name input with extension indicators, and contextual action execution buttons.'
+    ]
+  },
+  {
+    version: 'v0.250',
+    date: '2026-08-31',
+    changes: [
+      'Resolved Internal React error "Expected static flag was missing" caused by violation of the Rules of Hooks in UnifiedFileManagerModal.',
+      'Refactored UnifiedFileManagerModal early isOpen exit check to execute downstream of all hooks to guarantee identical component-level render order.'
+    ]
+  },
+  {
+    version: 'v0.249',
+    date: '2026-08-31',
+    changes: [
+      'Refactored the core file storage model into a completely unified UnifiedFileManagerModal files sub-module.',
+      'Unified Local Device, Cloud Drive (Google Drive/OneDrive), and Virtual Drive browsers under a single consolidated modal view.',
+      'Integrated selective layout filters, automated backup snapshot tools, local device downloads/uploads, and asset previews dynamically based on selected action context.',
+      'Removed old LoadProjectModal, CloudSyncModal, and CloudImageImportModal files to secure clean single-point file input and output access.'
+    ]
+  },
+  {
+    version: 'v0.248',
+    date: '2026-08-31',
+    changes: [
+      'Isolated and resolved OneDrive stalling/freezes by resetting active folder IDs on cloud provider tab switches inside CloudImageImportModal.',
+      'Consolidated Import and Cloud Drive Explorer modals: added support for generic saving payloads to save configuration files directly to OneDrive or Google Drive.',
+      'Integrated Save to Cloud button inside App Profile Config Modal for direct cloud export of .json profile files.',
+      'Added dual timestamp (date + time) formatting to all virtual and cloud file browser lists in CloudImageImportModal.'
+    ]
+  },
+  {
+    version: 'v0.247',
+    date: '2026-08-31',
+    changes: [
+      'Updated file explorer modals to display both date and time stamps together for file lists, project items, and app profile updates.',
+      'Updated file inspector panel, project loading list, and cloud synchronization explorer items to present both date and time stamps.'
+    ]
+  },
   {
     version: 'v0.246',
     date: '2026-08-31',

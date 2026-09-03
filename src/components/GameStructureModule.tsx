@@ -69,7 +69,7 @@ import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 
 interface GameStructureModuleProps {
   project: MasonProject;
-  onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
+  onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onNavigateToModule: (moduleId: string, fileToSelect?: string) => void;
   onBackToDashboard?: () => void;
 }
@@ -369,7 +369,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           onUpdateProject(p => ({
             ...p,
             activeFiles: { ...p.activeFiles, gameStructureFileName: fName }
-          }));
+          }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Game Structure File' } as any);
         }}
         onNewFile={(name) => {
           const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.gamestructure`;
@@ -418,7 +418,16 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           }));
         }}
         onSaveFile={() => {
+          const now = new Date().toISOString();
           updateStructure(s => ({ ...s }));
+          onUpdateProject(p => ({
+            ...p,
+            updatedAt: now,
+            fileSystem: {
+              ...p.fileSystem,
+              game: (p.fileSystem.game || []).map(g => g.fileName === currentStructureFile.fileName ? { ...g, updatedAt: now } : g)
+            }
+          }), { actionLabel: `Saved game structure ${currentStructureFile.fileName}` } as any);
           showToast(`Saved framework "${data.gameTitle || currentStructureFile.name}" (${currentStructureFile.fileName})`, 'success');
         }}
         onExportFile={(fName) => {

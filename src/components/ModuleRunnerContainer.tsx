@@ -16,7 +16,7 @@ import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle
 interface ModuleRunnerContainerProps {
   moduleId: string;
   project: MasonProject;
-  onUpdateProject: (updated: MasonProject | ((prev: MasonProject) => MasonProject)) => void;
+  onUpdateProject: (updated: MasonProject | ((prev: MasonProject) => MasonProject), options?: any) => void;
   onBackToProjectInfo: () => void;
   onOpenModulesModal: () => void;
   onOpenExplorer: () => void;
@@ -114,7 +114,7 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
         {moduleId === 'particles' && (
           <ParticlesEditor
             project={project}
-            onUpdateProject={(updater) => onUpdateProject(updater(project))}
+            onUpdateProject={(updater, opts) => onUpdateProject(updater, opts)}
             onOpenFiles={onOpenExplorer}
             onBackToDashboard={onBackToProjectInfo}
           />
@@ -130,7 +130,7 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
         {moduleId === 'biomes' && (
           <RefinedBiomeEditor
             project={project}
-            onUpdateProject={(updater) => onUpdateProject(updater(project))}
+            onUpdateProject={(updater, opts) => onUpdateProject(updater, opts)}
             biomes={biomesList}
             onUpdateBiomes={handleUpdateBiomes}
             onBackToDashboard={onBackToProjectInfo}
@@ -140,7 +140,7 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
         {moduleId === 'gamestructure' && (
           <GameStructureModule
             project={project}
-            onUpdateProject={(updater) => onUpdateProject(updater(project))}
+            onUpdateProject={(updater, opts) => onUpdateProject(updater, opts)}
             onNavigateToModule={(modId) => {
               onOpenModulesModal();
             }}

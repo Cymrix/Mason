@@ -60,7 +60,7 @@ import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 
 interface ParticlesEditorProps {
   project: MasonProject;
-  onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
+  onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onOpenFiles: () => void;
   onBackToDashboard: () => void;
 }
@@ -2707,7 +2707,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               ...p.activeFiles,
               particleFileName: fName
             }
-          }));
+          }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Particle File' } as any);
           engineRef.current.particles = [];
         }}
         onNewFile={(name) => {
@@ -2725,7 +2725,15 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           handleDuplicate();
         }}
         onSaveFile={() => {
-          onUpdateProject(p => ({ ...p }));
+          const now = new Date().toISOString();
+          onUpdateProject(p => ({
+            ...p,
+            updatedAt: now,
+            fileSystem: {
+              ...p.fileSystem,
+              particles: (p.fileSystem.particles || []).map(f => f.fileName === activeFile.fileName ? { ...f, updatedAt: now } : f)
+            }
+          }), { actionLabel: `Saved particle file ${activeFile.fileName}` } as any);
           showToast(`Saved ${activeFile.fileName}`);
         }}
         onExportFile={() => {

@@ -13,7 +13,8 @@ import {
   Sliders, 
   Network,
   Cloud,
-  HardDrive
+  HardDrive,
+  Paintbrush
 } from 'lucide-react';
 import { ProjectIndexItem } from '../utils/masonStorage';
 import { MASON_MODULES } from '../engine/modulesRegistry';
@@ -38,7 +39,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
   onSelectSavedProject,
   onDeleteSavedProject
 }) => {
-  const { primaryDef, bgDef } = useAppTheme();
+  const { primaryDef, bgDef, getModuleColorDef } = useAppTheme();
   const isGDriveConnected = Boolean(getGoogleDriveToken());
   const isOneDriveConnected = Boolean(getOneDriveToken());
 
@@ -216,40 +217,76 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
             borderColor: bgDef.borderHex
           }}
         >
-          <div className="flex items-center gap-2">
-            <Cpu size={16} style={{ color: primaryDef.hex }} />
-            <h4 className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
-              Mason Subfolder & Mini-App Architecture
-            </h4>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu size={16} style={{ color: primaryDef.hex }} />
+              <h4 className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
+                Mason Subfolder & Mini-App Architecture
+              </h4>
+            </div>
+            <span className="text-[10px] font-mono text-neutral-500">
+              {MASON_MODULES.length} Dedicated Modules
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 text-xs">
             {MASON_MODULES.map(m => {
+              const modColor = getModuleColorDef(m.id);
+
               const renderWelcomeIcon = () => {
                 switch (m.iconName) {
-                  case 'Map': return <Map size={14} className="text-cyan-400" />;
-                  case 'TreePine': return <TreePine size={14} className="text-emerald-400" />;
-                  case 'Users': return <Users size={14} className="text-rose-400" />;
-                  case 'Sliders': return <Sliders size={14} className="text-amber-400" />;
-                  case 'Network': return <Network size={14} className="text-purple-400" />;
-                  default: return <Map size={14} className="text-cyan-400" />;
+                  case 'Paintbrush': return <Paintbrush size={16} />;
+                  case 'Map': return <Map size={16} />;
+                  case 'TreePine': return <TreePine size={16} />;
+                  case 'Users': return <Users size={16} />;
+                  case 'Sparkles': return <Sparkles size={16} />;
+                  case 'Sliders': return <Sliders size={16} />;
+                  case 'Network': return <Network size={16} />;
+                  default: return <Map size={16} />;
                 }
               };
 
               return (
                 <div 
                   key={m.id} 
-                  className="p-3 rounded-xl border space-y-1"
+                  className="p-3.5 rounded-2xl border space-y-2.5 transition-all hover:scale-[1.02] flex flex-col justify-between group shadow-sm"
                   style={{
                     backgroundColor: bgDef.hex,
                     borderColor: bgDef.borderHex
                   }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = modColor.hex)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = bgDef.borderHex)}
                 >
-                  <div className="flex items-center gap-2">
-                    {renderWelcomeIcon()}
-                    <span className="font-bold text-neutral-200">{m.name}</span>
+                  <div className="space-y-2">
+                    <div 
+                      className="w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner"
+                      style={{
+                        backgroundColor: `rgba(${modColor.rgb}, 0.18)`,
+                        borderColor: `rgba(${modColor.rgb}, 0.35)`,
+                        color: modColor.hex
+                      }}
+                    >
+                      {renderWelcomeIcon()}
+                    </div>
+                    <div>
+                      <div className="font-bold text-neutral-200 text-xs truncate group-hover:text-white transition-colors">
+                        {m.name}
+                      </div>
+                      <span 
+                        className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold border inline-block mt-1"
+                        style={{
+                          backgroundColor: `rgba(${modColor.rgb}, 0.12)`,
+                          borderColor: `rgba(${modColor.rgb}, 0.25)`,
+                          color: modColor.hex
+                        }}
+                      >
+                        {m.associatedExtension}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-[10px] font-mono text-neutral-400">{m.subfolder}/</div>
+                  <div className="text-[10px] font-mono text-neutral-500 truncate pt-1 border-t border-neutral-800/60">
+                    {m.subfolder}/
+                  </div>
                 </div>
               );
             })}

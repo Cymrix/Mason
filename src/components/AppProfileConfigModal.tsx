@@ -254,7 +254,7 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
   // Export profile config using the Files Sub-Module
   const handleExportProfileClick = () => {
     const jsonStr = exportProfilesJSON(activeProf.id);
-    const fileName = `mason_config_${activeProf.name.toLowerCase().replace(/\s+/g, '_')}.json`;
+    const fileName = `mason_config_${activeProf.name.toLowerCase().replace(/\s+/g, '_')}.profile`;
     const payload = {
       name: fileName,
       content: jsonStr,
@@ -878,7 +878,7 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
                   <span>Cross-App Configuration Portability</span>
                 </div>
                 <p className="text-xs text-neutral-300 leading-relaxed">
-                  Your Mason configuration and user profiles are automatically cached in browser storage. When you open any Mason map editor session on this device, your active profile settings will be auto-loaded. You can also export your settings to a <code>.json</code> file to transfer them into ANY other Mason app instance on another computer or browser!
+                  Your Mason configuration and user profiles are automatically cached in browser storage. When you open any Mason map editor session on this device, your active profile settings will be auto-loaded. You can also export your settings to a <code>.profile</code> file to transfer them into ANY other Mason app instance on another computer or browser!
                 </p>
               </div>
 
@@ -893,14 +893,14 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
                         <Download className="w-5 h-5" />
                       </div>
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-neutral-900 text-emerald-300 border border-neutral-800">
-                        .json
+                        .profile
                       </span>
                     </div>
                     <h4 className="text-sm font-bold text-white tracking-tight">
                       Export Profile
                     </h4>
                     <p className="text-xs text-neutral-400 leading-relaxed">
-                      Export active profile <strong className="text-white">"{activeProf.name}"</strong> and settings to a JSON configuration file using the Files sub-module to Local Disk, OneDrive, or Google Drive.
+                      Export active profile <strong className="text-white">"{activeProf.name}"</strong> and settings to a profile configuration file (<code className="text-emerald-300">.profile</code>) using the Files sub-module to Local Disk, OneDrive, or Google Drive.
                     </p>
                   </div>
 
@@ -922,14 +922,14 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
                         <Upload className="w-5 h-5" />
                       </div>
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-neutral-900 text-sky-300 border border-neutral-800">
-                        .json
+                        .profile
                       </span>
                     </div>
                     <h4 className="text-sm font-bold text-white tracking-tight">
                       Import Profile
                     </h4>
                     <p className="text-xs text-neutral-400 leading-relaxed">
-                      Import a saved profile <code className="text-sky-300">.json</code> file from Local Storage, OneDrive, or Google Drive using the Files sub-module to update or restore settings.
+                      Import a saved profile <code className="text-sky-300">.profile</code> file from Local Storage, OneDrive, or Google Drive using the Files sub-module to update or restore settings.
                     </p>
                   </div>
 

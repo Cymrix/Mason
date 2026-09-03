@@ -822,20 +822,21 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       
       const linkedFoundProject: MasonProject = {
         ...foundProject,
+        updatedAt: foundProject.updatedAt || new Date().toISOString(),
         storageLocation: targetFolderType === 'local_directory' ? {
           type: 'local_directory',
           displayName: `Local Folder (${targetFolderName})`,
           targetFolderName: targetFolderName,
           targetId: targetFolderName,
           fileName: `${foundProject.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.mason`,
-          lastSyncedAt: new Date().toISOString(),
+          lastSyncedAt: foundProject.storageLocation?.lastSyncedAt || foundProject.updatedAt || new Date().toISOString(),
           isAutoSyncEnabled: true
         } : {
           type: targetFolderType,
           displayName: `${targetFolderType === 'gdrive' ? 'Google Drive' : 'OneDrive'} Folder (${targetFolderName})`,
           targetFolderId: targetFolderId || 'root',
           targetFolderName: targetFolderName,
-          lastSyncedAt: new Date().toISOString(),
+          lastSyncedAt: foundProject.storageLocation?.lastSyncedAt || foundProject.updatedAt || new Date().toISOString(),
           isAutoSyncEnabled: true
         }
       };
@@ -848,7 +849,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
         handleSetOneDriveTargetFolder(targetFolderId, targetFolderName);
       }
 
-      saveActiveMasonProject(linkedFoundProject);
+      saveActiveMasonProject(linkedFoundProject, 'Load Found Project', undefined, { preserveUpdatedAt: true, skipBackups: true });
 
       if (onImportBundle) {
         onImportBundle(linkedFoundProject);
@@ -1696,6 +1697,11 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       return lower.endsWith('.mason') || lower.endsWith('.json') || lower.endsWith('.sprite');
     }
 
+    if (action === 'import_profile') {
+      const lower = name.toLowerCase();
+      return lower.endsWith('.profile') || lower.endsWith('.json');
+    }
+
     return true;
   };
 
@@ -1728,7 +1734,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       case 'load_project': return 'Retrieve local browser backups, upload a project bundle, or pull direct from your Cloud drives.';
       case 'import_asset': return 'Browse and load raw PNG sprites, frames, or spritesheets to build workspace objects.';
       case 'export_file': return 'Save profiles config file directly to local folder or secure cloud directories.';
-      case 'import_profile': return 'Select or upload a saved profile .json file from Local Storage, OneDrive, or Google Drive.';
+      case 'import_profile': return 'Select or upload a saved profile .profile file from Local Storage, OneDrive, or Google Drive.';
       default: return 'Core sub-module for browsing, saving, loading, and importing all file payloads.';
     }
   }, [action]);
@@ -1752,7 +1758,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
         if (selectedImageDataUrl || selectedCloudItem) return 'Import Selected Asset';
         return 'Import Asset';
       case 'import_profile':
-        if (activeStorageProvider === 'local') return 'Browse .json File';
+        if (activeStorageProvider === 'local') return 'Browse .profile File';
         if (selectedCloudItem) return 'Import Selected Profile';
         return 'Import Profile Config';
       default:
@@ -2252,12 +2258,12 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
                       >
                         <Upload size={36} className="text-neutral-500 group-hover:text-sky-400 transition" />
                         <div>
-                          <div className="text-sm font-bold text-neutral-200">Import Profile JSON File from Disk</div>
-                          <p className="text-xs text-neutral-400 mt-1">Select or drag-and-drop a saved <code className="text-sky-300 font-mono text-[11px]">.json</code> profile configuration file</p>
+                          <div className="text-sm font-bold text-neutral-200">Import Profile File from Disk</div>
+                          <p className="text-xs text-neutral-400 mt-1">Select or drag-and-drop a saved <code className="text-sky-300 font-mono text-[11px]">.profile</code> (or <code className="text-neutral-400 font-mono text-[11px]">.json</code>) profile configuration file</p>
                         </div>
                         <button
                           type="button"
-                          className="mt-1 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs shadow-lg shadow-sky-500/10 transition"
+                          className="mt-1 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs shadow-lg shadow-sky-500/10 transition cursor-pointer"
                         >
                           Browse Computer Files
                         </button>
@@ -2265,7 +2271,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
                           type="file"
                           ref={localProfileInputRef}
                           onChange={handleLocalProfileUpload}
-                          accept=".json,application/json"
+                          accept=".profile,.json,application/json"
                           className="hidden"
                         />
                       </div>

@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.272';
-export const MASON_VERSION_DISPLAY = 'v0.272';
-export const MASON_FULL_VERSION = 'v0.272';
+export const MASON_VERSION = '0.276';
+export const MASON_VERSION_DISPLAY = 'v0.276';
+export const MASON_FULL_VERSION = 'v0.276';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,26 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.276',
+    date: '2026-09-03',
+    notes: 'Fixed TypeError when opening the Prefab module by adding robust prefab data normalizers and safe fallbacks for missing prefabData, state nodes, variables, and properties.'
+  },
+  {
+    version: 'v0.275',
+    date: '2026-09-03',
+    notes: 'Preserve project and sub-file timestamps when loading a workspace or switching/navigating files; file and project timestamps now update strictly when the item itself or the entire project is explicitly saved.'
+  },
+  {
+    version: 'v0.274',
+    date: '2026-09-03',
+    notes: 'Changed profile configuration export and import file extension from .json to .profile across profile modal export payloads and the Unified File Manager.'
+  },
+  {
+    version: 'v0.273',
+    date: '2026-09-03',
+    notes: 'Fixed module icon colors and missing icon mappings (Paintbrush and Sparkles) on the main start/welcome launcher screen when no project is loaded to properly synchronize with dynamic theme module colors.'
+  },
   {
     version: 'v0.272',
     date: '2026-09-03',

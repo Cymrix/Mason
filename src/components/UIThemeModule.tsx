@@ -72,7 +72,7 @@ import {
 
 interface UIThemeModuleProps {
   project: MasonProject;
-  onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
+  onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onOpenFiles?: () => void;
   onBackToDashboard?: () => void;
 }
@@ -793,7 +793,7 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
           onUpdateProject(p => ({
             ...p,
             activeFiles: { ...p.activeFiles, uiFileName: fName }
-          }));
+          }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select UI File' } as any);
         }}
         onNewFile={(name) => {
           const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.ui`;
@@ -840,7 +840,16 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
           }));
         }}
         onSaveFile={() => {
-          updateUI(u => ({ ...u, updatedAt: new Date().toISOString() }));
+          const now = new Date().toISOString();
+          updateUI(u => ({ ...u, updatedAt: now }));
+          onUpdateProject(p => ({
+            ...p,
+            updatedAt: now,
+            fileSystem: {
+              ...p.fileSystem,
+              ui: (p.fileSystem.ui || []).map(u => u.fileName === currentUiFile.fileName ? { ...u, updatedAt: now } : u)
+            }
+          }), { actionLabel: `Saved UI theme ${currentUiFile.fileName}` } as any);
           showToast(`Saved UI theme "${ui.name || currentUiFile.name}" (${currentUiFile.fileName})`, 'success');
         }}
         onExportFile={(fName) => {

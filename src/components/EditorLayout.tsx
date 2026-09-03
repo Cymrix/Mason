@@ -284,11 +284,14 @@ export const EditorLayout: React.FC = () => {
   };
 
   // Sync project update
-  const handleUpdateProject = (updated: MasonProject | ((prev: MasonProject) => MasonProject)) => {
+  const handleUpdateProject = (
+    updated: MasonProject | ((prev: MasonProject) => MasonProject),
+    options?: { preserveUpdatedAt?: boolean; skipBackups?: boolean; actionLabel?: string }
+  ) => {
     setProject(prev => {
       if (!prev) return prev;
       const newProject = typeof updated === 'function' ? updated(prev) : updated;
-      saveActiveMasonProject(newProject);
+      saveActiveMasonProject(newProject, options?.actionLabel, undefined, options);
       refreshSavedProjects();
       return newProject;
     });
@@ -334,7 +337,7 @@ export const EditorLayout: React.FC = () => {
       const asyncLoaded = await idbGetProject(id);
       if (asyncLoaded) {
         setProject(asyncLoaded);
-        saveActiveMasonProject(asyncLoaded);
+        saveActiveMasonProject(asyncLoaded, 'Load Async Project', undefined, { preserveUpdatedAt: true, skipBackups: true });
         setActiveModuleId(null);
         refreshSavedProjects();
         showToast(`Loaded project: ${asyncLoaded.name}`, 'success');
@@ -390,7 +393,7 @@ export const EditorLayout: React.FC = () => {
         }
       }
     }
-    saveActiveMasonProject(imported);
+    saveActiveMasonProject(imported, 'Load Project Bundle', undefined, { preserveUpdatedAt: true, skipBackups: true });
     setProject(imported);
     setActiveModuleId(null);
     refreshSavedProjects();
@@ -656,11 +659,11 @@ export const EditorLayout: React.FC = () => {
 
   // Prefab Play Mode State & Spawn Configuration
   const [selectedTestCharacterId, setSelectedTestCharacterId] = useState<string>(() => {
-    return currentCharacterFile?.prefabData?.id || 'char_korrath';
+    return currentCharacterFile?.prefabData?.id || currentCharacterFile?.id || 'char_korrath';
   });
 
   const availableCharacters = useMemo(() => {
-    const charsFromProject = project?.fileSystem?.prefabs?.map(c => c.prefabData).filter(Boolean) || [];
+    const charsFromProject = project?.fileSystem?.prefabs?.map(c => c.prefabData || (c as any)).filter(Boolean) || [];
     if (charsFromProject.length > 0) {
       return charsFromProject;
     }
@@ -1587,12 +1590,12 @@ export const EditorLayout: React.FC = () => {
                     handleUpdateProject(p => ({
                       ...p,
                       activeFiles: { ...p.activeFiles, mapFileName: fName }
-                    }));
+                    }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Map File' });
                   }}
                   onNewFile={(name) => {
                     const { project: updated, newFile } = createNewMapInProject(project, name);
                     globalChunkCache.invalidateMap(newFile.id);
-                    handleUpdateProject(updated);
+                    handleUpdateProject(updated, { actionLabel: `Created map ${name}` });
                     showToast(`Created new level ${name}`, 'success');
                   }}
                   onDuplicateFile={(fName) => {
@@ -1612,11 +1615,19 @@ export const EditorLayout: React.FC = () => {
                       ...p,
                       activeFiles: { ...p.activeFiles, mapFileName: dupeFileName },
                       fileSystem: { ...p.fileSystem, maps: [...p.fileSystem.maps, dupe] }
-                    }));
+                    }), { actionLabel: `Duplicated map to ${dupeFileName}` });
                     showToast(`Duplicated to ${dupeFileName}`, 'success');
                   }}
                   onSaveFile={() => {
-                    saveActiveMasonProject(project);
+                    const now = new Date().toISOString();
+                    handleUpdateProject(p => ({
+                      ...p,
+                      updatedAt: now,
+                      fileSystem: {
+                        ...p.fileSystem,
+                        maps: (p.fileSystem.maps || []).map(m => m.fileName === currentMapFile.fileName ? { ...m, updatedAt: now } : m)
+                      }
+                    }), { actionLabel: `Saved map ${currentMapFile.fileName}` });
                     showToast(`Saved ${currentMapFile.fileName}`, 'success');
                   }}
                   onExportFile={(fName) => {
@@ -2490,14 +2501,14 @@ export const EditorLayout: React.FC = () => {
                               >
                                 <div className="flex items-center gap-3">
                                   {prefab.prefabData?.avatarIcon ? (
-                                    <img src={prefab.prefabData?.avatarIcon} alt={prefab.prefabData?.name} className="w-8 h-8 object-contain pixelated bg-neutral-950 rounded" />
+                                    <img src={prefab.prefabData?.avatarIcon} alt={prefab.prefabData?.name || prefab.name} className="w-8 h-8 object-contain pixelated bg-neutral-950 rounded" />
                                   ) : (
                                     <div className="w-8 h-8 rounded bg-neutral-950 border border-neutral-800 flex items-center justify-center">
                                       <Zap size={14} className="text-neutral-600" />
                                     </div>
                                   )}
                                   <div className="flex flex-col">
-                                    <span className="text-xs font-bold font-mono">{prefab.prefabData?.name}</span>
+                                    <span className="text-xs font-bold font-mono">{prefab.prefabData?.name || prefab.name || prefab.fileName}</span>
                                     <span className="text-[10px] text-neutral-500 uppercase">{prefab.prefabData?.prefabType === 'environmental_prop' ? 'Prop' : 'Prefab'}</span>
                                   </div>
                                 </div>
@@ -2644,15 +2655,15 @@ export const EditorLayout: React.FC = () => {
           onNavigateToModule={(mod, file) => {
             setActiveModuleId(mod);
             if (file) {
-              if (mod === 'maps') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, mapFileName: file } }));
-              else if (mod === 'biomes') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, biomeFileName: file } }));
-              else if (mod === 'prefabs') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, prefabFileName: file } }));
-              else if (mod === 'behaviors') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, behaviorFileName: file } }));
-              else if (mod === 'ui') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, uiFileName: file } }));
-              else if (mod === 'gamestructure') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, gameStructureFileName: file } }));
+              if (mod === 'maps') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, mapFileName: file } }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Map File' });
+              else if (mod === 'biomes') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, biomeFileName: file } }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Biome File' });
+              else if (mod === 'prefabs') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, prefabFileName: file } }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Prefab File' });
+              else if (mod === 'behaviors') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, behaviorFileName: file } }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Behavior File' });
+              else if (mod === 'ui') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, uiFileName: file } }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select UI File' });
+              else if (mod === 'gamestructure') handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, gameStructureFileName: file } }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Game Structure File' });
               else if (mod === 'sprites') {
                 const targetSpriteFile = file.endsWith('.sprite') ? file : `${file.replace(/\.[^.]+$/, '')}.sprite`;
-                handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, spriteFileName: targetSpriteFile } }));
+                handleUpdateProject(p => ({ ...p, activeFiles: { ...p.activeFiles, spriteFileName: targetSpriteFile } }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Sprite File' });
               }
             }
           }}

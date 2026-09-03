@@ -602,16 +602,33 @@ export const loadActiveMasonProject = (): MasonProject => {
   return initial;
 };
 
+export interface SaveProjectOptions {
+  preserveUpdatedAt?: boolean;
+  skipBackups?: boolean;
+}
+
 /**
  * Saves a project to active storage, memory cache, differential backups, and library index
  */
 export const saveActiveMasonProject = (
   project: MasonProject,
   actionLabel?: string,
-  module?: MasonModuleId
+  module?: MasonModuleId,
+  options?: SaveProjectOptions
 ): void => {
   try {
-    project.updatedAt = new Date().toISOString();
+    const shouldPreserve = options?.preserveUpdatedAt || 
+      actionLabel?.toLowerCase().includes('load') || 
+      actionLabel?.toLowerCase().includes('restore') || 
+      actionLabel?.toLowerCase().includes('cache') ||
+      actionLabel?.toLowerCase().includes('selection');
+
+    if (!shouldPreserve) {
+      project.updatedAt = new Date().toISOString();
+    } else if (!project.updatedAt) {
+      project.updatedAt = new Date().toISOString();
+    }
+
     project.engineVersion = MASON_VERSION_DISPLAY;
     
     // 1. Update in-memory cache instantly
@@ -621,9 +638,11 @@ export const saveActiveMasonProject = (
     // 2. Persist asynchronously in IndexedDB
     idbSaveProject(project);
 
-    // 3. Create differential project and file-level backup snapshots asynchronously
-    saveProjectBackup(project, actionLabel, module);
-    savePerFileBackupsForProject(project, actionLabel);
+    // 3. Create differential project and file-level backup snapshots asynchronously ONLY if not skipping or loading
+    if (!options?.skipBackups && !actionLabel?.toLowerCase().includes('load') && !actionLabel?.toLowerCase().includes('selection')) {
+      saveProjectBackup(project, actionLabel, module);
+      savePerFileBackupsForProject(project, actionLabel);
+    }
 
     // 3. Update index list in localStorage (lightweight metadata, few kilobytes only)
     try {
@@ -700,7 +719,7 @@ export const loadSavedProjectById = (projectId: string): MasonProject | null => 
   // Check memory cache first
   if (inMemoryProjectsCache.has(projectId)) {
     const cached = inMemoryProjectsCache.get(projectId)!;
-    saveActiveMasonProject(cached);
+    saveActiveMasonProject(cached, 'Load Cached Project', undefined, { preserveUpdatedAt: true, skipBackups: true });
     return cached;
   }
 
@@ -714,7 +733,7 @@ export const loadSavedProjectById = (projectId: string): MasonProject | null => 
     if (raw) {
       const parsed = JSON.parse(raw) as MasonProject;
       if (parsed && parsed.id === projectId) {
-        saveActiveMasonProject(parsed);
+        saveActiveMasonProject(parsed, 'Load Local Project', undefined, { preserveUpdatedAt: true, skipBackups: true });
         return parsed;
       }
     }
@@ -1036,7 +1055,7 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
     width: mapData.width || 24,
     height: mapData.height || 24,
     createdAt: projectData.createdAt || now,
-    updatedAt: projectData.updatedAt || now,
+    updatedAt: projectData.updatedAt || projectData.createdAt || now,
     chunks: mapData.chunks || {},
     cells: mapData.cells || [],
     data: mapData
@@ -1046,8 +1065,8 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
     id: b.id || `biome_${idx}`,
     name: b.name || `Biome ${idx + 1}`,
     fileName: `${(b.name || 'biome').toLowerCase().replace(/[^a-z0-9]/g, '_')}.biome`,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: b.createdAt || projectData.createdAt || now,
+    updatedAt: b.updatedAt || projectData.updatedAt || projectData.createdAt || now,
     biomeData: b
   }));
 
@@ -1059,13 +1078,13 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
     engineVersion: '2.0.0',
     activeModule: 'maps',
     createdAt: projectData.createdAt || now,
-    updatedAt: now,
+    updatedAt: projectData.updatedAt || projectData.createdAt || now,
     storageLocation: projectData.storageLocation || {
       type: 'local_file',
       displayName: `Local File (${projName}.mason)`,
       fileName: `${projName}.mason`,
       targetId: projId,
-      lastSyncedAt: now,
+      lastSyncedAt: projectData.updatedAt || now,
       isAutoSyncEnabled: true
     },
     activeFiles: {
@@ -1084,8 +1103,8 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
           id: 'char_hero',
           name: 'Hero Adventurer',
           fileName: 'hero_adventurer.prefab',
-          createdAt: now,
-          updatedAt: now,
+          createdAt: projectData.createdAt || now,
+          updatedAt: projectData.updatedAt || projectData.createdAt || now,
           prefabData: {
             id: 'char_hero',
             name: 'Hero Adventurer',
@@ -1109,8 +1128,8 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
           id: 'ui_dark',
           name: 'Standard Dark UI',
           fileName: 'standard_dark.ui',
-          createdAt: now,
-          updatedAt: now,
+          createdAt: projectData.createdAt || now,
+          updatedAt: projectData.updatedAt || projectData.createdAt || now,
           uiConfig: DEFAULT_UI_THEMES[0]
         }
       ],
@@ -1119,8 +1138,8 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
           id: 'game_main',
           name: 'Main Game Flow',
           fileName: 'main_metroidvania.gamestructure',
-          createdAt: now,
-          updatedAt: now,
+          createdAt: projectData.createdAt || now,
+          updatedAt: projectData.updatedAt || projectData.createdAt || now,
           structureData: createDefaultGameStructure()
         }
       ],
@@ -1129,14 +1148,14 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
         id: p.id,
         name: p.name,
         fileName: `${p.id.replace('particles_', '')}.particle`,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: projectData.createdAt || now,
+        updatedAt: projectData.updatedAt || projectData.createdAt || now,
         particleData: p
       }))
     }
   };
 
-  saveActiveMasonProject(masonProj);
+  saveActiveMasonProject(masonProj, 'Load Project Conversion', undefined, { preserveUpdatedAt: true, skipBackups: true });
   return masonProj;
 };
 

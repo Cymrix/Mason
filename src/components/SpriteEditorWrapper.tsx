@@ -189,7 +189,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
             ...prev,
             fileSystem: { ...prev.fileSystem, sprites: updated }
           };
-          saveActiveMasonProject(updatedProj, `Loaded and sliced sprite frames for ${file.name}`);
+          saveActiveMasonProject(updatedProj, `Loaded and sliced sprite frames for ${file.name}`, undefined, { preserveUpdatedAt: true, skipBackups: true });
           return updatedProj;
         }
         return prev;

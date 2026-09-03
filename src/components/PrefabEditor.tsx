@@ -237,9 +237,175 @@ const getCubicBezierArrowHeads = (
   });
 };
 
+// Prefab Data Normalizers & Safe Fallback Constructors
+export const ensurePrefabData = (data: any, fallbackName: string = 'Korrath Steelhand'): PrefabData => {
+  if (!data || typeof data !== 'object') {
+    return {
+      id: `char_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name: fallbackName,
+      prefabType: 'player_hero',
+      avatarIcon: '🛡️',
+      spriteWidth: 64,
+      spriteHeight: 64,
+      tintColor: '#06b6d4',
+      baseScale: 1.0,
+      states: ['idle', 'running', 'airborne', 'attacking', 'hurt'],
+      variables: [
+        { id: generateVariableId(), name: 'Max Health', category: 'attribute', type: 'number', isStatic: true, defaultValue: 100 },
+        { id: generateVariableId(), name: 'Sprint Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 5.5 }
+      ],
+      behaviorVariables: {},
+      rules: [],
+      capsule: { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
+      spritesheets: [{ id: 'sheet_default', name: 'Default Hero Sheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }],
+      points: [
+        { id: 'pt_eyes', name: 'Eyes (Sight Locus)', color: '#38bdf8', defaultOffsetX: 10, defaultOffsetY: -18 },
+        { id: 'pt_ears', name: 'Ears (Acoustic Hearing)', color: '#a855f7', defaultOffsetX: 0, defaultOffsetY: -20 },
+        { id: 'pt_torso', name: 'Torso Center (Hurtbox)', color: '#22c55e', defaultOffsetX: 0, defaultOffsetY: 0 },
+        { id: 'pt_feet', name: 'Feet (Footstep Sound)', color: '#f59e0b', defaultOffsetX: 0, defaultOffsetY: 26 },
+        { id: 'pt_weapon', name: 'Right Hand (Weapon Origin)', color: '#ef4444', defaultOffsetX: 18, defaultOffsetY: 2 }
+      ],
+      polygons: [
+        {
+          id: 'poly_body',
+          name: 'Main Body Hurtbox',
+          type: 'hurtbox',
+          color: '#22c55e',
+          defaultVertices: [
+            { x: -14, y: -24 },
+            { x: 14, y: -24 },
+            { x: 14, y: 24 },
+            { x: -14, y: 24 }
+          ]
+        }
+      ],
+      sockets: [
+        { tagId: 'head_eyes', label: 'Eyes (Sight Locus)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
+        { tagId: 'head_ears', label: 'Ears (Hearing Locus)', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
+        { tagId: 'torso_center', label: 'Torso Center (Hurtbox)', offsetX: 0, offsetY: 0, visualMarkerColor: '#22c55e' },
+        { tagId: 'feet_ground', label: 'Feet (Footstep Sound)', offsetX: 0, offsetY: 26, visualMarkerColor: '#f59e0b' },
+        { tagId: 'hand_weapon', label: 'Right Hand (Weapon Origin)', offsetX: 18, offsetY: 2, visualMarkerColor: '#ef4444' }
+      ],
+      animations: [
+        { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_default', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
+      ]
+    };
+  }
+
+  // If input is wrapped in prefabData property or passed as direct object
+  const raw = data.prefabData && typeof data.prefabData === 'object' ? data.prefabData : data;
+
+  return {
+    ...raw,
+    id: raw.id || `char_${Date.now()}`,
+    name: raw.name || data.name || fallbackName,
+    prefabType: raw.prefabType || 'player_hero',
+    avatarIcon: raw.avatarIcon || '🛡️',
+    spriteWidth: raw.spriteWidth || 64,
+    spriteHeight: raw.spriteHeight || 64,
+    tintColor: raw.tintColor || '#06b6d4',
+    baseScale: raw.baseScale ?? 1.0,
+    states: Array.isArray(raw.states) && raw.states.length > 0 ? raw.states.filter(Boolean) : ['idle', 'running', 'airborne', 'attacking', 'hurt'],
+    movement: raw.movement,
+    ai: raw.ai,
+    variables: Array.isArray(raw.variables) ? raw.variables.map((v: any, vIdx: number) => ({
+      ...v,
+      id: v?.id || `var_${vIdx}_${Date.now()}`,
+      name: v?.name || v?.id || `Variable ${vIdx + 1}`,
+      category: v?.category || 'attribute',
+      type: v?.type || 'number',
+      isStatic: v?.isStatic ?? true,
+      defaultValue: v?.defaultValue ?? 0
+    })) : [],
+    behaviorVariables: raw.behaviorVariables && typeof raw.behaviorVariables === 'object' ? raw.behaviorVariables : {},
+    rules: Array.isArray(raw.rules) ? raw.rules : [],
+    capsule: raw.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
+    spritesheets: Array.isArray(raw.spritesheets) && raw.spritesheets.length > 0
+      ? raw.spritesheets.map((s: any, sIdx: number) => ({
+          ...s,
+          id: s?.id || `sheet_${sIdx + 1}`,
+          name: s?.name || `Spritesheet #${sIdx + 1}`,
+          tileWidth: s?.tileWidth || 64,
+          tileHeight: s?.tileHeight || 64,
+          cols: s?.cols || 8,
+          rows: s?.rows || 4,
+          totalFrames: s?.totalFrames || 32
+        }))
+      : [{ id: 'sheet_default', name: 'Default Hero Sheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }],
+    points: Array.isArray(raw.points) ? raw.points.map((p: any, pIdx: number) => ({
+      ...p,
+      id: p?.id || `pt_${pIdx}`,
+      name: p?.name || `Point #${pIdx + 1}`,
+      color: p?.color || '#38bdf8',
+      defaultOffsetX: p?.defaultOffsetX || 0,
+      defaultOffsetY: p?.defaultOffsetY || 0
+    })) : [],
+    polygons: Array.isArray(raw.polygons) ? raw.polygons.map((poly: any, polyIdx: number) => ({
+      ...poly,
+      id: poly?.id || `poly_${polyIdx}`,
+      name: poly?.name || `Polygon #${polyIdx + 1}`,
+      type: poly?.type || 'hurtbox',
+      color: poly?.color || '#22c55e',
+      defaultVertices: poly?.defaultVertices || [{ x: -14, y: -24 }, { x: 14, y: -24 }, { x: 14, y: 24 }, { x: -14, y: 24 }]
+    })) : [],
+    sockets: Array.isArray(raw.sockets) ? raw.sockets : [],
+    animations: Array.isArray(raw.animations) ? raw.animations : [
+      { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_default', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
+    ],
+    stateMachine: raw.stateMachine ? {
+      initialStateId: raw.stateMachine.initialStateId || 'st_idle',
+      states: Array.isArray(raw.stateMachine.states) ? raw.stateMachine.states.map((st: any, stIdx: number) => ({
+        ...st,
+        id: st?.id || `st_${stIdx}`,
+        name: st?.name || st?.id || `State ${stIdx + 1}`,
+        color: st?.color || '#38bdf8',
+        x: st?.x ?? 320,
+        y: st?.y ?? 220,
+        isInitial: st?.isInitial ?? (stIdx === 0),
+        description: st?.description || ''
+      })) : [],
+      transitions: Array.isArray(raw.stateMachine.transitions) ? raw.stateMachine.transitions.map((tr: any, trIdx: number) => ({
+        ...tr,
+        id: tr?.id || `tr_${trIdx}`,
+        fromStateId: tr?.fromStateId || '',
+        toStateId: tr?.toStateId || '',
+        triggerLabel: tr?.triggerLabel || '',
+        isBidirectional: tr?.isBidirectional ?? false
+      })) : []
+    } : undefined
+  };
+};
+
+export const ensurePrefabFile = (file: any, index: number = 0): PrefabFile => {
+  if (!file || typeof file !== 'object') {
+    const data = ensurePrefabData(null, 'Korrath Steelhand');
+    return {
+      id: `char_file_${index + 1}`,
+      name: data.name,
+      fileName: 'korrath.prefab',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      prefabData: data
+    };
+  }
+
+  const name = file.name || file.prefabData?.name || `Prefab ${index + 1}`;
+  const fileName = file.fileName || `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
+  const prefabData = ensurePrefabData(file.prefabData || file, name);
+
+  return {
+    id: file.id || prefabData.id || `char_file_${index + 1}`,
+    name: name,
+    fileName: fileName,
+    createdAt: file.createdAt || new Date().toISOString(),
+    updatedAt: file.updatedAt || new Date().toISOString(),
+    prefabData: prefabData
+  };
+};
+
 interface CharacterEditorProps {
   project: MasonProject;
-  onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
+  onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onOpenFiles?: () => void;
   onBackToDashboard?: () => void;
   onNavigateToModule?: (moduleId: string, options?: { behaviorFileName?: string; prefabFileName?: string; spriteFileName?: string }) => void;
@@ -595,109 +761,69 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   const dragRafRef = useRef<number | null>(null);
   const currentDragPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Prefab Files & Active Selection
-  const charFiles = project.fileSystem.prefabs || [];
-  const activeFileName = project.activeFiles.prefabFileName || charFiles[0]?.fileName || '';
-  const currentFile = charFiles.find(c => c.fileName === activeFileName) || charFiles[0] || {
-    id: 'char_default',
-    name: 'Korrath Steelhand',
-    fileName: 'korrath.prefab',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    prefabData: {
-      id: 'char_korrath',
-      name: 'Korrath Steelhand',
-      prefabType: 'player_hero' as const,
-      avatarIcon: '[Shield]',
-      spriteWidth: 64,
-      spriteHeight: 64,
-      tintColor: '#06b6d4',
-      baseScale: 1.0,
-      states: ['idle', 'running', 'airborne', 'attacking', 'hurt'],
-      variables: [
-        { id: generateVariableId(), name: 'Max Health', category: 'attribute' as const, type: 'number' as const, isStatic: true, defaultValue: 100 },
-        { id: generateVariableId(), name: 'Sprint Speed', category: 'attribute' as const, type: 'number' as const, isStatic: false, defaultValue: 5.5 }
-      ],
-      behaviorVariables: {},
-      rules: [],
-      capsule: { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
-      spritesheets: [{ id: 'sheet_default', name: 'Default Hero Sheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }],
-      points: [
-        { id: 'pt_eyes', name: 'Eyes (Sight Locus)', color: '#38bdf8', defaultOffsetX: 10, defaultOffsetY: -18 },
-        { id: 'pt_ears', name: 'Ears (Acoustic Hearing)', color: '#a855f7', defaultOffsetX: 0, defaultOffsetY: -20 },
-        { id: 'pt_torso', name: 'Torso Center (Hurtbox)', color: '#22c55e', defaultOffsetX: 0, defaultOffsetY: 0 },
-        { id: 'pt_feet', name: 'Feet (Footstep Sound)', color: '#f59e0b', defaultOffsetX: 0, defaultOffsetY: 26 },
-        { id: 'pt_weapon', name: 'Right Hand (Weapon Origin)', color: '#ef4444', defaultOffsetX: 18, defaultOffsetY: 2 }
-      ],
-      polygons: [
-        {
-          id: 'poly_body',
-          name: 'Main Body Hurtbox',
-          type: 'hurtbox' as const,
-          color: '#22c55e',
-          defaultVertices: [
-            { x: -14, y: -24 },
-            { x: 14, y: -24 },
-            { x: 14, y: 24 },
-            { x: -14, y: 24 }
-          ]
-        }
-      ],
-      sockets: [
-        { tagId: 'head_eyes' as const, label: 'Eyes (Sight Locus)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
-        { tagId: 'head_ears' as const, label: 'Ears (Hearing Locus)', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
-        { tagId: 'torso_center' as const, label: 'Torso Center (Hurtbox)', offsetX: 0, offsetY: 0, visualMarkerColor: '#22c55e' },
-        { tagId: 'feet_ground' as const, label: 'Feet (Footstep Sound)', offsetX: 0, offsetY: 26, visualMarkerColor: '#f59e0b' },
-        { tagId: 'hand_weapon' as const, label: 'Right Hand (Weapon Origin)', offsetX: 18, offsetY: 2, visualMarkerColor: '#ef4444' }
-      ],
-      animations: [
-        { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_default', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
-      ]
+  // Prefab Files & Active Selection (normalized with robust schema fallbacks)
+  const charFiles: PrefabFile[] = useMemo(() => {
+    const rawList = project?.fileSystem?.prefabs;
+    if (Array.isArray(rawList) && rawList.length > 0) {
+      return rawList.map((c, idx) => ensurePrefabFile(c, idx));
     }
-  };
+    return [ensurePrefabFile(null, 0)];
+  }, [project?.fileSystem?.prefabs]);
 
-  const char: PrefabData = currentFile.prefabData;
+  const activeFileName = project?.activeFiles?.prefabFileName || charFiles[0]?.fileName || '';
+  const currentFile: PrefabFile = useMemo(() => {
+    const found = charFiles.find(c => c.fileName === activeFileName) || charFiles[0];
+    return ensurePrefabFile(found, 0);
+  }, [charFiles, activeFileName]);
+
+  const char: PrefabData = useMemo(() => {
+    return ensurePrefabData(currentFile.prefabData || currentFile, currentFile.name || 'Unnamed Prefab');
+  }, [currentFile]);
 
   // Available UI Input Mappings for Player Controls (read from active/all UI files in project with full fallback)
-  const activeUiFile = project.fileSystem.ui?.find(u => u.fileName === project.activeFiles.uiFileName) || project.fileSystem.ui?.[0];
+  const activeUiFile = project?.fileSystem?.ui?.find(u => u.fileName === project?.activeFiles?.uiFileName) || project?.fileSystem?.ui?.[0];
   const activeUiConfig = activeUiFile?.uiConfig ? ensureUIConfigDefaults(activeUiFile.uiConfig) : null;
   const availableInputMappings: InputMapping[] = useMemo(() => {
     if (activeUiConfig?.inputMappings && activeUiConfig.inputMappings.length > 0) {
       return activeUiConfig.inputMappings;
     }
-    for (const u of (project.fileSystem.ui || [])) {
-      if (u.uiConfig?.inputMappings && u.uiConfig.inputMappings.length > 0) {
+    for (const u of (project?.fileSystem?.ui || [])) {
+      if (u?.uiConfig?.inputMappings && u.uiConfig.inputMappings.length > 0) {
         return u.uiConfig.inputMappings;
       }
     }
     return UNIFIED_INPUT_TEMPLATE;
-  }, [activeUiConfig, project.fileSystem.ui]);
+  }, [activeUiConfig, project?.fileSystem?.ui]);
 
   // Helper to safely update current prefab
   const updateCharacter = (updater: (prev: PrefabData) => PrefabData) => {
     onUpdateProject(p => {
-      const chars = p.fileSystem.prefabs || [];
+      const chars = p?.fileSystem?.prefabs || [];
       const exists = chars.some(c => c.fileName === currentFile.fileName || c.id === currentFile.id);
       let updatedChars;
       if (exists) {
         updatedChars = chars.map(c => {
           if (c.fileName === currentFile.fileName || c.id === currentFile.id) {
+            const currentData = ensurePrefabData(c.prefabData || c, c.name || currentFile.name);
+            const nextData = updater(currentData);
             return {
               ...c,
+              name: nextData.name || c.name,
               updatedAt: new Date().toISOString(),
-              prefabData: updater(c.prefabData)
+              prefabData: nextData
             };
           }
           return c;
         });
       } else {
+        const nextData = updater(char);
         const newFile: PrefabFile = {
           id: currentFile.id || `char_file_${Date.now()}`,
-          name: currentFile.name || 'Korrath Steelhand',
+          name: nextData.name || currentFile.name || 'Korrath Steelhand',
           fileName: currentFile.fileName || 'korrath.prefab',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          prefabData: updater(currentFile.prefabData)
+          prefabData: nextData
         };
         updatedChars = [...chars, newFile];
       }
@@ -713,11 +839,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
   // Helper to get combined prefab variables and rule-scoped local variables
   const getRuleVariablesList = (targetRule?: BehaviorRule) => {
-    const pVars = (char.variables || []).map(v => ({
+    const pVars = (char?.variables || []).map(v => ({
       id: v.id,
-      name: v.name,
+      name: v.name || v.id || 'Variable',
       isLocal: false,
-      value: char.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue ?? 0,
+      value: char?.behaviorVariables?.[v.id] ?? v.value ?? v.defaultValue ?? 0,
       scope: 'prefab' as const
     }));
 
@@ -767,7 +893,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           <optgroup label="[Local] Local Variables (Rule Scope)">
             {localVars.map(v => (
               <option key={v.id} value={v.id}>
-                [Local] [Local] {v.name} ({v.id}) = {String(v.value)}
+                [Local] {v.name} ({v.id}) = {String(v.value)}
               </option>
             ))}
           </optgroup>
@@ -789,8 +915,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
 
   // Fast duplicate prefab
   const handleDuplicateCharacter = () => {
-    const baseName = `${char.name} (Copy)`;
-    const safeFileName = `${char.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_copy_${Date.now().toString().slice(-4)}.prefab`;
+    const baseName = `${char?.name || currentFile.name || 'Prefab'} (Copy)`;
+    const safeFileName = `${(char?.name || 'prefab').toLowerCase().replace(/[^a-z0-9]/g, '_')}_copy_${Date.now().toString().slice(-4)}.prefab`;
     const newCharData: PrefabData = JSON.parse(JSON.stringify(char));
     newCharData.id = `char_${Date.now()}`;
     newCharData.name = baseName;
@@ -817,7 +943,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   // Copy Behavior & Variables from another prefab
   const handleCopyBehaviorFromCharacter = () => {
     if (!sourceCharIdToCopy) return;
-    const sourceCharFile = charFiles.find(c => c.prefabData.id === sourceCharIdToCopy || c.id === sourceCharIdToCopy);
+    const sourceCharFile = charFiles.find(c => c.prefabData?.id === sourceCharIdToCopy || c.id === sourceCharIdToCopy);
     if (!sourceCharFile) return;
 
     const sourceData = sourceCharFile.prefabData;
@@ -835,37 +961,43 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   };
 
   // Ensure arrays exist
-  const spritesheetsList: PrefabSpritesheet[] = char.spritesheets || [
+  const spritesheetsList: PrefabSpritesheet[] = char?.spritesheets || [
     { id: 'sheet_default', name: 'Primary Spritesheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }
   ];
-  const animationsList: PrefabAnimationConfig[] = char.animations || [];
-  const pointsList: PrefabNamedPoint[] = char.points || [];
-  const polygonsList: PrefabNamedPolygon[] = char.polygons || [];
-  const capsuleConfig: PrefabCapsuleConfig = char.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
-  const variablesList: BehaviorVariable[] = char.variables || [];
-  const rulesList: BehaviorRule[] = char.rules || [];
-  const fsmStates: string[] = char.states || ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
+  const animationsList: PrefabAnimationConfig[] = char?.animations || [];
+  const pointsList: PrefabNamedPoint[] = char?.points || [];
+  const polygonsList: PrefabNamedPolygon[] = char?.polygons || [];
+  const capsuleConfig: PrefabCapsuleConfig = char?.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
+  const variablesList: BehaviorVariable[] = char?.variables || [];
+  const rulesList: BehaviorRule[] = char?.rules || [];
+  const fsmStates: string[] = char?.states || ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
 
   // State Machine Nodes & Transitions
   const defaultColors = ['#38bdf8', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#06b6d4', '#6366f1'];
-  const rawStatesList: string[] = char.states && char.states.length > 0 ? char.states : ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
+  const rawStatesList: string[] = char?.states && char.states.length > 0 ? char.states : ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
 
-  const stateNodes: PrefabStateNode[] = (char.stateMachine?.states && char.stateMachine.states.length > 0)
-    ? char.stateMachine.states
+  const stateNodes: PrefabStateNode[] = (char?.stateMachine?.states && char.stateMachine.states.length > 0)
+    ? char.stateMachine.states.map((st, idx) => ({
+        ...st,
+        id: st?.id || `st_${idx}`,
+        name: st?.name || st?.id || `State ${idx + 1}`,
+        color: st?.color || defaultColors[idx % defaultColors.length]
+      }))
     : rawStatesList.map((st, idx) => {
+        const safeSt = st ? String(st) : `state_${idx + 1}`;
         const angle = (idx / rawStatesList.length) * 2 * Math.PI - Math.PI / 2;
         return {
-          id: `st_${st.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-          name: st.charAt(0).toUpperCase() + st.slice(1),
+          id: `st_${safeSt.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+          name: safeSt.charAt(0).toUpperCase() + safeSt.slice(1),
           color: defaultColors[idx % defaultColors.length],
           x: Math.round(320 + Math.cos(angle) * 190),
           y: Math.round(220 + Math.sin(angle) * 130),
           isInitial: idx === 0,
-          description: `Prefab in ${st} state`
+          description: `Prefab in ${safeSt} state`
         };
       });
 
-  const stateTransitions: PrefabStateTransition[] = (char.stateMachine?.transitions && char.stateMachine.transitions.length > 0)
+  const stateTransitions: PrefabStateTransition[] = (char?.stateMachine?.transitions && char.stateMachine.transitions.length > 0)
     ? char.stateMachine.transitions
     : stateNodes.length >= 2 ? [
         { id: 'tr_1', fromStateId: stateNodes[0].id, toStateId: stateNodes[1].id, isBidirectional: false, triggerLabel: 'Movement' },
@@ -885,7 +1017,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
       return {
         ...c,
         stateMachine: updatedSM,
-        states: updatedSM.states.map(s => s.name.toLowerCase())
+        states: (updatedSM.states || []).map(s => (s?.name || s?.id || 'state').toLowerCase())
       };
     });
   };
@@ -2212,9 +2344,9 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
       <FileSubfolderHeader
         subfolderName="prefabs"
         extension=".prefab"
-        files={(project.fileSystem.prefabs || []).map(c => ({
+        files={charFiles.map(c => ({
           id: c.id,
-          name: c.name,
+          name: c.name || c.prefabData?.name || c.fileName,
           fileName: c.fileName,
           updatedAt: c.updatedAt
         }))}
@@ -2223,16 +2355,16 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         onBackToDashboard={onBackToDashboard}
         centerContent={
           <div className="flex items-center gap-1.5 max-w-full truncate">
-            <span className="text-base leading-none shrink-0" title="Prefab Avatar">{char.avatarIcon || '[Shield]'}</span>
+            <span className="text-base leading-none shrink-0" title="Prefab Avatar">{char?.avatarIcon || '[Shield]'}</span>
             <input
               type="text"
-              value={char.name}
+              value={char?.name || ''}
               onChange={(e) => updateCharacter(c => ({ ...c, name: e.target.value }))}
               className="bg-transparent text-xs sm:text-sm font-bold text-white border-b border-dashed border-neutral-700 hover:border-rose-500 focus:border-rose-500 focus:outline-none transition py-0.5 max-w-[130px] sm:max-w-[190px] text-center"
               title="Click to edit prefab name"
             />
             <select
-              value={char.prefabType}
+              value={char?.prefabType || 'player_hero'}
               onChange={(e) => updateCharacter(c => ({ ...c, prefabType: e.target.value as any }))}
               className="text-[9px] uppercase font-bold font-mono px-1.5 py-0.5 rounded bg-rose-950 border border-rose-500/60 text-rose-300 shrink-0 cursor-pointer focus:outline-none focus:border-rose-400"
               title="Change Prefab Type"
@@ -2261,7 +2393,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           onUpdateProject(p => ({
             ...p,
             activeFiles: { ...p.activeFiles, prefabFileName: fileName }
-          }));
+          }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Prefab File' } as any);
         }}
         onNewFile={(name) => {
           const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
@@ -2307,10 +2439,19 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           handleDuplicateCharacter();
         }}
         onSaveFile={() => {
+          const now = new Date().toISOString();
           updateCharacter(c => ({
             ...c,
-            updatedAt: new Date().toISOString()
+            updatedAt: now
           }));
+          onUpdateProject(p => ({
+            ...p,
+            updatedAt: now,
+            fileSystem: {
+              ...p.fileSystem,
+              prefabs: (p.fileSystem.prefabs || []).map(f => f.fileName === currentFile.fileName ? { ...f, updatedAt: now } : f)
+            }
+          }), { actionLabel: `Saved prefab ${currentFile.fileName}` } as any);
           showToast(`Saved prefab "${char.name || currentFile.name}" (${currentFile.fileName})`, 'success');
         }}
         onExportFile={(fileName) => {
@@ -6126,8 +6267,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                   className="w-full bg-neutral-950 border border-neutral-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white"
                 >
                   <option value="" disabled>-- Pick Source Prefab --</option>
-                  {charFiles.filter(cf => cf.prefabData.id !== char.id).map(cf => (
-                    <option key={cf.id} value={cf.id}>{cf.name} ({cf.fileName})</option>
+                  {charFiles.filter(cf => (cf.prefabData?.id || cf.id) !== (char?.id || currentFile?.id)).map(cf => (
+                    <option key={cf.id} value={cf.id}>{cf.name || cf.prefabData?.name || cf.fileName} ({cf.fileName})</option>
                   ))}
                 </select>
               </div>

@@ -64,7 +64,7 @@ import {
 
 interface RefinedBiomeEditorProps {
   project?: MasonProject;
-  onUpdateProject?: (updater: (prev: MasonProject) => MasonProject) => void;
+  onUpdateProject?: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   biomes?: RefinedBiome[];
   onUpdateBiomes?: (biomes: RefinedBiome[]) => void;
   onSelectForPainting?: (biomeId: string, tileTypeId?: string) => void;
@@ -465,7 +465,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
           ...p.activeFiles,
           biomeFileName: fileName
         }
-      }));
+      }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Biome File' } as any);
     }
   };
 
@@ -590,8 +590,19 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   };
 
   const handleSaveBiomeFile = () => {
-    if (project) {
-      saveActiveMasonProject(project);
+    if (project && onUpdateProject) {
+      const now = new Date().toISOString();
+      onUpdateProject(prev => ({
+        ...prev,
+        updatedAt: now,
+        fileSystem: {
+          ...prev.fileSystem,
+          biomes: (prev.fileSystem.biomes || []).map(b => b.fileName === currentBiomeFile.fileName ? { ...b, updatedAt: now } : b)
+        }
+      }), { actionLabel: `Saved biome ${currentBiomeFile.fileName}` } as any);
+      showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName})`, 'success');
+    } else if (project) {
+      saveActiveMasonProject(project, `Saved biome ${currentBiomeFile.fileName}`);
       showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName})`, 'success');
     }
   };

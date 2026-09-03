@@ -131,7 +131,7 @@ import {
   CURRENT_CLIENT_SESSION_ID
 } from '../utils/linkedSaveTarget';
 
-export type UnifiedFileAction = 'save_project' | 'load_project' | 'import_asset' | 'export_file';
+export type UnifiedFileAction = 'save_project' | 'load_project' | 'import_asset' | 'export_file' | 'import_profile';
 
 export interface UnifiedFilePayload {
   name: string;
@@ -172,6 +172,7 @@ export interface UnifiedFileManagerProps {
   onLoadProject?: (project: ProjectData) => void;
   onProjectSaved?: (project: MasonProject) => void;
   initialMode?: 'explore' | 'backups';
+  focusLinkedLocation?: boolean;
   saveFilePayload?: UnifiedFilePayload | null;
 
   // Existing image/spritesheet imports
@@ -199,6 +200,7 @@ export interface UnifiedFileManagerProps {
   ) => void;
 
   onOpenProfileSettings?: (tab?: 'profiles' | 'config' | 'export') => void;
+  onImportProfileConfig?: (jsonContent: string) => void;
   onShowToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
 }
 
@@ -214,6 +216,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
   onLoadProject,
   onProjectSaved,
   initialMode = 'explore',
+  focusLinkedLocation = false,
   saveFilePayload = null,
   project,
   importMode = 'sprite_editor',
@@ -223,6 +226,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
   onImportSpritesheet,
   onImportSpriteProject,
   onOpenProfileSettings,
+  onImportProfileConfig,
   onShowToast
 }) => {
   // Resolve active project workspace
@@ -295,6 +299,23 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
   const [onedriveFolderItems, setOnedriveFolderItems] = useState<OneDriveItem[]>([]);
   const [onedrivePathStack, setOnedrivePathStack] = useState<FolderBreadcrumb[]>([{ id: null, name: 'OneDrive Root (My Files)' }]);
 
+  // Check if currently viewing the linked project folder
+  const isViewingLinkedFolder = useMemo(() => {
+    const loc = activeWorkspaceProject?.storageLocation;
+    if (!loc || loc.type === 'local_idb') return false;
+    if (activeStorageProvider === 'cloud') {
+      const curFolderId = activeCloudProvider === 'gdrive' ? gdriveCurrentFolder.id : onedriveCurrentFolder.id;
+      return (
+        loc.type === activeCloudProvider &&
+        (Boolean(loc.targetFolderId && loc.targetFolderId === curFolderId) || (!loc.targetFolderId && !curFolderId))
+      );
+    }
+    if (activeStorageProvider === 'local') {
+      return loc.type === 'local_directory' || loc.type === 'local_file';
+    }
+    return false;
+  }, [activeWorkspaceProject, activeStorageProvider, activeCloudProvider, gdriveCurrentFolder.id, onedriveCurrentFolder.id]);
+
   // Folder creation & loading
   const [loadingCloud, setLoadingCloud] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -321,9 +342,63 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
   // Local File Inputs Ref
   const localProjectInputRef = useRef<HTMLInputElement>(null);
   const localAssetInputRef = useRef<HTMLInputElement>(null);
+  const localProfileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLocalProfileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content && onImportProfileConfig) {
+        onImportProfileConfig(content);
+        if (onShowToast) onShowToast('Imported profile configuration!', 'success');
+        onClose();
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   // Track initializations
   const prevIsOpenRef = useRef(false);
+
+  // Direct Jump to Linked Workspace Folder
+  const handleJumpToLinkedFolder = () => {
+    const loc = activeWorkspaceProject?.storageLocation;
+    if (!loc || loc.type === 'local_idb') return;
+    if (loc.type === 'onedrive') {
+      isJumpingBookmarkRef.current = true;
+      prevCloudProviderRef.current = 'onedrive';
+      setActiveStorageProvider('cloud');
+      setActiveCloudProviderState('onedrive');
+      setActiveCloudProvider('onedrive');
+      const crumb: FolderBreadcrumb = { id: loc.targetFolderId || null, name: loc.targetFolderName || 'OneDrive Folder' };
+      setOnedriveCurrentFolder(crumb);
+      setOnedrivePathStack(loc.targetFolderId ? [{ id: null, name: 'OneDrive Root (My Files)' }, crumb] : [{ id: null, name: 'OneDrive Root (My Files)' }]);
+      if (getOneDriveToken()) {
+        fetchOneDriveFolder(loc.targetFolderId || null);
+      }
+      if (onShowToast) onShowToast(`Navigated to linked OneDrive workspace: ${crumb.name}`, 'info');
+    } else if (loc.type === 'gdrive') {
+      isJumpingBookmarkRef.current = true;
+      prevCloudProviderRef.current = 'gdrive';
+      setActiveStorageProvider('cloud');
+      setActiveCloudProviderState('gdrive');
+      setActiveCloudProvider('gdrive');
+      const crumb: FolderBreadcrumb = { id: loc.targetFolderId || null, name: loc.targetFolderName || 'Google Drive Folder' };
+      setGdriveCurrentFolder(crumb);
+      setGdrivePathStack(loc.targetFolderId ? [{ id: null, name: 'My Drive (Root)' }, crumb] : [{ id: null, name: 'My Drive (Root)' }]);
+      if (getGoogleDriveToken()) {
+        fetchGDriveFolder(loc.targetFolderId || null);
+      }
+      if (onShowToast) onShowToast(`Navigated to linked Google Drive workspace: ${crumb.name}`, 'info');
+    } else {
+      setActiveStorageProvider('local');
+      if (onShowToast) onShowToast(`Switched to linked local workspace: ${loc.displayName || loc.targetFolderName || loc.fileName}`, 'info');
+    }
+  };
 
   // Synced bookmarks across windows
   useEffect(() => {
@@ -351,12 +426,14 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
     return bookmarks;
   }, [bookmarks]);
 
-  // Set initial providers based on action and token state when modal opens
+  // Set initial providers based on action, linked storage target, and token state when modal opens
   useEffect(() => {
     const justOpened = isOpen && !prevIsOpenRef.current;
     prevIsOpenRef.current = isOpen;
 
     if (justOpened) {
+      const linkedLoc = activeWorkspaceProject?.storageLocation;
+      
       // Determine best default workspace view based on action when modal is opened
       if (initialMode === 'backups') {
         setActiveStorageProvider('virtual');
@@ -365,12 +442,45 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
         // If has virtual assets, let's start with Virtual or local
         const virtualHasItems = ((activeWorkspaceProject?.fileSystem?.images || []).length > 0);
         setActiveStorageProvider(virtualHasItems ? 'virtual' : 'local');
+      } else if (linkedLoc && linkedLoc.type !== 'local_idb') {
+        // If the project has a linked cloud or local folder, open directly into that folder
+        if (linkedLoc.type === 'onedrive') {
+          setActiveStorageProvider('cloud');
+          setActiveCloudProviderState('onedrive');
+          setActiveCloudProvider('onedrive');
+          const crumb: FolderBreadcrumb = {
+            id: linkedLoc.targetFolderId || null,
+            name: linkedLoc.targetFolderName || 'OneDrive Folder'
+          };
+          setOnedriveCurrentFolder(crumb);
+          setOnedrivePathStack(linkedLoc.targetFolderId ? [{ id: null, name: 'OneDrive Root (My Files)' }, crumb] : [{ id: null, name: 'OneDrive Root (My Files)' }]);
+          if (getOneDriveToken()) {
+            fetchOneDriveFolder(linkedLoc.targetFolderId || null);
+          }
+        } else if (linkedLoc.type === 'gdrive') {
+          setActiveStorageProvider('cloud');
+          setActiveCloudProviderState('gdrive');
+          setActiveCloudProvider('gdrive');
+          const crumb: FolderBreadcrumb = {
+            id: linkedLoc.targetFolderId || null,
+            name: linkedLoc.targetFolderName || 'Google Drive Folder'
+          };
+          setGdriveCurrentFolder(crumb);
+          setGdrivePathStack(linkedLoc.targetFolderId ? [{ id: null, name: 'My Drive (Root)' }, crumb] : [{ id: null, name: 'My Drive (Root)' }]);
+          if (getGoogleDriveToken()) {
+            fetchGDriveFolder(linkedLoc.targetFolderId || null);
+          }
+        } else {
+          setActiveStorageProvider('local');
+        }
       } else {
         setActiveStorageProvider('local');
       }
 
       // Sync active Cloud driver provider from localStorage
-      setActiveCloudProviderState(getActiveCloudProvider());
+      if (!linkedLoc || linkedLoc.type === 'local_idb' || linkedLoc.type === 'local_directory' || linkedLoc.type === 'local_file') {
+        setActiveCloudProviderState(getActiveCloudProvider());
+      }
 
       // Init naming field
       if (saveFilePayload) {
@@ -387,7 +497,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       setBackupSettingsState(getBackupSettings());
       loadBackups();
     }
-  }, [isOpen, action, initialMode, currentProject, saveFilePayload]);
+  }, [isOpen, action, initialMode, currentProject, saveFilePayload, activeWorkspaceProject]);
 
   // Reset folder navigations if user swaps between cloud providers to avoid stalling / mismatching
   const isJumpingBookmarkRef = useRef(false);
@@ -1267,6 +1377,17 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
         img.src = dataUrl;
       };
       reader.readAsDataURL(file);
+    } else if (action === 'import_profile') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        if (content && onImportProfileConfig) {
+          onImportProfileConfig(content);
+          if (onShowToast) onShowToast('Imported profile configuration!', 'success');
+          onClose();
+        }
+      };
+      reader.readAsText(file);
     }
   };
 
@@ -1503,10 +1624,23 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
   // Perform Loading from Cloud
   const handleCloudLoadConfirm = async (item: DriveItem | OneDriveItem | VirtualDriveItem) => {
     setLoadingCloud(true);
-    if (activeCloudProvider === 'gdrive') setGdriveStatusMsg('Downloading project file from Google Drive...');
-    else setOnedriveStatusMsg('Downloading project file from OneDrive...');
+    if (activeCloudProvider === 'gdrive') setGdriveStatusMsg('Downloading file from Google Drive...');
+    else setOnedriveStatusMsg('Downloading file from OneDrive...');
 
     try {
+      if (action === 'import_profile') {
+        const text = activeCloudProvider === 'gdrive'
+          ? await downloadFileAsTextFromGoogleDrive(item.id)
+          : await downloadFileAsTextFromOneDrive({ id: item.id, downloadUrl: (item as any).downloadUrl });
+
+        if (text && onImportProfileConfig) {
+          onImportProfileConfig(text);
+          if (onShowToast) onShowToast(`Imported profile configuration from ${activeCloudProvider === 'gdrive' ? 'Google Drive' : 'OneDrive'}!`, 'success');
+          onClose();
+        }
+        return;
+      }
+
       const loaded = activeCloudProvider === 'gdrive'
         ? await loadProjectFromGoogleDrive(item.id)
         : await loadProjectFromOneDrive({ id: item.id, downloadUrl: (item as any).downloadUrl });
@@ -1583,6 +1717,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       case 'load_project': return 'Load Project Workspace';
       case 'import_asset': return 'Import Sprites & Assets';
       case 'export_file': return 'Export Config / Data';
+      case 'import_profile': return 'Import Profile Configuration';
       default: return 'Files Engine Manager';
     }
   }, [action]);
@@ -1593,6 +1728,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       case 'load_project': return 'Retrieve local browser backups, upload a project bundle, or pull direct from your Cloud drives.';
       case 'import_asset': return 'Browse and load raw PNG sprites, frames, or spritesheets to build workspace objects.';
       case 'export_file': return 'Save profiles config file directly to local folder or secure cloud directories.';
+      case 'import_profile': return 'Select or upload a saved profile .json file from Local Storage, OneDrive, or Google Drive.';
       default: return 'Core sub-module for browsing, saving, loading, and importing all file payloads.';
     }
   }, [action]);
@@ -1615,6 +1751,10 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       case 'import_asset':
         if (selectedImageDataUrl || selectedCloudItem) return 'Import Selected Asset';
         return 'Import Asset';
+      case 'import_profile':
+        if (activeStorageProvider === 'local') return 'Browse .json File';
+        if (selectedCloudItem) return 'Import Selected Profile';
+        return 'Import Profile Config';
       default:
         return 'Execute Action';
     }
@@ -1629,7 +1769,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       }
       return false;
     }
-    if (action === 'load_project') {
+    if (action === 'load_project' || action === 'import_profile') {
       if (activeStorageProvider === 'local') return false;
       if (activeStorageProvider === 'cloud') return !selectedCloudItem;
       return true;
@@ -1648,6 +1788,12 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
     } else if (action === 'load_project') {
       if (activeStorageProvider === 'local') {
         localProjectInputRef.current?.click();
+      } else if (activeStorageProvider === 'cloud' && selectedCloudItem) {
+        handleCloudLoadConfirm(selectedCloudItem);
+      }
+    } else if (action === 'import_profile') {
+      if (activeStorageProvider === 'local') {
+        localProfileInputRef.current?.click();
       } else if (activeStorageProvider === 'cloud' && selectedCloudItem) {
         handleCloudLoadConfirm(selectedCloudItem);
       }
@@ -1705,6 +1851,38 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
           {/* WINDOWS EXPLORER LEFT SIDEBAR DIRECTORY TREE */}
           <div className="w-60 sm:w-64 border-r border-neutral-800 bg-neutral-950/60 p-3 flex flex-col gap-3 shrink-0 overflow-y-auto select-none">
             
+            {/* ACTIVE LINKED WORKSPACE SHORTCUT */}
+            {activeWorkspaceProject?.storageLocation && activeWorkspaceProject.storageLocation.type !== 'local_idb' && (
+              <div className="space-y-1 pb-2 border-b border-neutral-850">
+                <div className="text-[10px] font-bold uppercase text-emerald-400 tracking-wider px-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1"><FolderSync size={11} className="text-emerald-400" /> Linked Workspace</span>
+                  <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    {activeWorkspaceProject.storageLocation.type === 'onedrive' ? 'OneDrive' : activeWorkspaceProject.storageLocation.type === 'gdrive' ? 'GDrive' : 'Local'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleJumpToLinkedFolder}
+                  className={`w-full px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition text-left ${
+                    isViewingLinkedFolder
+                      ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 shadow-sm'
+                      : 'bg-emerald-950/30 border border-emerald-800/40 text-emerald-400/90 hover:bg-emerald-900/40 hover:text-emerald-200'
+                  }`}
+                  title={`Jump directly to linked folder: ${activeWorkspaceProject.storageLocation.targetFolderName || activeWorkspaceProject.storageLocation.fileName || activeWorkspaceProject.storageLocation.displayName}`}
+                >
+                  <span className="flex items-center gap-1.5 truncate">
+                    <Folder className={`w-3.5 h-3.5 shrink-0 ${isViewingLinkedFolder ? 'text-emerald-300' : 'text-emerald-400'}`} />
+                    <span className="truncate text-[11px] font-bold">
+                      {activeWorkspaceProject.storageLocation.targetFolderName || activeWorkspaceProject.storageLocation.fileName || 'Linked Folder'}
+                    </span>
+                  </span>
+                  {isViewingLinkedFolder && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* QUICK ACCESS / BOOKMARKS SECTION */}
             <div className="space-y-1">
               <div className="text-[10px] font-bold uppercase text-neutral-500 tracking-wider px-2 flex items-center justify-between">
@@ -2063,6 +2241,37 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
                     </div>
                   )}
 
+                  {/* Profile Import Mode */}
+                  {action === 'import_profile' && (
+                    <div className="space-y-5 max-w-2xl">
+                      <div
+                        onDragOver={handleDragOver}
+                        onDrop={handleDropLocalFile}
+                        onClick={() => localProfileInputRef.current?.click()}
+                        className="p-8 rounded-2xl border-2 border-dashed border-neutral-800 hover:border-sky-500/50 bg-neutral-900/30 flex flex-col items-center justify-center gap-3 cursor-pointer transition text-center group"
+                      >
+                        <Upload size={36} className="text-neutral-500 group-hover:text-sky-400 transition" />
+                        <div>
+                          <div className="text-sm font-bold text-neutral-200">Import Profile JSON File from Disk</div>
+                          <p className="text-xs text-neutral-400 mt-1">Select or drag-and-drop a saved <code className="text-sky-300 font-mono text-[11px]">.json</code> profile configuration file</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-1 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs shadow-lg shadow-sky-500/10 transition"
+                        >
+                          Browse Computer Files
+                        </button>
+                        <input
+                          type="file"
+                          ref={localProfileInputRef}
+                          onChange={handleLocalProfileUpload}
+                          accept=".json,application/json"
+                          className="hidden"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               )}
 
@@ -2127,6 +2336,13 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
                               </button>
                             </React.Fragment>
                           ))}
+
+                          {isViewingLinkedFolder && (
+                            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-500/60 text-emerald-300 text-[10px] font-bold shadow-xs ml-1.5">
+                              <FolderSync size={11} className="text-emerald-400 animate-pulse" />
+                              <span>Linked Project Folder</span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Interactive triggers */}
@@ -2278,14 +2494,21 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
                                   >
                                     <div className="flex items-center gap-2.5 truncate pr-2">
                                       {isFolder ? (
-                                        <Folder className="w-4.5 h-4.5 text-blue-400 shrink-0" />
+                                        <Folder className={`w-4.5 h-4.5 shrink-0 ${item.id === activeWorkspaceProject?.storageLocation?.targetFolderId ? 'text-emerald-400' : 'text-blue-400'}`} />
                                       ) : (
                                         <FileCode className="w-4.5 h-4.5 text-neutral-400 shrink-0" />
                                       )}
                                       <div className="truncate">
-                                        <span className="block text-xs font-semibold text-neutral-200 hover:text-amber-400 truncate">
-                                          {item.name}
-                                        </span>
+                                        <div className="flex items-center gap-1.5 truncate">
+                                          <span className="block text-xs font-semibold text-neutral-200 hover:text-amber-400 truncate">
+                                            {item.name}
+                                          </span>
+                                          {isFolder && item.id === activeWorkspaceProject?.storageLocation?.targetFolderId && (
+                                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-bold border border-emerald-500/40 shrink-0">
+                                              Linked Target
+                                            </span>
+                                          )}
+                                        </div>
                                         {/* Timestamp logic */}
                                         <span className="block text-[9px] text-neutral-500 mt-0.5 font-mono">
                                           {isFolder ? 'Folder' : 'File'} • {item.modifiedTime ? `${new Date(item.modifiedTime).toLocaleDateString()} ${new Date(item.modifiedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Recent'}

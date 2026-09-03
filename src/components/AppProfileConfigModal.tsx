@@ -62,6 +62,8 @@ interface AppProfileConfigModalProps {
   onShowToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   onOpenThemeModal?: () => void;
   onSavePayloadToCloud?: (payload: { name: string; content: string; mimeType: string }) => void;
+  onExportProfileViaFileManager?: (payload: { name: string; content: string; mimeType: string }) => void;
+  onImportProfileViaFileManager?: () => void;
   initialTab?: 'profiles' | 'config' | 'export';
 }
 
@@ -82,6 +84,8 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
   onShowToast,
   onOpenThemeModal,
   onSavePayloadToCloud,
+  onExportProfileViaFileManager,
+  onImportProfileViaFileManager,
   initialTab = 'profiles'
 }) => {
   const { theme, primaryDef, bgDef } = useAppTheme();
@@ -247,69 +251,36 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
     setActiveProf(updatedProf);
   };
 
-  // Export JSON file download
-  const handleDownloadConfigJSON = () => {
-    const jsonStr = exportProfilesJSON(activeProf.id);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mason_config_${activeProf.name.toLowerCase().replace(/\s+/g, '_')}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    onShowToast?.('Exported profile configuration JSON!', 'success');
-  };
-
-  // Export JSON save to cloud
-  const handleSaveToCloud = () => {
+  // Export profile config using the Files Sub-Module
+  const handleExportProfileClick = () => {
     const jsonStr = exportProfilesJSON(activeProf.id);
     const fileName = `mason_config_${activeProf.name.toLowerCase().replace(/\s+/g, '_')}.json`;
-    if (onSavePayloadToCloud) {
-      onSavePayloadToCloud({
-        name: fileName,
-        content: jsonStr,
-        mimeType: 'application/json'
-      });
-      onClose(); // Close the profile modal so they see the cloud sync modal clearly!
-    } else {
-      onShowToast?.('Cloud storage integration is not fully configured in layout.', 'error');
-    }
-  };
-
-  // Copy JSON to clipboard
-  const handleCopyConfigJSON = () => {
-    const jsonStr = exportProfilesJSON(activeProf.id);
-    navigator.clipboard.writeText(jsonStr);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    onShowToast?.('Copied configuration JSON to clipboard!', 'info');
-  };
-
-  // File import handler
-  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        const res = importProfilesJSON(content);
-        if (res.success) {
-          setProfiles(getAllProfiles());
-          const active = getActiveProfile();
-          setActiveProf(active);
-          setCurrentConfig(active.config);
-          onShowToast?.(`Imported ${res.count} profile config(s) successfully!`, 'success');
-        } else {
-          onShowToast?.(`Import failed: ${res.error}`, 'error');
-        }
-      }
+    const payload = {
+      name: fileName,
+      content: jsonStr,
+      mimeType: 'application/json'
     };
-    reader.readAsText(file);
-    e.target.value = '';
+
+    if (onExportProfileViaFileManager) {
+      onExportProfileViaFileManager(payload);
+    } else if (onSavePayloadToCloud) {
+      onSavePayloadToCloud(payload);
+    } else {
+      onShowToast?.('Files sub-module integration is unavailable.', 'error');
+      return;
+    }
+    onClose();
+  };
+
+  // Import profile config using the Files Sub-Module
+  const handleImportProfileClick = () => {
+    if (onImportProfileViaFileManager) {
+      onImportProfileViaFileManager();
+    } else {
+      onShowToast?.('Files sub-module integration is unavailable.', 'error');
+      return;
+    }
+    onClose();
   };
 
   return (
@@ -911,75 +882,67 @@ export const AppProfileConfigModal: React.FC<AppProfileConfigModalProps> = ({
                 </p>
               </div>
 
-              {/* Export Box */}
-              <div className="p-5 rounded-xl bg-neutral-950 border border-neutral-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                      <Download className="w-4 h-4 text-emerald-400" />
-                      Export Active Profile Config (.json)
+              {/* Export & Import Profile Options via Files Sub-Module */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* OPTION 1: Export Profile */}
+                <div className="p-5 rounded-2xl bg-neutral-950 border border-neutral-800 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                        <Download className="w-5 h-5" />
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-neutral-900 text-emerald-300 border border-neutral-800">
+                        .json
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-white tracking-tight">
+                      Export Profile
                     </h4>
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                      Download a standalone JSON file containing profile "{activeProf.name}" and settings.
+                    <p className="text-xs text-neutral-400 leading-relaxed">
+                      Export active profile <strong className="text-white">"{activeProf.name}"</strong> and settings to a JSON configuration file using the Files sub-module to Local Disk, OneDrive, or Google Drive.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyConfigJSON}
-                      className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
-                    >
-                      {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copied ? 'Copied!' : 'Copy JSON'}
-                    </button>
+                  <button
+                    type="button"
+                    onClick={handleExportProfileClick}
+                    className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export Profile</span>
+                  </button>
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={handleDownloadConfigJSON}
-                      className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition active:scale-95"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Download File
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleSaveToCloud}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition active:scale-95"
-                    >
-                      <Cloud className="w-3.5 h-3.5" /> Save to Cloud
-                    </button>
+                {/* OPTION 2: Import Profile */}
+                <div className="p-5 rounded-2xl bg-neutral-950 border border-neutral-800 flex flex-col justify-between space-y-4 hover:border-sky-500/40 transition">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-neutral-900 text-sky-300 border border-neutral-800">
+                        .json
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-white tracking-tight">
+                      Import Profile
+                    </h4>
+                    <p className="text-xs text-neutral-400 leading-relaxed">
+                      Import a saved profile <code className="text-sky-300">.json</code> file from Local Storage, OneDrive, or Google Drive using the Files sub-module to update or restore settings.
+                    </p>
                   </div>
-                </div>
-              </div>
 
-              {/* Import Box */}
-              <div className="p-5 rounded-xl bg-neutral-950 border border-neutral-800 space-y-3">
-                <div>
-                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-sky-400" />
-                    Import Profile Config File
-                  </h4>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    Select a previously exported Mason <code>.json</code> config file to load into this app.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={handleImportProfileClick}
+                    className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-neutral-950 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 transition active:scale-95 cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Import Profile</span>
+                  </button>
                 </div>
 
-                <div className="border-2 border-dashed border-neutral-800 hover:border-sky-500/50 rounded-2xl p-6 text-center bg-neutral-900/50 transition">
-                  <FileCode className="w-8 h-8 text-sky-400 mx-auto mb-2 opacity-80" />
-                  <p className="text-xs text-neutral-300 font-medium">
-                    Click below to upload your <code>.json</code> profile file
-                  </p>
-                  <label className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 text-xs font-bold cursor-pointer transition active:scale-95">
-                    <Upload className="w-3.5 h-3.5" /> Select Config JSON File
-                    <input
-                      type="file"
-                      accept=".json,application/json"
-                      onChange={handleImportFileChange}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
               </div>
 
             </div>

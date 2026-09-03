@@ -30,7 +30,8 @@ import { ModulesModal } from './ModulesModal';
 import { ProjectDashboard } from './ProjectDashboard';
 import { MasonWelcomeLauncher } from './MasonWelcomeLauncher';
 import { CreateProjectModal } from './CreateProjectModal';
-import { UnifiedFileManagerModal } from './UnifiedFileManagerModal';
+import { UnifiedFileManagerModal, UnifiedFileAction } from './UnifiedFileManagerModal';
+import { importProfilesJSON } from '../utils/appProfileSystem';
 import { ProjectExplorerModal } from './ProjectExplorerModal';
 import { BiomeMacroMapModal } from './BiomeMacroMapModal';
 import { ModuleRunnerContainer } from './ModuleRunnerContainer';
@@ -217,6 +218,7 @@ export const EditorLayout: React.FC = () => {
   const [appProfileInitialTab, setAppProfileInitialTab] = useState<'profiles' | 'config' | 'export'>('profiles');
   const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'backups'>('explore');
   const [cloudSavePayload, setCloudSavePayload] = useState<{ name: string; content: string; mimeType: string } | null>(null);
+  const [cloudSyncAction, setCloudSyncAction] = useState<UnifiedFileAction>('save_project');
 
   // Toast feedback state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -465,10 +467,15 @@ export const EditorLayout: React.FC = () => {
   const [autoSyncStatus, setAutoSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
   const lastProjectSerializedRef = useRef<string>('');
+  const lastLoadedProjectIdRef = useRef<string | null>(null);
 
   // Background Auto-Sync (debounced by 3.5s so it doesn't overload disk or network)
   useEffect(() => {
-    if (!project) return;
+    if (!project) {
+      lastLoadedProjectIdRef.current = null;
+      lastProjectSerializedRef.current = '';
+      return;
+    }
     const serialized = JSON.stringify({
       id: project.id,
       name: project.name,
@@ -476,7 +483,9 @@ export const EditorLayout: React.FC = () => {
       activeFiles: project.activeFiles
     });
 
-    if (!lastProjectSerializedRef.current) {
+    // If switching projects or initially loading project into editor, capture state without triggering auto-sync write
+    if (lastLoadedProjectIdRef.current !== project.id || !lastProjectSerializedRef.current) {
+      lastLoadedProjectIdRef.current = project.id;
       lastProjectSerializedRef.current = serialized;
       return;
     }
@@ -2700,14 +2709,14 @@ export const EditorLayout: React.FC = () => {
         />
       )}
 
-      {/* Unified File Manager Modal - Cloud Sync & Export Mode */}
+      {/* Unified File Manager Modal - Cloud Sync & Export / Import Mode */}
       <UnifiedFileManagerModal
         isOpen={isCloudSyncModalOpen}
         onClose={() => {
           setIsCloudSyncModalOpen(false);
           setCloudSavePayload(null);
         }}
-        action={cloudSavePayload ? "export_file" : "save_project"}
+        action={cloudSyncAction}
         initialMode={cloudSyncInitialMode}
         saveFilePayload={cloudSavePayload}
         currentProject={project ? {
@@ -2732,6 +2741,14 @@ export const EditorLayout: React.FC = () => {
         onOpenProfileSettings={(tab) => {
           setAppProfileInitialTab(tab || 'config');
           setIsAppProfileConfigModalOpen(true);
+        }}
+        onImportProfileConfig={(jsonContent) => {
+          const res = importProfilesJSON(jsonContent);
+          if (res.success) {
+            showToast(`Imported ${res.count} profile config(s) successfully!`, 'success');
+          } else {
+            showToast(`Import failed: ${res.error}`, 'error');
+          }
         }}
         onProjectSaved={(savedProj) => {
           setProject(savedProj);
@@ -2765,6 +2782,19 @@ export const EditorLayout: React.FC = () => {
         }}
         onSavePayloadToCloud={(payload) => {
           setCloudSavePayload(payload);
+          setCloudSyncAction('export_file');
+          setCloudSyncInitialMode('explore');
+          setIsCloudSyncModalOpen(true);
+        }}
+        onExportProfileViaFileManager={(payload) => {
+          setCloudSavePayload(payload);
+          setCloudSyncAction('export_file');
+          setCloudSyncInitialMode('explore');
+          setIsCloudSyncModalOpen(true);
+        }}
+        onImportProfileViaFileManager={() => {
+          setCloudSavePayload(null);
+          setCloudSyncAction('import_profile');
           setCloudSyncInitialMode('explore');
           setIsCloudSyncModalOpen(true);
         }}

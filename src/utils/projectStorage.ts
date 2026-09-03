@@ -212,32 +212,6 @@ export const saveProjectToStorage = (project: ProjectData): ProjectMetadata => {
     list.unshift(metadata);
     localStorage.setItem(PROJECT_LIST_KEY, JSON.stringify(list));
     localStorage.setItem(CURRENT_ACTIVE_PROJECT_KEY, updatedProject.id);
-
-    // Trigger non-blocking cloud auto-backup to active cloud provider
-    try {
-      const activeProvider = localStorage.getItem('mourne_active_cloud_provider') || 'gdrive';
-      if (activeProvider === 'gdrive') {
-        const gToken = localStorage.getItem('mourne_gdrive_access_token');
-        if (gToken) {
-          import('./googleDriveStorage').then(mod => {
-            mod.saveProjectToGoogleDrive(updatedProject, { isBackup: true }).catch(err => {
-              console.warn('Background Google Drive auto-backup error:', err);
-            });
-          });
-        }
-      } else if (activeProvider === 'onedrive') {
-        const oToken = localStorage.getItem('mourne_onedrive_access_token');
-        if (oToken) {
-          import('./oneDriveStorage').then(mod => {
-            mod.saveProjectToOneDrive(updatedProject, { isBackup: true }).catch(err => {
-              console.warn('Background OneDrive auto-backup error:', err);
-            });
-          });
-        }
-      }
-    } catch (e) {
-      // Ignore background trigger errors
-    }
   } catch (e) {
     console.error('Failed to save project to localStorage:', e);
     throw new Error('Could not save project. LocalStorage quota might be exceeded.');

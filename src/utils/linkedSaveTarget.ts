@@ -1,6 +1,6 @@
 import { MasonProject } from '../engine/masonProjectSchema';
 import { saveProjectToGoogleDrive, saveModularProjectToGoogleDrive, getGoogleDriveToken } from './googleDriveStorage';
-import { saveProjectToOneDrive, saveModularProjectToOneDrive, getOneDriveToken } from './oneDriveStorage';
+import { saveProjectToOneDrive, saveModularProjectToOneDrive, getOneDriveToken, ensureOneDriveToken } from './oneDriveStorage';
 import { getProjectMasonFileName } from './masonStorage';
 
 export type LinkedLocationType = 'local_idb' | 'local_file' | 'local_directory' | 'gdrive' | 'onedrive';
@@ -340,7 +340,12 @@ export const saveProjectToLinkedLocation = async (
     }
 
     if (location.type === 'onedrive') {
-      const token = await ensureOneDriveToken();
+      let token: string | null = null;
+      try {
+        token = await ensureOneDriveToken();
+      } catch {
+        token = getOneDriveToken();
+      }
       if (!token) {
         return { success: false, error: 'OneDrive is not connected. Please connect via File Manager.' };
       }
@@ -646,7 +651,12 @@ export const verifyLinkedStorageAccess = async (
   }
 
   if (loc.type === 'onedrive') {
-    const token = await ensureOneDriveToken();
+    let token: string | null = null;
+    try {
+      token = await ensureOneDriveToken();
+    } catch {
+      token = getOneDriveToken();
+    }
     if (!token) {
       return {
         available: false,
@@ -718,9 +728,12 @@ export const checkExistingLocalDirProject = async (dirHandle: any): Promise<Maso
           description: 'Non-empty local folder containing existing files',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          engineVersion: '0.268',
-          activeModule: 'map_editor'
-        } as MasonProject;
+          engineVersion: '0.270',
+          activeModule: 'map_editor',
+          author: 'Unknown',
+          activeFiles: {},
+          fileSystem: {}
+        } as unknown as MasonProject;
       }
     } catch {}
   }

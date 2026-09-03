@@ -254,14 +254,19 @@ export const refreshOneDriveTokenSilently = async (): Promise<string | null> => 
 /**
  * Gets a valid token, refreshing if necessary
  */
-export const ensureOneDriveToken = async (): Promise<string> => {
-  const token = getOneDriveToken();
-  if (token && !isOneDriveTokenExpired()) {
-    return token;
+export const ensureOneDriveToken = async (): Promise<string | null> => {
+  try {
+    const token = getOneDriveToken();
+    if (token && !isOneDriveTokenExpired()) {
+      return token;
+    }
+    const newToken = await refreshOneDriveTokenSilently();
+    if (newToken) return newToken;
+    return token || null;
+  } catch (err) {
+    console.warn('Error in ensureOneDriveToken:', err);
+    return getOneDriveToken();
   }
-  const newToken = await refreshOneDriveTokenSilently();
-  if (newToken) return newToken;
-  throw new Error('Microsoft OneDrive authorization expired. Please reconnect.');
 };
 
 /**
@@ -424,7 +429,7 @@ export const authenticateOneDrive = async (
           const code = urlParams.get('code');
           if (code) {
             cleanup();
-            exchangeCodeForToken(code).then(resolve).catch(reject);
+            exchangeCodeForToken(code).catch(reject);
           }
         }
       } catch (err) {

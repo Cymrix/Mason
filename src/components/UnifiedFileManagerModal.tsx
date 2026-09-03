@@ -41,7 +41,8 @@ import {
   Link2,
   Lock,
   FileSpreadsheet,
-  FolderSync
+  FolderSync,
+  Save
 } from 'lucide-react';
 import { 
   LocationBookmark, 
@@ -742,7 +743,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       if (onImportBundle) {
         onImportBundle(linkedFoundProject);
       } else if (onLoadProject) {
-        onLoadProject(linkedFoundProject);
+        onLoadProject(linkedFoundProject as any);
       }
 
       if (onShowToast) onShowToast(`Loaded and linked project "${linkedFoundProject.name}"!`, 'success');
@@ -1511,7 +1512,7 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
         : await loadProjectFromOneDrive({ id: item.id, downloadUrl: (item as any).downloadUrl });
 
       if (loaded) {
-        loaded.storageLocation = {
+        (loaded as any).storageLocation = {
           type: activeCloudProvider === 'gdrive' ? 'gdrive' : 'onedrive',
           displayName: `${activeCloudProvider === 'gdrive' ? 'Google Drive' : 'OneDrive'} (${item.name})`,
           targetId: item.id,

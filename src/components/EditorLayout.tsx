@@ -117,7 +117,7 @@ export const EditorLayout: React.FC = () => {
         if (isMounted) {
           setStorageAccessInfo(access);
           if (!access.available) {
-            showToast(`Linked storage target unavailable: ${access.reason}`, 'warning');
+            showToast(`Linked storage target unavailable: ${access.reason}`, 'info');
           }
         }
       } else {

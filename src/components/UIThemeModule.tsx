@@ -841,16 +841,23 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
         }}
         onSaveFile={() => {
           const now = new Date().toISOString();
+          const updatedUiFile: UIThemeFile = {
+            ...currentUiFile,
+            name: ui.name || currentUiFile.name,
+            updatedAt: now,
+            uiConfig: ui
+          };
           updateUI(u => ({ ...u, updatedAt: now }));
           onUpdateProject(p => ({
             ...p,
             updatedAt: now,
             fileSystem: {
               ...p.fileSystem,
-              ui: (p.fileSystem.ui || []).map(u => u.fileName === currentUiFile.fileName ? { ...u, updatedAt: now } : u)
+              ui: (p.fileSystem.ui || []).map(u => u.fileName === currentUiFile.fileName ? updatedUiFile : u)
             }
-          }), { actionLabel: `Saved UI theme ${currentUiFile.fileName}` } as any);
-          showToast(`Saved UI theme "${ui.name || currentUiFile.name}" (${currentUiFile.fileName})`, 'success');
+          }), { actionLabel: `Saved UI theme ${currentUiFile.fileName}`, syncLinked: true } as any);
+          const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
+          showToast(`Saved UI theme "${ui.name || currentUiFile.name}" (${currentUiFile.fileName}) to ${targetName}`, 'success');
         }}
         onExportFile={(fName) => {
           const target = project.fileSystem.ui.find(u => u.fileName === fName);

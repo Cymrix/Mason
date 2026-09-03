@@ -537,6 +537,43 @@ export async function idbDeleteProject(id: string): Promise<void> {
   }
 }
 
+export async function idbSaveHandle(key: string, handle: any): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (!db) return;
+    const tx = db.transaction([STORE_META], 'readwrite');
+    tx.objectStore(STORE_META).put({ key: `fshandle_${key}`, handle });
+  } catch (err) {
+    console.warn('IndexedDB save handle error:', err);
+  }
+}
+
+export async function idbGetHandle(key: string): Promise<any> {
+  try {
+    const db = await getIDB();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_META, 'readonly');
+      const req = tx.objectStore(STORE_META).get(`fshandle_${key}`);
+      req.onsuccess = () => resolve(req.result?.handle || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function idbDeleteHandle(key: string): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (!db) return;
+    const tx = db.transaction(STORE_META, 'readwrite');
+    tx.objectStore(STORE_META).delete(`fshandle_${key}`);
+  } catch (err) {
+    console.warn('IndexedDB delete handle error:', err);
+  }
+}
+
 // Self-clean legacy localStorage keys that previously caused quota crashes
 (() => {
   if (typeof window !== 'undefined' && window.localStorage) {

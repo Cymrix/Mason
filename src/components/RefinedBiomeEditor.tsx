@@ -592,15 +592,22 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   const handleSaveBiomeFile = () => {
     if (project && onUpdateProject) {
       const now = new Date().toISOString();
+      const updatedBiomeFile: BiomeFile = {
+        ...currentBiomeFile,
+        name: selectedBiome.name || currentBiomeFile.name,
+        updatedAt: now,
+        biomeData: selectedBiome
+      };
       onUpdateProject(prev => ({
         ...prev,
         updatedAt: now,
         fileSystem: {
           ...prev.fileSystem,
-          biomes: (prev.fileSystem.biomes || []).map(b => b.fileName === currentBiomeFile.fileName ? { ...b, updatedAt: now } : b)
+          biomes: (prev.fileSystem.biomes || []).map(b => b.fileName === currentBiomeFile.fileName ? updatedBiomeFile : b)
         }
-      }), { actionLabel: `Saved biome ${currentBiomeFile.fileName}` } as any);
-      showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName})`, 'success');
+      }), { actionLabel: `Saved biome ${currentBiomeFile.fileName}`, syncLinked: true } as any);
+      const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
+      showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName}) to ${targetName}`, 'success');
     } else if (project) {
       saveActiveMasonProject(project, `Saved biome ${currentBiomeFile.fileName}`);
       showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName})`, 'success');

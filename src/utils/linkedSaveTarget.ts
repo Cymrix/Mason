@@ -1,7 +1,7 @@
 import { MasonProject } from '../engine/masonProjectSchema';
 import { saveProjectToGoogleDrive, saveModularProjectToGoogleDrive, getGoogleDriveToken } from './googleDriveStorage';
 import { saveProjectToOneDrive, saveModularProjectToOneDrive, getOneDriveToken, ensureOneDriveToken } from './oneDriveStorage';
-import { getProjectMasonFileName } from './masonStorage';
+import { getProjectMasonFileName, idbSaveHandle, idbGetHandle, idbDeleteHandle } from './masonStorage';
 
 export type LinkedLocationType = 'local_idb' | 'local_file' | 'local_directory' | 'gdrive' | 'onedrive';
 
@@ -47,10 +47,98 @@ let activeFileSystemFileHandle: any = null;
 let activeFileSystemDirHandle: any = null;
 
 export const getActiveFileSystemFileHandle = () => activeFileSystemFileHandle;
-export const setActiveFileSystemFileHandle = (handle: any) => { activeFileSystemFileHandle = handle; };
+export const setActiveFileSystemFileHandle = (handle: any) => {
+  activeFileSystemFileHandle = handle;
+  if (handle) {
+    idbSaveHandle('active_file', handle);
+    if (handle.name) idbSaveHandle(`file_name_${handle.name}`, handle);
+  }
+};
 
 export const getActiveFileSystemDirHandle = () => activeFileSystemDirHandle;
-export const setActiveFileSystemDirHandle = (handle: any) => { activeFileSystemDirHandle = handle; };
+export const setActiveFileSystemDirHandle = (handle: any) => {
+  activeFileSystemDirHandle = handle;
+  if (handle) {
+    idbSaveHandle('active_dir', handle);
+    if (handle.name) idbSaveHandle(`dir_name_${handle.name}`, handle);
+  }
+};
+
+export const setStoredDirHandleForProject = async (projectId: string, handle: any, folderName?: string) => {
+  activeFileSystemDirHandle = handle;
+  if (!handle) return;
+  await idbSaveHandle(`dir_${projectId}`, handle);
+  if (folderName || handle.name) {
+    await idbSaveHandle(`dir_name_${folderName || handle.name}`, handle);
+  }
+  await idbSaveHandle('active_dir', handle);
+};
+
+export const setStoredFileHandleForProject = async (projectId: string, handle: any, fileName?: string) => {
+  activeFileSystemFileHandle = handle;
+  if (!handle) return;
+  await idbSaveHandle(`file_${projectId}`, handle);
+  if (fileName || handle.name) {
+    await idbSaveHandle(`file_name_${fileName || handle.name}`, handle);
+  }
+  await idbSaveHandle('active_file', handle);
+};
+
+export const getOrRestoreActiveFileSystemDirHandle = async (project?: MasonProject | null): Promise<any> => {
+  if (activeFileSystemDirHandle) {
+    return activeFileSystemDirHandle;
+  }
+  if (!project) {
+    const handle = await idbGetHandle('active_dir');
+    if (handle) {
+      activeFileSystemDirHandle = handle;
+      return handle;
+    }
+    return null;
+  }
+  const targetName = project.storageLocation?.targetFolderName;
+  
+  let handle = await idbGetHandle(`dir_${project.id}`);
+  if (!handle && targetName) {
+    handle = await idbGetHandle(`dir_name_${targetName}`);
+  }
+  if (!handle) {
+    handle = await idbGetHandle('active_dir');
+  }
+  if (handle) {
+    activeFileSystemDirHandle = handle;
+    return handle;
+  }
+  return null;
+};
+
+export const getOrRestoreActiveFileSystemFileHandle = async (project?: MasonProject | null): Promise<any> => {
+  if (activeFileSystemFileHandle) {
+    return activeFileSystemFileHandle;
+  }
+  if (!project) {
+    const handle = await idbGetHandle('active_file');
+    if (handle) {
+      activeFileSystemFileHandle = handle;
+      return handle;
+    }
+    return null;
+  }
+  const fileName = project.storageLocation?.fileName;
+  
+  let handle = await idbGetHandle(`file_${project.id}`);
+  if (!handle && fileName) {
+    handle = await idbGetHandle(`file_name_${fileName}`);
+  }
+  if (!handle) {
+    handle = await idbGetHandle('active_file');
+  }
+  if (handle) {
+    activeFileSystemFileHandle = handle;
+    return handle;
+  }
+  return null;
+};
 
 // Unique client session ID for this browser tab to identify lock owners
 export const CURRENT_CLIENT_SESSION_ID = `mason_client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -82,7 +170,7 @@ export const isDirectoryAccessSupported = (): boolean => {
 /**
  * Prompts user to pick a local file on their hard drive to bind to this project
  */
-export const linkProjectToLocalFile = async (projectName: string): Promise<{ location: LinkedStorageLocation; handle: any } | null> => {
+export const linkProjectToLocalFile = async (projectName: string, projectId?: string): Promise<{ location: LinkedStorageLocation; handle: any } | null> => {
   if (!isFileSystemAccessSupported()) {
     throw new Error('File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.');
   }
@@ -101,6 +189,12 @@ export const linkProjectToLocalFile = async (projectName: string): Promise<{ loc
     if (!handle) return null;
 
     activeFileSystemFileHandle = handle;
+    if (projectId) {
+      await setStoredFileHandleForProject(projectId, handle, handle.name);
+    } else {
+      await idbSaveHandle('active_file', handle);
+      await idbSaveHandle(`file_name_${handle.name}`, handle);
+    }
 
     const location: LinkedStorageLocation = {
       type: 'local_file',
@@ -121,7 +215,7 @@ export const linkProjectToLocalFile = async (projectName: string): Promise<{ loc
 /**
  * Prompts user to pick a local folder on their hard drive for modular multi-file sync (Step 1)
  */
-export const linkProjectToLocalDirectory = async (projectName: string): Promise<{ location: LinkedStorageLocation; handle: any } | null> => {
+export const linkProjectToLocalDirectory = async (projectName: string, projectId?: string): Promise<{ location: LinkedStorageLocation; handle: any } | null> => {
   if (!isDirectoryAccessSupported()) {
     throw new Error('Directory Access is not supported in this browser. Please use Chrome, Edge, or Opera.');
   }
@@ -134,6 +228,12 @@ export const linkProjectToLocalDirectory = async (projectName: string): Promise<
     if (!dirHandle) return null;
 
     activeFileSystemDirHandle = dirHandle;
+    if (projectId) {
+      await setStoredDirHandleForProject(projectId, dirHandle, dirHandle.name);
+    } else {
+      await idbSaveHandle('active_dir', dirHandle);
+      await idbSaveHandle(`dir_name_${dirHandle.name}`, dirHandle);
+    }
 
     const location: LinkedStorageLocation = {
       type: 'local_directory',
@@ -266,15 +366,29 @@ export const saveProjectToLinkedLocation = async (
     if (location.type === 'local_file') {
       let handle = activeFileSystemFileHandle;
       if (!handle) {
-        // Try linking file picker
-        const linked = await linkProjectToLocalFile(project.name);
+        handle = await getOrRestoreActiveFileSystemFileHandle(project);
+      }
+      if (!handle) {
+        const linked = await linkProjectToLocalFile(project.name, project.id);
         if (!linked) return { success: false, error: 'Save cancelled: No file selected' };
         handle = linked.handle;
+      }
+
+      if (typeof handle.queryPermission === 'function') {
+        const status = await handle.queryPermission({ mode: 'readwrite' });
+        if (status !== 'granted' && typeof handle.requestPermission === 'function') {
+          const req = await handle.requestPermission({ mode: 'readwrite' });
+          if (req !== 'granted') {
+            return { success: false, error: `Permission denied for local file "${handle.name}".` };
+          }
+        }
       }
 
       const writable = await handle.createWritable();
       await writable.write(JSON.stringify(project, null, 2));
       await writable.close();
+
+      await setStoredFileHandleForProject(project.id, handle, handle.name);
 
       const updatedLoc: LinkedStorageLocation = {
         ...location,
@@ -289,12 +403,26 @@ export const saveProjectToLinkedLocation = async (
     if (location.type === 'local_directory') {
       let dirHandle = activeFileSystemDirHandle;
       if (!dirHandle) {
-        const linked = await linkProjectToLocalDirectory(project.name);
+        dirHandle = await getOrRestoreActiveFileSystemDirHandle(project);
+      }
+      if (!dirHandle) {
+        const linked = await linkProjectToLocalDirectory(project.name, project.id);
         if (!linked) return { success: false, error: 'Save cancelled: No folder selected' };
         dirHandle = linked.handle;
       }
 
+      if (typeof dirHandle.queryPermission === 'function') {
+        const status = await dirHandle.queryPermission({ mode: 'readwrite' });
+        if (status !== 'granted' && typeof dirHandle.requestPermission === 'function') {
+          const req = await dirHandle.requestPermission({ mode: 'readwrite' });
+          if (req !== 'granted') {
+            return { success: false, error: `Permission denied for local folder "${dirHandle.name}".` };
+          }
+        }
+      }
+
       await writeModularProjectToDirectory(project, dirHandle);
+      await setStoredDirHandleForProject(project.id, dirHandle, dirHandle.name);
 
       const updatedLoc: LinkedStorageLocation = {
         ...location,
@@ -541,11 +669,14 @@ export const verifyLinkedStorageAccess = async (
   const displayName = loc.displayName || loc.targetFolderName || loc.fileName || loc.type;
 
   if (loc.type === 'local_directory') {
-    const handle = activeFileSystemDirHandle;
+    let handle = activeFileSystemDirHandle;
+    if (!handle) {
+      handle = await getOrRestoreActiveFileSystemDirHandle(project);
+    }
     if (!handle) {
       return {
         available: false,
-        reason: `Local folder handle for "${displayName}" is missing or expired in current session. Re-select folder in File Manager.`,
+        reason: `Local folder handle for "${displayName}" is missing or expired in current session. Click Re-Connect or re-select folder in File Manager.`,
         locationType: loc.type,
         displayName
       };
@@ -553,10 +684,10 @@ export const verifyLinkedStorageAccess = async (
     try {
       if (typeof handle.queryPermission === 'function') {
         const perm = await handle.queryPermission({ mode: 'readwrite' });
-        if (perm !== 'granted') {
+        if (perm === 'denied') {
           return {
             available: false,
-            reason: `Permission to access local folder "${handle.name || displayName}" is not granted. Re-select folder in File Manager.`,
+            reason: `Permission to access local folder "${handle.name || displayName}" is denied. Re-select folder in File Manager.`,
             locationType: loc.type,
             displayName
           };
@@ -574,11 +705,14 @@ export const verifyLinkedStorageAccess = async (
   }
 
   if (loc.type === 'local_file') {
-    const handle = activeFileSystemFileHandle;
+    let handle = activeFileSystemFileHandle;
+    if (!handle) {
+      handle = await getOrRestoreActiveFileSystemFileHandle(project);
+    }
     if (!handle) {
       return {
         available: false,
-        reason: `Local file handle for "${displayName}" is missing or expired in current session. Re-select file in File Manager.`,
+        reason: `Local file handle for "${displayName}" is missing or expired in current session. Click Re-Connect or re-select file in File Manager.`,
         locationType: loc.type,
         displayName
       };
@@ -586,10 +720,10 @@ export const verifyLinkedStorageAccess = async (
     try {
       if (typeof handle.queryPermission === 'function') {
         const perm = await handle.queryPermission({ mode: 'readwrite' });
-        if (perm !== 'granted') {
+        if (perm === 'denied') {
           return {
             available: false,
-            reason: `Permission to access local file "${handle.name || displayName}" is not granted. Re-select file in File Manager.`,
+            reason: `Permission to access local file "${handle.name || displayName}" is denied. Re-select file in File Manager.`,
             locationType: loc.type,
             displayName
           };

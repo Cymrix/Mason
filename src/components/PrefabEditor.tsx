@@ -2440,19 +2440,22 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         }}
         onSaveFile={() => {
           const now = new Date().toISOString();
-          updateCharacter(c => ({
-            ...c,
-            updatedAt: now
-          }));
+          const updatedCharData = { ...char, updatedAt: now };
+          updateCharacter(() => updatedCharData);
           onUpdateProject(p => ({
             ...p,
             updatedAt: now,
             fileSystem: {
               ...p.fileSystem,
-              prefabs: (p.fileSystem.prefabs || []).map(f => f.fileName === currentFile.fileName ? { ...f, updatedAt: now } : f)
+              prefabs: (p.fileSystem.prefabs || []).map(f =>
+                (f.fileName === currentFile.fileName || f.id === currentFile.id)
+                  ? { ...f, name: updatedCharData.name || f.name, updatedAt: now, prefabData: updatedCharData }
+                  : f
+              )
             }
-          }), { actionLabel: `Saved prefab ${currentFile.fileName}` } as any);
-          showToast(`Saved prefab "${char.name || currentFile.name}" (${currentFile.fileName})`, 'success');
+          }), { actionLabel: `Saved prefab ${currentFile.fileName}`, syncLinked: true } as any);
+          const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
+          showToast(`Saved prefab "${char.name || currentFile.name}" (${currentFile.fileName}) to ${targetName}`, 'success');
         }}
         onExportFile={(fileName) => {
           const jsonStr = JSON.stringify(currentFile, null, 2);

@@ -419,16 +419,23 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
         }}
         onSaveFile={() => {
           const now = new Date().toISOString();
+          const updatedStructFile: GameStructureFile = {
+            ...currentStructureFile,
+            name: data.gameTitle || currentStructureFile.name,
+            updatedAt: now,
+            structureData: data
+          };
           updateStructure(s => ({ ...s }));
           onUpdateProject(p => ({
             ...p,
             updatedAt: now,
             fileSystem: {
               ...p.fileSystem,
-              game: (p.fileSystem.game || []).map(g => g.fileName === currentStructureFile.fileName ? { ...g, updatedAt: now } : g)
+              game: (p.fileSystem.game || []).map(g => g.fileName === currentStructureFile.fileName ? updatedStructFile : g)
             }
-          }), { actionLabel: `Saved game structure ${currentStructureFile.fileName}` } as any);
-          showToast(`Saved framework "${data.gameTitle || currentStructureFile.name}" (${currentStructureFile.fileName})`, 'success');
+          }), { actionLabel: `Saved game structure ${currentStructureFile.fileName}`, syncLinked: true } as any);
+          const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
+          showToast(`Saved framework "${data.gameTitle || currentStructureFile.name}" (${currentStructureFile.fileName}) to ${targetName}`, 'success');
         }}
         onExportFile={(fName) => {
           const target = project.fileSystem.game.find(g => g.fileName === fName);

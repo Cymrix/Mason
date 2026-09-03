@@ -124,6 +124,9 @@ import {
   writeModularProjectToDirectory,
   checkExistingLocalDirProject,
   setActiveFileSystemDirHandle,
+  setActiveFileSystemFileHandle,
+  setStoredDirHandleForProject,
+  setStoredFileHandleForProject,
   isFileSystemAccessSupported,
   isDirectoryAccessSupported,
   saveProjectToLinkedLocation,
@@ -1205,8 +1208,10 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
     }
     try {
       const rawProject = currentProject.fullMasonProject || currentProject;
-      const linked = await linkProjectToLocalDirectory(currentProject.name);
+      const linked = await linkProjectToLocalDirectory(currentProject.name, rawProject.id);
       if (!linked) return; // User cancelled
+
+      await setStoredDirHandleForProject(rawProject.id, linked.handle, linked.handle.name);
 
       const projectToSave: MasonProject = {
         ...(rawProject as any),
@@ -1255,6 +1260,9 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       setActiveFileSystemDirHandle(dirHandle);
 
       const loadedProject = await readModularProjectFromDirectory(dirHandle);
+      if (loadedProject && loadedProject.id) {
+        await setStoredDirHandleForProject(loadedProject.id, dirHandle, dirHandle.name);
+      }
       const fileVersion = (loadedProject as any).engineVersion || (loadedProject as any).version;
 
       checkVersionAndProceed(fileVersion, loadedProject.name, () => {

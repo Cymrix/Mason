@@ -12,7 +12,7 @@ import { Image as ImageIcon, AlertTriangle, Save, Trash2, X, Cloud, Scissors, Up
 
 interface SpriteEditorWrapperProps {
   project: MasonProject;
-  onUpdateProject: (updater: (prev: MasonProject) => MasonProject) => void;
+  onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onBackToDashboard: () => void;
   onShowToast?: (text: string, type?: 'success' | 'info' | 'error') => void;
 }
@@ -337,7 +337,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
             };
             saveActiveMasonProject(updatedProject);
             return updatedProject;
-          });
+          }, { actionLabel: `Saved sprite ${targetName}`, syncLinked: true } as any);
 
           setIsDirty(false);
           postToIframe({ type: 'MARK_CLEAN' });
@@ -594,10 +594,11 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
     displayName?: string,
     exportSettings?: SpriteExportMetadata
   ) => {
+    const isGif = pngFileName.toLowerCase().endsWith('.gif');
+    const cleanFileName = (pngFileName.endsWith('.png') || isGif) ? pngFileName : `${pngFileName}.png`;
+
     onUpdateProject(prev => {
       const currentImages = prev.fileSystem.images || [];
-      const isGif = pngFileName.toLowerCase().endsWith('.gif');
-      const cleanFileName = (pngFileName.endsWith('.png') || isGif) ? pngFileName : `${pngFileName}.png`;
 
       const cleanBase = activeFileNameRef.current.replace(/\.sprite$/, '');
       const defaultPngName = `${cleanBase}.png`;
@@ -661,7 +662,7 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
       };
       saveActiveMasonProject(updatedProj, `Saved exported image "${targetFileName}"`);
       return updatedProj;
-    });
+    }, { actionLabel: `Saved image ${cleanFileName}`, syncLinked: true });
   }, [onUpdateProject, spriteDimensions]);
 
   // Import a single image from Cloud Drive or local machine

@@ -286,15 +286,39 @@ export const EditorLayout: React.FC = () => {
   // Sync project update
   const handleUpdateProject = (
     updated: MasonProject | ((prev: MasonProject) => MasonProject),
-    options?: { preserveUpdatedAt?: boolean; skipBackups?: boolean; actionLabel?: string }
+    options?: { preserveUpdatedAt?: boolean; skipBackups?: boolean; actionLabel?: string; syncLinked?: boolean }
   ) => {
+    let nextProj: MasonProject | null = null;
     setProject(prev => {
       if (!prev) return prev;
       const newProject = typeof updated === 'function' ? updated(prev) : updated;
       saveActiveMasonProject(newProject, options?.actionLabel, undefined, options);
       refreshSavedProjects();
+      nextProj = newProject;
       return newProject;
     });
+
+    if (nextProj) {
+      const p = nextProj as MasonProject;
+      const isExplicitSave = options?.syncLinked || (options?.actionLabel && options.actionLabel.toLowerCase().startsWith('save'));
+      if (isExplicitSave && p.storageLocation && p.storageLocation.type !== 'local_idb') {
+        setAutoSyncStatus('syncing');
+        saveProjectToLinkedLocation(p).then(res => {
+          if (res.success && res.syncedLocation) {
+            setProject(current => current ? { ...current, storageLocation: res.syncedLocation } : current);
+            setAutoSyncStatus('synced');
+            setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+            setTimeout(() => setAutoSyncStatus('idle'), 2500);
+          } else {
+            setAutoSyncStatus('error');
+            console.warn('Failed to sync to linked target:', res.error);
+          }
+        }).catch(err => {
+          setAutoSyncStatus('error');
+          console.warn('Linked sync error:', err);
+        });
+      }
+    }
   };
 
   // Project lifecycle handlers
@@ -465,6 +489,14 @@ export const EditorLayout: React.FC = () => {
       showToast(`Saved ${projectToSave.name} to browser storage`, 'success');
     }
   };
+
+  // Expose global save handler for sub-editors and keyboard shortcuts
+  useEffect(() => {
+    (window as any).masonSaveActiveProject = handleSaveActiveProject;
+    return () => {
+      delete (window as any).masonSaveActiveProject;
+    };
+  }, [handleSaveActiveProject]);
 
   // Auto-Sync Status State
   const [autoSyncStatus, setAutoSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');

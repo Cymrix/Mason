@@ -2726,15 +2726,22 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }}
         onSaveFile={() => {
           const now = new Date().toISOString();
+          const updatedParticleFile: ParticleSystemFile = {
+            ...activeFile,
+            name: activeParticleData.name || activeFile.name,
+            updatedAt: now,
+            particleData: activeParticleData
+          };
           onUpdateProject(p => ({
             ...p,
             updatedAt: now,
             fileSystem: {
               ...p.fileSystem,
-              particles: (p.fileSystem.particles || []).map(f => f.fileName === activeFile.fileName ? { ...f, updatedAt: now } : f)
+              particles: (p.fileSystem.particles || []).map(f => f.fileName === activeFile.fileName ? updatedParticleFile : f)
             }
-          }), { actionLabel: `Saved particle file ${activeFile.fileName}` } as any);
-          showToast(`Saved ${activeFile.fileName}`);
+          }), { actionLabel: `Saved particle file ${activeFile.fileName}`, syncLinked: true });
+          const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
+          showToast(`Saved particle file "${activeParticleData.name || activeFile.name}" (${activeFile.fileName}) to ${targetName}`);
         }}
         onExportFile={() => {
           exportParticleFile(activeFile);

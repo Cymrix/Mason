@@ -799,7 +799,7 @@ export class ParticleEngine {
       const instEndDrag = getRandVal(kinematics.endDrag ?? kinematics.drag ?? 0.0, kinematics.endDragMax);
 
       let instStartColor = visuals.startColor || "#ffffff";
-      let instEndColor = visuals.endColor || visuals.startColor || "#ffffff";
+      let instEndColor = visuals.animateColor === false ? instStartColor : (visuals.endColor || visuals.startColor || "#ffffff");
 
       if (visuals.randomColorRange) {
         const rangeStart = visuals.colorRangeStart || visuals.startColor || "#ff4500";
@@ -913,9 +913,9 @@ export class ParticleEngine {
         colorAnimStyle: visuals.colorAnimStyle || "one_shot",
         emissiveAnimStyle: visuals.emissiveAnimStyle || "one_shot",
         rotationAnimStyle: visuals.rotationAnimStyle || "one_shot",
-        animateSize: visuals.animateSize ?? true,
-        animateColor: visuals.animateColor ?? true,
-        animateAlpha: visuals.animateAlpha ?? true,
+        animateSize: visuals.animateSize === true,
+        animateColor: visuals.animateColor === true,
+        animateAlpha: visuals.animateAlpha === true,
         animateEmissive: visuals.animateEmissive ?? false,
         animateRotation: visuals.animateRotation ?? false,
         faceVelocity: visuals.faceVelocity ?? kinematics.faceVelocity ?? false,
@@ -1183,9 +1183,9 @@ export class ParticleEngine {
               subEmitterTrigger: 'none',
               isSubParticle: true,
               fxStyle: visuals.fxStyle || "default",
-              animateSize: visuals.animateSize ?? true,
-              animateColor: visuals.animateColor ?? true,
-              animateAlpha: visuals.animateAlpha ?? true,
+              animateSize: visuals.animateSize === true,
+              animateColor: visuals.animateColor === true,
+              animateAlpha: visuals.animateAlpha === true,
               animateEmissive: visuals.animateEmissive ?? false,
               animateRotation: visuals.animateRotation ?? true,
               isEmissive: visuals.isEmissive,
@@ -1383,6 +1383,11 @@ export class ParticleEngine {
           motionBlurAnimStyle: p.motionBlurAnimStyle,
           motionBlurCurve: p.motionBlurCurve,
           trackNodes: p.trackNodes,
+          animateColor: p.animateColor,
+          animateSize: p.animateSize,
+          animateAlpha: p.animateAlpha,
+          animateEmissive: p.animateEmissive,
+          animateRotation: p.animateRotation,
         };
 
         const sizeProgress = p.animateSize ? getAnimProgress(rawProgress, p.sizeAnimStyle) : rawProgress;

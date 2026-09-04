@@ -21,6 +21,7 @@ import {
   createNewUIThemeInProject,
   createNewGameStructureInProject,
   createNewParticleInProject,
+  createNewPrefabInProject,
   saveActiveMasonProject,
   getFileBackups,
   restoreFileVersion,
@@ -450,61 +451,8 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
       const { project: updated } = createNewBiomeInProject(project, name);
       onUpdateProject(() => updated);
     } else if (newFileInput.subfolder === 'prefabs') {
-      const safeName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
-      const newChar = {
-        id: `char_${Date.now()}`,
-        name,
-        fileName: safeName,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        prefabData: {
-          id: `char_${Date.now()}`,
-          name,
-          prefabType: 'enemy_mob' as const,
-          avatarIcon: '👹',
-          spriteWidth: 64,
-          spriteHeight: 64,
-          tintColor: '#f59e0b',
-          baseScale: 1.0,
-          states: ['idle', 'patrol', 'combat'],
-          variables: [
-            { id: 'var_max_hp', name: 'Max Health', category: 'attribute' as const, type: 'number' as const, isStatic: true, defaultValue: 100 },
-            { id: 'var_speed', name: 'Move Speed', category: 'attribute' as const, type: 'number' as const, isStatic: false, defaultValue: 3.0 }
-          ],
-          behaviorVariables: {
-            var_max_hp: 100,
-            var_speed: 3.0
-          },
-          rules: [
-            {
-              id: 'rule_sight',
-              name: 'Sight Raycast Detection',
-              enabled: true,
-              trigger: {
-                type: 'sight' as const,
-                sensoryTag: 'head_eyes' as const,
-                visionRadiusPx: 200,
-                visionAngleDeg: 120,
-                requireLineOfSight: true,
-                targetFilter: 'player' as const
-              },
-              actions: [
-                { id: 'act_alert', actionType: 'emit_signal' as const, signalType: 'alert_icon' as const, signalRadiusPx: 100 },
-                { id: 'act_chase', actionType: 'move' as const, moveMode: 'towards_target' as const, speed: 4.0 }
-              ]
-            }
-          ],
-          sockets: [],
-          polygons: [],
-          animations: [
-            { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_main', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
-          ]
-        }
-      };
-      onUpdateProject(p => ({
-        ...p,
-        fileSystem: { ...p.fileSystem, prefabs: [...(p.fileSystem.prefabs || []), newChar] }
-      }));
+      const { project: updated } = createNewPrefabInProject(project, name);
+      onUpdateProject(() => updated);
     } else if (newFileInput.subfolder === 'particles') {
       const { project: updated } = createNewParticleInProject(project, name);
       onUpdateProject(() => updated);

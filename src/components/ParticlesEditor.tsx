@@ -328,13 +328,6 @@ const AlphaDualRangeSlider: React.FC<AlphaDualRangeSliderProps> = ({
 
 const AVAILABLE_INITIALIZE_PROPS = [
   {
-    id: 'size_curve',
-    label: '📏 Size Curve',
-    category: 'visuals' as const,
-    badge: 'Scale Envelope',
-    desc: 'Configure and animate particle size over its lifetime.'
-  },
-  {
     id: 'alpha_opac',
     label: '🏁 Alpha Opacity',
     category: 'visuals' as const,
@@ -462,9 +455,8 @@ export const getPropsFromParticleData = (data: ParticleSystemData): string[] => 
   const v = data.visuals || ({} as any);
   const ph = data.physics || ({} as any);
 
-  if (v.animateSize !== false) props.push('size_curve');
   if (v.randomColorRange) props.push('color_range');
-  if (v.animateAlpha !== false) props.push('alpha_opac');
+  if (v.animateAlpha) props.push('alpha_opac');
   if (v.animateRotation || (k.minAngularVelocity ?? 0) !== 0 || (k.maxAngularVelocity ?? 0) !== 0) props.push('rotation');
   if (v.faceVelocity || k.faceVelocity) props.push('face_velocity');
   if ((k.minSpeed ?? 0) !== 0 || (k.maxSpeed ?? 0) !== 0) props.push('launch_speed');
@@ -569,9 +561,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     if (em.animateBurstInterval) list.push('burst_interval');
 
     // Particle property tracks
-    if (addedProps.includes('size_curve') || v.animateSize !== false) list.push('size');
-    if (v.animateColor !== false) list.push('color');
-    if (addedProps.includes('alpha_opac') || v.animateAlpha !== false) list.push('alpha');
+    if (v.animateSize === true) list.push('size');
+    if (v.animateColor === true) list.push('color');
+    if (addedProps.includes('alpha_opac') || v.animateAlpha === true) list.push('alpha');
     if (addedProps.includes('bloom') || v.animateEmissive) list.push('emissive');
     if (addedProps.includes('rotation') || v.animateRotation) list.push('rotation');
     if (addedProps.includes('launch_speed') || v.animateSpeed) list.push('speed');
@@ -601,12 +593,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     setAddedProps(prev => [...prev.filter(x => x !== propId), propId]);
     updateActiveParticle(pr => {
       const updated = JSON.parse(JSON.stringify(pr));
-      if (propId === 'size_curve') {
-        updated.visuals.animateSize = true;
-        if (updated.visuals.startSize === updated.visuals.endSize) {
-          updated.visuals.endSize = Math.max(1, Math.round((updated.visuals.startSize ?? 8) * 0.3));
-        }
-      } else if (propId === 'alpha_opac') {
+      if (propId === 'alpha_opac') {
         updated.visuals.animateAlpha = true;
       } else if (propId === 'rotation') {
         updated.visuals.animateRotation = true;
@@ -712,10 +699,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     setAddedProps(prev => prev.filter(x => x !== propId));
     updateActiveParticle(pr => {
       const updated = JSON.parse(JSON.stringify(pr));
-      if (propId === 'size_curve') {
-        updated.visuals.animateSize = false;
-        updated.visuals.midSize = undefined;
-      } else if (propId === 'color_range') {
+      if (propId === 'color_range') {
         updated.visuals.randomColorRange = false;
       } else if (propId === 'alpha_opac') {
         updated.visuals.animateAlpha = false;
@@ -841,8 +825,6 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }
         else if (propId === 'color_range') { p.randomColorRange = false; }
         else if (propId === 'rotation') { p.animateRotation = false; p.vRot = 0; }
-        else if (propId === 'face_velocity') { p.faceVelocity = false; }
-        else if (propId === 'size_curve') { p.animateSize = false; }
         else if (propId === 'alpha_opac') { p.animateAlpha = false; }
         else if (propId === 'motionBlur') { p.animateMotionBlur = false; }
       });
@@ -968,6 +950,15 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   // High-frequency mutable refs to decouple the 60fps canvas render loop from React state re-renders
   const activeParticleDataRef = useRef<ParticleSystemData>(activeParticleData);
   activeParticleDataRef.current = activeParticleData;
+
+  const savedSnapshotRef = useRef<string>(JSON.stringify(activeParticleData));
+  useEffect(() => {
+    savedSnapshotRef.current = JSON.stringify(activeParticleData);
+  }, [activeFile.fileName, activeFile.id]);
+
+  const isParticleDirty = useMemo(() => {
+    return savedSnapshotRef.current !== JSON.stringify(activeParticleData);
+  }, [activeParticleData]);
 
   const emitterPosRef = useRef(emitterPos);
   emitterPosRef.current = emitterPos;
@@ -3341,6 +3332,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }))}
         activeFileName={activeFile.fileName}
         checkout={activeFile.checkout}
+        isDirty={isParticleDirty}
         onCheckOutFile={(fName, note) => {
           const { project: updatedProj } = performFileCheckout(project, 'particles', fName, note);
           onUpdateProject(() => updatedProj, { actionLabel: `Check out ${fName}` });
@@ -3418,7 +3410,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               : particleFiles;
             const fileExists = currentFiles.some(f => f.fileName === activeFile.fileName || f.id === activeFile.id);
             const updatedParticles = fileExists
-              ? currentFiles.map(f => (f.fileName === activeFile.fileName || f.id === activeFile.id) ? updatedParticleFile : f)
+              ? currentFiles.map(f => (f.fileName === activeFile.fileName || f.id === activeFile.id)
+                  ? { ...updatedParticleFile, checkout: f.checkout || activeFile.checkout }
+                  : f)
               : [...currentFiles, updatedParticleFile];
 
             return {
@@ -3430,6 +3424,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               }
             };
           }, { actionLabel: `Saved particle file ${activeFile.fileName}`, syncLinked: true });
+          savedSnapshotRef.current = JSON.stringify(activeParticleData);
           const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
           showToast(`Saved particle file "${activeParticleData.name || activeFile.name}" (${activeFile.fileName}) to ${targetName}`);
         }}
@@ -4636,13 +4631,13 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                     {/* Animation / Transition toggle */}
                     <div className="p-2.5 bg-neutral-950/60 border border-neutral-800/80 rounded-lg flex items-center justify-between">
                       <div className="space-y-0.5">
-                        <span className="text-[11px] font-bold text-neutral-200 block">Color Animation Track</span>
-                        <span className="text-[9px] text-neutral-500 block">Enable timeline keyframe node animation for color shifts over lifetime</span>
+                        <span className="text-[11px] font-bold text-neutral-200 block">Color Track (Timeline)</span>
+                        <span className="text-[9px] text-neutral-500 block">Animate particle color over lifetime on the timeline</span>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={activeParticleData.visuals.animateColor !== false}
+                          checked={activeParticleData.visuals.animateColor === true}
                           onChange={(e) => updateActiveParticle(p => ({
                             ...p,
                             visuals: { ...p.visuals, animateColor: e.target.checked },
@@ -4652,6 +4647,71 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         />
                         <div className="w-8 h-4 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500"></div>
                       </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Particle Size & Scale (DEFAULT, IRREMOVABLE CARD) */}
+                <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                  <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-white">
+                      <Maximize2 size={14} className="text-amber-400" />
+                      <span>Particle Size &amp; Scale</span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-neutral-800 text-neutral-400 font-mono">
+                      Default
+                    </span>
+                  </div>
+
+                  <div className="p-3 space-y-3 bg-neutral-950/20 text-xs">
+                    {/* Base Size Slider */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] uppercase font-bold text-neutral-400">
+                          Base Particle Size
+                        </label>
+                        <span className="text-xs font-mono font-bold text-amber-400">
+                          {activeParticleData.visuals.startSize ?? 8}px
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="1"
+                          max="100"
+                          value={activeParticleData.visuals.startSize ?? 8}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            updateActiveParticle(p => ({
+                              ...p,
+                              visuals: {
+                                ...p.visuals,
+                                startSize: val,
+                                endSize: p.visuals.animateSize ? p.visuals.endSize : val
+                              }
+                            }));
+                          }}
+                          className="flex-1 accent-amber-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+                        />
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          value={activeParticleData.visuals.startSize ?? 8}
+                          onChange={(e) => {
+                            const val = Math.max(1, Number(e.target.value));
+                            updateActiveParticle(p => ({
+                              ...p,
+                              visuals: {
+                                ...p.visuals,
+                                startSize: val,
+                                endSize: p.visuals.animateSize ? p.visuals.endSize : val
+                              }
+                            }));
+                          }}
+                          className="w-16 bg-neutral-950 border border-neutral-800 rounded-lg p-1 text-center font-mono text-xs text-white"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -6371,7 +6431,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       )}
 
                       {/* Row 1: Size Track */}
-                      {addedProps.includes('size_curve') && (
+                      {visibleTracks.includes('size') && (
                         <div 
                           className={`grid grid-cols-[110px_1fr] items-center cursor-pointer hover:bg-neutral-900/30 group ${
                             selectedTrack === 'size' ? 'bg-amber-500/10 border-l-2 border-amber-500' : ''
@@ -6390,7 +6450,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             <span className="font-bold text-neutral-300">📏 Size Curve</span>
                             <input 
                               type="checkbox"
-                              checked={activeParticleData.visuals.animateSize !== false}
+                              checked={activeParticleData.visuals.animateSize === true}
                               onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, animateSize: e.target.checked } }))}
                               onClick={(e) => e.stopPropagation()}
                               className="rounded accent-amber-500 scale-75 cursor-pointer"
@@ -6398,7 +6458,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             />
                           </div>
                           <div className="relative h-9 bg-neutral-950/40 px-2 flex items-center">
-                            {activeParticleData.visuals.animateSize !== false ? (
+                            {activeParticleData.visuals.animateSize === true ? (
                               <>
                                 <svg className="absolute inset-0 w-full h-full stroke-amber-500 fill-none opacity-40 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                                   <path d={getSparklinePath('size', 100, 100)} strokeWidth="2" vectorEffect="non-scaling-stroke" />
@@ -6423,7 +6483,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       )}
 
                       {/* Row 2: Color Track */}
-                      {addedProps.includes('color_flow') && (
+                      {visibleTracks.includes('color') && (
                         <div 
                           className={`grid grid-cols-[110px_1fr] items-center cursor-pointer hover:bg-neutral-900/30 group ${
                             selectedTrack === 'color' ? 'bg-amber-500/10 border-l-2 border-amber-500' : ''
@@ -6442,7 +6502,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             <span className="font-bold text-neutral-300">🎨 Color Flow</span>
                             <input 
                               type="checkbox"
-                              checked={activeParticleData.visuals.animateColor !== false}
+                              checked={activeParticleData.visuals.animateColor === true}
                               onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, animateColor: e.target.checked } }))}
                               onClick={(e) => e.stopPropagation()}
                               className="rounded accent-amber-500 scale-75 cursor-pointer"
@@ -6450,7 +6510,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             />
                           </div>
                           <div className="relative h-9 px-2 flex items-center bg-neutral-950/20">
-                            {activeParticleData.visuals.animateColor !== false ? (
+                            {activeParticleData.visuals.animateColor === true ? (
                               <>
                                 <div 
                                   className="absolute inset-x-2 h-4 rounded-md border border-neutral-800"

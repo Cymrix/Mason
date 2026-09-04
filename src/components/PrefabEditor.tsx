@@ -251,52 +251,22 @@ export const ensurePrefabData = (data: any, fallbackName: string = 'Korrath Stee
     return {
       id: `char_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       name: fallbackName,
-      prefabType: 'player_hero',
-      avatarIcon: '🛡️',
+      prefabType: 'environmental_prop',
+      avatarIcon: '📦',
       spriteWidth: 64,
       spriteHeight: 64,
       tintColor: '#06b6d4',
       baseScale: 1.0,
-      states: ['idle', 'running', 'airborne', 'attacking', 'hurt'],
-      variables: [
-        { id: generateVariableId(), name: 'Max Health', category: 'attribute', type: 'number', isStatic: true, defaultValue: 100 },
-        { id: generateVariableId(), name: 'Sprint Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 5.5 }
-      ],
+      states: [],
+      variables: [],
       behaviorVariables: {},
       rules: [],
       capsule: { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
-      spritesheets: [{ id: 'sheet_default', name: 'Default Hero Sheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }],
-      points: [
-        { id: 'pt_eyes', name: 'Eyes (Sight Locus)', color: '#38bdf8', defaultOffsetX: 10, defaultOffsetY: -18 },
-        { id: 'pt_ears', name: 'Ears (Acoustic Hearing)', color: '#a855f7', defaultOffsetX: 0, defaultOffsetY: -20 },
-        { id: 'pt_torso', name: 'Torso Center (Hurtbox)', color: '#22c55e', defaultOffsetX: 0, defaultOffsetY: 0 },
-        { id: 'pt_feet', name: 'Feet (Footstep Sound)', color: '#f59e0b', defaultOffsetX: 0, defaultOffsetY: 26 },
-        { id: 'pt_weapon', name: 'Right Hand (Weapon Origin)', color: '#ef4444', defaultOffsetX: 18, defaultOffsetY: 2 }
-      ],
-      polygons: [
-        {
-          id: 'poly_body',
-          name: 'Main Body Hurtbox',
-          type: 'hurtbox',
-          color: '#22c55e',
-          defaultVertices: [
-            { x: -14, y: -24 },
-            { x: 14, y: -24 },
-            { x: 14, y: 24 },
-            { x: -14, y: 24 }
-          ]
-        }
-      ],
-      sockets: [
-        { tagId: 'head_eyes', label: 'Eyes (Sight Locus)', offsetX: 10, offsetY: -18, visualMarkerColor: '#38bdf8' },
-        { tagId: 'head_ears', label: 'Ears (Hearing Locus)', offsetX: 0, offsetY: -20, visualMarkerColor: '#a855f7' },
-        { tagId: 'torso_center', label: 'Torso Center (Hurtbox)', offsetX: 0, offsetY: 0, visualMarkerColor: '#22c55e' },
-        { tagId: 'feet_ground', label: 'Feet (Footstep Sound)', offsetX: 0, offsetY: 26, visualMarkerColor: '#f59e0b' },
-        { tagId: 'hand_weapon', label: 'Right Hand (Weapon Origin)', offsetX: 18, offsetY: 2, visualMarkerColor: '#ef4444' }
-      ],
-      animations: [
-        { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_default', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
-      ]
+      spritesheets: [],
+      points: [],
+      polygons: [],
+      sockets: [],
+      animations: []
     };
   }
 
@@ -307,13 +277,13 @@ export const ensurePrefabData = (data: any, fallbackName: string = 'Korrath Stee
     ...raw,
     id: raw.id || `char_${Date.now()}`,
     name: raw.name || data.name || fallbackName,
-    prefabType: raw.prefabType || 'player_hero',
-    avatarIcon: raw.avatarIcon || '🛡️',
+    prefabType: raw.prefabType || 'environmental_prop',
+    avatarIcon: raw.avatarIcon || '📦',
     spriteWidth: raw.spriteWidth || 64,
     spriteHeight: raw.spriteHeight || 64,
     tintColor: raw.tintColor || '#06b6d4',
     baseScale: raw.baseScale ?? 1.0,
-    states: Array.isArray(raw.states) && raw.states.length > 0 ? raw.states.filter(Boolean) : ['idle', 'running', 'airborne', 'attacking', 'hurt'],
+    states: Array.isArray(raw.states) ? raw.states.filter(Boolean) : [],
     movement: raw.movement,
     ai: raw.ai,
     variables: Array.isArray(raw.variables) ? raw.variables.map((v: any, vIdx: number) => ({
@@ -328,7 +298,7 @@ export const ensurePrefabData = (data: any, fallbackName: string = 'Korrath Stee
     behaviorVariables: raw.behaviorVariables && typeof raw.behaviorVariables === 'object' ? raw.behaviorVariables : {},
     rules: Array.isArray(raw.rules) ? raw.rules : [],
     capsule: raw.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
-    spritesheets: Array.isArray(raw.spritesheets) && raw.spritesheets.length > 0
+    spritesheets: Array.isArray(raw.spritesheets)
       ? raw.spritesheets.map((s: any, sIdx: number) => ({
           ...s,
           id: s?.id || `sheet_${sIdx + 1}`,
@@ -339,7 +309,7 @@ export const ensurePrefabData = (data: any, fallbackName: string = 'Korrath Stee
           rows: s?.rows || 4,
           totalFrames: s?.totalFrames || 32
         }))
-      : [{ id: 'sheet_default', name: 'Default Hero Sheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }],
+      : [],
     points: Array.isArray(raw.points) ? raw.points.map((p: any, pIdx: number) => ({
       ...p,
       id: p?.id || `pt_${pIdx}`,
@@ -357,9 +327,7 @@ export const ensurePrefabData = (data: any, fallbackName: string = 'Korrath Stee
       defaultVertices: poly?.defaultVertices || [{ x: -14, y: -24 }, { x: 14, y: -24 }, { x: 14, y: 24 }, { x: -14, y: 24 }]
     })) : [],
     sockets: Array.isArray(raw.sockets) ? raw.sockets : [],
-    animations: Array.isArray(raw.animations) ? raw.animations : [
-      { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_default', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
-    ],
+    animations: Array.isArray(raw.animations) ? raw.animations : [],
     stateMachine: raw.stateMachine ? {
       initialStateId: raw.stateMachine.initialStateId || 'st_idle',
       states: Array.isArray(raw.stateMachine.states) ? raw.stateMachine.states.map((st: any, stIdx: number) => ({
@@ -795,6 +763,15 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
     return ensurePrefabData(currentFile.prefabData || currentFile, currentFile.name || 'Unnamed Prefab');
   }, [currentFile]);
 
+  const savedSnapshotRef = useRef<string>(JSON.stringify(char));
+  useEffect(() => {
+    savedSnapshotRef.current = JSON.stringify(char);
+  }, [currentFile.fileName, currentFile.id]);
+
+  const isPrefabDirty = useMemo(() => {
+    return savedSnapshotRef.current !== JSON.stringify(char);
+  }, [char]);
+
   // Available UI Input Mappings for Player Controls (read from active/all UI files in project with full fallback)
   const activeUiFile = project?.fileSystem?.ui?.find(u => u.fileName === project?.activeFiles?.uiFileName) || project?.fileSystem?.ui?.[0];
   const activeUiConfig = activeUiFile?.uiConfig ? ensureUIConfigDefaults(activeUiFile.uiConfig) : null;
@@ -976,20 +953,18 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   };
 
   // Ensure arrays exist
-  const spritesheetsList: PrefabSpritesheet[] = char?.spritesheets || [
-    { id: 'sheet_default', name: 'Primary Spritesheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }
-  ];
+  const spritesheetsList: PrefabSpritesheet[] = char?.spritesheets || [];
   const animationsList: PrefabAnimationConfig[] = char?.animations || [];
   const pointsList: PrefabNamedPoint[] = char?.points || [];
   const polygonsList: PrefabNamedPolygon[] = char?.polygons || [];
   const capsuleConfig: PrefabCapsuleConfig = char?.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
   const variablesList: BehaviorVariable[] = char?.variables || [];
   const rulesList: BehaviorRule[] = char?.rules || [];
-  const fsmStates: string[] = char?.states || ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
+  const fsmStates: string[] = char?.states || [];
 
   // State Machine Nodes & Transitions
   const defaultColors = ['#38bdf8', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#06b6d4', '#6366f1'];
-  const rawStatesList: string[] = char?.states && char.states.length > 0 ? char.states : ['idle', 'patrol', 'alerted', 'combat', 'hurt'];
+  const rawStatesList: string[] = char?.states || [];
 
   const stateNodes: PrefabStateNode[] = (char?.stateMachine?.states && char.stateMachine.states.length > 0)
     ? char.stateMachine.states.map((st, idx) => ({
@@ -2368,6 +2343,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         }))}
         activeFileName={currentFile.fileName}
         checkout={currentFile.checkout}
+        isDirty={isPrefabDirty}
         onCheckOutFile={(fName, note) => {
           const { project: updated } = performFileCheckout(project, 'prefabs', fName, note);
           onUpdateProject(() => updated, { actionLabel: `Check out ${fName}` });
@@ -2467,21 +2443,16 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
               spriteHeight: 64,
               tintColor: '#f59e0b',
               baseScale: 1.0,
-              states: ['idle', 'patrol', 'combat'],
-              variables: [
-                { id: generateVariableId(), name: 'Max Health', category: 'attribute', type: 'number', isStatic: true, defaultValue: 100 },
-                { id: generateVariableId(), name: 'Patrol Speed', category: 'attribute', type: 'number', isStatic: false, defaultValue: 3.0 }
-              ],
+              states: [],
+              variables: [],
               behaviorVariables: {},
               rules: [],
               capsule: { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
-              spritesheets: [{ id: 'sheet_default', name: 'Default Spritesheet', tileWidth: 64, tileHeight: 64, cols: 8, rows: 4, totalFrames: 32 }],
+              spritesheets: [],
               points: [],
               polygons: [],
               sockets: [],
-              animations: [
-                { stateId: 'idle', label: 'Idle Stance', spritesheetId: 'sheet_default', startFrameIndex: 0, endFrameIndex: 3, frameRateFps: 8, loop: true }
-              ]
+              animations: []
             }
           };
           onUpdateProject(p => ({
@@ -2504,11 +2475,12 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
               ...p.fileSystem,
               prefabs: (p.fileSystem.prefabs || []).map(f =>
                 (f.fileName === currentFile.fileName || f.id === currentFile.id)
-                  ? { ...f, name: updatedCharData.name || f.name, updatedAt: now, prefabData: updatedCharData }
+                  ? { ...f, checkout: f.checkout || currentFile.checkout, name: updatedCharData.name || f.name, updatedAt: now, prefabData: updatedCharData }
                   : f
               )
             }
           }), { actionLabel: `Saved prefab ${currentFile.fileName}`, syncLinked: true } as any);
+          savedSnapshotRef.current = JSON.stringify(updatedCharData);
           const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
           showToast(`Saved prefab "${char.name || currentFile.name}" (${currentFile.fileName}) to ${targetName}`, 'success');
         }}
@@ -2762,7 +2734,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                             ...c,
                             animations: (c.animations || []).filter(a => a.stateId !== currentAnimation.stateId)
                           }));
-                          setSelectedAnimStateId(animationsList.find(a => a.stateId !== currentAnimation.stateId)?.stateId || 'idle');
+                          setSelectedAnimStateId(animationsList.find(a => a.stateId !== currentAnimation.stateId)?.stateId || '');
                         }}
                         className="p-1 text-neutral-500 hover:text-red-400 rounded transition"
                         title="Delete Animation State"
@@ -4122,8 +4094,14 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
             </div>
 
             {/* Spritesheets Slot Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {spritesheetsList.map((sheet, sIdx) => {
+            {spritesheetsList.length === 0 ? (
+              <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-8 text-center space-y-3">
+                <p className="text-sm text-neutral-400 font-medium">No spritesheets configured for this prefab.</p>
+                <p className="text-xs text-neutral-500">Click "+ Add Spritesheet Slot" above to create or upload a spritesheet atlas.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {spritesheetsList.map((sheet, sIdx) => {
                 const isSelected = (selectedSheetId === sheet.id) || (!selectedSheetId && sIdx === 0);
                 const sheetW = sheet.imageWidth || ((sheet.cols || 8) * (sheet.tileWidth || 64)) || 512;
                 const sheetH = sheet.imageHeight || ((sheet.rows || 4) * (sheet.tileHeight || 64)) || 256;
@@ -4242,22 +4220,20 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                             Active Atlas
                           </span>
                         )}
-                        {spritesheetsList.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateCharacter(c => ({
-                                ...c,
-                                spritesheets: (c.spritesheets || []).filter(s => s.id !== sheet.id)
-                              }));
-                            }}
-                            className="p-1 text-neutral-500 hover:text-red-400 rounded transition"
-                            title="Delete Spritesheet Slot"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateCharacter(c => ({
+                              ...c,
+                              spritesheets: (c.spritesheets || []).filter(s => s.id !== sheet.id)
+                            }));
+                          }}
+                          className="p-1 text-neutral-500 hover:text-red-400 rounded transition"
+                          title="Delete Spritesheet Slot"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
 
@@ -4591,6 +4567,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                 );
               })}
             </div>
+          )}
 
             {/* Interactive Full Spritesheet Tile Grid Inspector & Previewer */}
             {(() => {

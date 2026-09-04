@@ -560,7 +560,9 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
           {/* SAVE BUTTON (CHECKOUT GUARDED) */}
           <button
             type="button"
+            disabled={!isDirty}
             onClick={() => {
+              if (!isDirty) return;
               if (isMine) {
                 onSaveFile();
               } else {
@@ -568,19 +570,19 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
               }
             }}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition shadow-sm ${
-              isDirty 
-                ? "bg-red-600 hover:bg-red-500 text-white border border-red-400 shadow-[0_0_14px_rgba(239,68,68,0.9)] animate-pulse scale-105" 
-                : "bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-200"
+              !isDirty
+                ? "bg-neutral-900/60 text-neutral-500 border border-neutral-800/80 cursor-not-allowed opacity-50"
+                : "bg-red-600 hover:bg-red-500 text-white border border-red-400 shadow-[0_0_14px_rgba(239,68,68,0.9)] animate-pulse scale-105 cursor-pointer opacity-100"
             }`}
             title={
-              !isMine 
+              !isDirty
+                ? "No unsaved changes"
+                : !isMine 
                 ? "Checkout required to commit changes to this file" 
-                : isDirty 
-                ? "Unsaved changes! Click to save" 
-                : "Save changes to file"
+                : "Unsaved changes! Click to save"
             }
           >
-            <Save size={13} className={isDirty ? "text-white" : "text-cyan-400"} />
+            <Save size={13} className={isDirty ? "text-white" : "text-neutral-500"} />
             <span className="hidden sm:inline">Save</span>
             {isDirty && (
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping ml-0.5" />

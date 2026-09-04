@@ -328,6 +328,15 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
 
   const selectedBiome = currentBiomeFile.biomeData;
 
+  const savedSnapshotRef = useRef<string>(JSON.stringify(selectedBiome));
+  useEffect(() => {
+    savedSnapshotRef.current = JSON.stringify(selectedBiome);
+  }, [currentBiomeFile.fileName, currentBiomeFile.id]);
+
+  const isBiomeDirty = useMemo(() => {
+    return savedSnapshotRef.current !== JSON.stringify(selectedBiome);
+  }, [selectedBiome]);
+
   const [activeSubTab, setActiveSubTabState] = useState<
     'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors'
   >(() => getSavedModuleTab('biomes', 'tile_types') as any);
@@ -617,13 +626,15 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         updatedAt: now,
         fileSystem: {
           ...prev.fileSystem,
-          biomes: (prev.fileSystem.biomes || []).map(b => b.fileName === currentBiomeFile.fileName ? updatedBiomeFile : b)
+          biomes: (prev.fileSystem.biomes || []).map(b => b.fileName === currentBiomeFile.fileName ? { ...updatedBiomeFile, checkout: b.checkout || currentBiomeFile.checkout } : b)
         }
       }), { actionLabel: `Saved biome ${currentBiomeFile.fileName}`, syncLinked: true } as any);
+      savedSnapshotRef.current = JSON.stringify(selectedBiome);
       const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
       showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName}) to ${targetName}`, 'success');
     } else if (project) {
       saveActiveMasonProject(project, `Saved biome ${currentBiomeFile.fileName}`);
+      savedSnapshotRef.current = JSON.stringify(selectedBiome);
       showToast(`Saved biome "${selectedBiome.name || currentBiomeFile.name}" (${currentBiomeFile.fileName})`, 'success');
     }
   };
@@ -723,6 +734,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         }))}
         activeFileName={currentBiomeFile.fileName}
         checkout={currentBiomeFile.checkout}
+        isDirty={isBiomeDirty}
         onCheckOutFile={(fName, note) => {
           const { project: updated } = performFileCheckout(project, 'biomes', fName, note);
           onUpdateProject(() => updated, { actionLabel: `Check out ${fName}` });

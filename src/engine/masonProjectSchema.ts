@@ -4003,6 +4003,65 @@ export const DEFAULT_PREFABS: PrefabData[] = [
 
 export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
   {
+    id: 'particles_blank_default',
+    name: 'Blank Particle System',
+    category: 'basic',
+    description: 'Clean default particle system with static color, size, and no optional parameters or animation tracks enabled.',
+    icon: '⚪',
+    tintColor: '#f59e0b',
+    emitter: {
+      shape: 'point',
+      width: 16,
+      height: 16,
+      radius: 12,
+      emissionRate: 30,
+      maxParticles: 100,
+      duration: 0,
+      loop: true,
+      burstCount: 0,
+      burstInterval: 0,
+      isContinuous: true
+    },
+    kinematics: {
+      minSpeed: 0.5,
+      maxSpeed: 1.0,
+      angleDeg: 270,
+      spreadDeg: 360,
+      gravityX: 0,
+      gravityY: 0,
+      drag: 0,
+      windForce: 0,
+      turbulenceJitter: 0,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'circle',
+      minLifetime: 1.0,
+      maxLifetime: 1.0,
+      startSize: 8,
+      endSize: 8,
+      animateSize: false,
+      animateColor: false,
+      animateAlpha: false,
+      animateRotation: false,
+      randomColorRange: false,
+      startColor: '#f59e0b',
+      endColor: '#f59e0b',
+      startAlpha: 1.0,
+      endAlpha: 1.0,
+      blendMode: 'source-over',
+      glowBlurRadius: 0
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
     id: 'particles_fire_embers',
     name: 'Infernal Campfire & Embers',
     category: 'environmental',

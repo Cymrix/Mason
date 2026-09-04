@@ -857,6 +857,15 @@ export const EditorLayout: React.FC = () => {
     chunks: currentMapFile.chunks || (currentMapFile as any).data?.chunks || {}
   } : null;
 
+  const savedMapSnapshotRef = useRef<string>(JSON.stringify(currentMapData));
+  useEffect(() => {
+    savedMapSnapshotRef.current = JSON.stringify(currentMapData);
+  }, [currentMapFile?.fileName, currentMapFile?.id]);
+
+  const isMapDirty = useMemo(() => {
+    return savedMapSnapshotRef.current !== JSON.stringify(currentMapData);
+  }, [currentMapData]);
+
   // Prefab Play Mode State & Spawn Configuration
   const [selectedTestCharacterId, setSelectedTestCharacterId] = useState<string>(() => {
     return currentCharacterFile?.prefabData?.id || currentCharacterFile?.id || 'char_korrath';
@@ -1813,6 +1822,7 @@ export const EditorLayout: React.FC = () => {
                   }))}
                   activeFileName={currentMapFile.fileName}
                   checkout={currentMapFile.checkout}
+                  isDirty={isMapDirty}
                   onCheckOutFile={(fName, note) => {
                     const { project: updated } = performFileCheckout(project, 'maps', fName, note);
                     handleUpdateProject(updated, { actionLabel: `Check out ${fName}` });
@@ -1876,9 +1886,10 @@ export const EditorLayout: React.FC = () => {
                       updatedAt: now,
                       fileSystem: {
                         ...p.fileSystem,
-                        maps: (p.fileSystem.maps || []).map(m => m.fileName === currentMapFile.fileName ? { ...m, updatedAt: now } : m)
+                        maps: (p.fileSystem.maps || []).map(m => m.fileName === currentMapFile.fileName ? { ...m, checkout: m.checkout || currentMapFile.checkout, updatedAt: now } : m)
                       }
                     }), { actionLabel: `Saved map ${currentMapFile.fileName}` });
+                    savedMapSnapshotRef.current = JSON.stringify(currentMapData);
                     showToast(`Saved ${currentMapFile.fileName}`, 'success');
                   }}
                   onSaveAsFile={(newFileName) => {

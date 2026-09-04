@@ -1097,6 +1097,62 @@ export const createNewParticleInProject = (
   return { project: updatedProject, newFile: newParticleFile };
 };
 
+export const createNewPrefabInProject = (
+  project: MasonProject,
+  name: string,
+  templatePrefab?: PrefabData
+): { project: MasonProject; newFile: PrefabFile } => {
+  const safeFileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
+  const newPrefabData: PrefabData = templatePrefab ? {
+    ...JSON.parse(JSON.stringify(templatePrefab)),
+    id: `char_${Date.now()}`,
+    name
+  } : {
+    id: `char_${Date.now()}`,
+    name,
+    prefabType: 'environmental_prop',
+    avatarIcon: '📦',
+    spriteWidth: 64,
+    spriteHeight: 64,
+    tintColor: '#f59e0b',
+    baseScale: 1.0,
+    states: [],
+    variables: [],
+    behaviorVariables: {},
+    rules: [],
+    capsule: { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
+    spritesheets: [],
+    points: [],
+    polygons: [],
+    sockets: [],
+    animations: []
+  };
+
+  const newPrefabFile: PrefabFile = {
+    id: newPrefabData.id,
+    name,
+    fileName: safeFileName,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    prefabData: newPrefabData
+  };
+
+  const updatedProject: MasonProject = {
+    ...project,
+    activeFiles: {
+      ...project.activeFiles,
+      prefabFileName: safeFileName
+    },
+    fileSystem: {
+      ...project.fileSystem,
+      prefabs: [...(project.fileSystem.prefabs || []), newPrefabFile]
+    }
+  };
+
+  saveActiveMasonProject(updatedProject);
+  return { project: updatedProject, newFile: newPrefabFile };
+};
+
 export const convertProjectDataToMasonProject = (projectData: any): MasonProject => {
   const now = new Date().toISOString();
   const projName = projectData.name || 'Imported Level Project';

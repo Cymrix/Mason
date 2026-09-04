@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.309';
-export const MASON_VERSION_DISPLAY = 'v0.309';
-export const MASON_FULL_VERSION = 'v0.309';
+export const MASON_VERSION = '0.313';
+export const MASON_VERSION_DISPLAY = 'v0.313';
+export const MASON_FULL_VERSION = 'v0.313';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,26 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.313',
+    date: '2026-09-04',
+    notes: 'Fixed checkout-on-save bug across all file subfolder headers by preserving active checkout locks during file save operations. Added live dirty state tracking to disable save when no changes exist and illuminate a glowing red save button when unsaved changes exist. Removed redundant Size Track toggle button from Particle Size card, and updated Prefab Editor to allow 0 states without auto-reverting to default states.'
+  },
+  {
+    version: 'v0.312',
+    date: '2026-09-04',
+    notes: 'Updated Prefab Editor architecture so prefabs can have 0 spritesheets, and newly created prefabs initialize clean by default with no spritesheets, variables, animations, or states.'
+  },
+  {
+    version: 'v0.311',
+    date: '2026-09-04',
+    notes: 'Refactored Particles Editor parameter architecture: removed color_flow from optional parameters, moved Size and Base Color parameters into default irremovable cards with timeline track toggles, removed redundant Color Animation Track toggle button, and updated new particle files to spawn clean with no optional parameters enabled.'
+  },
+  {
+    version: 'v0.310',
+    date: '2026-09-04',
+    notes: 'Fixed particle color animation persistence bug by enforcing static start color when animateColor is disabled in the particle engine loop and spawn logic. Resolved missing Color Flow track in Animation tab timeline by integrating color_flow into customizable parameters, active property resolution, and timeline track rendering.'
+  },
   {
     version: 'v0.309',
     date: '2026-09-04',

@@ -374,7 +374,7 @@ export const importProfilesJSON = (
     } else if (parsed.primary && parsed.moduleColors) {
       // Direct theme file imported as a profile
       importedProfiles = [{
-        name: parsed.name || 'Imported Theme Profile',
+        name: parsed.name || 'Theme Profile',
         avatar: '🎨',
         color: 'amber',
         config: {
@@ -404,13 +404,14 @@ export const importProfilesJSON = (
       const themeData = rawConfig.themeConfig || imp.themeConfig || (rawConfig.primary && rawConfig.moduleColors ? rawConfig : null) || (imp.primary && imp.moduleColors ? imp : null) || rawConfig.theme || imp.theme;
       const resolvedTheme = resolveThemeConfig(themeData || 'indigo_citadel');
 
+      const profileId = imp.id || `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const newProf: MasonUserProfile = {
-        id: `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        name: imp.name ? `${imp.name} (Imported)` : 'Imported Profile',
+        id: profileId,
+        name: imp.name || 'User Profile',
         avatar: imp.avatar || '🎨',
         color: imp.color || 'sky',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: imp.createdAt || Date.now(),
+        updatedAt: imp.updatedAt || Date.now(),
         config: {
           ...DEFAULT_APP_CONFIG,
           ...rawConfig,
@@ -418,7 +419,13 @@ export const importProfilesJSON = (
           themeConfig: resolvedTheme
         }
       };
-      merged.push(newProf);
+
+      const existingIndex = merged.findIndex(p => p.id === newProf.id);
+      if (existingIndex >= 0) {
+        merged[existingIndex] = newProf;
+      } else {
+        merged.push(newProf);
+      }
       addedCount++;
     }
 

@@ -1836,6 +1836,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
       return {
         ...p,
+        updatedAt: now,
         fileSystem: {
           ...p.fileSystem,
           particles: updatedFiles

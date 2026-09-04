@@ -90,10 +90,10 @@ import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle
 import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
 import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
 import { getBackupSettings, executeProjectBackup } from '../utils/projectBackupSystem';
-import { saveProjectToLinkedLocation, verifyLinkedStorageAccess, StorageAccessVerification } from '../utils/linkedSaveTarget';
+import { saveProjectToLinkedLocation, verifyLinkedStorageAccess, StorageAccessVerification, releaseProjectLock, CURRENT_CLIENT_SESSION_ID, acquireProjectLock } from '../utils/linkedSaveTarget';
 import { ThemeModal } from './ThemeModal';
 import { useAppTheme } from '../theme/ThemeContext';
-import { Palette, Link2, FolderSync, Lock, Globe, Laptop, Check } from 'lucide-react';
+import { Palette, Link2, FolderSync, Lock, Unlock, Globe, Laptop, Check } from 'lucide-react';
 import { MasonBrandIcon } from './MasonBrandIcon';
 
 export const EditorLayout: React.FC = () => {
@@ -355,6 +355,22 @@ export const EditorLayout: React.FC = () => {
     showToast(`Created new project: ${name}`, 'success');
   };
 
+  const checkLockAndProceed = (
+    project: MasonProject,
+    onProceed: (lockedProject: MasonProject) => void
+  ) => {
+    if (project.lockInfo?.isLocked) {
+      const isLockedByOther = project.lockInfo.lockClientId && project.lockInfo.lockClientId !== CURRENT_CLIENT_SESSION_ID;
+      if (isLockedByOther) {
+        const lockerName = project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy || 'Another user';
+        const lockerId = project.lockInfo.lockClientId?.slice(0, 8);
+        const proceed = window.confirm(`WARNING: This project is currently locked by ${lockerName} (Session ${lockerId}).\n\nOpening it anyway may cause sync conflicts if both of you edit simultaneously. Do you want to continue?`);
+        if (!proceed) return;
+      }
+    }
+    onProceed(acquireProjectLock(project));
+  };
+
   const handleSelectSavedProject = async (id: string)  => {
     if (activeModuleId === 'sprites') {
       const checkDirty = (window as any).masonCheckSpriteDirty;
@@ -366,10 +382,12 @@ export const EditorLayout: React.FC = () => {
     }
     const loaded = loadSavedProjectById(id);
     if (loaded) {
-      setProject(loaded);
-      setActiveModuleId(null); // Show project info by default
-      refreshSavedProjects();
-      showToast(`Loaded project: ${loaded.name}`, 'success');
+      checkLockAndProceed(loaded, (lockedProject) => {
+        setProject(lockedProject);
+        setActiveModuleId(null); // Show project info by default
+        refreshSavedProjects();
+        showToast(`Loaded project: ${lockedProject.name}`, 'success');
+      });
       return;
     }
 
@@ -377,11 +395,13 @@ export const EditorLayout: React.FC = () => {
     try {
       const asyncLoaded = await idbGetProject(id);
       if (asyncLoaded) {
-        setProject(asyncLoaded);
-        saveActiveMasonProject(asyncLoaded, 'Load Async Project', undefined, { preserveUpdatedAt: true, skipBackups: true });
-        setActiveModuleId(null);
-        refreshSavedProjects();
-        showToast(`Loaded project: ${asyncLoaded.name}`, 'success');
+        checkLockAndProceed(asyncLoaded, (lockedProject) => {
+          setProject(lockedProject);
+          saveActiveMasonProject(lockedProject, 'Load Async Project', undefined, { preserveUpdatedAt: true, skipBackups: true });
+          setActiveModuleId(null);
+          refreshSavedProjects();
+          showToast(`Loaded project: ${lockedProject.name}`, 'success');
+        });
       } else {
         showToast('Project could not be found in local storage or database', 'error');
       }
@@ -1330,11 +1350,23 @@ export const EditorLayout: React.FC = () => {
                 {/* Concurrency Lock Badge */}
                 {project.lockInfo?.isLocked && (
                   <span 
-                    className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[10px] font-mono"
-                    title={`File Locked by ${project.lockInfo.lockedBy} (Session ${project.lockInfo.lockClientId?.slice(0, 8)}...)`}
+                    className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[10px] font-mono group"
+                    title={`File Locked by ${project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy} (Session ${project.lockInfo.lockClientId?.slice(0, 8)}...)`}
                   >
                     <Lock size={10} className="text-amber-400 shrink-0" />
-                    <span className="truncate max-w-[80px]">{project.lockInfo.lockedBy}</span>
+                    <span className="truncate max-w-[80px]">{project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm('Force unlock this file? This will allow you to edit it, but could cause conflicts if another user is actively working on it.')) {
+                          handleUpdateProject(releaseProjectLock(project), { actionLabel: 'Forced unlock file', syncLinked: true });
+                        }
+                      }}
+                      className="ml-1 p-0.5 rounded hover:bg-amber-900/50 text-amber-500 hover:text-amber-200 opacity-50 group-hover:opacity-100 transition-opacity"
+                      title="Force Unlock"
+                    >
+                      <Unlock size={10} />
+                    </button>
                   </span>
                 )}
               </div>

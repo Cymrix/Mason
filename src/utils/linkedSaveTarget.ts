@@ -2,6 +2,7 @@ import { MasonProject } from '../engine/masonProjectSchema';
 import { saveProjectToGoogleDrive, saveModularProjectToGoogleDrive, getGoogleDriveToken } from './googleDriveStorage';
 import { saveProjectToOneDrive, saveModularProjectToOneDrive, getOneDriveToken, ensureOneDriveToken } from './oneDriveStorage';
 import { getProjectMasonFileName, idbSaveHandle, idbGetHandle, idbDeleteHandle } from './masonStorage';
+import { getActiveProfile } from './appProfileSystem';
 
 export type LinkedLocationType = 'local_idb' | 'local_file' | 'local_directory' | 'gdrive' | 'onedrive';
 
@@ -28,6 +29,12 @@ export interface FileLockInfo {
   lockedAt?: string;
   lockClientId?: string;
   isStale?: boolean; // Lock expired (> 15 minutes without heartbeat)
+  lockedByProfile?: {
+    id: string;
+    name: string;
+    avatar: string;
+    color: string;
+  };
 }
 
 export interface SyncResult {
@@ -672,14 +679,22 @@ export const readModularProjectFromDirectory = async (dirHandle: any): Promise<M
 /**
  * Acquires a collaborative lock on the project (Step 2 Concurrency Control)
  */
-export const acquireProjectLock = (project: MasonProject, userName: string = 'User'): MasonProject => {
+export const acquireProjectLock = (project: MasonProject, userName?: string): MasonProject => {
+  const profile = getActiveProfile();
+  const displayName = userName || profile?.name || 'User';
   return {
     ...project,
     lockInfo: {
       isLocked: true,
-      lockedBy: userName,
+      lockedBy: displayName,
       lockedAt: new Date().toISOString(),
-      lockClientId: CURRENT_CLIENT_SESSION_ID
+      lockClientId: CURRENT_CLIENT_SESSION_ID,
+      lockedByProfile: profile ? {
+        id: profile.id,
+        name: profile.name,
+        avatar: profile.avatar,
+        color: profile.color
+      } : undefined
     }
   };
 };

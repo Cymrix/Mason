@@ -131,7 +131,8 @@ import {
   isDirectoryAccessSupported,
   saveProjectToLinkedLocation,
   LinkedStorageLocation,
-  CURRENT_CLIENT_SESSION_ID
+  CURRENT_CLIENT_SESSION_ID,
+  acquireProjectLock
 } from '../utils/linkedSaveTarget';
 
 export type UnifiedFileAction = 'save_project' | 'load_project' | 'import_asset' | 'export_file' | 'import_profile';
@@ -263,6 +264,23 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
     } else {
       onProceed();
     }
+  };
+
+  // Helper to check lock before loading/importing/restoring project
+  const checkLockAndProceed = (
+    project: MasonProject,
+    onProceed: () => void
+  ) => {
+    if (project.lockInfo?.isLocked) {
+      const isLockedByOther = project.lockInfo.lockClientId && project.lockInfo.lockClientId !== CURRENT_CLIENT_SESSION_ID;
+      if (isLockedByOther) {
+        const lockerName = project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy || 'Another user';
+        const lockerId = project.lockInfo.lockClientId?.slice(0, 8);
+        const proceed = window.confirm(`WARNING: This project is currently locked by ${lockerName} (Session ${lockerId}).\n\nOpening it anyway may cause sync conflicts if both of you edit simultaneously. Do you want to continue?`);
+        if (!proceed) return;
+      }
+    }
+    onProceed();
   };
   const isProjectLoaded = Boolean(currentProject && currentProject.id && currentProject.id !== 'temp_proj');
 
@@ -1265,16 +1283,19 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       }
       const fileVersion = (loadedProject as any).engineVersion || (loadedProject as any).version;
 
-      checkVersionAndProceed(fileVersion, loadedProject.name, () => {
-        if (onImportBundle) {
-          onImportBundle(loadedProject);
-          if (onShowToast) onShowToast(`Opened modular project "${loadedProject.name}" from local folder!`, 'success');
-          onClose();
-        } else if (onLoadProject) {
-          onLoadProject(loadedProject as any);
-          if (onShowToast) onShowToast(`Opened modular project "${loadedProject.name}" from local folder!`, 'success');
-          onClose();
-        }
+      checkLockAndProceed(loadedProject, () => {
+        checkVersionAndProceed(fileVersion, loadedProject.name, () => {
+          const lockedProject = acquireProjectLock(loadedProject as any);
+          if (onImportBundle) {
+            onImportBundle(lockedProject);
+            if (onShowToast) onShowToast(`Opened modular project "${loadedProject.name}" from local folder!`, 'success');
+            onClose();
+          } else if (onLoadProject) {
+            onLoadProject(lockedProject);
+            if (onShowToast) onShowToast(`Opened modular project "${loadedProject.name}" from local folder!`, 'success');
+            onClose();
+          }
+        });
       });
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -1295,12 +1316,15 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
         const parsed = JSON.parse(text) as MasonProject;
         if (parsed && parsed.id && parsed.fileSystem) {
           const fileVersion = (parsed as any).engineVersion || (parsed as any).engine_version || (parsed as any).masonVersion || (parsed as any).version;
-          checkVersionAndProceed(fileVersion, parsed.name || file.name, () => {
-            if (onImportBundle) {
-              onImportBundle(parsed);
-              if (onShowToast) onShowToast(`Imported project "${parsed.name}" from local file!`, 'success');
-              onClose();
-            }
+          checkLockAndProceed(parsed, () => {
+            checkVersionAndProceed(fileVersion, parsed.name || file.name, () => {
+              if (onImportBundle) {
+                const lockedProject = acquireProjectLock(parsed);
+                onImportBundle(lockedProject);
+                if (onShowToast) onShowToast(`Imported project "${parsed.name}" from local file!`, 'success');
+                onClose();
+              }
+            });
           });
         } else {
           alert('Invalid Mason project bundle format.');
@@ -1611,16 +1635,19 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
         : await readModularProjectFromOneDrive(folderId || 'root', folderName);
 
       const fileVersion = loaded.engineVersion || loaded.version;
-      checkVersionAndProceed(fileVersion, loaded.name || folderName, () => {
-        if (onImportBundle) {
-          onImportBundle(loaded);
-          if (onShowToast) onShowToast(`Opened modular workspace folder "${folderName}"!`, 'success');
-          onClose();
-        } else if (onLoadProject) {
-          onLoadProject(loaded);
-          if (onShowToast) onShowToast(`Opened modular workspace folder "${folderName}"!`, 'success');
-          onClose();
-        }
+      checkLockAndProceed(loaded, () => {
+        checkVersionAndProceed(fileVersion, loaded.name || folderName, () => {
+          const lockedProject = acquireProjectLock(loaded);
+          if (onImportBundle) {
+            onImportBundle(lockedProject);
+            if (onShowToast) onShowToast(`Opened modular workspace folder "${folderName}"!`, 'success');
+            onClose();
+          } else if (onLoadProject) {
+            onLoadProject(lockedProject);
+            if (onShowToast) onShowToast(`Opened modular workspace folder "${folderName}"!`, 'success');
+            onClose();
+          }
+        });
       });
     } catch (err: any) {
       if (activeCloudProvider === 'gdrive') setGdriveStatusMsg(`Open workspace failed: ${err.message}`);
@@ -1666,12 +1693,15 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       }
 
       const fileVersion = (loaded as any).engineVersion || (loaded as any).engine_version || (loaded as any).masonVersion || (loaded as any).version;
-      checkVersionAndProceed(fileVersion, loaded.name || item.name, () => {
-        if (onLoadProject) {
-          onLoadProject(loaded);
-          if (onShowToast) onShowToast(`Successfully loaded project "${loaded.name}" from Cloud!`, 'success');
-          onClose();
-        }
+      checkLockAndProceed(loaded, () => {
+        checkVersionAndProceed(fileVersion, loaded.name || item.name, () => {
+          if (onLoadProject) {
+            const lockedProject = acquireProjectLock(loaded);
+            onLoadProject(lockedProject);
+            if (onShowToast) onShowToast(`Successfully loaded project "${loaded.name}" from Cloud!`, 'success');
+            onClose();
+          }
+        });
       });
     } catch (err: any) {
       if (activeCloudProvider === 'gdrive') setGdriveStatusMsg(`Load failed: ${err.message}`);

@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.300';
-export const MASON_VERSION_DISPLAY = 'v0.300';
-export const MASON_FULL_VERSION = 'v0.300';
+export const MASON_VERSION = '0.301';
+export const MASON_VERSION_DISPLAY = 'v0.301';
+export const MASON_FULL_VERSION = 'v0.301';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,11 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.301',
+    date: '2026-09-04',
+    notes: 'Fixed particle active synchronization bugs and enhanced concurrency safety: Integrated profile-aware lock metadata to correctly associate locking profiles across cloud sessions, introduced force-unlock UI capabilities in both the Editor Layout and Dashboard, and ensured automatic synchronization captures particle file modifications.'
+  },
   {
     version: 'v0.300',
     date: '2026-09-04',

@@ -1778,6 +1778,12 @@ export interface MasonProject {
     lockedBy?: string;
     lockedAt?: string;
     lockClientId?: string;
+    lockedByProfile?: {
+      id: string;
+      name: string;
+      avatar: string;
+      color: string;
+    };
   };
 }
 

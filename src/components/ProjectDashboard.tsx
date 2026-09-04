@@ -25,8 +25,10 @@ import {
   Link2,
   FolderSync,
   Lock,
+  Unlock,
   Cloud
 } from 'lucide-react';
+import { releaseProjectLock } from '../utils/linkedSaveTarget';
 
 interface ProjectDashboardProps {
   project: MasonProject;
@@ -167,9 +169,21 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
 
               {/* Multi-User Concurrency Lock Badge */}
               {project.lockInfo?.isLocked && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[11px] font-mono">
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[11px] font-mono group">
                   <Lock size={12} className="text-amber-400 shrink-0" />
-                  <span>Locked by: {project.lockInfo.lockedBy}</span>
+                  <span>Locked by: {project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Force unlock this file? This will allow you to edit it, but could cause conflicts if another user is actively working on it.')) {
+                        onUpdateProject(releaseProjectLock(project));
+                      }
+                    }}
+                    className="ml-2 p-1 rounded hover:bg-amber-900/50 text-amber-500 hover:text-amber-200 opacity-50 group-hover:opacity-100 transition-opacity"
+                    title="Force Unlock"
+                  >
+                    <Unlock size={12} />
+                  </button>
                 </span>
               )}
             </div>

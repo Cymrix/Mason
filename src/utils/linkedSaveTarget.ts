@@ -315,7 +315,7 @@ export const writeModularProjectToDirectory = async (project: MasonProject, dirH
   await writeSubdirFiles('particles', project.fileSystem?.particles || []);
   await writeSubdirFiles('sprites', project.fileSystem?.sprites || []);
   await writeSubdirFiles('behaviors', project.fileSystem?.behaviors || []);
-  await writeSubdirFiles('assets', project.fileSystem?.images || []);
+  await writeSubdirFiles('images', project.fileSystem?.images || []);
 };
 
 /**
@@ -578,7 +578,9 @@ export const readModularProjectFromDirectory = async (dirHandle: any): Promise<M
   const particles = await readSubdirFiles('particles');
   const sprites = await readSubdirFiles('sprites');
   const behaviors = await readSubdirFiles('behaviors');
-  const images = await readSubdirFiles('assets');
+  const imagesFromImages = await readSubdirFiles('images');
+  const imagesFromAssets = await readSubdirFiles('assets');
+  const images = imagesFromImages.length > 0 ? imagesFromImages : imagesFromAssets;
 
   const loadedProject: MasonProject = {
     id: manifestData.id || `proj_${Date.now()}`,

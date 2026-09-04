@@ -768,7 +768,7 @@ export const saveModularProjectToGoogleDrive = async (
     writeSubdir('particles', project.fileSystem?.particles || []),
     writeSubdir('sprites', project.fileSystem?.sprites || []),
     writeSubdir('behaviors', project.fileSystem?.behaviors || []),
-    writeSubdir('assets', project.fileSystem?.images || [])
+    writeSubdir('images', project.fileSystem?.images || [])
   ]);
 
   return {
@@ -830,7 +830,7 @@ export const readModularProjectFromGoogleDrive = async (folderId: string, folder
     }
   };
 
-  const [maps, biomes, prefabs, ui, game, particles, sprites, behaviors, images] = await Promise.all([
+  const [maps, biomes, prefabs, ui, game, particles, sprites, behaviors, imagesDirect, imagesLegacy] = await Promise.all([
     readSubdirFiles('maps'),
     readSubdirFiles('biomes'),
     readSubdirFiles('prefabs'),
@@ -839,8 +839,10 @@ export const readModularProjectFromGoogleDrive = async (folderId: string, folder
     readSubdirFiles('particles'),
     readSubdirFiles('sprites'),
     readSubdirFiles('behaviors'),
+    readSubdirFiles('images'),
     readSubdirFiles('assets')
   ]);
+  const images = imagesDirect.length > 0 ? imagesDirect : imagesLegacy;
 
   const reconstructedProject = {
     ...manifestData,

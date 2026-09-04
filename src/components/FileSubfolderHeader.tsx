@@ -198,11 +198,11 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
                 </div>
 
                 <div className="max-h-60 overflow-y-auto space-y-0.5 py-1">
-                  {files.map(f => {
+                  {files.map((f, fIdx) => {
                     const isActive = f.fileName === activeFileName;
                     return (
                       <button
-                        key={f.id || f.fileName}
+                        key={`subfolder_file_${f.fileName || f.id || fIdx}_${fIdx}`}
                         type="button"
                         onClick={() => {
                           onSelectFile(f.fileName);

@@ -63,6 +63,7 @@ import { exportParticleFile, createNewParticleInProject } from '../utils/masonSt
 import { SpritesheetSliceModal, SpritesheetSliceResult } from './shared/spritesheet';
 import { ViewportHUD } from './shared/viewport';
 import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
+import { addToastLog } from '../utils/toastLogStore';
 
 interface ParticlesEditorProps {
   project: MasonProject;
@@ -1506,6 +1507,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   };
 
   const showToast = (msg: string) => {
+    addToastLog(msg, 'info');
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2500);
   };
@@ -3274,7 +3276,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                 <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                   {DEFAULT_PARTICLE_SYSTEMS.map((preset, idx) => (
                     <button
-                      key={preset.id}
+                      key={`starter_preset_${preset.id}_${idx}`}
                       type="button"
                       onClick={() => setSelectedTemplateIndex(idx)}
                       className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition ${
@@ -5704,8 +5706,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             className="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-200 font-medium focus:outline-none focus:border-amber-500"
                           >
                             <optgroup label="⚡ Curated Sub-Emitter Presets">
-                              {SUB_EMITTER_PRESETS.map(preset => (
-                                <option key={preset.id} value={preset.id}>
+                              {SUB_EMITTER_PRESETS.map((preset, idx) => (
+                                <option key={`sub_preset_${preset.id}_${idx}`} value={preset.id}>
                                   {preset.name}
                                 </option>
                               ))}
@@ -5715,8 +5717,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                               <optgroup label="📁 Project Particle Systems">
                                 {particleFiles
                                   .filter(f => f.fileName !== activeFile.fileName)
-                                  .map(f => (
-                                    <option key={f.id || f.fileName} value={f.particleData?.id || f.fileName}>
+                                  .map((f, idx) => (
+                                    <option key={`proj_file_${f.id || f.fileName}_${idx}`} value={f.particleData?.id || f.fileName}>
                                       {f.particleData?.name || f.fileName}
                                     </option>
                                   ))}
@@ -5726,8 +5728,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             <optgroup label="✨ Built-in Engine Systems">
                               {DEFAULT_PARTICLE_SYSTEMS
                                 .filter(p => p.id !== activeParticleData.id)
-                                .map(preset => (
-                                  <option key={preset.id} value={preset.id}>
+                                .map((preset, idx) => (
+                                  <option key={`builtin_sys_${preset.id}_${idx}`} value={preset.id}>
                                     {preset.name}
                                   </option>
                                 ))}
@@ -7394,9 +7396,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {customSystemPresets.map(preset => (
+                      {customSystemPresets.map((preset, idx) => (
                         <div
-                          key={preset.id}
+                          key={`custom_preset_${preset.id || idx}_${idx}`}
                           className="p-3 bg-neutral-950 border border-neutral-800 hover:border-amber-500/30 rounded-xl transition flex items-center justify-between gap-3 group"
                         >
                           <div className="flex items-center gap-2">
@@ -7443,9 +7445,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   </h4>
 
                   <div className="space-y-2">
-                    {DEFAULT_PARTICLE_SYSTEMS.map(preset => (
+                    {DEFAULT_PARTICLE_SYSTEMS.map((preset, idx) => (
                       <div
-                        key={preset.id}
+                        key={`factory_preset_${preset.id}_${idx}`}
                         className="p-3 bg-neutral-950 border border-neutral-800 hover:border-amber-500/50 rounded-xl transition flex items-center justify-between gap-3 group"
                       >
                         <div className="flex items-center gap-3">

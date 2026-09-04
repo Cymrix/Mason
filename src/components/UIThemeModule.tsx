@@ -15,6 +15,7 @@ import {
   ensureUIConfigDefaults
 } from '../engine/masonProjectSchema';
 import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
+import { addToastLog } from '../utils/toastLogStore';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { 
   Layout, 
@@ -195,6 +196,7 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    addToastLog(text, type);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ text, type });
     toastTimeoutRef.current = setTimeout(() => {

@@ -106,6 +106,8 @@ import {
   Table
 } from 'lucide-react';
 
+import { addToastLog } from '../utils/toastLogStore';
+
 // Helper to generate var_xxxxxxxx IDs
 const generateVariableId = () => {
   const hex = Math.random().toString(16).substring(2, 10).padEnd(8, '0');
@@ -456,6 +458,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   };
 
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    addToastLog(text, type);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ text, type });
     toastTimeoutRef.current = setTimeout(() => {

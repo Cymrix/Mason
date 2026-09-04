@@ -24,6 +24,7 @@ import {
   saveActiveMasonProject, 
   createNewBiomeInProject 
 } from '../utils/masonStorage';
+import { addToastLog } from '../utils/toastLogStore';
 import { 
   TreePine, 
   Layers, 
@@ -337,6 +338,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    addToastLog(text, type);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ text, type });
     toastTimeoutRef.current = setTimeout(() => {

@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.302';
-export const MASON_VERSION_DISPLAY = 'v0.302';
-export const MASON_FULL_VERSION = 'v0.302';
+export const MASON_VERSION = '0.304';
+export const MASON_VERSION_DISPLAY = 'v0.304';
+export const MASON_FULL_VERSION = 'v0.304';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.304',
+    date: '2026-09-04',
+    notes: 'Fixed React duplicate key warning in Particle Emitter and Asset select lists: Scoped and unique-prefixed keys across sub-emitter curated presets, project particle files, and built-in factory templates preventing key collisions on particles_fire_embers.'
+  },
+  {
+    version: 'v0.303',
+    date: '2026-09-04',
+    notes: 'Added Toast Notification History Log & Floating Overlay: Users can expand an interactive log in the lower-right corner to review all past system alerts, cloud sync messages, and toast notifications with filtering, search, individual copying, and log export/clearing capabilities.'
+  },
   {
     version: 'v0.302',
     date: '2026-09-04',

@@ -2673,8 +2673,8 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
                       </optgroup>
                       {(project.fileSystem.particles || []).length > 0 && (
                         <optgroup label="Project Particle Files">
-                          {project.fileSystem.particles.map(pf => (
-                            <option key={pf.id} value={pf.id}>{pf.name} ({pf.fileName})</option>
+                          {project.fileSystem.particles.map((pf, pfIdx) => (
+                            <option key={`prefab_ps_${pf.fileName || pf.id || pfIdx}_${pfIdx}`} value={pf.id}>{pf.name} ({pf.fileName})</option>
                           ))}
                         </optgroup>
                       )}

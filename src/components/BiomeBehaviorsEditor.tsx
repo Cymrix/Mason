@@ -909,9 +909,9 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                                       className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-amber-300 font-bold"
                                     >
                                       <option value="">-- Choose Particle System --</option>
-                                      {availableParticles.map(p => (
-                                        <option key={p.particleData.id} value={p.particleData.id}>
-                                          {p.particleData.icon || '✨'} {p.particleData.name} ({p.particleData.id})
+                                      {availableParticles.map((p, pIdx) => (
+                                        <option key={`biome_particle_opt_${p.particleData?.id || pIdx}_${pIdx}`} value={p.particleData?.id}>
+                                          {p.particleData?.icon || '✨'} {p.particleData?.name} ({p.particleData?.id})
                                         </option>
                                       ))}
                                     </select>

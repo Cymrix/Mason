@@ -8,6 +8,7 @@ import {
   createDefaultGameStructure
 } from '../engine/masonProjectSchema';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
+import { addToastLog } from '../utils/toastLogStore';
 import { 
   Compass, 
   Sliders, 
@@ -116,6 +117,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    addToastLog(text, type);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ text, type });
     toastTimeoutRef.current = setTimeout(() => {

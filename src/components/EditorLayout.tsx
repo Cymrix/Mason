@@ -43,6 +43,8 @@ import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { SpriteEditorWrapper } from './SpriteEditorWrapper';
 import { AppProfileConfigModal } from './AppProfileConfigModal';
 import { ProfileBadgeSwitcher } from './ProfileBadgeSwitcher';
+import { ToastHistoryOverlay } from './ToastHistoryOverlay';
+import { addToastLog } from '../utils/toastLogStore';
 import {
   Paintbrush,
   Eraser,
@@ -295,10 +297,25 @@ export const EditorLayout: React.FC = () => {
     setSavedProjects(listSavedProjects());
   };
 
-  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+  const showToast = useCallback((text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    addToastLog(text, type);
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
+
+  // Listen for global toast requests from any decoupled component
+  useEffect(() => {
+    (window as any).masonShowToast = showToast;
+    const handleGlobalToast = (e: CustomEvent<{ text: string; type?: 'success' | 'info' | 'error' }>) => {
+      if (e.detail && e.detail.text) {
+        showToast(e.detail.text, e.detail.type || 'info');
+      }
+    };
+    window.addEventListener('mason:show-toast' as any, handleGlobalToast);
+    return () => {
+      window.removeEventListener('mason:show-toast' as any, handleGlobalToast);
+    };
+  }, [showToast]);
 
   // Linked Storage Refresh & Sync Status State
   const [isSyncingLinked, setIsSyncingLinked] = useState(false);
@@ -2711,11 +2728,11 @@ export const EditorLayout: React.FC = () => {
                           {(project.fileSystem.particles && project.fileSystem.particles.length > 0 
                             ? project.fileSystem.particles 
                             : []
-                          ).map(ps => {
+                          ).map((ps, idx) => {
                             const isSelected = selectedAssetId === ps.particleData.id;
                             return (
                               <button
-                                key={ps.particleData.id}
+                                key={`particle_asset_${ps.fileName || ps.id || ps.particleData?.id || idx}_${idx}`}
                                 type="button"
                                 onClick={() => setSelectedAssetId(ps.particleData.id)}
                                 className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
@@ -2984,7 +3001,7 @@ export const EditorLayout: React.FC = () => {
 
       {/* Toast Notification Alerts */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+        <div className="fixed bottom-16 right-4 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none">
           <div 
             className={`px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-semibold ${
               toast.type === 'success'
@@ -3015,6 +3032,9 @@ export const EditorLayout: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Floating Notification & Toast History Overlay */}
+      <ToastHistoryOverlay onShowToast={showToast} />
 
     </div>
   );

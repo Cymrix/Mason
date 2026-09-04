@@ -1546,6 +1546,8 @@ export interface ParticlePhysicsConfig {
   maxBounces?: number;           // Max allowed bounces before sticking (undefined or 0 = unlimited)
   destroyOnCollision: boolean;
   spawnCollisionSparks: boolean;
+  spawnOnDeath?: boolean;
+  sparkCount?: number;
   fluidSelfCollision?: boolean;
   fluidRepulsionForce?: number;
   collisionShape?: 'circle' | 'box' | 'triangle' | 'hexagon' | 'diamond' | 'custom_polygon';

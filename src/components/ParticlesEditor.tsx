@@ -420,6 +420,13 @@ const AVAILABLE_INITIALIZE_PROPS = [
     category: 'physics' as const,
     badge: 'Instant Despawn',
     desc: 'Despawn instantly when hitting a solid surface.'
+  },
+  {
+    id: 'spawn_sparks',
+    label: '✨ Spawn Sub-Particles on Destroy',
+    category: 'physics' as const,
+    badge: 'Impact / Death Burst',
+    desc: 'Creates new secondary particles or sparks when particles hit surfaces or expire.'
   }
 ];
 
@@ -446,6 +453,7 @@ export const getPropsFromParticleData = (data: ParticleSystemData): string[] => 
   if (v.hasTrails) props.push('trails');
   if (ph.collideWithMapSolids || ph.fluidSelfCollision) props.push('physics');
   if (ph.destroyOnCollision) props.push('destroy_on_hit');
+  if (ph.spawnCollisionSparks || ph.spawnOnDeath) props.push('spawn_sparks');
 
   return Array.from(new Set(props));
 };
@@ -611,6 +619,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         updated.physics.collisionRestitution = updated.physics.collisionRestitution ?? 0.4;
       } else if (propId === 'destroy_on_hit') {
         updated.physics.destroyOnCollision = true;
+      } else if (propId === 'spawn_sparks') {
+        updated.physics.spawnCollisionSparks = true;
       }
       return updated;
     });
@@ -682,6 +692,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         updated.physics.fluidSelfCollision = false;
       } else if (propId === 'destroy_on_hit') {
         updated.physics.destroyOnCollision = false;
+      } else if (propId === 'spawn_sparks') {
+        updated.physics.spawnCollisionSparks = false;
+        updated.physics.spawnOnDeath = false;
       }
       return updated;
     });
@@ -698,6 +711,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         else if (propId === 'trails') { p.hasTrails = false; p.trailHistory = []; }
         else if (propId === 'physics') { p.collides = false; }
         else if (propId === 'destroy_on_hit') { p.destroyOnCollision = false; }
+        else if (propId === 'spawn_sparks') { p.spawnCollisionSparks = false; p.spawnOnDeath = false; }
         else if (propId === 'rotation') { p.animateRotation = false; p.vRot = 0; }
         else if (propId === 'size_curve') { p.animateSize = false; }
         else if (propId === 'color_flow') { p.animateColor = false; }
@@ -725,6 +739,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [bgTheme, setBgTheme] = useState<'grid' | 'dungeon' | 'magma' | 'void' | 'cave' | 'boxes' | 'forest'>('grid');
   const [floorCollisionEnabled, setFloorCollisionEnabled] = useState<boolean>(true);
+  const [floorWorldY, setFloorWorldY] = useState<number>(390);
+  const [isDraggingFloor, setIsDraggingFloor] = useState<boolean>(false);
+  const [isHoveringFloor, setIsHoveringFloor] = useState<boolean>(false);
   const [emitterPos, setEmitterPos] = useState<{ x: number; y: number }>({ x: 320, y: 220 });
   
   // Viewport Zoom & Pan State
@@ -1441,6 +1458,31 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               fxStyle: 'custom' as any
             };
           }
+        }
+      }
+
+      if (engineRef.current && engineRef.current.particles) {
+        if (updatedData.visuals?.glowBlurRadius !== undefined) {
+          const rad = updatedData.visuals.glowBlurRadius;
+          engineRef.current.particles.forEach(p => {
+            p.glowBlurRadius = rad;
+          });
+        }
+        if (updatedData.physics) {
+          engineRef.current.particles.forEach(p => {
+            if (updatedData.physics.spawnCollisionSparks !== undefined) {
+              p.spawnCollisionSparks = updatedData.physics.spawnCollisionSparks;
+            }
+            if (updatedData.physics.spawnOnDeath !== undefined) {
+              p.spawnOnDeath = updatedData.physics.spawnOnDeath;
+            }
+            if (updatedData.physics.destroyOnCollision !== undefined) {
+              p.destroyOnCollision = updatedData.physics.destroyOnCollision;
+            }
+            if (updatedData.physics.sparkCount !== undefined) {
+              p.sparkCount = updatedData.physics.sparkCount;
+            }
+          });
         }
       }
 
@@ -2174,7 +2216,6 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
       const width = canvas.width;
       const height = canvas.height;
-      const floorY = height - 50;
 
       // Handle continuous stream emission with accumulator to avoid initial burst catch-up
       if (isPlaying && activeParticleData.emitter.isContinuous) {
@@ -2237,7 +2278,12 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       lastEmitterPosRef.current = { x: emitterPos.x, y: emitterPos.y };
       
-      engineRef.current.update(dt, activeParticleData.physics, floorY, globalWind, {
+      const effectivePhysics = {
+        ...activeParticleData.physics,
+        collideWithMapSolids: floorCollisionEnabled && activeParticleData.physics.collideWithMapSolids
+      };
+
+      engineRef.current.update(dt, effectivePhysics, floorWorldY, globalWind, {
         x: emitterPos.x,
         y: emitterPos.y,
         dx: edx,
@@ -2248,11 +2294,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       // Render environment
       ctx.clearRect(0, 0, width, height);
 
-      // Draw Grid
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 1;
-      const gridSize = 64;
-      
+      // World Space Rendering (Grid, Solid Floor Geometry, Emitter Handle)
       ctx.save();
       ctx.translate(panOffset.x, panOffset.y);
       ctx.scale(zoom, zoom);
@@ -2261,6 +2303,11 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       const scaledHeight = height / zoom;
       const startX = -panOffset.x / zoom;
       const startY = -panOffset.y / zoom;
+      
+      // Draw World Grid
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1 / zoom;
+      const gridSize = 64;
       
       ctx.beginPath();
       for (let x = Math.floor(startX / gridSize) * gridSize; x < startX + scaledWidth; x += gridSize) {
@@ -2272,6 +2319,55 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         ctx.lineTo(startX + scaledWidth, y);
       }
       ctx.stroke();
+
+      // Render Solid Floor Geometry in World Space
+      if (floorCollisionEnabled) {
+        const floorLeft = startX - 200;
+        const floorRight = startX + scaledWidth + 200;
+        const floorBottom = Math.max(floorWorldY + 3000, startY + scaledHeight + 200);
+
+        // Solid floor slab body (covers grid below floor plane)
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(floorLeft, floorWorldY, floorRight - floorLeft, floorBottom - floorWorldY);
+
+        // Subsurface accent band for tactile physical depth
+        ctx.fillStyle = activeParticleData.physics.collideWithMapSolids ? '#0f172a' : '#111827';
+        ctx.fillRect(floorLeft, floorWorldY, floorRight - floorLeft, 14 / zoom);
+
+        // Top surface collision boundary line
+        const isActive = activeParticleData.physics.collideWithMapSolids;
+        ctx.strokeStyle = isActive ? '#38bdf8' : '#475569';
+        ctx.lineWidth = (isDraggingFloor || isHoveringFloor ? 3 : 2) / zoom;
+        ctx.beginPath();
+        ctx.moveTo(floorLeft, floorWorldY);
+        ctx.lineTo(floorRight, floorWorldY);
+        ctx.stroke();
+
+        // Subtle glow along collision line when active
+        if (isActive) {
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+          ctx.lineWidth = 6 / zoom;
+          ctx.beginPath();
+          ctx.moveTo(floorLeft, floorWorldY);
+          ctx.lineTo(floorRight, floorWorldY);
+          ctx.stroke();
+        }
+
+        // Center grab handle indicator on the floor line
+        const centerX = startX + scaledWidth / 2;
+        const handleW = 64 / zoom;
+        const handleH = 6 / zoom;
+        ctx.fillStyle = isActive ? (isDraggingFloor ? '#38bdf8' : 'rgba(56, 189, 248, 0.45)') : 'rgba(100, 116, 139, 0.45)';
+        ctx.fillRect(centerX - handleW / 2, floorWorldY - handleH / 2, handleW, handleH);
+
+        // Floor label in world space, aligned cleanly inside visible viewport
+        ctx.font = `${Math.max(9, 11 / zoom)}px Inter, sans-serif`;
+        ctx.fillStyle = isActive ? '#94a3b8' : '#64748b';
+        const floorLabel = isActive
+          ? `SOLID FLOOR GEOMETRY (WORLD Y: ${floorWorldY} | COLLISION ACTIVE)`
+          : `SOLID FLOOR GEOMETRY (WORLD Y: ${floorWorldY} | MAP COLLISION OFF)`;
+        ctx.fillText(floorLabel, startX + 16 / zoom, floorWorldY + 20 / zoom);
+      }
       
       // Draw emitter handle
       if (isPlaying) {
@@ -2288,20 +2384,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
       ctx.restore();
 
-      if (activeParticleData.physics.collideWithMapSolids) {
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, floorY, width, height - floorY);
-        ctx.strokeStyle = '#334155';
-        ctx.beginPath();
-        ctx.moveTo(0, floorY);
-        ctx.lineTo(width, floorY);
-        ctx.stroke();
-        
-        ctx.font = '12px Inter, sans-serif';
-        ctx.fillStyle = '#64748b';
-        ctx.fillText('SOLID FLOOR GEOMETRY (COLLISION PLANE)', 16, floorY + 20);
-      }
-
+      // Render particles in World Space (ParticleEngine.render applies panOffset and zoom internally)
       engineRef.current.render(ctx, panOffset, zoom, activeParticleData, showCollisionWireframe, emitterPos);
 
       animId = requestAnimationFrame(renderLoop);
@@ -2309,7 +2392,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
     animId = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(animId);
-  }, [isPlaying, activeParticleData, bgTheme, floorCollisionEnabled, emitterPos, isDraggingEmitter, zoom, panOffset, showCollisionWireframe, activeTab]);
+  }, [isPlaying, activeParticleData, bgTheme, floorCollisionEnabled, floorWorldY, emitterPos, isDraggingEmitter, isDraggingFloor, isHoveringFloor, zoom, panOffset, showCollisionWireframe, activeTab]);
 
   // Screen mouse coordinates to transformed World coordinates converter
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -2364,6 +2447,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     const distToEmitter = Math.hypot(worldX - emitterPos.x, worldY - emitterPos.y);
     if (distToEmitter < 24 / zoom) {
       setIsDraggingEmitter(true);
+    } else if (floorCollisionEnabled && Math.abs(worldY - floorWorldY) < 14 / zoom) {
+      setIsDraggingFloor(true);
     } else {
       // Click-to-burst at clicked world coordinates
       const countMin = activeParticleData.emitter.burstCountMin ?? activeParticleData.emitter.burstCount ?? 20;
@@ -2385,11 +2470,29 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     if (isDraggingEmitter) {
       const { worldX, worldY } = getCanvasCoords(e);
       setEmitterPos({ x: Math.round(worldX), y: Math.round(worldY) });
+      return;
+    }
+
+    if (isDraggingFloor) {
+      const { worldY } = getCanvasCoords(e);
+      setFloorWorldY(Math.round(worldY));
+      return;
+    }
+
+    if (floorCollisionEnabled) {
+      const { worldY } = getCanvasCoords(e);
+      const isNear = Math.abs(worldY - floorWorldY) < 12 / zoom;
+      if (isNear !== isHoveringFloor) {
+        setIsHoveringFloor(isNear);
+      }
+    } else if (isHoveringFloor) {
+      setIsHoveringFloor(false);
     }
   };
 
   const handleCanvasMouseUp = () => {
     setIsDraggingEmitter(false);
+    setIsDraggingFloor(false);
     setIsPanning(false);
   };
 
@@ -2442,6 +2545,55 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       }
     }));
     showToast(`Deleted ${activeFile.fileName}`);
+  };
+
+  const handleRenameParticleFile = (oldFileName: string, newName: string) => {
+    const cleanName = newName.trim();
+    if (!cleanName) return;
+    const safeName = cleanName.endsWith('.particle') 
+      ? cleanName 
+      : `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.particle`;
+
+    const displayName = cleanName.replace(/\.particle$/, '');
+    const now = new Date().toISOString();
+
+    onUpdateProject(p => {
+      const updatedParticles = (p.fileSystem.particles || []).map(f => {
+        if (f.fileName === oldFileName) {
+          return {
+            ...f,
+            name: displayName,
+            fileName: safeName,
+            updatedAt: now,
+            particleData: {
+              ...f.particleData,
+              name: displayName
+            }
+          };
+        }
+        return f;
+      });
+
+      return {
+        ...p,
+        updatedAt: now,
+        activeFiles: {
+          ...p.activeFiles,
+          particleFileName: p.activeFiles.particleFileName === oldFileName ? safeName : p.activeFiles.particleFileName
+        },
+        fileSystem: {
+          ...p.fileSystem,
+          particles: updatedParticles
+        }
+      };
+    }, { actionLabel: `Renamed particle file to ${safeName}` } as any);
+
+    updateActiveParticle(prev => ({
+      ...prev,
+      name: displayName
+    }));
+
+    showToast(`Renamed particle file to ${safeName}`);
   };
 
   const handleLoadPreset = (preset: ParticleSystemData) => {
@@ -2749,12 +2901,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         onDeleteFile={() => {
           handleDelete();
         }}
-        onRenameFile={(_, newName) => {
-          updateActiveParticle(prev => ({
-            ...prev,
-            name: newName
-          }));
-          showToast(`Renamed particle system to ${newName}`);
+        onRenameFile={(oldFileName, newName) => {
+          handleRenameParticleFile(oldFileName, newName);
         }}
         onBackToDashboard={onBackToDashboard}
         centerContent={
@@ -2869,15 +3017,31 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                 <span className="text-[11px]">Wireframe Hull</span>
               </label>
 
-              <label className="flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={floorCollisionEnabled}
-                  onChange={(e) => setFloorCollisionEnabled(e.target.checked)}
-                  className="rounded border-neutral-700 bg-neutral-900 text-amber-600 focus:ring-0 w-3.5 h-3.5"
-                />
-                <span className="text-[11px]">Solid Floor</span>
-              </label>
+              <div className="flex items-center gap-1.5">
+                <label className="flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={floorCollisionEnabled}
+                    onChange={(e) => setFloorCollisionEnabled(e.target.checked)}
+                    className="rounded border-neutral-700 bg-neutral-900 text-amber-600 focus:ring-0 w-3.5 h-3.5"
+                  />
+                  <span className="text-[11px]">Solid Floor</span>
+                </label>
+                {floorCollisionEnabled && (
+                  <div
+                    className="flex items-center gap-1 text-[10px] text-neutral-400 font-mono bg-neutral-950 px-1.5 py-0.5 rounded border border-neutral-800"
+                    title="Solid floor plane Y position in world coordinates (click & drag floor line on canvas to adjust)"
+                  >
+                    <span className="text-neutral-500 font-semibold">Y:</span>
+                    <input
+                      type="number"
+                      value={floorWorldY}
+                      onChange={(e) => setFloorWorldY(Number(e.target.value))}
+                      className="w-11 bg-transparent text-amber-400 font-bold focus:outline-none text-right"
+                    />
+                  </div>
+                )}
+              </div>
 
               <span className="text-[10px] px-2 py-0.5 rounded bg-neutral-950 border border-neutral-800 text-amber-400 font-mono font-bold hidden sm:inline-block">
                 ⚡ {((activeParticleData.visuals.renderResolutionScale ?? activeParticleData.visuals.metaballResolutionScale ?? 1.0) * 100).toFixed(0)}% Buffer
@@ -2916,9 +3080,21 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={() => {
+                setIsDraggingEmitter(false);
+                setIsDraggingFloor(false);
+                setIsPanning(false);
+                setIsHoveringFloor(false);
+              }}
               onContextMenu={(e) => e.preventDefault()}
               className={`w-full h-full max-w-[720px] max-h-[500px] rounded-2xl border border-neutral-800/80 shadow-2xl object-contain ${
-                isPanning || canvasTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
+                isDraggingFloor || isHoveringFloor
+                  ? 'cursor-row-resize'
+                  : isDraggingEmitter
+                  ? 'cursor-grabbing'
+                  : isPanning || canvasTool === 'pan'
+                  ? 'cursor-grab active:cursor-grabbing'
+                  : 'cursor-crosshair'
               }`}
             />
 
@@ -2933,6 +3109,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               }}
               onCenterContent={() => {
                 setEmitterPos({ x: 320, y: 220 });
+                setFloorWorldY(390);
                 setPanOffset({ x: 0, y: 0 });
               }}
               position="top-right"
@@ -4129,16 +4306,53 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <div className="p-3 bg-neutral-950/20 text-xs">
-                      <label className="text-[10px] font-bold text-neutral-400 block mb-1">Glow Bloom Radius</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="40"
-                        value={activeParticleData.visuals.glowBlurRadius ?? 8}
-                        onChange={(e) => updateActiveParticle(p => ({ ...p, visuals: { ...p.visuals, glowBlurRadius: Number(e.target.value) } }))}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                      />
+                    <div className="p-3 bg-neutral-950/20 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-neutral-400 block">Glow Bloom Radius</label>
+                        <span className="text-[10px] font-mono text-amber-400 font-bold">{activeParticleData.visuals.glowBlurRadius ?? 8}px</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="range"
+                          min="0"
+                          max="48"
+                          value={activeParticleData.visuals.glowBlurRadius ?? 8}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            updateActiveParticle(p => ({
+                              ...p,
+                              visuals: {
+                                ...p.visuals,
+                                glowBlurRadius: val,
+                                isEmissive: val > 0 ? (p.visuals.isEmissive ?? true) : false,
+                                emissiveStartStrength: val,
+                                emissiveEndStrength: val
+                              }
+                            }));
+                          }}
+                          className="flex-1 accent-amber-500 cursor-pointer"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max="64"
+                          value={activeParticleData.visuals.glowBlurRadius ?? 8}
+                          onChange={(e) => {
+                            const val = Math.max(0, Math.min(64, Number(e.target.value)));
+                            updateActiveParticle(p => ({
+                              ...p,
+                              visuals: {
+                                ...p.visuals,
+                                glowBlurRadius: val,
+                                isEmissive: val > 0 ? (p.visuals.isEmissive ?? true) : false,
+                                emissiveStartStrength: val,
+                                emissiveEndStrength: val
+                              }
+                            }));
+                          }}
+                          className="w-14 bg-neutral-950 border border-neutral-800 rounded-lg p-1 text-xs text-white font-mono focus:outline-none focus:border-amber-500 text-right"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -4312,7 +4526,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <div className="p-3 bg-neutral-950/20 text-xs">
+                    <div className="p-3 bg-neutral-950/20 text-xs space-y-2">
                       <label className="flex items-center justify-between cursor-pointer p-2 rounded bg-neutral-950 border border-neutral-800">
                         <span className="text-neutral-300 font-bold">Destroy Immediately on Hit</span>
                         <input
@@ -4322,6 +4536,78 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           className="rounded accent-amber-500 font-mono w-4 h-4"
                         />
                       </label>
+                      <label className="flex items-center justify-between cursor-pointer p-2 rounded bg-neutral-950 border border-neutral-800">
+                        <div>
+                          <span className="text-neutral-300 font-bold block">Spawn Sparks on Collision Impact</span>
+                          <span className="text-[10px] text-neutral-500 block">Create secondary particles when hitting surfaces</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={activeParticleData.physics.spawnCollisionSparks ?? false}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, spawnCollisionSparks: e.target.checked } }))}
+                          className="rounded accent-amber-500 font-mono w-4 h-4"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {addedProps.includes('spawn_sparks') && (
+                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span>✨ Spawn Sub-Particles on Destroy</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveParam('spawn_sparks')}
+                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                        title="Remove sub-particles parameter"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
+                      <label className="flex items-center justify-between cursor-pointer p-2 rounded bg-neutral-950 border border-neutral-800">
+                        <div>
+                          <span className="text-neutral-200 font-semibold block text-[11px]">Spawn Sparks on Collision Impact</span>
+                          <span className="text-[10px] text-neutral-500 block">Creates splash particles when hitting solid floors or geometry</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={activeParticleData.physics.spawnCollisionSparks ?? false}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, spawnCollisionSparks: e.target.checked } }))}
+                          className="rounded accent-amber-500 font-mono w-4 h-4"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer p-2 rounded bg-neutral-950 border border-neutral-800">
+                        <div>
+                          <span className="text-neutral-200 font-semibold block text-[11px]">Spawn Burst on Lifetime Expire (Death)</span>
+                          <span className="text-[10px] text-neutral-500 block">Creates sub-particles when particle reaches its max lifetime</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={activeParticleData.physics.spawnOnDeath ?? false}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, spawnOnDeath: e.target.checked } }))}
+                          className="rounded accent-amber-500 font-mono w-4 h-4"
+                        />
+                      </label>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold text-neutral-400 block">Sub-Particles per Impact / Death</label>
+                          <span className="text-[10px] font-mono text-amber-400 font-bold">{activeParticleData.physics.sparkCount ?? 'Random (1-3)'}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="8"
+                          value={activeParticleData.physics.sparkCount ?? 2}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, sparkCount: Number(e.target.value) } }))}
+                          className="w-full accent-amber-500 cursor-pointer"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

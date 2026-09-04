@@ -52,6 +52,8 @@ export interface ParticleInstance {
   bounces?: number;
   destroyOnCollision: boolean;
   spawnCollisionSparks: boolean;
+  spawnOnDeath?: boolean;
+  sparkCount?: number;
   isRestingOnFloor?: boolean;
   fxStyle?: ParticleFxStyle;
   isEmissive?: boolean;
@@ -518,6 +520,8 @@ export class ParticleEngine {
         bounces: 0,
         destroyOnCollision: physics.destroyOnCollision ?? false,
         spawnCollisionSparks: physics.spawnCollisionSparks ?? false,
+        spawnOnDeath: physics.spawnOnDeath ?? false,
+        sparkCount: physics.sparkCount,
         fxStyle: visuals.fxStyle || "default",
         isEmissive: visuals.isEmissive ?? false,
         emissiveMode: visuals.emissiveMode || "glow_only",
@@ -571,6 +575,48 @@ export class ParticleEngine {
         const p = this.particles[i];
         p.lifetime += dt;
         if (p.lifetime >= p.maxLifetime) {
+          if (p.spawnOnDeath) {
+            const count = p.sparkCount ?? (Math.floor(Math.random() * 3) + 1);
+            for (let s = 0; s < count; s++) {
+              newSparks.push({
+                x: p.x,
+                y: p.y,
+                vx: (Math.random() - 0.5) * 140,
+                vy: (Math.random() - 0.5) * 140,
+                rotation: 0,
+                vRot: (Math.random() - 0.5) * 10,
+                lifetime: 0,
+                maxLifetime: 0.25 + Math.random() * 0.25,
+                startSize: Math.max(1.5, p.startSize * 0.4),
+                endSize: 0,
+                sizeCurve: "linear",
+                startColor: "#ffffff",
+                startAlpha: 1,
+                endColor: p.startColor || "#ffaa00",
+                endAlpha: 0,
+                shape: p.shape === "bubble" ? "bubble" : "glow_circle",
+                glowBlurRadius: Math.max(2, (p.glowBlurRadius || 4) * 0.5),
+                blendMode: "screen",
+                drag: 0.94,
+                angularDrag: 0.94,
+                gravityX: 0,
+                gravityY: (p.gravityY || 0) * 0.5,
+                windForce: 0,
+                turbulenceJitter: 0,
+                collides: false,
+                restitution: 0,
+                destroyOnCollision: false,
+                spawnCollisionSparks: false,
+                spawnOnDeath: false,
+                fxStyle: "default",
+                animateSize: true,
+                animateColor: true,
+                animateAlpha: true,
+                animateEmissive: false,
+                animateRotation: true
+              });
+            }
+          }
           continue;
         }
 
@@ -644,8 +690,8 @@ export class ParticleEngine {
           if (p.bounces === undefined) p.bounces = 0;
           p.bounces++;
 
-          if (p.spawnCollisionSparks && Math.abs(p.vy) > 10) {
-            const sparkCount = Math.floor(Math.random() * 3) + 1;
+          if (p.spawnCollisionSparks) {
+            const sparkCount = p.sparkCount ?? (Math.floor(Math.random() * 3) + 1);
             for (let s = 0; s < sparkCount; s++) {
               newSparks.push({
                 x: p.x,
@@ -656,15 +702,15 @@ export class ParticleEngine {
                 vRot: (Math.random() - 0.5) * 10,
                 lifetime: 0,
                 maxLifetime: 0.2 + Math.random() * 0.2,
-                startSize: p.startSize * 0.3,
+                startSize: Math.max(1.5, p.startSize * 0.35),
                 endSize: 0,
                 sizeCurve: "linear",
                 startColor: "#ffffff",
                 startAlpha: 1,
-                endColor: "#ffaa00",
+                endColor: p.startColor || "#ffaa00",
                 endAlpha: 0,
-                shape: "glow_circle",
-                glowBlurRadius: 5,
+                shape: p.shape === "bubble" ? "bubble" : "glow_circle",
+                glowBlurRadius: Math.max(2, (p.glowBlurRadius || 4) * 0.5),
                 blendMode: "screen",
                 drag: 0.95,
                 angularDrag: 0.95,
@@ -676,6 +722,7 @@ export class ParticleEngine {
                 restitution: 0,
                 destroyOnCollision: false,
                 spawnCollisionSparks: false,
+                spawnOnDeath: false,
                 fxStyle: "default",
                 animateSize: true,
                 animateColor: true,
@@ -781,9 +828,13 @@ export class ParticleEngine {
           const N = pts.length;
           const baseWidth = currentSize * (p.trailWidthScale ?? 1.0);
           
-          if (p.glowBlurRadius > 0) {
+          const effectiveGlowRadius = (particleData?.visuals?.glowBlurRadius !== undefined
+            ? particleData.visuals.glowBlurRadius
+            : p.glowBlurRadius) ?? 0;
+          
+          if (effectiveGlowRadius > 0) {
             ctx.shadowColor = color;
-            ctx.shadowBlur = p.glowBlurRadius;
+            ctx.shadowBlur = effectiveGlowRadius;
           }
           ctx.globalAlpha = alpha * 0.7;
 
@@ -856,6 +907,10 @@ export class ParticleEngine {
         ctx.rotate(currentRotation);
         ctx.globalCompositeOperation = p.blendMode as any;
 
+        const effectiveGlowRadius = (particleData?.visuals?.glowBlurRadius !== undefined
+          ? particleData.visuals.glowBlurRadius
+          : p.glowBlurRadius) ?? 0;
+
         if (p.isEmissive) {
           const emStr = evaluateTrackValue(emissiveProgress, "emissive", visuals);
           const emColHex = evaluateTrackValue(colorProgress, "color", { ...visuals, trackNodes: { color: getTrackNodesForData({ startColor: p.emissiveStartColor || p.startColor, midColor: p.emissiveMidColor, endColor: p.emissiveEndColor || p.endColor }, "color") } });
@@ -863,7 +918,14 @@ export class ParticleEngine {
 
           if (p.emissiveMode === "glow_only" || p.emissiveMode === "light_up_area") {
             ctx.shadowColor = `rgba(${emRgb.r}, ${emRgb.g}, ${emRgb.b}, ${alpha})`;
-            ctx.shadowBlur = emStr;
+            let blurRadius = effectiveGlowRadius;
+            if (p.animateEmissive && effectiveGlowRadius > 0) {
+              const maxStrength = Math.max(1, p.emissiveStartStrength || 35);
+              blurRadius = effectiveGlowRadius * (emStr / maxStrength);
+            } else if (effectiveGlowRadius === 0 && emStr > 0) {
+              blurRadius = emStr;
+            }
+            ctx.shadowBlur = blurRadius;
             if (p.emissiveMode === "light_up_area") {
               ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
             } else {
@@ -871,12 +933,17 @@ export class ParticleEngine {
             }
           } else {
             ctx.fillStyle = color;
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
           }
         } else {
           ctx.fillStyle = color;
-          if (p.glowBlurRadius > 0) {
+          if (effectiveGlowRadius > 0) {
             ctx.shadowColor = color;
-            ctx.shadowBlur = p.glowBlurRadius;
+            ctx.shadowBlur = effectiveGlowRadius;
+          } else {
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
           }
         }
 

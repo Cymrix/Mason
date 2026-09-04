@@ -6,6 +6,7 @@ import {
   BiomeFile,
   UIThemeFile,
   GameStructureFile,
+  ParticleSystemFile,
   FileBackupRecord
 } from '../engine/masonProjectSchema';
 import { 
@@ -13,11 +14,13 @@ import {
   exportBiomeFile, 
   exportUIThemeFile, 
   exportGameStructureFile, 
+  exportParticleFile,
   exportFullProjectBundle,
   createNewMapInProject,
   createNewBiomeInProject,
   createNewUIThemeInProject,
   createNewGameStructureInProject,
+  createNewParticleInProject,
   saveActiveMasonProject,
   getFileBackups,
   restoreFileVersion,
@@ -50,7 +53,8 @@ import {
   History,
   RotateCcw,
   Clock,
-  Check
+  Check,
+  Edit2
 } from 'lucide-react';
 
 interface ProjectExplorerModalProps {
@@ -69,7 +73,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
   onNavigateToModule
 }) => {
   const [selectedFile, setSelectedFile] = useState<{
-    subfolder: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'sprites' | 'images';
+    subfolder: 'maps' | 'biomes' | 'prefabs' | 'particles' | 'ui' | 'game' | 'sprites' | 'images';
     file: any;
   } | null>(null);
 
@@ -77,6 +81,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
     maps: true,
     biomes: true,
     prefabs: true,
+    particles: true,
     ui: true,
     game: true,
     sprites: true,
@@ -86,6 +91,8 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
   const [newFileInput, setNewFileInput] = useState<{ subfolder: string; name: string } | null>(null);
   const [showRawJson, setShowRawJson] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isRenamingFile, setIsRenamingFile] = useState(false);
+  const [renameInputVal, setRenameInputVal] = useState('');
 
   const [fileBackups, setFileBackups] = useState<FileBackupRecord[]>([]);
   const [isLoadingBackups, setIsLoadingBackups] = useState(false);
@@ -198,6 +205,17 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
           },
           fileSystem: { ...p.fileSystem, prefabs: remaining }
         };
+      } else if (subfolder === 'particles') {
+        const remaining = (p.fileSystem.particles || []).filter(pt => pt.fileName !== fName);
+        if (remaining.length === 0) return p;
+        return {
+          ...p,
+          activeFiles: {
+            ...p.activeFiles,
+            particleFileName: p.activeFiles.particleFileName === fName ? remaining[0]?.fileName || '' : p.activeFiles.particleFileName
+          },
+          fileSystem: { ...p.fileSystem, particles: remaining }
+        };
       } else if (subfolder === 'ui') {
         const remaining = p.fileSystem.ui.filter(u => u.fileName !== fName);
         if (remaining.length === 0) return p;
@@ -238,6 +256,186 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
     setSelectedFile(null);
     setIsConfirmingDelete(false);
+  };
+
+  const handleRenameFileSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedFile || !renameInputVal.trim()) return;
+
+    const cleanInput = renameInputVal.trim();
+    const subfolder = selectedFile.subfolder;
+    const oldFileName = selectedFile.file.fileName;
+
+    const ext = 
+      subfolder === 'maps' ? '.map' :
+      subfolder === 'biomes' ? '.biome' :
+      subfolder === 'prefabs' ? '.prefab' :
+      subfolder === 'particles' ? '.particle' :
+      subfolder === 'ui' ? '.ui' :
+      subfolder === 'game' ? '.gamestructure' :
+      subfolder === 'sprites' ? '.sprite' :
+      subfolder === 'images' ? (oldFileName.includes('.') ? oldFileName.substring(oldFileName.lastIndexOf('.')) : '.png') : '';
+
+    const safeFileName = ext ? (cleanInput.endsWith(ext) ? cleanInput : `${cleanInput.toLowerCase().replace(/[^a-z0-9]/g, '_')}${ext}`) : cleanInput;
+    const displayName = cleanInput.replace(ext, '');
+    const now = new Date().toISOString();
+
+    let updatedFileObj: any = null;
+
+    onUpdateProject(p => {
+      let updatedP = { ...p, updatedAt: now };
+
+      if (subfolder === 'particles') {
+        const updated = (p.fileSystem.particles || []).map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = {
+              ...f,
+              name: displayName,
+              fileName: safeFileName,
+              updatedAt: now,
+              particleData: f.particleData ? { ...f.particleData, name: displayName } : f.particleData
+            };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          activeFiles: {
+            ...updatedP.activeFiles,
+            particleFileName: updatedP.activeFiles?.particleFileName === oldFileName ? safeFileName : updatedP.activeFiles?.particleFileName
+          },
+          fileSystem: { ...updatedP.fileSystem, particles: updated }
+        };
+      } else if (subfolder === 'maps') {
+        const updated = p.fileSystem.maps.map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = { ...f, name: displayName, fileName: safeFileName, updatedAt: now };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          activeFiles: {
+            ...updatedP.activeFiles,
+            mapFileName: updatedP.activeFiles?.mapFileName === oldFileName ? safeFileName : updatedP.activeFiles?.mapFileName
+          },
+          fileSystem: { ...updatedP.fileSystem, maps: updated }
+        };
+      } else if (subfolder === 'biomes') {
+        const updated = p.fileSystem.biomes.map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = {
+              ...f,
+              name: displayName,
+              fileName: safeFileName,
+              updatedAt: now,
+              biomeData: f.biomeData ? { ...f.biomeData, name: displayName } : f.biomeData
+            };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          activeFiles: {
+            ...updatedP.activeFiles,
+            biomeFileName: updatedP.activeFiles?.biomeFileName === oldFileName ? safeFileName : updatedP.activeFiles?.biomeFileName
+          },
+          fileSystem: { ...updatedP.fileSystem, biomes: updated }
+        };
+      } else if (subfolder === 'prefabs') {
+        const updated = (p.fileSystem.prefabs || []).map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = {
+              ...f,
+              name: displayName,
+              fileName: safeFileName,
+              updatedAt: now,
+              prefabData: f.prefabData ? { ...f.prefabData, name: displayName } : f.prefabData
+            };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          activeFiles: {
+            ...updatedP.activeFiles,
+            prefabFileName: updatedP.activeFiles?.prefabFileName === oldFileName ? safeFileName : updatedP.activeFiles?.prefabFileName
+          },
+          fileSystem: { ...updatedP.fileSystem, prefabs: updated }
+        };
+      } else if (subfolder === 'ui') {
+        const updated = p.fileSystem.ui.map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = { ...f, name: displayName, fileName: safeFileName, updatedAt: now };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          activeFiles: {
+            ...updatedP.activeFiles,
+            uiFileName: updatedP.activeFiles?.uiFileName === oldFileName ? safeFileName : updatedP.activeFiles?.uiFileName
+          },
+          fileSystem: { ...updatedP.fileSystem, ui: updated }
+        };
+      } else if (subfolder === 'game') {
+        const updated = p.fileSystem.game.map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = { ...f, name: displayName, fileName: safeFileName, updatedAt: now };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          activeFiles: {
+            ...updatedP.activeFiles,
+            gameStructureFileName: updatedP.activeFiles?.gameStructureFileName === oldFileName ? safeFileName : updatedP.activeFiles?.gameStructureFileName
+          },
+          fileSystem: { ...updatedP.fileSystem, game: updated }
+        };
+      } else if (subfolder === 'sprites') {
+        const updated = (p.fileSystem.sprites || []).map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = { ...f, name: displayName, fileName: safeFileName, updatedAt: now };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          fileSystem: { ...updatedP.fileSystem, sprites: updated }
+        };
+      } else if (subfolder === 'images') {
+        const updated = (p.fileSystem.images || []).map(f => {
+          if (f.fileName === oldFileName) {
+            updatedFileObj = { ...f, name: displayName, fileName: safeFileName, updatedAt: now };
+            return updatedFileObj;
+          }
+          return f;
+        });
+        updatedP = {
+          ...updatedP,
+          fileSystem: { ...updatedP.fileSystem, images: updated }
+        };
+      }
+
+      return updatedP;
+    });
+
+    if (updatedFileObj) {
+      setSelectedFile({
+        subfolder,
+        file: updatedFileObj
+      });
+    }
+
+    setIsRenamingFile(false);
   };
 
   const handleCreateFileSubmit = (e: React.FormEvent) => {
@@ -307,6 +505,9 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
         ...p,
         fileSystem: { ...p.fileSystem, prefabs: [...(p.fileSystem.prefabs || []), newChar] }
       }));
+    } else if (newFileInput.subfolder === 'particles') {
+      const { project: updated } = createNewParticleInProject(project, name);
+      onUpdateProject(() => updated);
     } else if (newFileInput.subfolder === 'ui') {
       const { project: updated } = createNewUIThemeInProject(project, name);
       onUpdateProject(() => updated);
@@ -370,6 +571,11 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
             ...p,
             fileSystem: { ...p.fileSystem, prefabs: [...(p.fileSystem.prefabs || []), parsed] }
           }));
+        } else if (file.name.endsWith('.particle') || parsed.particleData) {
+          onUpdateProject(p => ({
+            ...p,
+            fileSystem: { ...p.fileSystem, particles: [...(p.fileSystem.particles || []), parsed] }
+          }));
         } else if (file.name.endsWith('.behavior') || parsed.behaviorData) {
           onUpdateProject(p => ({
             ...p,
@@ -423,7 +629,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
             <label className="cursor-pointer px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
               <Upload size={14} className="text-indigo-400" />
               <span>Import File</span>
-              <input type="file" accept=".json,.map,.biome,.arch,.ui,.gamestructure" onChange={handleImportFile} className="hidden" />
+              <input type="file" accept=".json,.map,.biome,.prefab,.particle,.arch,.ui,.gamestructure,.sprite,.png,.jpg,.jpeg" onChange={handleImportFile} className="hidden" />
             </label>
 
             <button
@@ -578,6 +784,49 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                       }`}
                     >
                       <span className="truncate">{c.fileName}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* FOLDER 3.6: /particles/ (.particle) */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between p-1.5 hover:bg-neutral-900 rounded-lg group">
+                <button
+                  type="button"
+                  onClick={() => toggleFolder('particles')}
+                  className="flex items-center gap-2 text-xs font-bold text-neutral-200"
+                >
+                  {expandedFolders.particles ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
+                  <Folder size={15} className="text-amber-300" />
+                  <span>particles/</span>
+                  <span className="text-[10px] font-mono text-neutral-500">({(project.fileSystem.particles || []).length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewFileInput({ subfolder: 'particles', name: '' })}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-amber-300 rounded"
+                  title="New .particle file"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
+
+              {expandedFolders.particles && (
+                <div className="pl-6 space-y-0.5">
+                  {(project.fileSystem.particles || []).map(pt => (
+                    <button
+                      key={pt.fileName}
+                      type="button"
+                      onClick={() => setSelectedFile({ subfolder: 'particles', file: pt })}
+                      className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
+                        selectedFile?.file?.fileName === pt.fileName
+                          ? 'bg-amber-950/60 text-amber-200 border border-amber-500/40'
+                          : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+                      }`}
+                    >
+                      <span className="truncate">{pt.fileName}</span>
                     </button>
                   ))}
                 </div>
@@ -752,9 +1001,49 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                       <FileText size={20} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-neutral-100 font-mono">
-                        /{selectedFile.subfolder}/{selectedFile.file.fileName}
-                      </h3>
+                      {isRenamingFile ? (
+                        <form onSubmit={handleRenameFileSubmit} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={renameInputVal}
+                            onChange={(e) => setRenameInputVal(e.target.value)}
+                            autoFocus
+                            className="px-2.5 py-1 bg-neutral-950 border border-cyan-500 rounded-lg text-xs font-mono text-cyan-300 focus:outline-none"
+                            placeholder="Enter new name..."
+                          />
+                          <button
+                            type="submit"
+                            className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1"
+                          >
+                            <Check size={13} />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsRenamingFile(false)}
+                            className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs transition"
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-neutral-100 font-mono">
+                            /{selectedFile.subfolder}/{selectedFile.file.fileName}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenameInputVal(selectedFile.file.name || selectedFile.file.fileName);
+                              setIsRenamingFile(true);
+                            }}
+                            className="p-1 hover:bg-neutral-800 text-neutral-400 hover:text-cyan-300 rounded transition"
+                            title="Rename File"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-neutral-400 mt-0.5">
                         {selectedFile.file.name} • Updated {new Date(selectedFile.file.updatedAt || Date.now()).toLocaleDateString()} {new Date(selectedFile.file.updatedAt || Date.now()).toLocaleTimeString()}
                       </p>
@@ -769,6 +1058,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                           selectedFile.subfolder === 'maps' ? 'maps' :
                           selectedFile.subfolder === 'biomes' ? 'biomes' :
                           selectedFile.subfolder === 'prefabs' ? 'prefabs' :
+                          selectedFile.subfolder === 'particles' ? 'particles' :
                           selectedFile.subfolder === 'ui' ? 'ui' :
                           selectedFile.subfolder === 'sprites' || selectedFile.subfolder === 'images' ? 'sprites' : 'gamestructure';
 
@@ -786,6 +1076,7 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
                       onClick={() => {
                         if (selectedFile.subfolder === 'maps') exportMapFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'biomes') exportBiomeFile(selectedFile.file);
+                        else if (selectedFile.subfolder === 'particles') exportParticleFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'ui') exportUIThemeFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'game') exportGameStructureFile(selectedFile.file);
                         else if (selectedFile.subfolder === 'images' && selectedFile.file.dataUrl) {

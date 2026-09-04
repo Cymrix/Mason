@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.281';
-export const MASON_VERSION_DISPLAY = 'v0.281';
-export const MASON_FULL_VERSION = 'v0.281';
+export const MASON_VERSION = '0.284';
+export const MASON_VERSION_DISPLAY = 'v0.284';
+export const MASON_FULL_VERSION = 'v0.284';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,21 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.284',
+    date: '2026-09-03',
+    notes: 'Moved solid floor geometry and collision plane into world space with particle system, eliminating camera-fixed offset so floor translates and scales with pan/zoom, and added interactive floor dragging and Y-coordinate toolbar controls.'
+  },
+  {
+    version: 'v0.283',
+    date: '2026-09-03',
+    notes: 'Exposed sub-particle spawning on destroy and collision impact in the parameters library, decoupled solid floor canvas rendering to honor the viewport checkbox, and synchronized bloom glow blur radius directly with live particles and rendering.'
+  },
+  {
+    version: 'v0.282',
+    date: '2026-09-03',
+    notes: 'Integrated particles/ virtual subfolder and .particle file management into Project File System Explorer with full creation, deletion, direct module navigation, and file renaming.'
+  },
   {
     version: 'v0.281',
     date: '2026-09-03',

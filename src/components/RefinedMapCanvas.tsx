@@ -565,19 +565,20 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const interactiveDetails: Record<string, any> = {};
     const wildlifeItems: Record<string, any> = {};
 
-    biomes.forEach(biome => {
+    (biomes || []).forEach(biome => {
+      if (!biome) return;
       bMap[biome.id] = biome;
-      biome.tileTypes.forEach(tt => {
-        tileTypes[tt.id] = { tileType: tt, biome };
+      (biome.tileTypes || []).forEach(tt => {
+        if (tt) tileTypes[tt.id] = { tileType: tt, biome };
       });
-      biome.environmentalDetails.forEach(ed => {
-        envDetails[ed.id] = ed;
+      (biome.environmentalDetails || []).forEach(ed => {
+        if (ed) envDetails[ed.id] = ed;
       });
-      biome.interactiveDetails.forEach(id => {
-        interactiveDetails[id.id] = id;
+      (biome.interactiveDetails || []).forEach(id => {
+        if (id) interactiveDetails[id.id] = id;
       });
-      biome.wildlife.forEach(w => {
-        wildlifeItems[w.id] = w;
+      (biome.wildlife || []).forEach(w => {
+        if (w) wildlifeItems[w.id] = w;
       });
     });
 
@@ -2476,24 +2477,24 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       p.prevVy = p.vy;
 
       // Update Particles
-      p.particles.forEach(pt => {
+      (p.particles || []).forEach(pt => {
         pt.x += pt.vx;
         pt.y += pt.vy;
         pt.life--;
       });
-      p.particles = p.particles.filter(pt => pt.life > 0);
+      p.particles = (p.particles || []).filter(pt => pt.life > 0);
 
       // Update Ghost Trails
-      p.ghostTrails.forEach(gt => {
+      (p.ghostTrails || []).forEach(gt => {
         gt.alpha -= 0.08;
       });
-      p.ghostTrails = p.ghostTrails.filter(gt => gt.alpha > 0);
+      p.ghostTrails = (p.ghostTrails || []).filter(gt => gt.alpha > 0);
 
       // Update Slashes
-      p.slashes.forEach(sl => {
+      (p.slashes || []).forEach(sl => {
         sl.frame++;
       });
-      p.slashes = p.slashes.filter(sl => sl.frame < sl.maxFrames);
+      p.slashes = (p.slashes || []).filter(sl => sl.frame < sl.maxFrames);
 
       // Smooth Camera Follow
       const targetPanX = canvasWidth / 2 - p.x * scale;
@@ -3176,7 +3177,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.save();
 
       // 1. Ghost Shadow Trails (Dash Effect)
-      p.ghostTrails.forEach(gt => {
+      (p.ghostTrails || []).forEach(gt => {
         ctx.save();
         ctx.globalAlpha = gt.alpha * 0.6;
         ctx.fillStyle = gt.color;
@@ -3287,7 +3288,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       ctx.restore();
 
       // 5. Weapon Slash Arc Trajectory
-      p.slashes.forEach(sl => {
+      (p.slashes || []).forEach(sl => {
         const progress = sl.frame / sl.maxFrames;
         const slashRadius = 24;
         const startAngle = sl.facing === 'right' ? -Math.PI * 0.45 : Math.PI * 0.45;
@@ -3316,7 +3317,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       });
 
       // 5. Active Particles (Sparks & Dust)
-      p.particles.forEach(pt => {
+      (p.particles || []).forEach(pt => {
         const alpha = pt.life / pt.maxLife;
         ctx.save();
         ctx.globalAlpha = alpha;

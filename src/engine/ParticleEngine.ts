@@ -702,6 +702,9 @@ export class ParticleEngine {
       if (emitter.shape === "box") {
         localX = (Math.random() - 0.5) * (emitter.width || 32);
         localY = (Math.random() - 0.5) * (emitter.height || 32);
+      } else if (emitter.shape === "environmental_fx") {
+        localX = (Math.random() - 0.5) * (emitter.width || 800);
+        localY = (Math.random() - 0.5) * (emitter.height || 600);
       } else if (emitter.shape === "circle") {
         const rx = emW / 2;
         const ry = emH / 2;
@@ -1688,6 +1691,17 @@ export class ParticleEngine {
         if (em.shape === "box") {
           ctx.fillRect(-emW / 2, -emH / 2, emW, emH);
           ctx.strokeRect(-emW / 2, -emH / 2, emW, emH);
+        } else if (em.shape === "environmental_fx") {
+          ctx.fillRect(-emW / 2, -emH / 2, emW, emH);
+          ctx.strokeRect(-emW / 2, -emH / 2, emW, emH);
+          ctx.save();
+          ctx.fillStyle = "rgba(14, 116, 144, 0.4)";
+          ctx.font = "bold 9px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("ENVIRONMENTAL FX", 0, -2);
+          ctx.font = "8px monospace";
+          ctx.fillText(`${Math.round(emW)}x${Math.round(emH)}`, 0, 8);
+          ctx.restore();
         } else if (em.shape === "circle" || em.shape === "ring") {
           const rx = emW / 2;
           const ry = emH / 2;

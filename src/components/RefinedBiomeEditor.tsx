@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   RefinedBiome, 
   BiomeTileType, 
@@ -7,7 +7,8 @@ import {
   BiomeWildlife,
   BiomeSoundtrack,
   TraversalModifierTag,
-  DamageType
+  DamageType,
+  EnvironmentalEffectConfig
 } from '../engine/refinedBiomeSchema';
 import { INITIAL_REFINED_BIOMES } from '../engine/refinedBiomes';
 import { DEFAULT_PARALLAX_LAYERS } from '../engine/parallaxConfig';
@@ -43,6 +44,8 @@ import {
   Flame, 
   Plus, 
   Copy, 
+  CloudRain,
+  Wind, 
   Sliders, 
   Footprints, 
   Box, 
@@ -338,10 +341,10 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   }, [selectedBiome]);
 
   const [activeSubTab, setActiveSubTabState] = useState<
-    'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors'
+    'tile_types' | 'environmental' | 'atmospheric_effects' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors'
   >(() => getSavedModuleTab('biomes', 'tile_types') as any);
 
-  const setActiveSubTab = (tab: 'tile_types' | 'environmental' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors') => {
+  const setActiveSubTab = (tab: 'tile_types' | 'environmental' | 'atmospheric_effects' | 'interactive' | 'wildlife' | 'soundtrack' | 'parallax' | 'biome_states' | 'biome_variables' | 'biome_behaviors') => {
     setActiveSubTabState(tab);
     saveModuleTab('biomes', tab);
   };
@@ -827,6 +830,18 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
           <span>Details</span>
           <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'environmental' ? 'bg-emerald-700/80 text-emerald-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
             {selectedBiome?.environmentalDetails?.length || 0}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('atmospheric_effects')}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === 'atmospheric_effects' ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+          }`}
+        >
+          <CloudRain size={13} />
+          <span>Atmospheric FX</span>
+          <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${activeSubTab === 'atmospheric_effects' ? 'bg-cyan-700/80 text-cyan-100' : 'bg-neutral-800/80 text-neutral-400'}`}>
+            {selectedBiome?.environmentalEffects?.length || 0}
           </span>
         </button>
         <button
@@ -2024,6 +2039,235 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
             </div>
           )}
 
+          {/* TAB 2.5: ATMOSPHERIC ENVIRONMENTAL EFFECTS (Snow, Rain, Dust, Fog, etc.) */}
+          {activeSubTab === 'atmospheric_effects' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
+                    <CloudRain size={16} className="text-cyan-400" />
+                    Atmospheric Environmental Effects ({(selectedBiome.environmentalEffects || []).length})
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    Choose existing particle emitters to run as environmental or weather layers. Control details inside the Particle Module and layers in your Biome Behaviors.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newEffect: EnvironmentalEffectConfig = {
+                      id: `effect_${Date.now()}`,
+                      name: 'Ambient Weather FX',
+                      type: 'snow',
+                      color: '#ffffff',
+                      density: 50,
+                      speed: 1.0,
+                      windForceX: 0,
+                      windForceY: 1.0,
+                      layer: 'midground',
+                      blendMode: 'screen',
+                      particleSize: 3,
+                      opacity: 0.8,
+                      isEnabled: true,
+                      particleSystemId: project?.fileSystem?.particles?.[0]?.id || ''
+                    };
+                    handleUpdateCurrentBiome(b => ({
+                      ...b,
+                      environmentalEffects: [...(b.environmentalEffects || []), newEffect]
+                    }));
+                    showToast('Added weather layer reference', 'success');
+                  }}
+                  className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-cyan-600/30"
+                >
+                  <Plus size={14} /> Add Particle Emitter Source
+                </button>
+              </div>
+
+              {(!selectedBiome.environmentalEffects || selectedBiome.environmentalEffects.length === 0) ? (
+                <div className="text-center py-12 bg-neutral-900/40 rounded-2xl border border-neutral-800 text-neutral-500 text-xs">
+                  No particle emitters linked to this biome yet. Click <strong>+ Add Particle Emitter Source</strong> to add one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                  {/* Left Column: list & emitter dropdowns */}
+                  <div className="xl:col-span-8 space-y-4">
+                    {(selectedBiome.environmentalEffects || []).map((effect, idx) => {
+                      const activeEmitter = project?.fileSystem?.particles?.find(p => p.id === effect.particleSystemId);
+                      
+                      return (
+                        <div key={effect.id} className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 space-y-4 shadow-lg">
+                          
+                          {/* Header details */}
+                          <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2.5">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span className="text-xl shrink-0">🌧️</span>
+                              <div className="min-w-0 flex-1">
+                                <input
+                                  type="text"
+                                  value={effect.name}
+                                  onChange={(e) => {
+                                    const updated = [...(selectedBiome.environmentalEffects || [])];
+                                    updated[idx] = { ...effect, name: e.target.value };
+                                    handleUpdateCurrentBiome(b => ({ ...b, environmentalEffects: updated }));
+                                  }}
+                                  className="font-bold text-xs text-neutral-200 bg-transparent border-b border-dashed border-neutral-700 focus:border-cyan-500 outline-none w-full max-w-[240px]"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0">
+                              <label className="flex items-center gap-1.5 cursor-pointer text-xs text-neutral-400 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
+                                <span>Active</span>
+                                <input
+                                  type="checkbox"
+                                  checked={effect.isEnabled}
+                                  onChange={(e) => {
+                                    const updated = [...(selectedBiome.environmentalEffects || [])];
+                                    updated[idx] = { ...effect, isEnabled: e.target.checked };
+                                    handleUpdateCurrentBiome(b => ({ ...b, environmentalEffects: updated }));
+                                    showToast(`Weather layer "${effect.name}" is now ${e.target.checked ? 'Enabled' : 'Disabled'}`, 'info');
+                                  }}
+                                  className="rounded accent-cyan-500 cursor-pointer"
+                                />
+                              </label>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleUpdateCurrentBiome(b => ({
+                                    ...b,
+                                    environmentalEffects: (b.environmentalEffects || []).filter((_, i) => i !== idx)
+                                  }));
+                                  showToast(`Removed weather layer "${effect.name}"`, 'info');
+                                }}
+                                className="p-1.5 text-neutral-500 hover:text-red-400 hover:bg-neutral-800 rounded-lg transition"
+                                title="Remove Weather Layer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Simplified Content Dropdown Selector */}
+                          <div className="space-y-3.5">
+                            <div>
+                              <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                                Particle Emitter Source
+                              </label>
+                              <select
+                                value={effect.particleSystemId || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const matchedEmitter = project?.fileSystem?.particles?.find(p => p.id === val);
+                                  const updated = [...(selectedBiome.environmentalEffects || [])];
+                                  updated[idx] = { 
+                                    ...effect, 
+                                    particleSystemId: val,
+                                    // Update visual fallback helpers so sandbox matches
+                                    color: matchedEmitter?.particleData?.visuals?.startColor || '#ffffff',
+                                    particleSize: matchedEmitter?.particleData?.visuals?.startSize || 3,
+                                    type: (matchedEmitter?.particleData?.visuals?.shape as any) || 'snow'
+                                  };
+                                  handleUpdateCurrentBiome(b => ({ ...b, environmentalEffects: updated }));
+                                  showToast(`Linked particle emitter source updated`, 'success');
+                                }}
+                                className="w-full text-xs text-neutral-200 bg-neutral-950 border border-neutral-800 rounded-lg px-2.5 py-2 outline-none focus:border-cyan-500 font-medium"
+                              >
+                                <option value="" disabled>-- Select a Particle Emitter System --</option>
+                                {/* Filter to only show relevant environmental / weather emitters, but fall back gracefully */}
+                                {(project?.fileSystem?.particles || []).map(p => {
+                                  const isEnv = p.particleData?.category === 'environmental' || 
+                                                p.particleData?.category === 'weather' || 
+                                                p.particleData?.emitter?.shape === 'environmental_fx';
+                                  return (
+                                    <option key={p.id} value={p.id}>
+                                      {isEnv ? '🌧️' : '📦'} {p.name} ({p.particleData?.category || 'custom'})
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+
+                            {/* Linked Emitter Specs (Read Only Preview) */}
+                            {activeEmitter ? (
+                              <div className="bg-neutral-950/80 border border-neutral-800/80 rounded-xl p-3 space-y-2.5 text-xs">
+                                <div className="flex justify-between items-center text-[10px] text-neutral-500 uppercase font-mono tracking-wider border-b border-neutral-800/40 pb-1.5">
+                                  <span>Active Emitter Specifications</span>
+                                  <span className="text-cyan-400 font-bold">LINKED</span>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                  <div>
+                                    <div className="text-neutral-500 text-[10px] uppercase">Category</div>
+                                    <div className="text-neutral-300 font-medium capitalize mt-0.5">{activeEmitter.particleData?.category || 'custom'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-neutral-500 text-[10px] uppercase">Emitter Shape</div>
+                                    <div className="text-neutral-300 font-mono mt-0.5">{activeEmitter.particleData?.emitter?.shape || 'point'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-neutral-500 text-[10px] uppercase">Emission Rate</div>
+                                    <div className="text-neutral-300 font-mono mt-0.5">{activeEmitter.particleData?.emitter?.emissionRate || 10} / sec</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-neutral-500 text-[10px] uppercase">Max Particles</div>
+                                    <div className="text-neutral-300 font-mono mt-0.5">{activeEmitter.particleData?.emitter?.maxParticles || 300}</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="pt-2 flex justify-end">
+                                  <span className="text-[10px] text-neutral-500 italic">
+                                    💡 Configure motion, shapes, & colors inside the Particle Module.
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="bg-yellow-950/20 border border-yellow-800/30 text-yellow-400/80 text-[11px] p-2.5 rounded-lg">
+                                ⚠️ No particle emitter linked. Choose an emitter from the dropdown above to display weather particles.
+                              </div>
+                            )}
+
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right Column: Visual Effects Sandbox Canvas (Real-time dynamic particle simulation!) */}
+                  <div className="xl:col-span-4">
+                    <div className="sticky top-6 bg-neutral-900 border border-neutral-800 rounded-2xl p-4.5 space-y-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-neutral-200 uppercase tracking-wider flex items-center gap-1.5">
+                          <Wind size={14} className="text-cyan-400 animate-pulse" />
+                          Atmospheric FX Sandbox
+                        </h4>
+                        <p className="text-[11px] text-neutral-400 mt-1">
+                          A real-time visual simulation of your configured biome weather layers composited together.
+                        </p>
+                      </div>
+
+                      {/* Canvas Simulator Component */}
+                      <BiomeWeatherSandboxCanvas
+                        effects={selectedBiome.environmentalEffects || []}
+                        availableParticles={project?.fileSystem?.particles || []}
+                      />
+
+                      {/* Code Hint */}
+                      <div className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl space-y-2">
+                        <span className="text-[10px] font-bold text-amber-400 block">✨ Behavior Trigger Link</span>
+                        <p className="text-[10px] text-neutral-400 leading-normal">
+                          These effects can be dynamically toggled, cross-faded, or adjusted using the 
+                          <span className="text-amber-300 px-1 py-0.2 mx-1 bg-neutral-900 rounded border border-neutral-800">environmental_effect</span> 
+                          and <span className="text-amber-300 px-1 py-0.2 mx-1 bg-neutral-900 rounded border border-neutral-800">spawn_particles</span> 
+                          actions in the <strong>Behaviors</strong> editor.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 3: INTERACTIVE PROPS & TRIGGER ZONES */}
           {activeSubTab === 'interactive' && (
             <BiomePropsEditor
@@ -2205,6 +2449,305 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         </div>
       )}
 
+    </div>
+  );
+};
+
+interface BiomeWeatherSandboxCanvasProps {
+  effects: EnvironmentalEffectConfig[];
+  availableParticles: any[];
+}
+
+export const BiomeWeatherSandboxCanvas: React.FC<BiomeWeatherSandboxCanvasProps> = ({ effects, availableParticles }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const activeEffects = useMemo(() => effects.filter(e => e.isEnabled), [effects]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    
+    // Create local particles list for the sandbox simulator
+    let particles: Array<{
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      size: number;
+      color: string;
+      colorEnd?: string;
+      alpha: number;
+      life: number;
+      maxLife: number;
+      shape: string;
+      blendMode: string;
+      gravityX: number;
+      gravityY: number;
+      drag: number;
+    }> = [];
+
+    const width = canvas.width = 400;
+    const height = canvas.height = 250;
+
+    // Helper to generate a particle based on linked emitter or fallback
+    const createParticle = (effect: EnvironmentalEffectConfig) => {
+      const activeEmitter = availableParticles?.find(p => p.id === effect.particleSystemId);
+      
+      let pColor = effect.color || '#ffffff';
+      let pColorEnd = pColor;
+      let pSize = effect.particleSize || 3;
+      let pShape = 'circle';
+      let pSpeedMin = 1.0;
+      let pSpeedMax = 2.0;
+      let pGravityX = 0;
+      let pGravityY = 0.5; // fall default
+      let pDrag = 0.02;
+      let pMaxLife = 120;
+
+      if (activeEmitter?.particleData) {
+        const d = activeEmitter.particleData;
+        pColor = d.visuals?.startColor || pColor;
+        pColorEnd = d.visuals?.endColor || pColor;
+        pSize = d.visuals?.startSize || pSize;
+        pShape = d.visuals?.shape || 'circle';
+        
+        // Emitter velocities
+        const angle = d.emitter?.angle !== undefined ? d.emitter.angle : 90;
+        const spread = d.emitter?.spread !== undefined ? d.emitter.spread : 30;
+        const speedMin = d.emitter?.speedMin !== undefined ? d.emitter.speedMin : 1.0;
+        const speedMax = d.emitter?.speedMax !== undefined ? d.emitter.speedMax : 2.0;
+        
+        const rad = (angle + (Math.random() - 0.5) * spread) * (Math.PI / 180);
+        const speed = speedMin + Math.random() * (speedMax - speedMin);
+        
+        pSpeedMin = speed * Math.cos(rad);
+        pSpeedMax = speed * Math.sin(rad);
+
+        pGravityX = d.emitter?.gravityX || 0;
+        pGravityY = d.emitter?.gravityY || 0;
+        pDrag = d.emitter?.drag || 0;
+        pMaxLife = d.emitter?.lifetimeMax || 150;
+      } else {
+        // Fallback default weather vectors
+        const baseVelX = effect.windForceX * effect.speed;
+        const baseVelY = effect.windForceY * effect.speed;
+        pSpeedMin = baseVelX - 0.5;
+        pSpeedMax = baseVelX + 0.5;
+        pGravityX = 0;
+        pGravityY = baseVelY;
+        pDrag = 0;
+        pMaxLife = 100 + Math.random() * 100;
+        pShape = effect.type || 'snow';
+      }
+
+      // Span screen width/height based on type or shape
+      let startX = Math.random() * width;
+      let startY = 0;
+
+      if (pShape === 'embers' || pShape === 'embers_rise') {
+        startY = height;
+        startX = Math.random() * width;
+      } else if (pShape === 'rain' || pShape === 'snow' || pShape === 'environmental_fx') {
+        startY = Math.random() * -30;
+        startX = Math.random() * width;
+      } else {
+        startY = Math.random() * height;
+        startX = Math.random() * width;
+      }
+
+      const exactSpeedX = pSpeedMin + Math.random() * (pSpeedMax - pSpeedMin);
+      const exactSpeedY = pGravityY + (Math.random() - 0.5) * 0.5;
+
+      return {
+        x: startX,
+        y: startY,
+        vx: exactSpeedX,
+        vy: exactSpeedY,
+        size: Math.max(1, pSize * (0.6 + Math.random() * 0.8)),
+        color: pColor,
+        colorEnd: pColorEnd,
+        alpha: effect.opacity * (0.3 + Math.random() * 0.7),
+        life: 0,
+        maxLife: pMaxLife,
+        shape: pShape,
+        blendMode: effect.blendMode || 'screen',
+        gravityX: pGravityX,
+        gravityY: pGravityY,
+        drag: pDrag
+      };
+    };
+
+    // Prepopulate
+    activeEffects.forEach(effect => {
+      const count = Math.min(100, effect.density);
+      for (let i = 0; i < count; i++) {
+        const p = createParticle(effect);
+        p.y = Math.random() * height;
+        particles.push(p);
+      }
+    });
+
+    let lightningTimer = 0;
+    let lightningIntensity = 0;
+
+    const render = () => {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, width, height);
+
+      // Simple grid lines
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 1;
+      for (let i = 20; i < width; i += 25) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, height);
+        ctx.stroke();
+      }
+      for (let i = 20; i < height; i += 25) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(width, i);
+        ctx.stroke();
+      }
+
+      lightningTimer--;
+      if (lightningTimer <= 0) {
+        const hasLightning = activeEffects.some(e => e.type === 'lightning_strike');
+        if (hasLightning && Math.random() < 0.005) {
+          lightningTimer = 40 + Math.floor(Math.random() * 100);
+          lightningIntensity = 1.0;
+        }
+      }
+
+      if (lightningIntensity > 0) {
+        ctx.fillStyle = `rgba(224, 242, 254, ${lightningIntensity * 0.25})`;
+        ctx.fillRect(0, 0, width, height);
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${lightningIntensity})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(width / 2 + (Math.random() - 0.5) * 100, 0);
+        let curX = width / 2;
+        let curY = 0;
+        while (curY < height) {
+          curX += (Math.random() - 0.5) * 40;
+          curY += Math.random() * 30 + 10;
+          ctx.lineTo(curX, curY);
+        }
+        ctx.stroke();
+        lightningIntensity *= 0.88;
+      }
+
+      particles.forEach((p, idx) => {
+        // Apply physics
+        p.vx += p.gravityX * 0.01;
+        p.vy += p.gravityY * 0.01;
+        p.vx *= (1 - p.drag);
+        p.vy *= (1 - p.drag);
+        
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life++;
+
+        let outOfBounds = p.y > height + 20 || p.y < -30 || p.x > width + 30 || p.x < -30;
+        if (p.life > p.maxLife || outOfBounds) {
+          const matchedEffect = activeEffects[0];
+          if (matchedEffect) {
+            particles[idx] = createParticle(matchedEffect);
+          } else {
+            p.alpha *= 0.95;
+          }
+        }
+
+        ctx.save();
+        
+        if (p.blendMode === 'additive') ctx.globalCompositeOperation = 'lighter';
+        else if (p.blendMode === 'screen') ctx.globalCompositeOperation = 'screen';
+        else if (p.blendMode === 'multiply') ctx.globalCompositeOperation = 'multiply';
+        else ctx.globalCompositeOperation = 'source-over';
+
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.alpha * (1 - p.life / p.maxLife));
+
+        if (p.shape === 'rain') {
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = Math.max(1, p.size / 3);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + p.vx * 1.5, p.y + p.vy * 1.5);
+          ctx.stroke();
+        } else if (p.shape === 'snow' || p.shape === 'circle' || p.shape === 'environmental_fx') {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (p.shape === 'embers' || p.shape === 'embers_rise') {
+          ctx.fillStyle = p.color;
+          ctx.shadowColor = p.color;
+          ctx.shadowBlur = 4;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * (0.8 + Math.sin(p.life * 0.1) * 0.2), 0, Math.PI * 2);
+          ctx.fill();
+        } else if (p.shape === 'leaves') {
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.life * 0.04);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, p.size, p.size * 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (p.shape === 'bubbles') {
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (p.shape === 'dust' || p.shape === 'fog' || p.shape === 'square') {
+          ctx.fillRect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
+        } else {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      });
+
+      activeEffects.forEach(effect => {
+        const targetCount = effect.density;
+        const currentCount = particles.length;
+        
+        if (currentCount < targetCount) {
+          for (let i = 0; i < Math.min(2, targetCount - currentCount); i++) {
+            particles.push(createParticle(effect));
+          }
+        }
+      });
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [activeEffects, availableParticles]);
+
+  return (
+    <div className="relative border border-neutral-800 rounded-xl overflow-hidden bg-neutral-950">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-[250px] block"
+      />
+      
+      {activeEffects.length === 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-center p-4">
+          <Wind size={24} className="text-neutral-500 mb-1.5 animate-bounce" />
+          <span className="text-xs font-bold text-neutral-400">All Layers Disabled</span>
+          <span className="text-[10px] text-neutral-500 mt-0.5">Toggle active on any effect layer to start the simulation</span>
+        </div>
+      )}
     </div>
   );
 };

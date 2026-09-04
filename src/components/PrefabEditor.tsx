@@ -271,83 +271,120 @@ export const ensurePrefabData = (data: any, fallbackName: string = 'Korrath Stee
   }
 
   // If input is wrapped in prefabData property or passed as direct object
-  const raw = data.prefabData && typeof data.prefabData === 'object' ? data.prefabData : data;
+  const raw = (data && data.prefabData && typeof data.prefabData === 'object') ? data.prefabData : data;
+  const safeRaw = (raw && typeof raw === 'object') ? raw : {};
+
+  const resolvedName = (typeof safeRaw.name === 'string' && safeRaw.name.trim())
+    ? safeRaw.name.trim()
+    : ((typeof data?.name === 'string' && data.name.trim()) ? data.name.trim() : (typeof fallbackName === 'string' && fallbackName.trim() ? fallbackName.trim() : 'Unnamed Prefab'));
 
   return {
-    ...raw,
-    id: raw.id || `char_${Date.now()}`,
-    name: raw.name || data.name || fallbackName,
-    prefabType: raw.prefabType || 'environmental_prop',
-    avatarIcon: raw.avatarIcon || '📦',
-    spriteWidth: raw.spriteWidth || 64,
-    spriteHeight: raw.spriteHeight || 64,
-    tintColor: raw.tintColor || '#06b6d4',
-    baseScale: raw.baseScale ?? 1.0,
-    states: Array.isArray(raw.states) ? raw.states.filter(Boolean) : [],
-    movement: raw.movement,
-    ai: raw.ai,
-    variables: Array.isArray(raw.variables) ? raw.variables.map((v: any, vIdx: number) => ({
-      ...v,
-      id: v?.id || `var_${vIdx}_${Date.now()}`,
-      name: v?.name || v?.id || `Variable ${vIdx + 1}`,
-      category: v?.category || 'attribute',
-      type: v?.type || 'number',
-      isStatic: v?.isStatic ?? true,
-      defaultValue: v?.defaultValue ?? 0
-    })) : [],
-    behaviorVariables: raw.behaviorVariables && typeof raw.behaviorVariables === 'object' ? raw.behaviorVariables : {},
-    rules: Array.isArray(raw.rules) ? raw.rules : [],
-    capsule: raw.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
-    spritesheets: Array.isArray(raw.spritesheets)
-      ? raw.spritesheets.map((s: any, sIdx: number) => ({
-          ...s,
-          id: s?.id || `sheet_${sIdx + 1}`,
-          name: s?.name || `Spritesheet #${sIdx + 1}`,
-          tileWidth: s?.tileWidth || 64,
-          tileHeight: s?.tileHeight || 64,
-          cols: s?.cols || 8,
-          rows: s?.rows || 4,
-          totalFrames: s?.totalFrames || 32
-        }))
+    ...safeRaw,
+    id: (typeof safeRaw.id === 'string' && safeRaw.id) || `char_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name: resolvedName,
+    prefabType: safeRaw.prefabType || 'environmental_prop',
+    avatarIcon: safeRaw.avatarIcon || '📦',
+    spriteWidth: typeof safeRaw.spriteWidth === 'number' ? safeRaw.spriteWidth : 64,
+    spriteHeight: typeof safeRaw.spriteHeight === 'number' ? safeRaw.spriteHeight : 64,
+    tintColor: safeRaw.tintColor || '#06b6d4',
+    baseScale: safeRaw.baseScale ?? 1.0,
+    states: Array.isArray(safeRaw.states) ? safeRaw.states.filter(Boolean).map((s: any) => typeof s === 'string' ? s : (s?.name || s?.id || 'state')) : [],
+    movement: safeRaw.movement,
+    ai: safeRaw.ai,
+    variables: Array.isArray(safeRaw.variables) ? safeRaw.variables.filter(Boolean).map((v: any, vIdx: number) => {
+      const vObj = (v && typeof v === 'object') ? v : {};
+      return {
+        ...vObj,
+        id: (typeof vObj.id === 'string' && vObj.id) || `var_${vIdx}_${Date.now()}`,
+        name: (typeof vObj.name === 'string' && vObj.name) || vObj.id || `Variable ${vIdx + 1}`,
+        category: vObj.category || 'attribute',
+        type: vObj.type || 'number',
+        isStatic: vObj.isStatic ?? true,
+        defaultValue: vObj.defaultValue ?? 0
+      };
+    }) : [],
+    behaviorVariables: safeRaw.behaviorVariables && typeof safeRaw.behaviorVariables === 'object' ? safeRaw.behaviorVariables : {},
+    rules: Array.isArray(safeRaw.rules) ? safeRaw.rules.filter(Boolean).map((r: any, rIdx: number) => {
+      const rObj = (r && typeof r === 'object') ? r : {};
+      return {
+        ...rObj,
+        id: (typeof rObj.id === 'string' && rObj.id) || `rule_${rIdx}_${Date.now()}`,
+        name: (typeof rObj.name === 'string' && rObj.name) || rObj.id || `Rule #${rIdx + 1}`
+      };
+    }) : [],
+    capsule: safeRaw.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 },
+    spritesheets: Array.isArray(safeRaw.spritesheets)
+      ? safeRaw.spritesheets.filter(Boolean).map((s: any, sIdx: number) => {
+          const sObj = (s && typeof s === 'object') ? s : {};
+          return {
+            ...sObj,
+            id: (typeof sObj.id === 'string' && sObj.id) || `sheet_${sIdx + 1}`,
+            name: (typeof sObj.name === 'string' && sObj.name) || `Spritesheet #${sIdx + 1}`,
+            tileWidth: sObj.tileWidth || 64,
+            tileHeight: sObj.tileHeight || 64,
+            cols: sObj.cols || 8,
+            rows: sObj.rows || 4,
+            totalFrames: sObj.totalFrames || 32
+          };
+        })
       : [],
-    points: Array.isArray(raw.points) ? raw.points.map((p: any, pIdx: number) => ({
-      ...p,
-      id: p?.id || `pt_${pIdx}`,
-      name: p?.name || `Point #${pIdx + 1}`,
-      color: p?.color || '#38bdf8',
-      defaultOffsetX: p?.defaultOffsetX || 0,
-      defaultOffsetY: p?.defaultOffsetY || 0
-    })) : [],
-    polygons: Array.isArray(raw.polygons) ? raw.polygons.map((poly: any, polyIdx: number) => ({
-      ...poly,
-      id: poly?.id || `poly_${polyIdx}`,
-      name: poly?.name || `Polygon #${polyIdx + 1}`,
-      type: poly?.type || 'hurtbox',
-      color: poly?.color || '#22c55e',
-      defaultVertices: poly?.defaultVertices || [{ x: -14, y: -24 }, { x: 14, y: -24 }, { x: 14, y: 24 }, { x: -14, y: 24 }]
-    })) : [],
-    sockets: Array.isArray(raw.sockets) ? raw.sockets : [],
-    animations: Array.isArray(raw.animations) ? raw.animations : [],
-    stateMachine: raw.stateMachine ? {
-      initialStateId: raw.stateMachine.initialStateId || 'st_idle',
-      states: Array.isArray(raw.stateMachine.states) ? raw.stateMachine.states.map((st: any, stIdx: number) => ({
-        ...st,
-        id: st?.id || `st_${stIdx}`,
-        name: st?.name || st?.id || `State ${stIdx + 1}`,
-        color: st?.color || '#38bdf8',
-        x: st?.x ?? 320,
-        y: st?.y ?? 220,
-        isInitial: st?.isInitial ?? (stIdx === 0),
-        description: st?.description || ''
-      })) : [],
-      transitions: Array.isArray(raw.stateMachine.transitions) ? raw.stateMachine.transitions.map((tr: any, trIdx: number) => ({
-        ...tr,
-        id: tr?.id || `tr_${trIdx}`,
-        fromStateId: tr?.fromStateId || '',
-        toStateId: tr?.toStateId || '',
-        triggerLabel: tr?.triggerLabel || '',
-        isBidirectional: tr?.isBidirectional ?? false
-      })) : []
+    points: Array.isArray(safeRaw.points) ? safeRaw.points.filter(Boolean).map((p: any, pIdx: number) => {
+      const pObj = (p && typeof p === 'object') ? p : {};
+      return {
+        ...pObj,
+        id: (typeof pObj.id === 'string' && pObj.id) || `pt_${pIdx}`,
+        name: (typeof pObj.name === 'string' && pObj.name) || `Point #${pIdx + 1}`,
+        color: pObj.color || '#38bdf8',
+        defaultOffsetX: pObj.defaultOffsetX || 0,
+        defaultOffsetY: pObj.defaultOffsetY || 0
+      };
+    }) : [],
+    polygons: Array.isArray(safeRaw.polygons) ? safeRaw.polygons.filter(Boolean).map((poly: any, polyIdx: number) => {
+      const polyObj = (poly && typeof poly === 'object') ? poly : {};
+      return {
+        ...polyObj,
+        id: (typeof polyObj.id === 'string' && polyObj.id) || `poly_${polyIdx}`,
+        name: (typeof polyObj.name === 'string' && polyObj.name) || `Polygon #${polyIdx + 1}`,
+        type: polyObj.type || 'hurtbox',
+        color: polyObj.color || '#22c55e',
+        defaultVertices: Array.isArray(polyObj.defaultVertices) ? polyObj.defaultVertices : [{ x: -14, y: -24 }, { x: 14, y: -24 }, { x: 14, y: 24 }, { x: -14, y: 24 }]
+      };
+    }) : [],
+    sockets: Array.isArray(safeRaw.sockets) ? safeRaw.sockets.filter(Boolean).map((sock: any, sIdx: number) => {
+      const sockObj = (sock && typeof sock === 'object') ? sock : {};
+      return {
+        ...sockObj,
+        tagId: sockObj.tagId || `socket_${sIdx}`,
+        label: sockObj.label || sockObj.tagId || `Socket #${sIdx + 1}`
+      };
+    }) : [],
+    animations: Array.isArray(safeRaw.animations) ? safeRaw.animations.filter(Boolean) : [],
+    stateMachine: (safeRaw.stateMachine && typeof safeRaw.stateMachine === 'object') ? {
+      initialStateId: safeRaw.stateMachine.initialStateId || 'st_idle',
+      states: Array.isArray(safeRaw.stateMachine.states) ? safeRaw.stateMachine.states.filter(Boolean).map((st: any, stIdx: number) => {
+        const stObj = (st && typeof st === 'object') ? st : { name: typeof st === 'string' ? st : `State ${stIdx + 1}` };
+        return {
+          ...stObj,
+          id: (typeof stObj.id === 'string' && stObj.id) || `st_${stIdx}`,
+          name: (typeof stObj.name === 'string' && stObj.name) || stObj.id || `State ${stIdx + 1}`,
+          color: stObj.color || '#38bdf8',
+          x: typeof stObj.x === 'number' ? stObj.x : 320,
+          y: typeof stObj.y === 'number' ? stObj.y : 220,
+          isInitial: stObj.isInitial ?? (stIdx === 0),
+          description: stObj.description || ''
+        };
+      }) : [],
+      transitions: Array.isArray(safeRaw.stateMachine.transitions) ? safeRaw.stateMachine.transitions.filter(Boolean).map((tr: any, trIdx: number) => {
+        const trObj = (tr && typeof tr === 'object') ? tr : {};
+        return {
+          ...trObj,
+          id: (typeof trObj.id === 'string' && trObj.id) || `tr_${trIdx}`,
+          fromStateId: trObj.fromStateId || '',
+          toStateId: trObj.toStateId || '',
+          triggerLabel: trObj.triggerLabel || '',
+          isBidirectional: trObj.isBidirectional ?? false
+        };
+      }) : []
     } : undefined
   };
 };
@@ -365,17 +402,22 @@ export const ensurePrefabFile = (file: any, index: number = 0): PrefabFile => {
     };
   }
 
-  const name = file.name || file.prefabData?.name || `Prefab ${index + 1}`;
-  const fileName = file.fileName || `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
-  const prefabData = ensurePrefabData(file.prefabData || file, name);
+  const rawName = file?.name || file?.prefabData?.name;
+  const nameStr = (typeof rawName === 'string' && rawName.trim()) ? rawName.trim() : `Prefab ${index + 1}`;
+  const fileNameStr = (typeof file?.fileName === 'string' && file.fileName.trim())
+    ? file.fileName.trim()
+    : `${nameStr.toLowerCase().replace(/[^a-z0-9]/g, '_')}.prefab`;
+
+  const prefabData = ensurePrefabData(file?.prefabData || file, nameStr);
 
   return {
-    id: file.id || prefabData.id || `char_file_${index + 1}`,
-    name: name,
-    fileName: fileName,
-    createdAt: file.createdAt || new Date().toISOString(),
-    updatedAt: file.updatedAt || new Date().toISOString(),
-    prefabData: prefabData
+    id: (typeof file?.id === 'string' && file.id) || prefabData?.id || `char_file_${index + 1}`,
+    name: nameStr,
+    fileName: fileNameStr,
+    createdAt: file?.createdAt || new Date().toISOString(),
+    updatedAt: file?.updatedAt || new Date().toISOString(),
+    prefabData: prefabData,
+    checkout: file?.checkout
   };
 };
 
@@ -953,14 +995,14 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   };
 
   // Ensure arrays exist
-  const spritesheetsList: PrefabSpritesheet[] = char?.spritesheets || [];
-  const animationsList: PrefabAnimationConfig[] = char?.animations || [];
-  const pointsList: PrefabNamedPoint[] = char?.points || [];
-  const polygonsList: PrefabNamedPolygon[] = char?.polygons || [];
+  const spritesheetsList: PrefabSpritesheet[] = (char?.spritesheets || []).filter(Boolean);
+  const animationsList: PrefabAnimationConfig[] = (char?.animations || []).filter(Boolean);
+  const pointsList: PrefabNamedPoint[] = (char?.points || []).filter(Boolean);
+  const polygonsList: PrefabNamedPolygon[] = (char?.polygons || []).filter(Boolean);
   const capsuleConfig: PrefabCapsuleConfig = char?.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
-  const variablesList: BehaviorVariable[] = char?.variables || [];
-  const rulesList: BehaviorRule[] = char?.rules || [];
-  const fsmStates: string[] = char?.states || [];
+  const variablesList: BehaviorVariable[] = (char?.variables || []).filter(Boolean);
+  const rulesList: BehaviorRule[] = (char?.rules || []).filter(Boolean);
+  const fsmStates: string[] = (char?.states || []).filter(Boolean);
 
   // State Machine Nodes & Transitions
   const defaultColors = ['#38bdf8', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#ec4899', '#06b6d4', '#6366f1'];
@@ -1407,7 +1449,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         updatedPoints = (c.points || []).map(p => p.id === pointId ? { ...p, defaultOffsetX: pos.x, defaultOffsetY: pos.y } : p);
         updatedSockets = (c.sockets || []).map(s => {
           const matchingPt = (c.points || []).find(p => p.id === pointId);
-          if (matchingPt && (s.tagId === matchingPt.id || s.label.toLowerCase().includes(matchingPt.name.toLowerCase()))) {
+          if (matchingPt && matchingPt.name && s?.label && (s.tagId === matchingPt.id || s.label.toLowerCase().includes(matchingPt.name.toLowerCase()))) {
             return { ...s, offsetX: pos.x, offsetY: pos.y };
           }
           return s;
@@ -2248,7 +2290,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
             updatedPoints = (c.points || []).map(p => p.id === id ? { ...p, defaultOffsetX: x, defaultOffsetY: y } : p);
             updatedSockets = (c.sockets || []).map(s => {
               const matchingPt = (c.points || []).find(p => p.id === id);
-              if (matchingPt && (s.tagId === matchingPt.id || s.label.toLowerCase().includes(matchingPt.name.toLowerCase()))) {
+              if (matchingPt && matchingPt.name && s?.label && (s.tagId === matchingPt.id || s.label.toLowerCase().includes(matchingPt.name.toLowerCase()))) {
                 return { ...s, offsetX: x, offsetY: y };
               }
               return s;
@@ -2664,7 +2706,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                       const newAnim: PrefabAnimationConfig = {
                         stateId: newStateId,
                         label: 'New Action',
-                        spritesheetId: activeSpritesheet.id,
+                        spritesheetId: activeSpritesheet?.id || '',
                         startFrameIndex: 0,
                         endFrameIndex: 3,
                         frameRateFps: 8,
@@ -4033,7 +4075,7 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
                     <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-neutral-400">Active Spritesheet:</span>
-                        <span className="text-cyan-300 font-bold">{activeSpritesheet.name}</span>
+                        <span className="text-cyan-300 font-bold">{activeSpritesheet?.name || 'None'}</span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-neutral-400">Total Keyframes:</span>

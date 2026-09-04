@@ -3456,9 +3456,22 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               className="bg-transparent text-xs font-bold text-white border-b border-dashed border-neutral-700 hover:border-amber-500 focus:border-amber-500 focus:outline-none transition py-0.5 max-w-[160px] sm:max-w-[240px] text-center"
               title="Click to edit particle system name"
             />
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono font-bold">
-              {activeParticleData.category || 'ambient'}
-            </span>
+            <select
+              value={activeParticleData.category || 'custom'}
+              onChange={(e) => {
+                const val = e.target.value as any;
+                updateActiveParticle(prev => ({ ...prev, category: val }));
+              }}
+              className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 font-mono font-bold outline-none cursor-pointer focus:border-amber-400"
+              title="Change particle system category classification"
+            >
+              <option value="environmental" className="bg-neutral-900 text-amber-300">🌳 environmental</option>
+              <option value="weather" className="bg-neutral-900 text-amber-300">🌧️ weather</option>
+              <option value="combat" className="bg-neutral-900 text-amber-300">⚔️ combat</option>
+              <option value="magic" className="bg-neutral-900 text-amber-300">✨ magic</option>
+              <option value="ui_effects" className="bg-neutral-900 text-amber-300">🖥️ ui_effects</option>
+              <option value="custom" className="bg-neutral-900 text-amber-300">📦 custom</option>
+            </select>
           </div>
         }
       />
@@ -3825,22 +3838,33 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           </button>
                         ))}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveParticle(p => ({ ...p, emitter: { ...p.emitter, shape: 'environmental_fx' } }))}
+                        className={`w-full py-1.5 mt-1 rounded text-[10px] font-bold transition border ${
+                          activeParticleData.emitter.shape === 'environmental_fx'
+                            ? 'bg-cyan-950 text-cyan-400 border-cyan-500/50 shadow-md'
+                            : 'bg-neutral-950 text-neutral-400 border-neutral-800 hover:text-white hover:border-neutral-700'
+                        }`}
+                      >
+                        🌧️ ENVIRONMENTAL WEATHER FX MODE
+                      </button>
                     </div>
 
-                    {/* Emitter Dimensions & Size (Box, Line, Circle, Ring, Cone) */}
+                    {/* Emitter Dimensions & Size (Box, Line, Circle, Ring, Cone, Environmental FX) */}
                     {activeParticleData.emitter.shape !== 'point' && (
                       <div className="space-y-2 pt-1 border-t border-neutral-800/40">
-                        {/* Box, Circle, Ring: Width & Height */}
-                        {(activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'circle' || activeParticleData.emitter.shape === 'ring') && (
+                        {/* Box, Circle, Ring, Environmental FX: Width & Height */}
+                        {(activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'circle' || activeParticleData.emitter.shape === 'ring' || activeParticleData.emitter.shape === 'environmental_fx') && (
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[10px] font-bold text-neutral-400 block mb-1">
-                                {activeParticleData.emitter.shape === 'box' ? 'Width (px)' : 'Width / Dia X (px)'}
+                                {activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'environmental_fx' ? 'Width (px)' : 'Width / Dia X (px)'}
                               </label>
                               <input
                                 type="number"
                                 min="2"
-                                max="600"
+                                max="1600"
                                 value={activeParticleData.emitter.width || activeParticleData.emitter.radius || 32}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);
@@ -3851,12 +3875,12 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-neutral-400 block mb-1">
-                                {activeParticleData.emitter.shape === 'box' ? 'Height (px)' : 'Height / Dia Y (px)'}
+                                {activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'environmental_fx' ? 'Height (px)' : 'Height / Dia Y (px)'}
                               </label>
                               <input
                                 type="number"
                                 min="2"
-                                max="600"
+                                max="1200"
                                 value={activeParticleData.emitter.height || activeParticleData.emitter.radius || 32}
                                 onChange={(e) => {
                                   const val = Number(e.target.value);

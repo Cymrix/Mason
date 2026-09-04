@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.313';
-export const MASON_VERSION_DISPLAY = 'v0.313';
-export const MASON_FULL_VERSION = 'v0.313';
+export const MASON_VERSION = '0.321';
+export const MASON_VERSION_DISPLAY = 'v0.321';
+export const MASON_FULL_VERSION = 'v0.321';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,46 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.321',
+    date: '2026-09-04',
+    notes: 'Refactored Atmospheric Environmental Effects in the Biome Module. Replaced complex parameters and sliders with a dropdown linking biomes to existing particle emitters. Implemented a robust sandbox canvas simulator reading dynamic linked particle specifications.'
+  },
+  {
+    version: 'v0.320',
+    date: '2026-09-04',
+    notes: 'Fixed Prefab file checkout persistence by retaining checkout field in ensurePrefabFile. Added a comprehensive "Atmospheric Effects" (Weather FX) sub-tab to the Biome Module featuring a real-time particle simulation canvas supporting rain, snow, embers, fog, dust, toxic bubbles, and lightning static discharges.'
+  },
+  {
+    version: 'v0.319',
+    date: '2026-09-04',
+    notes: 'Resolved runtime "Cannot read properties of undefined (reading name)" error in PrefabEditor by adding optional chaining for activeSpritesheet name and id properties. Resolved missing imports for PrefabData and PrefabFile in masonStorage.ts, and fixed category/shape types in DEFAULT_PARTICLE_SYSTEMS.'
+  },
+  {
+    version: 'v0.318',
+    date: '2026-09-04',
+    notes: 'Completely sanitized ensurePrefabData and ensurePrefabFile against non-string and malformed properties in raw JSON objects.'
+  },
+  {
+    version: 'v0.317',
+    date: '2026-09-04',
+    notes: 'Strengthened defensive guards across PrefabEditor against null/undefined properties, ensuring safe state machine, rules, sockets, and points mapping.'
+  },
+  {
+    version: 'v0.316',
+    date: '2026-09-04',
+    notes: 'Fixed runtime error in PrefabEditor by adding safe null/undefined raw data checks and filter(Boolean) array guards in ensurePrefabData and ensurePrefabFile.'
+  },
+  {
+    version: 'v0.315',
+    date: '2026-09-04',
+    notes: 'Fixed React useEffect import error in RefinedBiomeEditor.'
+  },
+  {
+    version: 'v0.314',
+    date: '2026-09-04',
+    notes: 'Fixed runtime error in RefinedMapCanvas by adding defensive fallback array checks for biome tileTypes, environmentalDetails, interactiveDetails, wildlife, particles, ghostTrails, and slashes. Fixed non-unique React key collision (char_hero) in EditorLayout prefab selectors and asset pickers.'
+  },
   {
     version: 'v0.313',
     date: '2026-09-04',

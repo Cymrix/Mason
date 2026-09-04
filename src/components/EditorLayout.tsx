@@ -2026,8 +2026,8 @@ export const EditorLayout: React.FC = () => {
                             className="bg-neutral-900 border border-neutral-700 text-xs font-bold text-cyan-300 rounded px-2 py-0.5 outline-none cursor-pointer hover:border-cyan-500 transition"
                             title="Select which prefab to spawn and test control in this map"
                           >
-                            {availableCharacters.map(c => (
-                              <option key={c.id} value={c.id}>
+                            {availableCharacters.map((c, idx) => (
+                              <option key={`${c.id || 'char'}_${idx}`} value={c.id}>
                                 {c.avatarIcon} {c.name}
                               </option>
                             ))}
@@ -2754,9 +2754,9 @@ export const EditorLayout: React.FC = () => {
                           </button>
 
                           {(project.fileSystem.prefabs && project.fileSystem.prefabs.length > 0) ? (
-                            project.fileSystem.prefabs.map(prefab => (
+                            project.fileSystem.prefabs.map((prefab, idx) => (
                               <button
-                                key={prefab.id}
+                                key={prefab.fileName ? `prefab_${prefab.id || 'pf'}_${prefab.fileName}` : `prefab_${prefab.id || 'pf'}_${idx}`}
                                 type="button"
                                 onClick={() => setSelectedAssetId(prefab.id)}
                                 className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition group ${

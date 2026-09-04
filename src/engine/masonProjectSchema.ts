@@ -1394,7 +1394,7 @@ export interface GameStructureFile {
 // ==========================================
 // 5.5 PARTICLE SYSTEMS (.particle)
 // ==========================================
-export type ParticleEmitterShape = 'point' | 'box' | 'circle' | 'cone' | 'line' | 'ring';
+export type ParticleEmitterShape = 'point' | 'box' | 'circle' | 'cone' | 'line' | 'ring' | 'environmental_fx';
 export type ParticleShape = 'glow_circle' | 'spark_line' | 'ember' | 'smoke_puff' | 'star' | 'diamond' | 'ring' | 'square' | 'pixel_square' | 'bubble' | 'custom_glyph' | 'svg_path' | 'spritesheet' | 'composite';
 export type ParticleBlendMode = 'source-over' | 'lighter' | 'screen' | 'multiply';
 
@@ -4005,7 +4005,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
   {
     id: 'particles_blank_default',
     name: 'Blank Particle System',
-    category: 'basic',
+    category: 'custom',
     description: 'Clean default particle system with static color, size, and no optional parameters or animation tracks enabled.',
     icon: '⚪',
     tintColor: '#f59e0b',
@@ -4037,11 +4037,12 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       angularDrag: 1.0
     },
     visuals: {
-      shape: 'circle',
+      shape: 'glow_circle',
       minLifetime: 1.0,
       maxLifetime: 1.0,
       startSize: 8,
       endSize: 8,
+      sizeCurve: 'constant',
       animateSize: false,
       animateColor: false,
       animateAlpha: false,

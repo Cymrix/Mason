@@ -16,7 +16,9 @@ import {
   DEFAULT_UI_THEMES,
   DEFAULT_PARTICLE_SYSTEMS,
   createDefaultGameStructure,
-  createDefaultTaskBoard
+  createDefaultTaskBoard,
+  PrefabData,
+  PrefabFile
 } from '../engine/masonProjectSchema';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { MASON_VERSION_DISPLAY } from '../version';

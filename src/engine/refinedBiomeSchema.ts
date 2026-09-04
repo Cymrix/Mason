@@ -469,6 +469,26 @@ export interface BiomeSoundtrack {
 }
 
 /**
+ * Biome Environmental Atmospheric Effects Spec (Snow, Rain, Dust, etc.)
+ */
+export interface EnvironmentalEffectConfig {
+  id: string;
+  name: string;
+  type: 'snow' | 'rain' | 'dust' | 'fog' | 'embers' | 'leaves' | 'bubbles' | 'lightning_strike';
+  color: string;
+  density: number; // e.g. 10 to 100 for intensity/spawn rate
+  speed: number;   // 0.5 to 5.0
+  windForceX: number; // drift horizontal
+  windForceY: number; // fall speed / drift vertical
+  layer: 'background' | 'midground' | 'foreground';
+  blendMode: 'normal' | 'additive' | 'screen' | 'multiply';
+  particleSize: number; // size in pixels
+  isEnabled: boolean; // can be toggled by behaviors / states
+  opacity: number; // 0.0 to 1.0
+  particleSystemId?: string; // Links to an existing Particle System (.particle file)
+}
+
+/**
  * Complete Refined Biome Definition
  */
 export interface RefinedBiome {
@@ -492,6 +512,9 @@ export interface RefinedBiome {
 
   // Environmental Non-Tile Details (trees, rocks, bushes, etc.)
   environmentalDetails: EnvironmentalDetail[];
+
+  // Environmental Atmospheric Effects (snow, rain, dust, fog, etc.)
+  environmentalEffects?: EnvironmentalEffectConfig[];
 
   // Interactive Placeable Details (enemies, items, doors, binding stones, zones)
   interactiveDetails: InteractivePlacementDetail[];

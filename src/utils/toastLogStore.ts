@@ -13,6 +13,7 @@ export interface ToastLogEntry {
   formattedTime: string;
   formattedDate: string;
   read: boolean;
+  details?: string[];
 }
 
 const STORAGE_KEY = 'mason_toast_log_history';
@@ -61,7 +62,7 @@ function notifyListeners() {
 /**
  * Add a new toast log entry
  */
-export function addToastLog(text: string, type: ToastType = 'info'): ToastLogEntry {
+export function addToastLog(text: string, type: ToastType = 'info', details?: string[]): ToastLogEntry {
   const now = new Date();
   const entry: ToastLogEntry = {
     id: `toast-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -70,7 +71,8 @@ export function addToastLog(text: string, type: ToastType = 'info'): ToastLogEnt
     timestamp: now.getTime(),
     formattedTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     formattedDate: now.toLocaleDateString([], { month: 'short', day: 'numeric' }),
-    read: false
+    read: false,
+    details: details && details.length > 0 ? details : undefined
   };
 
   memoryLogs = [entry, ...memoryLogs].slice(0, MAX_LOG_ENTRIES);

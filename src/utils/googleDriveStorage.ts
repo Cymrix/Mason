@@ -72,6 +72,9 @@ export const setGoogleDriveToken = (token: string | null) => {
   } else {
     localStorage.removeItem(GOOGLE_DRIVE_TOKEN_KEY);
   }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mason_storage_connection_changed'));
+  }
 };
 
 /**

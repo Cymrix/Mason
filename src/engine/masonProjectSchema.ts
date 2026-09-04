@@ -1459,6 +1459,7 @@ export interface ParticleEmitterConfig {
   animateEmissionRate?: boolean;
   animateBurstCount?: boolean;
   animateBurstInterval?: boolean;
+  animateColor?: boolean;
 }
 
 export interface ParticleDirectionRange {

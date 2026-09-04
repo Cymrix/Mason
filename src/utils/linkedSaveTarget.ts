@@ -64,6 +64,7 @@ export interface SyncResult {
   };
   error?: string;
   syncedLocation?: LinkedStorageLocation;
+  syncedFiles?: string[];
 }
 
 // In-memory runtime handle storage for File System Access API (not serializable in JSON)
@@ -300,13 +301,17 @@ export const clearAllModularSyncCaches = (projectId?: string) => {
 /**
  * Writes modular files (Step 1: Modular Multi-File Structure) to a connected local directory
  */
-export const writeModularProjectToDirectory = async (project: MasonProject, dirHandle: any): Promise<void> => {
+export const writeModularProjectToDirectory = async (project: MasonProject, dirHandle: any): Promise<string[]> => {
   if (!dirHandle) throw new Error('No directory handle available');
+
+  const syncedFileList: string[] = [];
 
   // 1. Write root project manifest file (e.g. mourne_edris.mason)
   const manifestFileName = getProjectMasonFileName(project.name);
   const manifestCacheKey = `${project.id}:root:${manifestFileName}`;
   const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}_${JSON.stringify(project.lockInfo || {})}`;
+
+  syncedFileList.push(manifestFileName);
 
   if (writtenModularFileTimestampCache.get(manifestCacheKey) !== manifestStamp) {
     const manifestFileHandle = await dirHandle.getFileHandle(manifestFileName, { create: true });
@@ -351,6 +356,9 @@ export const writeModularProjectToDirectory = async (project: MasonProject, dirH
     const subDirHandle = await dirHandle.getDirectoryHandle(subdirName, { create: true });
     for (const file of files) {
       const fileName = file.fileName || `${file.id || 'file'}.json`;
+      const relPath = `${subdirName}/${fileName}`;
+      syncedFileList.push(relPath);
+
       const cacheKey = `${project.id}:${subdirName}:${fileName}`;
       const currentStamp = file.updatedAt || file.id || 'initial';
 
@@ -380,6 +388,8 @@ export const writeModularProjectToDirectory = async (project: MasonProject, dirH
   await writeSubdirFiles('sprites', project.fileSystem?.sprites || []);
   await writeSubdirFiles('behaviors', project.fileSystem?.behaviors || []);
   await writeSubdirFiles('images', project.fileSystem?.images || []);
+
+  return syncedFileList;
 };
 
 /**
@@ -461,7 +471,7 @@ export const saveProjectToLinkedLocation = async (
         lastSyncedAt: new Date().toISOString()
       };
 
-      return { success: true, syncedLocation: updatedLoc };
+      return { success: true, syncedLocation: updatedLoc, syncedFiles: [handle.name] };
     }
 
     if (location.type === 'local_directory') {
@@ -485,7 +495,7 @@ export const saveProjectToLinkedLocation = async (
         }
       }
 
-      await writeModularProjectToDirectory(project, dirHandle);
+      const syncedFiles = await writeModularProjectToDirectory(project, dirHandle);
       await setStoredDirHandleForProject(project.id, dirHandle, dirHandle.name);
 
       const updatedLoc: LinkedStorageLocation = {
@@ -495,7 +505,7 @@ export const saveProjectToLinkedLocation = async (
         lastSyncedAt: new Date().toISOString()
       };
 
-      return { success: true, syncedLocation: updatedLoc };
+      return { success: true, syncedLocation: updatedLoc, syncedFiles };
     }
 
     if (location.type === 'gdrive') {
@@ -511,7 +521,9 @@ export const saveProjectToLinkedLocation = async (
           displayName: `Google Drive Folder (${location.targetFolderName || 'Workspace Folder'})`,
           lastSyncedAt: new Date().toISOString()
         };
-        return { success: true, syncedLocation: updatedLoc };
+        const defaultManifest = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.mason`;
+        const fileList = [defaultManifest, ...(project.fileSystem?.maps || []).map(m => `maps/${m.fileName}`), ...(project.fileSystem?.prefabs || []).map(p => `prefabs/${p.fileName}`)];
+        return { success: true, syncedLocation: updatedLoc, syncedFiles: fileList };
       } else {
         const saved = await saveProjectToGoogleDrive(project as any, {
           targetFolderId: location.targetFolderId,
@@ -527,7 +539,7 @@ export const saveProjectToLinkedLocation = async (
           etag: saved.modifiedTime
         };
 
-        return { success: true, syncedLocation: updatedLoc };
+        return { success: true, syncedLocation: updatedLoc, syncedFiles: [saved.name || `${project.name}.mason`] };
       }
     }
 
@@ -549,7 +561,9 @@ export const saveProjectToLinkedLocation = async (
           displayName: `OneDrive Folder (${location.targetFolderName || 'Workspace Folder'})`,
           lastSyncedAt: new Date().toISOString()
         };
-        return { success: true, syncedLocation: updatedLoc };
+        const defaultManifest = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.mason`;
+        const fileList = [defaultManifest, ...(project.fileSystem?.maps || []).map(m => `maps/${m.fileName}`), ...(project.fileSystem?.prefabs || []).map(p => `prefabs/${p.fileName}`)];
+        return { success: true, syncedLocation: updatedLoc, syncedFiles: fileList };
       } else {
         const saved = await saveProjectToOneDrive(project as any, {
           targetFolderId: location.targetFolderId,
@@ -565,7 +579,7 @@ export const saveProjectToLinkedLocation = async (
           etag: saved.modifiedTime
         };
 
-        return { success: true, syncedLocation: updatedLoc };
+        return { success: true, syncedLocation: updatedLoc, syncedFiles: [saved.name || `${project.name}.mason`] };
       }
     }
 
@@ -988,6 +1002,7 @@ export interface FetchLinkedProjectResult {
   isRemoteNewer?: boolean;
   remoteModifiedAt?: string;
   filesCount?: number;
+  syncedFiles?: string[];
 }
 
 /**
@@ -1104,16 +1119,17 @@ export const fetchProjectFromLinkedLocation = async (
       lastSyncedAt: new Date().toISOString()
     };
 
-    const countFiles = 
-      (loaded.fileSystem?.maps?.length || 0) +
-      (loaded.fileSystem?.biomes?.length || 0) +
-      (loaded.fileSystem?.prefabs?.length || 0) +
-      (loaded.fileSystem?.ui?.length || 0) +
-      (loaded.fileSystem?.game?.length || 0) +
-      (loaded.fileSystem?.particles?.length || 0) +
-      (loaded.fileSystem?.sprites?.length || 0) +
-      (loaded.fileSystem?.behaviors?.length || 0) +
-      (loaded.fileSystem?.images?.length || 0);
+    const defaultManifest = `${(loaded.name || 'project').toLowerCase().replace(/[^a-z0-9]/g, '_')}.mason`;
+    const syncedFilesList: string[] = [
+      defaultManifest,
+      ...(loaded.fileSystem?.maps || []).map(m => `maps/${m.fileName}`),
+      ...(loaded.fileSystem?.biomes || []).map(b => `biomes/${b.fileName}`),
+      ...(loaded.fileSystem?.prefabs || []).map(p => `prefabs/${p.fileName}`),
+      ...(loaded.fileSystem?.particles || []).map(pt => `particles/${pt.fileName}`),
+      ...(loaded.fileSystem?.sprites || []).map(s => `sprites/${s.fileName}`),
+      ...(loaded.fileSystem?.ui || []).map(u => `ui/${u.fileName}`),
+      ...(loaded.fileSystem?.game || []).map(g => `game/${g.fileName}`)
+    ];
 
     const remoteUpdatedAt = loaded.updatedAt;
     const localUpdatedAt = currentProject.updatedAt;
@@ -1126,7 +1142,8 @@ export const fetchProjectFromLinkedLocation = async (
       project: loaded,
       isRemoteNewer,
       remoteModifiedAt: remoteUpdatedAt,
-      filesCount: countFiles
+      filesCount: syncedFilesList.length,
+      syncedFiles: syncedFilesList
     };
   } catch (err: any) {
     return {

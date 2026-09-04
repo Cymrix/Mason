@@ -43,6 +43,11 @@ export const ToastHistoryOverlay: React.FC<ToastHistoryOverlayProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState<boolean>(false);
   const [hasNewToastAnim, setHasNewToastAnim] = useState<boolean>(false);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const prevLogsCountRef = useRef<number>(0);
@@ -367,6 +372,39 @@ export const ToastHistoryOverlay: React.FC<ToastHistoryOverlayProps> = ({
                           {log.text}
                         </p>
                         
+                        {/* Expandable Synced Files Section */}
+                        {log.details && log.details.length > 0 && (
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpand(log.id)}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-neutral-900/90 hover:bg-neutral-850 border border-neutral-700/80 hover:border-cyan-500/50 text-[11px] font-mono font-medium text-cyan-300 transition"
+                            >
+                              <ChevronDown 
+                                size={12} 
+                                className={`transition-transform duration-200 ${expandedIds[log.id] ? 'rotate-180 text-cyan-400' : 'text-neutral-400'}`} 
+                              />
+                              <span>
+                                {expandedIds[log.id] ? 'Hide Synced Files' : `Show ${log.details.length} Synced File${log.details.length === 1 ? '' : 's'}`}
+                              </span>
+                            </button>
+
+                            {expandedIds[log.id] && (
+                              <div className="mt-2 p-2.5 bg-neutral-950/90 border border-neutral-800 rounded-xl space-y-1 font-mono text-[11px] max-h-48 overflow-y-auto scrollbar-thin animate-in fade-in duration-150">
+                                <div className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider mb-1 flex items-center justify-between border-b border-neutral-850 pb-1">
+                                  <span>Synced File Paths ({log.details.length})</span>
+                                </div>
+                                {log.details.map((fileName, idx) => (
+                                  <div key={idx} className="flex items-center gap-1.5 text-neutral-300 hover:text-white truncate py-0.5">
+                                    <Check size={11} className="shrink-0 text-emerald-400" />
+                                    <span className="truncate">{fileName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 mt-1.5 text-[10px] text-neutral-500 font-mono">
                           <span>{log.formattedDate}</span>
                           <span>•</span>

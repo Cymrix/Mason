@@ -739,11 +739,36 @@ export class ParticleEngine {
         spawnY += localY;
       }
 
-      const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : 270;
-      const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : 30;
-      const baseAngleRad = (angleDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
-      const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
-      const launchAngle = baseAngleRad + spreadRad;
+      // Determine launch angle (supports multi-direction ranges e.g. 4 cardinal directions)
+      let launchAngle: number;
+      const activeRanges = kinematics.directionRanges?.filter(r => r.enabled !== false);
+      if (activeRanges && activeRanges.length > 0) {
+        let totalWeight = 0;
+        for (let rIdx = 0; rIdx < activeRanges.length; rIdx++) {
+          totalWeight += Math.max(0.1, activeRanges[rIdx].weight ?? 1);
+        }
+        let randW = Math.random() * totalWeight;
+        let selectedRange = activeRanges[0];
+        for (let rIdx = 0; rIdx < activeRanges.length; rIdx++) {
+          const w = Math.max(0.1, activeRanges[rIdx].weight ?? 1);
+          if (randW <= w) {
+            selectedRange = activeRanges[rIdx];
+            break;
+          }
+          randW -= w;
+        }
+        const aDeg = selectedRange.angleDeg;
+        const sDeg = selectedRange.spreadDeg;
+        const baseAngleRad = (aDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
+        const spreadRad = ((Math.random() - 0.5) * sDeg) * (Math.PI / 180);
+        launchAngle = baseAngleRad + spreadRad;
+      } else {
+        const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : 270;
+        const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : 30;
+        const baseAngleRad = (angleDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
+        const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
+        launchAngle = baseAngleRad + spreadRad;
+      }
 
       const rawMinSpd = kinematics.minSpeed !== undefined ? kinematics.minSpeed : 0.3;
       const rawMaxSpd = kinematics.maxSpeed !== undefined ? kinematics.maxSpeed : 0.85;
@@ -1057,11 +1082,35 @@ export class ParticleEngine {
           for (let s = 0; s < count; s++) {
             if (this.particles.length + newSparks.length >= 1000) break;
 
-            const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : (isImpact ? 270 : 0);
-            const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : (isImpact ? 140 : 360);
-            const baseAngleRad = angleDeg * (Math.PI / 180);
-            const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
-            const launchAngle = baseAngleRad + spreadRad;
+            let launchAngle: number;
+            const subActiveRanges = kinematics.directionRanges?.filter(r => r.enabled !== false);
+            if (subActiveRanges && subActiveRanges.length > 0) {
+              let totalWeight = 0;
+              for (let rIdx = 0; rIdx < subActiveRanges.length; rIdx++) {
+                totalWeight += Math.max(0.1, subActiveRanges[rIdx].weight ?? 1);
+              }
+              let randW = Math.random() * totalWeight;
+              let selectedRange = subActiveRanges[0];
+              for (let rIdx = 0; rIdx < subActiveRanges.length; rIdx++) {
+                const w = Math.max(0.1, subActiveRanges[rIdx].weight ?? 1);
+                if (randW <= w) {
+                  selectedRange = subActiveRanges[rIdx];
+                  break;
+                }
+                randW -= w;
+              }
+              const aDeg = selectedRange.angleDeg;
+              const sDeg = selectedRange.spreadDeg;
+              const baseAngleRad = aDeg * (Math.PI / 180);
+              const spreadRad = ((Math.random() - 0.5) * sDeg) * (Math.PI / 180);
+              launchAngle = baseAngleRad + spreadRad;
+            } else {
+              const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : (isImpact ? 270 : 0);
+              const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : (isImpact ? 140 : 360);
+              const baseAngleRad = angleDeg * (Math.PI / 180);
+              const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
+              launchAngle = baseAngleRad + spreadRad;
+            }
 
             const rawMinSpd = kinematics.minSpeed !== undefined ? kinematics.minSpeed : 0.4;
             const rawMaxSpd = kinematics.maxSpeed !== undefined ? kinematics.maxSpeed : 1.2;

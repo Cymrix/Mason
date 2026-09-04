@@ -48,7 +48,8 @@ import { addToastLog } from '../utils/toastLogStore';
 import { 
   performFileCheckout, 
   performFileCheckIn, 
-  performFileForceUnlock 
+  performFileForceUnlock,
+  performFileSaveAs 
 } from '../utils/fileCheckoutStore';
 import {
   Paintbrush,
@@ -177,6 +178,27 @@ export const EditorLayout: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [project]);
+
+  // Re-verify storage connectivity when storage connection status changes globally or File Manager closes
+  useEffect(() => {
+    if (!project) return;
+
+    const runCheck = async () => {
+      if (project.storageLocation && project.storageLocation.type !== 'local_idb') {
+        const access = await verifyLinkedStorageAccess(project);
+        setStorageAccessInfo(access);
+      }
+    };
+
+    const handleStorageChange = () => {
+      runCheck();
+    };
+
+    window.addEventListener('mason_storage_connection_changed', handleStorageChange);
+    return () => {
+      window.removeEventListener('mason_storage_connection_changed', handleStorageChange);
+    };
+  }, [project]);
   
   // App Theme Hook
   const { theme, primaryDef, bgDef, getModuleColorDef } = useAppTheme();
@@ -238,6 +260,14 @@ export const EditorLayout: React.FC = () => {
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isCloudSyncModalOpen && project && project.storageLocation && project.storageLocation.type !== 'local_idb') {
+      verifyLinkedStorageAccess(project).then(access => {
+        setStorageAccessInfo(access);
+      });
+    }
+  }, [isCloudSyncModalOpen, project]);
   const [isAppProfileConfigModalOpen, setIsAppProfileConfigModalOpen] = useState(false);
   const [appProfileInitialTab, setAppProfileInitialTab] = useState<'profiles' | 'config' | 'export'>('profiles');
   const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'backups'>('explore');
@@ -302,8 +332,8 @@ export const EditorLayout: React.FC = () => {
     setSavedProjects(listSavedProjects());
   };
 
-  const showToast = useCallback((text: string, type: 'success' | 'info' | 'error' = 'success') => {
-    addToastLog(text, type);
+  const showToast = useCallback((text: string, type: 'success' | 'info' | 'error' = 'success', details?: string[]) => {
+    addToastLog(text, type, details);
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
@@ -311,9 +341,9 @@ export const EditorLayout: React.FC = () => {
   // Listen for global toast requests from any decoupled component
   useEffect(() => {
     (window as any).masonShowToast = showToast;
-    const handleGlobalToast = (e: CustomEvent<{ text: string; type?: 'success' | 'info' | 'error' }>) => {
+    const handleGlobalToast = (e: CustomEvent<{ text: string; type?: 'success' | 'info' | 'error'; details?: string[] }>) => {
       if (e.detail && e.detail.text) {
-        showToast(e.detail.text, e.detail.type || 'info');
+        showToast(e.detail.text, e.detail.type || 'info', e.detail.details);
       }
     };
     window.addEventListener('mason:show-toast' as any, handleGlobalToast);
@@ -346,8 +376,9 @@ export const EditorLayout: React.FC = () => {
         setIsOutOfSync(false);
         refreshSavedProjects();
         showToast(
-          `Refreshed "${res.project.name}" from ${res.project.storageLocation?.displayName || 'linked storage'} (${res.filesCount ?? 'all'} files)!`,
-          'success'
+          `Refreshed "${res.project.name}" from ${res.project.storageLocation?.displayName || 'linked storage'} (${res.syncedFiles?.length || res.filesCount || 'all'} files)!`,
+          'success',
+          res.syncedFiles
         );
       } else {
         showToast(`Failed to refresh from linked storage: ${res.error || 'Unknown error'}`, 'error');
@@ -612,7 +643,11 @@ export const EditorLayout: React.FC = () => {
           });
           setAutoSyncStatus('synced');
           setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-          showToast(`Saved ${projectToSave.name} to ${projectToSave.storageLocation.displayName || projectToSave.storageLocation.targetFolderName || projectToSave.storageLocation.fileName}`, 'success');
+          showToast(
+            `Saved ${projectToSave.name} to ${projectToSave.storageLocation.displayName || projectToSave.storageLocation.targetFolderName || projectToSave.storageLocation.fileName}`,
+            'success',
+            res.syncedFiles
+          );
           setTimeout(() => setAutoSyncStatus('idle'), 2500);
         } else {
           setAutoSyncStatus('error');
@@ -1845,6 +1880,10 @@ export const EditorLayout: React.FC = () => {
                       }
                     }), { actionLabel: `Saved map ${currentMapFile.fileName}` });
                     showToast(`Saved ${currentMapFile.fileName}`, 'success');
+                  }}
+                  onSaveAsFile={(newFileName) => {
+                    const { project: updated } = performFileSaveAs(project, 'maps', currentMapFile.fileName, newFileName);
+                    handleUpdateProject(updated, { actionLabel: `Saved map as ${newFileName}` });
                   }}
                   onExportFile={(fName) => {
                     const target = project.fileSystem.maps.find(m => m.fileName === fName);

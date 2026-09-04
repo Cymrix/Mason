@@ -37,7 +37,8 @@ import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 import { 
   performFileCheckout, 
   performFileCheckIn, 
-  performFileForceUnlock 
+  performFileForceUnlock,
+  performFileSaveAs 
 } from '../utils/fileCheckoutStore';
 import { 
   Paintbrush,
@@ -2510,6 +2511,11 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           }), { actionLabel: `Saved prefab ${currentFile.fileName}`, syncLinked: true } as any);
           const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
           showToast(`Saved prefab "${char.name || currentFile.name}" (${currentFile.fileName}) to ${targetName}`, 'success');
+        }}
+        onSaveAsFile={(newFileName) => {
+          if (!project) return;
+          const { project: updated } = performFileSaveAs(project, 'prefabs', currentFile.fileName, newFileName, { ...currentFile, prefabData: char });
+          onUpdateProject(() => updated, { actionLabel: `Saved prefab as ${newFileName}` });
         }}
         onExportFile={(fileName) => {
           const jsonStr = JSON.stringify(currentFile, null, 2);

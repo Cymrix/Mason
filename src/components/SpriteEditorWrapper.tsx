@@ -7,7 +7,8 @@ import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
 import { 
   performFileCheckout, 
   performFileCheckIn, 
-  performFileForceUnlock 
+  performFileForceUnlock,
+  performFileSaveAs 
 } from '../utils/fileCheckoutStore';
 import { VirtualExportImageModal, PendingExportData } from './VirtualExportImageModal';
 import { UnifiedFileManagerModal } from './UnifiedFileManagerModal';
@@ -1233,6 +1234,11 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         onNewFile={handleNewFile}
         onDuplicateFile={handleDuplicateFile}
         onSaveFile={handleSaveFile}
+        onSaveAsFile={(newFileName) => {
+          if (!project || !activeFile) return;
+          const { project: updated } = performFileSaveAs(project, 'sprites', activeFile.fileName, newFileName, activeFile);
+          onUpdateProject(() => updated, { actionLabel: `Saved sprite as ${newFileName}` });
+        }}
         onExportFile={handleExportFile}
         onDeleteFile={handleDeleteFile}
         onRenameFile={(_oldFile, newName) => {

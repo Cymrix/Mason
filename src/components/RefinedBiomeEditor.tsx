@@ -28,7 +28,8 @@ import { addToastLog } from '../utils/toastLogStore';
 import { 
   performFileCheckout, 
   performFileCheckIn, 
-  performFileForceUnlock 
+  performFileForceUnlock,
+  performFileSaveAs 
 } from '../utils/fileCheckoutStore';
 import { 
   TreePine, 
@@ -741,6 +742,11 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         onNewFile={handleNewBiomeFile}
         onDuplicateFile={handleDuplicateBiomeFile}
         onSaveFile={handleSaveBiomeFile}
+        onSaveAsFile={(newFileName) => {
+          if (!project) return;
+          const { project: updated } = performFileSaveAs(project, 'biomes', currentBiomeFile.fileName, newFileName, selectedBiome);
+          onUpdateProject(() => updated, { actionLabel: `Saved biome as ${newFileName}` });
+        }}
         onExportFile={handleExportBiomeFile}
         onDeleteFile={handleDeleteBiomeFile}
         onRenameFile={handleRenameBiomeFile}

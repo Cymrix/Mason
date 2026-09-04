@@ -129,6 +129,9 @@ export const setOneDriveToken = (token: string | null, expiresIn?: number) => {
     localStorage.removeItem(ONEDRIVE_TOKEN_EXPIRY_KEY);
     localStorage.removeItem(ONEDRIVE_REFRESH_TOKEN_KEY);
   }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mason_storage_connection_changed'));
+  }
 };
 
 export const setOneDriveRefreshToken = (refreshToken: string) => {

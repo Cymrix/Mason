@@ -5,6 +5,7 @@ import {
   Plus, 
   Copy, 
   Save, 
+  FilePlus,
   Download, 
   Trash2, 
   ChevronDown, 
@@ -51,6 +52,7 @@ interface FileSubfolderHeaderProps {
   onNewFile: (name: string, dimensions?: { width: number; height: number }) => void;
   onDuplicateFile: (fileName: string) => void;
   onSaveFile: () => void;
+  onSaveAsFile?: (newFileName: string) => void;
   onExportFile: (fileName: string) => void;
   onDeleteFile?: (fileName: string) => void;
   onRenameFile?: (oldFileName: string, newName: string) => void;
@@ -84,6 +86,7 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
   onNewFile,
   onDuplicateFile,
   onSaveFile,
+  onSaveAsFile,
   onExportFile,
   onDeleteFile,
   onRenameFile,
@@ -113,7 +116,10 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
   const [renameInput, setRenameInput] = useState('');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
-  // Check-Out / Check-In Modal States
+  // Check-Out Guard & Save-As Modal States
+  const [isCheckoutGuardModalOpen, setIsCheckoutGuardModalOpen] = useState(false);
+  const [isSaveAsModalOpen, setIsSaveAsModalOpen] = useState(false);
+  const [saveAsFileNameInput, setSaveAsFileNameInput] = useState('');
   const [isCheckOutModalOpen, setIsCheckOutModalOpen] = useState(false);
   const [checkOutNoteInput, setCheckOutNoteInput] = useState('');
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
@@ -551,22 +557,49 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
             <Copy size={12} />
           </button>
 
-          {/* SAVE BUTTON */}
+          {/* SAVE BUTTON (CHECKOUT GUARDED) */}
           <button
             type="button"
-            onClick={onSaveFile}
+            onClick={() => {
+              if (isMine) {
+                onSaveFile();
+              } else {
+                setIsCheckoutGuardModalOpen(true);
+              }
+            }}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition shadow-sm ${
               isDirty 
                 ? "bg-red-600 hover:bg-red-500 text-white border border-red-400 shadow-[0_0_14px_rgba(239,68,68,0.9)] animate-pulse scale-105" 
                 : "bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 text-cyan-200"
             }`}
-            title={isDirty ? "Unsaved changes! Click to save" : "Save changes to file"}
+            title={
+              !isMine 
+                ? "Checkout required to commit changes to this file" 
+                : isDirty 
+                ? "Unsaved changes! Click to save" 
+                : "Save changes to file"
+            }
           >
             <Save size={13} className={isDirty ? "text-white" : "text-cyan-400"} />
             <span className="hidden sm:inline">Save</span>
             {isDirty && (
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping ml-0.5" />
             )}
+          </button>
+
+          {/* SAVE AS BUTTON */}
+          <button
+            type="button"
+            onClick={() => {
+              const base = currentFile?.fileName ? currentFile.fileName.replace(/\.[^/.]+$/, '') : 'file';
+              setSaveAsFileNameInput(`${base}_v2`);
+              setIsSaveAsModalOpen(true);
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/80 hover:border-cyan-500/50 text-neutral-300 hover:text-cyan-200 rounded-md text-xs font-semibold transition shadow-sm"
+            title="Save as a new file without overwriting original"
+          >
+            <FilePlus size={12} className="text-cyan-400" />
+            <span className="hidden sm:inline">Save As...</span>
           </button>
 
           {onRefreshFromLinked && (
@@ -937,6 +970,174 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* CHECKOUT GUARD SAVE MODAL */}
+      {isCheckoutGuardModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-neutral-900 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-amber-400 border-b border-neutral-800 pb-3">
+              <div className="p-2 bg-amber-950/80 rounded-xl border border-amber-500/30">
+                <Lock size={20} className="text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Checkout Required to Save</h3>
+                <p className="text-[11px] text-neutral-400">{currentFile.fileName}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              You cannot commit changes directly to <strong className="text-white font-mono">{currentFile.fileName}</strong> without checking it out first.
+            </p>
+
+            {isOtherSessionCheckout(activeCheckout) ? (
+              <div className="p-3 bg-red-950/60 border border-red-500/40 rounded-xl text-xs text-red-200 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-red-300">
+                  <ShieldAlert size={14} />
+                  <span>Locked by Another Session</span>
+                </div>
+                <p className="text-[11px] text-red-300/80">
+                  Checked out by <strong className="text-white">{activeCheckout?.checkedOutBy || 'Collaborator'}</strong> (Session: {getShortSessionId(activeCheckout?.sessionId)}).
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-950/50 border border-amber-500/30 rounded-xl text-xs text-amber-200/90 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                  <Key size={14} />
+                  <span>File Unlocked</span>
+                </div>
+                <p className="text-[11px] text-amber-200/80">
+                  Check out the file to obtain exclusive write permission, or use <strong>Save As...</strong> to create a new file with your edits.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 pt-2 border-t border-neutral-800">
+              {!isOtherSessionCheckout(activeCheckout) && onCheckOutFile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCheckoutGuardModalOpen(false);
+                    onCheckOutFile(currentFile.fileName, 'Auto checkout on save');
+                    setTimeout(() => onSaveFile(), 50);
+                  }}
+                  className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-amber-600/20 flex items-center justify-center gap-2"
+                >
+                  <Unlock size={14} />
+                  <span>Check Out & Save</span>
+                </button>
+              )}
+
+              {isOtherSessionCheckout(activeCheckout) && onForceUnlockFile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCheckoutGuardModalOpen(false);
+                    onForceUnlockFile(currentFile.fileName);
+                    if (onCheckOutFile) onCheckOutFile(currentFile.fileName, 'Force unlock on save');
+                    setTimeout(() => onSaveFile(), 50);
+                  }}
+                  className="w-full py-2 bg-red-950 hover:bg-red-900 border border-red-500/60 text-red-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+                >
+                  <ShieldAlert size={14} />
+                  <span>Force Unlock & Save</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCheckoutGuardModalOpen(false);
+                  const base = currentFile?.fileName ? currentFile.fileName.replace(/\.[^/.]+$/, '') : 'file';
+                  setSaveAsFileNameInput(`${base}_v2`);
+                  setIsSaveAsModalOpen(true);
+                }}
+                className="w-full py-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+              >
+                <FilePlus size={14} />
+                <span>Save As New File...</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCheckoutGuardModalOpen(false)}
+                className="w-full py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded-xl text-xs font-semibold transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SAVE AS MODAL */}
+      {isSaveAsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 border-b border-neutral-800 pb-3">
+              <div className="p-2 bg-cyan-950 rounded-xl border border-cyan-500/40">
+                <FilePlus size={20} className="text-cyan-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Save As New File</h3>
+                <p className="text-[11px] text-neutral-400">Save active changes under a new file name</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!saveAsFileNameInput.trim()) return;
+                const cleanName = saveAsFileNameInput.trim();
+                const fullFileName = cleanName.endsWith(extension) ? cleanName : `${cleanName}${extension}`;
+
+                if (onSaveAsFile) {
+                  onSaveAsFile(fullFileName);
+                } else if (onDuplicateFile) {
+                  onDuplicateFile(currentFile.fileName);
+                }
+                setIsSaveAsModalOpen(false);
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+                  New File Name
+                </label>
+                <div className="flex items-center bg-neutral-950 border border-neutral-700 rounded-xl overflow-hidden focus-within:border-cyan-500">
+                  <input
+                    type="text"
+                    value={saveAsFileNameInput}
+                    onChange={(e) => setSaveAsFileNameInput(e.target.value)}
+                    placeholder="my_file_v2"
+                    autoFocus
+                    className="flex-1 bg-transparent px-3 py-2 text-xs font-mono text-white outline-none"
+                  />
+                  <span className="px-3 py-2 bg-neutral-900 text-xs font-mono text-cyan-400 border-l border-neutral-800">
+                    {extension}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setIsSaveAsModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-neutral-400 hover:bg-neutral-800 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!saveAsFileNameInput.trim()}
+                  className="px-4 py-1.5 disabled:opacity-40 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-cyan-600/30"
+                >
+                  Save As New File
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

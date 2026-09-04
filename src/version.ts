@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.305';
-export const MASON_VERSION_DISPLAY = 'v0.305';
-export const MASON_FULL_VERSION = 'v0.305';
+export const MASON_VERSION = '0.309';
+export const MASON_VERSION_DISPLAY = 'v0.309';
+export const MASON_FULL_VERSION = 'v0.309';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,26 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.309',
+    date: '2026-09-04',
+    notes: 'Resolved storage connectivity badge resolution when reconnecting cloud storage. Added plus and minus buttons to angle and spread sliders in DirectionalAnglePicker. Added random spawn gradient color spectrum selector to Particle Base Color & Tint card. Enabled detailed expandable file list in storage refresh and sync notifications.'
+  },
+  {
+    version: 'v0.308',
+    date: '2026-09-04',
+    notes: 'Enforced file checkout guard preventing commits without checkout while enabling Save As functionality. Added expandable synced file lists to sync notifications in the notification history overlay.'
+  },
+  {
+    version: 'v0.307',
+    date: '2026-09-04',
+    notes: 'Made Color card a default irremovable card in the Initialize tab with base color controls and quick swatches. Added Color as an animate property track toggle in timeline checkboxes. Adjusted Gravity Forces control scale so 10 represents normal Earth Gravity (1.0G) with quick gravity presets.'
+  },
+  {
+    version: 'v0.306',
+    date: '2026-09-04',
+    notes: 'Created interactive circular Angle & Spread compass control with multi-directional ranges (up to 4 direction arcs). Allows shooting particles in cardinal directions (N, E, S, W), opposite axes, or custom weighted multi-cone spreads with visual drag handles and quick presets.'
+  },
   {
     version: 'v0.305',
     date: '2026-09-04',

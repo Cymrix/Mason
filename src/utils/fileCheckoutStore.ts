@@ -216,3 +216,84 @@ export const performFileForceUnlock = (
 
   return { project: updatedProject };
 };
+
+/**
+ * Saves content as a new file, automatically checking it out for the current session
+ */
+export const performFileSaveAs = (
+  project: MasonProject,
+  subfolder: string,
+  originalFileName: string,
+  newFileName: string,
+  modifiedFileData?: any
+): { project: MasonProject; newFileName: string } => {
+  const activeProfile = getActiveProfile();
+  const sessionId = getCurrentSessionId();
+  const now = new Date().toISOString();
+  const key = normalizeSubfolderKey(subfolder);
+  const fileArray = (project.fileSystem[key] || []) as any[];
+
+  // Clean extension handling
+  const ext = subfolder === 'maps' ? '.map'
+    : subfolder === 'biomes' ? '.biome'
+    : subfolder === 'prefabs' ? '.prefab'
+    : subfolder === 'particles' ? '.particle'
+    : subfolder === 'sprites' ? '.sprite'
+    : subfolder === 'ui' ? '.ui'
+    : subfolder === 'game' ? '.gamestructure'
+    : subfolder === 'behaviors' ? '.behavior'
+    : '';
+
+  const cleanFileName = (ext && !newFileName.endsWith(ext)) ? `${newFileName}${ext}` : newFileName;
+  const displayName = cleanFileName.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+
+  const checkoutInfo: FileCheckoutInfo = {
+    isCheckedOut: true,
+    checkedOutBy: activeProfile.name || 'Studio Developer',
+    userId: activeProfile.id,
+    userAvatar: activeProfile.avatar || '🔑',
+    userColor: activeProfile.color || 'amber',
+    sessionId,
+    checkedOutAt: now,
+    lockNote: 'Created via Save As'
+  };
+
+  const originalFile = fileArray.find(f => f.fileName === originalFileName || f.id === originalFileName) || fileArray[0];
+
+  const newFile = {
+    ...(modifiedFileData || originalFile || {}),
+    id: `${key}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: displayName,
+    fileName: cleanFileName,
+    createdAt: now,
+    updatedAt: now,
+    checkout: checkoutInfo
+  };
+
+  // Set active file key if applicable
+  const activeKeyMap: Record<string, string> = {
+    maps: 'mapFileName',
+    biomes: 'biomeFileName',
+    prefabs: 'prefabFileName',
+    particles: 'particleFileName',
+    sprites: 'spriteFileName',
+    ui: 'uiFileName',
+    game: 'gameStructureFileName',
+    behaviors: 'behaviorFileName'
+  };
+  const activeKey = activeKeyMap[key];
+
+  const updatedProject: MasonProject = {
+    ...project,
+    updatedAt: now,
+    activeFiles: activeKey ? { ...project.activeFiles, [activeKey]: cleanFileName } : project.activeFiles,
+    fileSystem: {
+      ...project.fileSystem,
+      [key]: [...fileArray, newFile]
+    }
+  };
+
+  addToastLog(`Saved as ${cleanFileName} (Checked out by you)`, 'success');
+
+  return { project: updatedProject, newFileName: cleanFileName };
+};

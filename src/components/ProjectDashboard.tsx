@@ -26,7 +26,8 @@ import {
   FolderSync,
   Lock,
   Unlock,
-  Cloud
+  Cloud,
+  RefreshCw
 } from 'lucide-react';
 import { releaseProjectLock } from '../utils/linkedSaveTarget';
 
@@ -39,6 +40,9 @@ interface ProjectDashboardProps {
   onOpenThemeModal?: () => void;
   onOpenAppProfileConfigModal?: () => void;
   onExportBundle: () => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
@@ -49,7 +53,10 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onOpenModulesModal,
   onOpenThemeModal,
   onOpenAppProfileConfigModal,
-  onExportBundle
+  onExportBundle,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   const [isEditingMetadata, setIsEditingMetadata] = React.useState(false);
   const [name, setName] = React.useState(project.name);
@@ -150,16 +157,44 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
 
               {/* Linked Storage Target Status Badge */}
               {project.storageLocation ? (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 text-[11px] font-mono">
-                  {project.storageLocation.type === 'local_directory' ? (
-                    <FolderSync size={12} className="text-emerald-400 shrink-0" />
-                  ) : project.storageLocation.type === 'gdrive' || project.storageLocation.type === 'onedrive' ? (
-                    <Cloud size={12} className="text-amber-400 shrink-0" />
-                  ) : (
-                    <Link2 size={12} className="text-cyan-400 shrink-0" />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono border ${
+                    isOutOfSync 
+                      ? 'bg-amber-950/90 border-amber-500/80 text-amber-200 animate-pulse' 
+                      : 'bg-emerald-950/80 border-emerald-700/60 text-emerald-300'
+                  }`}>
+                    {project.storageLocation.type === 'local_directory' ? (
+                      <FolderSync size={12} className={isOutOfSync ? 'text-amber-400 shrink-0' : 'text-emerald-400 shrink-0'} />
+                    ) : project.storageLocation.type === 'gdrive' || project.storageLocation.type === 'onedrive' ? (
+                      <Cloud size={12} className="text-amber-400 shrink-0" />
+                    ) : (
+                      <Link2 size={12} className="text-cyan-400 shrink-0" />
+                    )}
+                    <span>
+                      {isOutOfSync ? 'Changes Available Remotely' : `Linked: ${project.storageLocation.displayName || project.storageLocation.fileName || project.storageLocation.targetFolderName}`}
+                    </span>
+                  </span>
+
+                  {onRefreshFromLinked && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRefreshFromLinked();
+                      }}
+                      disabled={isSyncingLinked}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold font-mono transition border ${
+                        isOutOfSync
+                          ? 'bg-amber-500 text-black border-amber-400 hover:bg-amber-400 shadow-sm'
+                          : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border-neutral-700'
+                      }`}
+                      title="Pull latest files and changes from linked folder/cloud storage"
+                    >
+                      <RefreshCw size={11} className={isSyncingLinked ? 'animate-spin' : ''} />
+                      <span>{isSyncingLinked ? 'Syncing...' : isOutOfSync ? 'Pull Updates' : 'Refresh'}</span>
+                    </button>
                   )}
-                  <span>Linked Target: {project.storageLocation.displayName || project.storageLocation.fileName || project.storageLocation.targetFolderName}</span>
-                </span>
+                </div>
               ) : (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-900 border border-neutral-800 text-neutral-400 text-[11px] font-mono">
                   <HardDrive size={12} className="text-neutral-500 shrink-0" />

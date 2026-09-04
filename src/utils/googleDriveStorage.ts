@@ -699,6 +699,18 @@ export const checkIfGoogleDriveFolderIsModularProject = async (folderId: string)
  */
 const gdriveUploadedFileTimestampCache = new Map<string, string>();
 
+export const clearGoogleDriveModularCache = (projectId?: string) => {
+  if (projectId) {
+    for (const key of Array.from(gdriveUploadedFileTimestampCache.keys())) {
+      if (key.startsWith(`${projectId}:`)) {
+        gdriveUploadedFileTimestampCache.delete(key);
+      }
+    }
+  } else {
+    gdriveUploadedFileTimestampCache.clear();
+  }
+};
+
 export const saveModularProjectToGoogleDrive = async (
   project: any,
   folderId: string,
@@ -745,7 +757,7 @@ export const saveModularProjectToGoogleDrive = async (
 
   const manifestFileName = getProjectMasonFileName(project.name);
   const manifestCacheKey = `${project.id}:root:${manifestFileName}`;
-  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}`;
+  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}_${JSON.stringify(project.lockInfo || {})}`;
 
   if (gdriveUploadedFileTimestampCache.get(manifestCacheKey) !== manifestStamp) {
     await saveFileToGoogleDrive(manifestFileName, JSON.stringify(manifestData, null, 2), 'application/json', {

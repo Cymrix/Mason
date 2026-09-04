@@ -69,6 +69,9 @@ interface ParticlesEditorProps {
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onOpenFiles: () => void;
   onBackToDashboard: () => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 
@@ -493,7 +496,10 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   project,
   onUpdateProject,
   onOpenFiles,
-  onBackToDashboard
+  onBackToDashboard,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   const { theme } = useAppTheme();
   // Ensure particles files array exists
@@ -3314,6 +3320,10 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         subfolderName="particles"
         extension=".particle"
         accentColor={theme.moduleColors.particles || 'amber'}
+        onRefreshFromLinked={onRefreshFromLinked}
+        isSyncingLinked={isSyncingLinked}
+        isOutOfSync={isOutOfSync}
+        storageType={project?.storageLocation?.type}
         files={particleFiles.map(f => ({
           id: f.id,
           name: f.particleData?.name || f.name || f.fileName,

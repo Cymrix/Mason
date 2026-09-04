@@ -15,6 +15,9 @@ interface SpriteEditorWrapperProps {
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onBackToDashboard: () => void;
   onShowToast?: (text: string, type?: 'success' | 'info' | 'error') => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 interface UnsavedAction {
@@ -28,7 +31,10 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
   project,
   onUpdateProject,
   onBackToDashboard,
-  onShowToast
+  onShowToast,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const isIframeReadyRef = useRef<boolean>(false);
@@ -1189,6 +1195,10 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         defaultHeight={32}
         onBackToDashboard={handleBackToDashboard}
         onImportFile={() => setShowCloudImageModal(true)}
+        onRefreshFromLinked={onRefreshFromLinked}
+        isSyncingLinked={isSyncingLinked}
+        isOutOfSync={isOutOfSync}
+        storageType={project?.storageLocation?.type}
         files={spriteFiles.map(f => ({
           id: f.id,
           name: f.name,

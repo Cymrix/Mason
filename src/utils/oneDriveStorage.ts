@@ -830,6 +830,18 @@ export const checkIfOneDriveFolderIsModularProject = async (folderId: string): P
 // In-memory cache to prevent re-uploading unchanged files to Microsoft OneDrive
 const onedriveUploadedFileTimestampCache = new Map<string, string>();
 
+export const clearOneDriveModularCache = (projectId?: string) => {
+  if (projectId) {
+    for (const key of Array.from(onedriveUploadedFileTimestampCache.keys())) {
+      if (key.startsWith(`${projectId}:`)) {
+        onedriveUploadedFileTimestampCache.delete(key);
+      }
+    }
+  } else {
+    onedriveUploadedFileTimestampCache.clear();
+  }
+};
+
 /**
  * Saves a project in modular multi-file format to a selected OneDrive folder workspace
  */
@@ -879,7 +891,7 @@ export const saveModularProjectToOneDrive = async (
 
   const manifestFileName = getProjectMasonFileName(project.name);
   const manifestCacheKey = `${project.id}:root:${manifestFileName}`;
-  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}`;
+  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}_${JSON.stringify(project.lockInfo || {})}`;
 
   if (onedriveUploadedFileTimestampCache.get(manifestCacheKey) !== manifestStamp) {
     await saveFileToOneDrive(manifestFileName, JSON.stringify(manifestData, null, 2), 'application/json', {

@@ -71,6 +71,9 @@ interface RefinedBiomeEditorProps {
   activePaintBiomeId?: string;
   onBackToDashboard?: () => void;
   availableMaps?: { fileName: string; name: string }[];
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 const TRAVERSAL_TAG_LIST: { tag: TraversalModifierTag; label: string }[] = [
@@ -277,7 +280,10 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
   onSelectForPainting,
   activePaintBiomeId,
   onBackToDashboard,
-  availableMaps = []
+  availableMaps = [],
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   // Biome files derived from project or fallback to biomes prop
   const biomeFiles: BiomeFile[] = useMemo(() => {
@@ -695,6 +701,10 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
         extension=".biome"
         accentColor="emerald"
         onBackToDashboard={onBackToDashboard}
+        onRefreshFromLinked={onRefreshFromLinked}
+        isSyncingLinked={isSyncingLinked}
+        isOutOfSync={isOutOfSync}
+        storageType={project?.storageLocation?.type}
         files={biomeFiles.map(b => ({
           id: b.id,
           name: b.name,

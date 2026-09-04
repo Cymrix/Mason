@@ -17,7 +17,9 @@ import {
   Zap,
   Palette,
   Cloud,
-  User
+  User,
+  RefreshCw,
+  FolderSync
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
@@ -39,6 +41,9 @@ interface HamburgerMenuProps {
   onCloseProject: () => void;
   onSelectModule: (moduleId: string) => void;
   activeModuleId: string | null;
+  onRefreshFromLinked?: () => void;
+  isRefreshingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
@@ -54,7 +59,10 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onExportBundle,
   onCloseProject,
   onSelectModule,
-  activeModuleId
+  activeModuleId,
+  onRefreshFromLinked,
+  isRefreshingLinked = false,
+  isOutOfSync = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
@@ -270,6 +278,37 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
           <div className="p-1 space-y-0.5">
             {project && (
               <>
+                {onRefreshFromLinked && project.storageLocation && project.storageLocation.type !== 'local_idb' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      onRefreshFromLinked();
+                    }}
+                    disabled={isRefreshingLinked}
+                    className={`w-full px-3 py-1.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between transition ${
+                      isOutOfSync
+                        ? "bg-amber-950/80 hover:bg-amber-900 border border-amber-500/80 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.4)]"
+                        : "text-neutral-200 hover:text-white hover:bg-neutral-800"
+                    } ${isRefreshingLinked ? "opacity-60 cursor-not-allowed" : ""}`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <RefreshCw size={14} className={`${isRefreshingLinked ? "animate-spin text-cyan-400" : isOutOfSync ? "text-amber-400" : "text-cyan-400"}`} />
+                      <div>
+                        <span>{isRefreshingLinked ? "Pulling Updates..." : "Refresh from Linked Storage"}</span>
+                        <p className="text-[10px] text-neutral-400 font-normal truncate max-w-[170px]">
+                          {project.storageLocation.displayName || project.storageLocation.targetFolderName || 'Linked Folder'}
+                        </p>
+                      </div>
+                    </div>
+                    {isOutOfSync && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-300 border border-amber-500/50 font-bold">
+                        Newer
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {

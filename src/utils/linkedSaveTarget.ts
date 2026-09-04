@@ -1,6 +1,23 @@
 import { MasonProject } from '../engine/masonProjectSchema';
-import { saveProjectToGoogleDrive, saveModularProjectToGoogleDrive, getGoogleDriveToken } from './googleDriveStorage';
-import { saveProjectToOneDrive, saveModularProjectToOneDrive, getOneDriveToken, ensureOneDriveToken } from './oneDriveStorage';
+import { 
+  saveProjectToGoogleDrive, 
+  saveModularProjectToGoogleDrive, 
+  getGoogleDriveToken,
+  readModularProjectFromGoogleDrive,
+  listGoogleDriveFolderContents,
+  downloadFileAsTextFromGoogleDrive,
+  clearGoogleDriveModularCache
+} from './googleDriveStorage';
+import { 
+  saveProjectToOneDrive, 
+  saveModularProjectToOneDrive, 
+  getOneDriveToken, 
+  ensureOneDriveToken,
+  readModularProjectFromOneDrive,
+  listOneDriveFolderContents,
+  downloadFileAsTextFromOneDrive,
+  clearOneDriveModularCache
+} from './oneDriveStorage';
 import { getProjectMasonFileName, idbSaveHandle, idbGetHandle, idbDeleteHandle } from './masonStorage';
 import { getActiveProfile } from './appProfileSystem';
 
@@ -262,6 +279,24 @@ export const linkProjectToLocalDirectory = async (projectName: string, projectId
 // In-memory cache of written modular files to avoid re-writing unchanged files on disk
 const writtenModularFileTimestampCache = new Map<string, string>();
 
+export const clearLocalModularCache = (projectId?: string) => {
+  if (projectId) {
+    for (const key of Array.from(writtenModularFileTimestampCache.keys())) {
+      if (key.startsWith(`${projectId}:`)) {
+        writtenModularFileTimestampCache.delete(key);
+      }
+    }
+  } else {
+    writtenModularFileTimestampCache.clear();
+  }
+};
+
+export const clearAllModularSyncCaches = (projectId?: string) => {
+  clearLocalModularCache(projectId);
+  clearGoogleDriveModularCache(projectId);
+  clearOneDriveModularCache(projectId);
+};
+
 /**
  * Writes modular files (Step 1: Modular Multi-File Structure) to a connected local directory
  */
@@ -271,7 +306,7 @@ export const writeModularProjectToDirectory = async (project: MasonProject, dirH
   // 1. Write root project manifest file (e.g. mourne_edris.mason)
   const manifestFileName = getProjectMasonFileName(project.name);
   const manifestCacheKey = `${project.id}:root:${manifestFileName}`;
-  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}`;
+  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}_${JSON.stringify(project.lockInfo || {})}`;
 
   if (writtenModularFileTimestampCache.get(manifestCacheKey) !== manifestStamp) {
     const manifestFileHandle = await dirHandle.getFileHandle(manifestFileName, { create: true });
@@ -940,8 +975,314 @@ export const releaseProjectLock = (project: MasonProject): MasonProject => {
       isLocked: false,
       lockedBy: undefined,
       lockedAt: undefined,
-      lockClientId: undefined
+      lockClientId: undefined,
+      lockedByProfile: undefined
     }
   };
+};
+
+export interface FetchLinkedProjectResult {
+  success: boolean;
+  project?: MasonProject;
+  error?: string;
+  isRemoteNewer?: boolean;
+  remoteModifiedAt?: string;
+  filesCount?: number;
+}
+
+/**
+ * Fetches/Pulls the full project data from its linked storage location (Google Drive, OneDrive, Local Folder, or Local File)
+ * Replaces the local in-memory/IDB project cache with the fresh data from the remote source.
+ */
+export const fetchProjectFromLinkedLocation = async (
+  currentProject: MasonProject
+): Promise<FetchLinkedProjectResult> => {
+  const loc = currentProject?.storageLocation;
+  if (!loc || loc.type === 'local_idb') {
+    return {
+      success: true,
+      project: currentProject,
+      isRemoteNewer: false,
+      filesCount: (currentProject.fileSystem?.maps?.length || 0) + (currentProject.fileSystem?.particles?.length || 0)
+    };
+  }
+
+  try {
+    let loaded: MasonProject | null = null;
+
+    if (loc.type === 'local_directory') {
+      let dirHandle = activeFileSystemDirHandle;
+      if (!dirHandle) {
+        dirHandle = await getOrRestoreActiveFileSystemDirHandle(currentProject);
+      }
+      if (!dirHandle) {
+        return {
+          success: false,
+          error: 'No local folder handle available. Please re-open or link the folder via Virtual Files Explorer.'
+        };
+      }
+      if (typeof dirHandle.queryPermission === 'function') {
+        const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted' && typeof dirHandle.requestPermission === 'function') {
+          const req = await dirHandle.requestPermission({ mode: 'readwrite' });
+          if (req !== 'granted') {
+            return {
+              success: false,
+              error: `Permission to access local folder "${dirHandle.name}" was not granted.`
+            };
+          }
+        }
+      }
+      loaded = await readModularProjectFromDirectory(dirHandle);
+    } else if (loc.type === 'gdrive') {
+      const token = getGoogleDriveToken();
+      if (!token) {
+        return {
+          success: false,
+          error: 'Google Drive is not connected. Please connect via File Manager.'
+        };
+      }
+      if (loc.targetFolderId) {
+        loaded = await readModularProjectFromGoogleDrive(loc.targetFolderId, loc.targetFolderName || currentProject.name);
+      } else if (loc.targetId) {
+        const text = await downloadFileAsTextFromGoogleDrive(loc.targetId);
+        loaded = JSON.parse(text);
+      } else {
+        return {
+          success: false,
+          error: 'Missing Google Drive target folder or file ID.'
+        };
+      }
+    } else if (loc.type === 'onedrive') {
+      const token = await ensureOneDriveToken();
+      if (!token) {
+        return {
+          success: false,
+          error: 'OneDrive is not connected. Please connect via File Manager.'
+        };
+      }
+      if (loc.targetFolderId) {
+        loaded = await readModularProjectFromOneDrive(loc.targetFolderId, loc.targetFolderName || currentProject.name);
+      } else if (loc.targetId) {
+        const text = await downloadFileAsTextFromOneDrive({ id: loc.targetId });
+        loaded = JSON.parse(text);
+      } else {
+        return {
+          success: false,
+          error: 'Missing OneDrive target folder or file ID.'
+        };
+      }
+    } else if (loc.type === 'local_file') {
+      let fileHandle = activeFileSystemFileHandle;
+      if (!fileHandle) {
+        fileHandle = await getOrRestoreActiveFileSystemFileHandle(currentProject);
+      }
+      if (!fileHandle) {
+        return {
+          success: false,
+          error: 'No local file handle available. Please re-select the file.'
+        };
+      }
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      loaded = JSON.parse(text);
+    }
+
+    if (!loaded) {
+      return {
+        success: false,
+        error: 'Failed to read project from linked location.'
+      };
+    }
+
+    // Preserve and update storageLocation metadata with the current sync time
+    loaded.storageLocation = {
+      displayName: loc.displayName || 'Linked Storage',
+      ...(loc || {}),
+      ...(loaded.storageLocation || {}),
+      type: loc.type,
+      lastSyncedAt: new Date().toISOString()
+    };
+
+    const countFiles = 
+      (loaded.fileSystem?.maps?.length || 0) +
+      (loaded.fileSystem?.biomes?.length || 0) +
+      (loaded.fileSystem?.prefabs?.length || 0) +
+      (loaded.fileSystem?.ui?.length || 0) +
+      (loaded.fileSystem?.game?.length || 0) +
+      (loaded.fileSystem?.particles?.length || 0) +
+      (loaded.fileSystem?.sprites?.length || 0) +
+      (loaded.fileSystem?.behaviors?.length || 0) +
+      (loaded.fileSystem?.images?.length || 0);
+
+    const remoteUpdatedAt = loaded.updatedAt;
+    const localUpdatedAt = currentProject.updatedAt;
+    const isRemoteNewer = remoteUpdatedAt && localUpdatedAt 
+      ? (new Date(remoteUpdatedAt).getTime() > new Date(localUpdatedAt).getTime()) 
+      : false;
+
+    return {
+      success: true,
+      project: loaded,
+      isRemoteNewer,
+      remoteModifiedAt: remoteUpdatedAt,
+      filesCount: countFiles
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'Failed to refresh project from linked storage.'
+    };
+  }
+};
+
+export interface RemoteSyncStatusResult {
+  isAvailable: boolean;
+  isOutOfSync: boolean;
+  remoteModifiedAt?: string;
+  localModifiedAt?: string;
+  remoteLockInfo?: FileLockInfo;
+  remoteIsLockedByOther?: boolean;
+  reason?: string;
+}
+
+/**
+ * Lightweight check (like a Git fetch check) to see if the remote linked folder
+ * has newer updates or is currently locked by another client/user session.
+ */
+export const checkRemoteSyncStatus = async (
+  currentProject: MasonProject
+): Promise<RemoteSyncStatusResult> => {
+  const loc = currentProject?.storageLocation;
+  if (!loc || loc.type === 'local_idb') {
+    return {
+      isAvailable: true,
+      isOutOfSync: false
+    };
+  }
+
+  try {
+    if (loc.type === 'gdrive') {
+      const token = getGoogleDriveToken();
+      if (!token) return { isAvailable: false, isOutOfSync: false, reason: 'Google Drive not connected' };
+      
+      const parentFolderId = loc.targetFolderId || 'root';
+      const rootItems = await listGoogleDriveFolderContents(parentFolderId);
+      const expectedName = getProjectMasonFileName(loc.targetFolderName || currentProject.name);
+      const manifestItem = rootItems.find(item => !item.isFolder && (item.name === expectedName || item.name.endsWith('.mason') || item.name === 'project.mason'));
+      if (!manifestItem) return { isAvailable: true, isOutOfSync: false };
+
+      const manifestText = await downloadFileAsTextFromGoogleDrive(manifestItem.id);
+      const manifest = JSON.parse(manifestText);
+      const remoteUpdatedAt = manifest.updatedAt || manifestItem.modifiedTime;
+      const localUpdatedAt = currentProject.updatedAt;
+
+      const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : 0;
+      const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
+      const isOutOfSync = remoteTime > localTime + 1000;
+
+      const remoteLockInfo = manifest.lockInfo;
+      const remoteIsLockedByOther = Boolean(
+        remoteLockInfo?.isLocked && 
+        remoteLockInfo.lockClientId && 
+        remoteLockInfo.lockClientId !== CURRENT_CLIENT_SESSION_ID
+      );
+
+      return {
+        isAvailable: true,
+        isOutOfSync: isOutOfSync || remoteIsLockedByOther,
+        remoteModifiedAt: remoteUpdatedAt,
+        localModifiedAt: localUpdatedAt,
+        remoteLockInfo,
+        remoteIsLockedByOther
+      };
+    }
+
+    if (loc.type === 'onedrive') {
+      let token = getOneDriveToken();
+      if (!token) {
+        try {
+          token = await ensureOneDriveToken();
+        } catch {
+          return { isAvailable: false, isOutOfSync: false, reason: 'OneDrive not connected' };
+        }
+      }
+      if (!token) return { isAvailable: false, isOutOfSync: false, reason: 'OneDrive not connected' };
+
+      const parentFolderId = loc.targetFolderId || 'root';
+      const rootItems = await listOneDriveFolderContents(parentFolderId);
+      const expectedName = getProjectMasonFileName(loc.targetFolderName || currentProject.name);
+      const manifestItem = rootItems.find(item => !item.isFolder && (item.name === expectedName || item.name.endsWith('.mason') || item.name === 'project.mason'));
+      if (!manifestItem) return { isAvailable: true, isOutOfSync: false };
+
+      const manifestText = await downloadFileAsTextFromOneDrive(manifestItem);
+      const manifest = JSON.parse(manifestText);
+      const remoteUpdatedAt = manifest.updatedAt || manifestItem.modifiedTime;
+      const localUpdatedAt = currentProject.updatedAt;
+
+      const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : 0;
+      const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
+      const isOutOfSync = remoteTime > localTime + 1000;
+
+      const remoteLockInfo = manifest.lockInfo;
+      const remoteIsLockedByOther = Boolean(
+        remoteLockInfo?.isLocked && 
+        remoteLockInfo.lockClientId && 
+        remoteLockInfo.lockClientId !== CURRENT_CLIENT_SESSION_ID
+      );
+
+      return {
+        isAvailable: true,
+        isOutOfSync: isOutOfSync || remoteIsLockedByOther,
+        remoteModifiedAt: remoteUpdatedAt,
+        localModifiedAt: localUpdatedAt,
+        remoteLockInfo,
+        remoteIsLockedByOther
+      };
+    }
+
+    if (loc.type === 'local_directory') {
+      const dirHandle = await getOrRestoreActiveFileSystemDirHandle(currentProject);
+      if (!dirHandle) return { isAvailable: false, isOutOfSync: false };
+      if (typeof dirHandle.queryPermission === 'function') {
+        const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') return { isAvailable: false, isOutOfSync: false };
+      }
+      const manifestFileName = getProjectMasonFileName(currentProject.name);
+      try {
+        const fileHandle = await dirHandle.getFileHandle(manifestFileName);
+        const file = await fileHandle.getFile();
+        const text = await file.text();
+        const manifest = JSON.parse(text);
+        const remoteUpdatedAt = manifest.updatedAt;
+        const localUpdatedAt = currentProject.updatedAt;
+        const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : 0;
+        const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
+        const isOutOfSync = remoteTime > localTime + 1000;
+
+        const remoteLockInfo = manifest.lockInfo;
+        const remoteIsLockedByOther = Boolean(
+          remoteLockInfo?.isLocked && 
+          remoteLockInfo.lockClientId && 
+          remoteLockInfo.lockClientId !== CURRENT_CLIENT_SESSION_ID
+        );
+
+        return {
+          isAvailable: true,
+          isOutOfSync: isOutOfSync || remoteIsLockedByOther,
+          remoteModifiedAt: remoteUpdatedAt,
+          localModifiedAt: localUpdatedAt,
+          remoteLockInfo,
+          remoteIsLockedByOther
+        };
+      } catch {
+        return { isAvailable: true, isOutOfSync: false };
+      }
+    }
+
+    return { isAvailable: true, isOutOfSync: false };
+  } catch (err: any) {
+    return { isAvailable: false, isOutOfSync: false, reason: err.message };
+  }
 };
 

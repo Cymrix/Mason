@@ -14,7 +14,8 @@ import {
   Link2Off,
   Maximize2,
   Cloud,
-  Upload
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 
 interface FileItem {
@@ -41,6 +42,10 @@ interface FileSubfolderHeaderProps {
   onImportFile?: () => void;
   onImportCloudFile?: () => void;
   onImportLocalFile?: () => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
+  storageType?: string;
   isDirty?: boolean;
   accentColor?: string; // e.g. "cyan", "emerald", "amber", "purple", "rose"
   centerContent?: React.ReactNode;
@@ -66,6 +71,10 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
   onImportFile,
   onImportCloudFile,
   onImportLocalFile,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false,
+  storageType,
   isDirty = false,
   accentColor = 'cyan',
   centerContent,
@@ -350,6 +359,32 @@ export const FileSubfolderHeader: React.FC<FileSubfolderHeaderProps> = ({
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping ml-0.5" />
           )}
         </button>
+
+        {onRefreshFromLinked && (
+          <button
+            type="button"
+            onClick={onRefreshFromLinked}
+            disabled={isSyncingLinked}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border transition shadow-sm ${
+              isOutOfSync
+                ? "bg-amber-950/80 hover:bg-amber-900 border-amber-500/80 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse"
+                : "bg-neutral-900 hover:bg-neutral-800 border-neutral-700/80 text-neutral-300 hover:text-white"
+            } ${isSyncingLinked ? "opacity-60 cursor-not-allowed" : ""}`}
+            title={
+              isOutOfSync
+                ? "Remote changes detected in linked folder/cloud! Click to pull latest data."
+                : "Refresh & Pull latest file updates from linked folder/cloud"
+            }
+          >
+            <RefreshCw size={12} className={`${isSyncingLinked ? "animate-spin text-cyan-400" : isOutOfSync ? "text-amber-400" : "text-neutral-400"}`} />
+            <span className="hidden md:inline">
+              {isSyncingLinked ? "Syncing..." : isOutOfSync ? "Pull Updates" : "Refresh"}
+            </span>
+            {isOutOfSync && !isSyncingLinked && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+            )}
+          </button>
+        )}
 
         {onDeleteFile && currentFile && (
           isConfirmingDelete ? (

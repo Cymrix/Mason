@@ -21,6 +21,9 @@ interface ModuleRunnerContainerProps {
   onOpenModulesModal: () => void;
   onOpenExplorer: () => void;
   onNavigateToModule?: (moduleId: string, fileOptions?: { behaviorFileName?: string; prefabFileName?: string; spriteFileName?: string }) => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
@@ -30,7 +33,10 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
   onBackToProjectInfo,
   onOpenModulesModal,
   onOpenExplorer,
-  onNavigateToModule
+  onNavigateToModule,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   const modDef = getModuleById(moduleId);
 
@@ -109,6 +115,9 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
             onOpenFiles={onOpenExplorer}
             onBackToDashboard={onBackToProjectInfo}
             onNavigateToModule={onNavigateToModule}
+            onRefreshFromLinked={onRefreshFromLinked}
+            isSyncingLinked={isSyncingLinked}
+            isOutOfSync={isOutOfSync}
           />
         )}
         {moduleId === 'particles' && (
@@ -117,6 +126,9 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
             onUpdateProject={(updater, opts) => onUpdateProject(updater, opts)}
             onOpenFiles={onOpenExplorer}
             onBackToDashboard={onBackToProjectInfo}
+            onRefreshFromLinked={onRefreshFromLinked}
+            isSyncingLinked={isSyncingLinked}
+            isOutOfSync={isOutOfSync}
           />
         )}
         {moduleId === 'ui' && (
@@ -125,6 +137,9 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
             onUpdateProject={onUpdateProject}
             onOpenFiles={onOpenExplorer}
             onBackToDashboard={onBackToProjectInfo}
+            onRefreshFromLinked={onRefreshFromLinked}
+            isSyncingLinked={isSyncingLinked}
+            isOutOfSync={isOutOfSync}
           />
         )}
         {moduleId === 'biomes' && (
@@ -135,6 +150,9 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
             onUpdateBiomes={handleUpdateBiomes}
             onBackToDashboard={onBackToProjectInfo}
             availableMaps={project?.fileSystem?.maps?.map(m => ({ fileName: m.fileName, name: m.name })) || []}
+            onRefreshFromLinked={onRefreshFromLinked}
+            isSyncingLinked={isSyncingLinked}
+            isOutOfSync={isOutOfSync}
           />
         )}
         {moduleId === 'gamestructure' && (
@@ -145,6 +163,9 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
               onOpenModulesModal();
             }}
             onBackToDashboard={onBackToProjectInfo}
+            onRefreshFromLinked={onRefreshFromLinked}
+            isSyncingLinked={isSyncingLinked}
+            isOutOfSync={isOutOfSync}
           />
         )}
         {moduleId === 'macro' && (

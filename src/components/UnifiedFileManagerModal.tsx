@@ -173,7 +173,7 @@ export interface UnifiedFileManagerProps {
 
   // Existing cloud loading / project structure
   currentProject?: (ProjectData & { fullMasonProject?: any }) | null;
-  onLoadProject?: (project: ProjectData) => void;
+  onLoadProject?: (project: any) => void;
   onProjectSaved?: (project: MasonProject) => void;
   initialMode?: 'explore' | 'backups';
   focusLinkedLocation?: boolean;
@@ -1693,12 +1693,12 @@ export const UnifiedFileManagerModal: React.FC<UnifiedFileManagerProps> = ({
       }
 
       const fileVersion = (loaded as any).engineVersion || (loaded as any).engine_version || (loaded as any).masonVersion || (loaded as any).version;
-      checkLockAndProceed(loaded, () => {
-        checkVersionAndProceed(fileVersion, loaded.name || item.name, () => {
+      checkLockAndProceed(loaded as any, () => {
+        checkVersionAndProceed(fileVersion, (loaded as any)?.name || item.name, () => {
           if (onLoadProject) {
-            const lockedProject = acquireProjectLock(loaded);
+            const lockedProject = acquireProjectLock(loaded as any);
             onLoadProject(lockedProject);
-            if (onShowToast) onShowToast(`Successfully loaded project "${loaded.name}" from Cloud!`, 'success');
+            if (onShowToast) onShowToast(`Successfully loaded project "${(loaded as any)?.name || item.name}" from Cloud!`, 'success');
             onClose();
           }
         });

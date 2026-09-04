@@ -90,7 +90,17 @@ import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle
 import { ToolType, ModeType, PaintCategory, RefinedMapData, RefinedCellState } from '../types';
 import { MASON_VERSION_DISPLAY, MASON_FULL_VERSION } from '../version';
 import { getBackupSettings, executeProjectBackup } from '../utils/projectBackupSystem';
-import { saveProjectToLinkedLocation, verifyLinkedStorageAccess, StorageAccessVerification, releaseProjectLock, CURRENT_CLIENT_SESSION_ID, acquireProjectLock } from '../utils/linkedSaveTarget';
+import { 
+  saveProjectToLinkedLocation, 
+  verifyLinkedStorageAccess, 
+  StorageAccessVerification, 
+  releaseProjectLock, 
+  CURRENT_CLIENT_SESSION_ID, 
+  acquireProjectLock,
+  fetchProjectFromLinkedLocation,
+  checkRemoteSyncStatus,
+  clearAllModularSyncCaches
+} from '../utils/linkedSaveTarget';
 import { ThemeModal } from './ThemeModal';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Palette, Link2, FolderSync, Lock, Unlock, Globe, Laptop, Check } from 'lucide-react';
@@ -289,6 +299,74 @@ export const EditorLayout: React.FC = () => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  // Linked Storage Refresh & Sync Status State
+  const [isSyncingLinked, setIsSyncingLinked] = useState(false);
+  const [isOutOfSync, setIsOutOfSync] = useState(false);
+
+  // Manual refresh / pull from linked storage target
+  const handleRefreshFromLinkedStorage = useCallback(async () => {
+    if (!project || !project.storageLocation || project.storageLocation.type === 'local_idb') {
+      showToast('Project is not linked to an external folder or cloud storage.', 'info');
+      return;
+    }
+
+    setIsSyncingLinked(true);
+    try {
+      clearAllModularSyncCaches();
+      const res = await fetchProjectFromLinkedLocation(project);
+      if (res.success && res.project) {
+        saveActiveMasonProject(res.project, 'Refresh from Linked Storage', undefined, {
+          preserveUpdatedAt: true,
+          skipBackups: true
+        });
+        setProject(res.project);
+        setIsOutOfSync(false);
+        refreshSavedProjects();
+        showToast(
+          `Refreshed "${res.project.name}" from ${res.project.storageLocation?.displayName || 'linked storage'} (${res.filesCount ?? 'all'} files)!`,
+          'success'
+        );
+      } else {
+        showToast(`Failed to refresh from linked storage: ${res.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err: any) {
+      showToast(`Refresh error: ${err.message || err}`, 'error');
+    } finally {
+      setIsSyncingLinked(false);
+    }
+  }, [project]);
+
+  // Periodic check if remote linked files are newer (every 30s or on window focus)
+  useEffect(() => {
+    if (!project || !project.storageLocation || project.storageLocation.type === 'local_idb') {
+      setIsOutOfSync(false);
+      return;
+    }
+
+    let isMounted = true;
+    const checkSync = async () => {
+      try {
+        const syncStatus = await checkRemoteSyncStatus(project);
+        if (isMounted) {
+          setIsOutOfSync(syncStatus.isOutOfSync);
+        }
+      } catch (e) {
+        // silent check error
+      }
+    };
+
+    checkSync();
+    const interval = setInterval(checkSync, 30000);
+    const handleFocus = () => { checkSync(); };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [project?.id, project?.storageLocation, project?.updatedAt]);
 
   // Sync project update
   const handleUpdateProject = (
@@ -1204,6 +1282,9 @@ export const EditorLayout: React.FC = () => {
             onOpenAppProfileConfigModal={() => setIsAppProfileConfigModalOpen(true)}
             onShowProjectInfo={() => handleLaunchModule(null)}
             onSaveProject={handleSaveActiveProject}
+            onRefreshFromLinked={handleRefreshFromLinkedStorage}
+            isRefreshingLinked={isSyncingLinked}
+            isOutOfSync={isOutOfSync}
             onSaveAs={() => {
               setCloudSavePayload(null);
               setCloudSyncInitialMode('explore');
@@ -1629,6 +1710,9 @@ export const EditorLayout: React.FC = () => {
               onUpdateProject={handleUpdateProject}
               onBackToDashboard={() => handleLaunchModule(null)}
               onShowToast={showToast}
+              onRefreshFromLinked={handleRefreshFromLinkedStorage}
+              isSyncingLinked={isSyncingLinked}
+              isOutOfSync={isOutOfSync}
             />
           </div>
         )}
@@ -1644,6 +1728,9 @@ export const EditorLayout: React.FC = () => {
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
             onOpenAppProfileConfigModal={() => setIsAppProfileConfigModalOpen(true)}
             onExportBundle={handleExportBundle}
+            onRefreshFromLinked={handleRefreshFromLinkedStorage}
+            isSyncingLinked={isSyncingLinked}
+            isOutOfSync={isOutOfSync}
           />
         )}
 
@@ -1656,6 +1743,10 @@ export const EditorLayout: React.FC = () => {
                 <FileSubfolderHeader
                   subfolderName="maps"
                   extension=".map"
+                  onRefreshFromLinked={handleRefreshFromLinkedStorage}
+                  isSyncingLinked={isSyncingLinked}
+                  isOutOfSync={isOutOfSync}
+                  storageType={project?.storageLocation?.type}
                   files={project.fileSystem.maps?.map(m => ({
                     id: m.id,
                     name: m.name,
@@ -2678,6 +2769,9 @@ export const EditorLayout: React.FC = () => {
                 onOpenModulesModal={() => setIsModulesModalOpen(true)}
                 onOpenExplorer={() => setIsExplorerModalOpen(true)}
                 onNavigateToModule={handleNavigateToModule}
+                onRefreshFromLinked={handleRefreshFromLinkedStorage}
+                isSyncingLinked={isSyncingLinked}
+                isOutOfSync={isOutOfSync}
               />
             )}
           </>

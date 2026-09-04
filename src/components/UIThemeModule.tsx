@@ -75,6 +75,9 @@ interface UIThemeModuleProps {
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onOpenFiles?: () => void;
   onBackToDashboard?: () => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 type MainTab = 'menus_designer' | 'input_mappings';
@@ -84,7 +87,10 @@ type CanvasBackdrop = 'game_scene' | 'dark_void' | 'grid_cyber' | 'blueprint';
 export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
   project,
   onUpdateProject,
-  onBackToDashboard
+  onBackToDashboard,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   const uiFiles = project.fileSystem?.ui || [];
   const activeFileName = project.activeFiles?.uiFileName || uiFiles[0]?.fileName;
@@ -767,6 +773,10 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
         subfolderName="ui"
         extension=".ui"
         onBackToDashboard={onBackToDashboard}
+        onRefreshFromLinked={onRefreshFromLinked}
+        isSyncingLinked={isSyncingLinked}
+        isOutOfSync={isOutOfSync}
+        storageType={project?.storageLocation?.type}
         centerContent={
           <div className="flex items-center gap-2 max-w-full truncate">
             <span className="text-base">🎨</span>

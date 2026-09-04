@@ -409,6 +409,9 @@ interface CharacterEditorProps {
   onOpenFiles?: () => void;
   onBackToDashboard?: () => void;
   onNavigateToModule?: (moduleId: string, options?: { behaviorFileName?: string; prefabFileName?: string; spriteFileName?: string }) => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 export const PrefabEditor: React.FC<CharacterEditorProps> = ({
@@ -416,7 +419,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
   onUpdateProject,
   onOpenFiles,
   onBackToDashboard,
-  onNavigateToModule
+  onNavigateToModule,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   // Toast notification state for Prefab Module
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -2353,6 +2359,10 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         activeFileName={currentFile.fileName}
         accentColor="rose"
         onBackToDashboard={onBackToDashboard}
+        onRefreshFromLinked={onRefreshFromLinked}
+        isSyncingLinked={isSyncingLinked}
+        isOutOfSync={isOutOfSync}
+        storageType={project?.storageLocation?.type}
         centerContent={
           <div className="flex items-center gap-1.5 max-w-full truncate">
             <span className="text-base leading-none shrink-0" title="Prefab Avatar">{char?.avatarIcon || '[Shield]'}</span>

@@ -72,13 +72,19 @@ interface GameStructureModuleProps {
   onUpdateProject: (updater: (prev: MasonProject) => MasonProject, options?: any) => void;
   onNavigateToModule: (moduleId: string, fileToSelect?: string) => void;
   onBackToDashboard?: () => void;
+  onRefreshFromLinked?: () => void;
+  isSyncingLinked?: boolean;
+  isOutOfSync?: boolean;
 }
 
 export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
   project,
   onUpdateProject,
   onNavigateToModule,
-  onBackToDashboard
+  onBackToDashboard,
+  onRefreshFromLinked,
+  isSyncingLinked = false,
+  isOutOfSync = false
 }) => {
   const gameFiles = project.fileSystem?.game || [];
   const activeFileName = project.activeFiles?.gameStructureFileName || gameFiles[0]?.fileName;
@@ -346,6 +352,10 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
         subfolderName="game"
         extension=".gamestructure"
         onBackToDashboard={onBackToDashboard}
+        onRefreshFromLinked={onRefreshFromLinked}
+        isSyncingLinked={isSyncingLinked}
+        isOutOfSync={isOutOfSync}
+        storageType={project?.storageLocation?.type}
         centerContent={
           <div className="flex items-center gap-1.5 max-w-full truncate">
             <span className="text-sm">🏰</span>

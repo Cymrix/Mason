@@ -732,69 +732,114 @@ export const PRESET_APP_THEMES: AppThemeConfig[] = [
   }
 ];
 
-const THEME_STORAGE_KEY = 'mason_app_theme_config';
+export const THEME_STORAGE_KEY = 'mason_app_theme_config';
+export const EVENT_THEME_CHANGED = 'mason_theme_changed';
+
+/**
+ * Resolves any input (theme ID string, raw config object, or legacy object) into a valid AppThemeConfig
+ */
+export function resolveThemeConfig(input: any): AppThemeConfig {
+  if (!input) return PRESET_APP_THEMES[0];
+
+  // If string (e.g. preset ID or name)
+  if (typeof input === 'string') {
+    const trimmed = input.trim().toLowerCase();
+    const foundPreset = PRESET_APP_THEMES.find(p => 
+      p.id.toLowerCase() === trimmed || 
+      p.name.toLowerCase() === trimmed ||
+      p.id.toLowerCase().replace(/_/g, ' ') === trimmed.replace(/_/g, ' ')
+    );
+    if (foundPreset) return foundPreset;
+    return PRESET_APP_THEMES[0];
+  }
+
+  // If nested themeConfig
+  if (typeof input === 'object') {
+    if (input.themeConfig && typeof input.themeConfig === 'object') {
+      return resolveThemeConfig(input.themeConfig);
+    }
+
+    if (input.primary && input.moduleColors) {
+      const legacyMap: Record<string, AccentColorKey> = {
+        indigo: 'hue_250',
+        cyan: 'hue_180',
+        emerald: 'hue_120',
+        rose: 'hue_330',
+        amber: 'hue_50',
+        purple: 'hue_280',
+        blue: 'hue_220',
+        crimson: 'hue_0',
+        teal: 'hue_160',
+        fuchsia: 'hue_310',
+        lime: 'hue_80',
+        orange: 'hue_30',
+        gold: 'hue_60',
+        sky: 'hue_200',
+        coral: 'hue_20',
+        monochrome: 'gray_slate',
+        white: 'gray_white',
+        okabe_blue: 'hue_230',
+        okabe_orange: 'hue_30',
+        okabe_skyblue: 'hue_190',
+        okabe_bluishgreen: 'hue_150',
+        okabe_yellow: 'hue_60',
+        okabe_vermillion: 'hue_10',
+        okabe_redpurple: 'hue_300'
+      };
+
+      const primary = legacyMap[input.primary] || input.primary || 'hue_250';
+      const modColors = { ...input.moduleColors };
+      for (const k of Object.keys(modColors)) {
+        if (legacyMap[modColors[k]]) {
+          modColors[k] = legacyMap[modColors[k]];
+        }
+      }
+      if (!modColors.sprites) modColors.sprites = 'hue_130';
+      if (!modColors.particles) modColors.particles = 'hue_30';
+      if (!modColors.maps) modColors.maps = 'hue_180';
+      if (!modColors.biomes) modColors.biomes = 'hue_160';
+      if (!modColors.prefabs) modColors.prefabs = 'hue_330';
+      if (!modColors.ui) modColors.ui = 'hue_60';
+      if (!modColors.gamestructure) modColors.gamestructure = 'hue_280';
+
+      const customHexes = { ...DEFAULT_CUSTOM_HEXES, ...(input.customHexes || {}) };
+      if (customHexes.backgroundTone === '#ffffff' || customHexes.backgroundTone === '#fff') {
+        customHexes.backgroundTone = '#0a0814';
+      }
+
+      let bgTone = input.backgroundTone || 'void';
+      if (bgTone === 'custom' && (!customHexes.backgroundTone || customHexes.backgroundTone === '#ffffff' || customHexes.backgroundTone === '#fff')) {
+        bgTone = 'void';
+      }
+
+      return {
+        id: input.id || 'custom_theme',
+        name: input.name || (input.isCustom ? 'Custom Palette' : 'Imported Theme'),
+        description: input.description || 'User theme configuration',
+        category: input.category || 'standard',
+        accessibilityTag: input.accessibilityTag,
+        primary,
+        backgroundTone: bgTone,
+        moduleColors: modColors,
+        customHexes,
+        isCustom: input.isCustom !== undefined ? input.isCustom : (input.id === 'custom_theme' || primary === 'custom')
+      };
+    }
+
+    if (input.theme) {
+      return resolveThemeConfig(input.theme);
+    }
+  }
+
+  return PRESET_APP_THEMES[0];
+}
 
 export function loadSavedAppTheme(): AppThemeConfig {
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.primary && parsed.moduleColors) {
-        // Map legacy color aliases to new chromatic hue and grayscale keys
-        const legacyMap: Record<string, AccentColorKey> = {
-          indigo: 'hue_250',
-          cyan: 'hue_180',
-          emerald: 'hue_120',
-          rose: 'hue_330',
-          amber: 'hue_50',
-          purple: 'hue_280',
-          blue: 'hue_220',
-          crimson: 'hue_0',
-          teal: 'hue_160',
-          fuchsia: 'hue_310',
-          lime: 'hue_80',
-          orange: 'hue_30',
-          gold: 'hue_60',
-          sky: 'hue_200',
-          coral: 'hue_20',
-          monochrome: 'gray_slate',
-          white: 'gray_white',
-          okabe_blue: 'hue_230',
-          okabe_orange: 'hue_30',
-          okabe_skyblue: 'hue_190',
-          okabe_bluishgreen: 'hue_150',
-          okabe_yellow: 'hue_60',
-          okabe_vermillion: 'hue_10',
-          okabe_redpurple: 'hue_300'
-        };
-
-        if (legacyMap[parsed.primary]) {
-          parsed.primary = legacyMap[parsed.primary];
-        }
-        if (parsed.moduleColors) {
-          for (const modKey of Object.keys(parsed.moduleColors)) {
-            const val = parsed.moduleColors[modKey];
-            if (legacyMap[val]) {
-              parsed.moduleColors[modKey] = legacyMap[val];
-            }
-          }
-        }
-        if (!parsed.moduleColors.sprites) {
-          parsed.moduleColors.sprites = 'hue_130';
-        }
-        if (!parsed.moduleColors.particles) {
-          parsed.moduleColors.particles = 'hue_30';
-        }
-        if (parsed.customHexes) {
-          if (parsed.customHexes.backgroundTone === '#ffffff' || parsed.customHexes.backgroundTone === '#fff') {
-            parsed.customHexes.backgroundTone = '#0a0814';
-          }
-        }
-        if (parsed.backgroundTone === 'custom' && (!parsed.customHexes?.backgroundTone || parsed.customHexes.backgroundTone === '#ffffff' || parsed.customHexes.backgroundTone === '#fff')) {
-          parsed.backgroundTone = 'void';
-        }
-        return parsed;
-      }
+      return resolveThemeConfig(parsed);
     }
   } catch (err) {
     console.warn('Failed to load saved app theme:', err);
@@ -916,6 +961,9 @@ export function saveAppTheme(theme: AppThemeConfig): void {
   try {
     localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(theme));
     applyThemeCSSVariables(theme);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(EVENT_THEME_CHANGED, { detail: theme }));
+    }
   } catch (err) {
     console.warn('Failed to save app theme:', err);
   }

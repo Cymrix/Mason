@@ -1,5 +1,15 @@
+import { 
+  AppThemeConfig, 
+  PRESET_APP_THEMES, 
+  resolveThemeConfig, 
+  loadSavedAppTheme, 
+  saveAppTheme, 
+  applyThemeCSSVariables 
+} from '../theme/appTheme';
+
 export interface MasonAppConfig {
   theme: string;
+  themeConfig?: AppThemeConfig;
   gridSize: number; // 8, 16, 32, 64
   gridColor: string;
   autoBackupEnabled: boolean;
@@ -27,6 +37,7 @@ export interface MasonUserProfile {
 
 export const DEFAULT_APP_CONFIG: MasonAppConfig = {
   theme: 'indigo_citadel',
+  themeConfig: PRESET_APP_THEMES[0],
   gridSize: 32,
   gridColor: '#38bdf8',
   autoBackupEnabled: true,
@@ -174,7 +185,17 @@ export const setActiveProfile = (profileId: string): MasonUserProfile => {
 
   setActiveProfileId(target.id);
   syncGlobalConfigCache(target.config);
-  window.dispatchEvent(new CustomEvent(EVENT_PROFILE_CHANGED));
+
+  // Apply theme associated with this profile
+  try {
+    const targetTheme = resolveThemeConfig(target.config.themeConfig || target.config.theme);
+    saveAppTheme(targetTheme);
+    applyThemeCSSVariables(targetTheme);
+  } catch (err) {
+    console.warn('Failed to apply theme for profile:', err);
+  }
+
+  window.dispatchEvent(new CustomEvent(EVENT_PROFILE_CHANGED, { detail: target }));
   return target;
 };
 
@@ -296,21 +317,38 @@ export const exportProfilesJSON = (profileId?: string): string => {
   const profiles = getAllProfiles();
   const activeId = getActiveProfileId();
 
+  // Sync current live theme into the active profile
+  const liveTheme = loadSavedAppTheme();
+
+  const preparedProfiles = profiles.map(p => {
+    if (p.id === activeId || (profileId && p.id === profileId)) {
+      return {
+        ...p,
+        config: {
+          ...p.config,
+          theme: liveTheme.id || liveTheme.name || p.config.theme,
+          themeConfig: liveTheme
+        }
+      };
+    }
+    return p;
+  });
+
   let exportData: any;
   if (profileId) {
-    const single = profiles.find((p) => p.id === profileId);
+    const single = preparedProfiles.find((p) => p.id === profileId);
     exportData = {
       format: 'mason_app_config_export_v1',
       exportedAt: new Date().toISOString(),
       activeProfileId: profileId,
-      profiles: single ? [single] : profiles
+      profiles: single ? [single] : preparedProfiles
     };
   } else {
     exportData = {
       format: 'mason_app_config_export_v1',
       exportedAt: new Date().toISOString(),
       activeProfileId: activeId,
-      profiles
+      profiles: preparedProfiles
     };
   }
 
@@ -325,33 +363,60 @@ export const importProfilesJSON = (
 ): { success: boolean; count: number; error?: string } => {
   try {
     const parsed = JSON.parse(jsonStr);
-    let importedProfiles: MasonUserProfile[] = [];
+    let importedProfiles: any[] = [];
 
     if (parsed.format === 'mason_app_config_export_v1' && Array.isArray(parsed.profiles)) {
       importedProfiles = parsed.profiles;
     } else if (Array.isArray(parsed)) {
       importedProfiles = parsed;
-    } else if (parsed.name && parsed.config) {
+    } else if (parsed.name && (parsed.config || parsed.themeConfig || parsed.theme)) {
       importedProfiles = [parsed];
+    } else if (parsed.primary && parsed.moduleColors) {
+      // Direct theme file imported as a profile
+      importedProfiles = [{
+        name: parsed.name || 'Imported Theme Profile',
+        avatar: '🎨',
+        color: 'amber',
+        config: {
+          ...DEFAULT_APP_CONFIG,
+          theme: parsed.id || 'custom',
+          themeConfig: resolveThemeConfig(parsed)
+        }
+      }];
     } else {
       return { success: false, count: 0, error: 'Invalid profile configuration file format.' };
     }
 
     const currentProfiles = getAllProfiles();
     let addedCount = 0;
-
     const merged = [...currentProfiles];
 
     for (const imp of importedProfiles) {
-      if (!imp.name || !imp.config) continue;
+      if (!imp) continue;
+      const rawConfig = imp.config || {};
+      
+      // Resolve theme configuration from all possible export schemas:
+      // 1. imp.config.themeConfig
+      // 2. imp.themeConfig
+      // 3. imp.config.theme
+      // 4. imp.theme
+      // 5. imp.config (if contains primary & moduleColors)
+      const themeData = rawConfig.themeConfig || imp.themeConfig || (rawConfig.primary && rawConfig.moduleColors ? rawConfig : null) || (imp.primary && imp.moduleColors ? imp : null) || rawConfig.theme || imp.theme;
+      const resolvedTheme = resolveThemeConfig(themeData || 'indigo_citadel');
+
       const newProf: MasonUserProfile = {
         id: `profile_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        name: `${imp.name} (Imported)`,
+        name: imp.name ? `${imp.name} (Imported)` : 'Imported Profile',
         avatar: imp.avatar || '🎨',
         color: imp.color || 'sky',
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        config: { ...DEFAULT_APP_CONFIG, ...imp.config }
+        config: {
+          ...DEFAULT_APP_CONFIG,
+          ...rawConfig,
+          theme: resolvedTheme.id || rawConfig.theme || 'indigo_citadel',
+          themeConfig: resolvedTheme
+        }
       };
       merged.push(newProf);
       addedCount++;

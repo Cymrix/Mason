@@ -13,8 +13,11 @@ import {
   getThemeResolvedHexes,
   loadSavedAppTheme, 
   saveAppTheme,
-  applyThemeCSSVariables
+  applyThemeCSSVariables,
+  resolveThemeConfig,
+  EVENT_THEME_CHANGED
 } from './appTheme';
+import { EVENT_PROFILE_CHANGED, updateActiveProfileConfig, getActiveProfile } from '../utils/appProfileSystem';
 
 interface ThemeContextType {
   theme: AppThemeConfig;
@@ -39,10 +42,54 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyThemeCSSVariables(theme);
   }, [theme]);
 
+  // Sync theme whenever active profile changes or theme is saved elsewhere (like import profile)
+  useEffect(() => {
+    const handleProfileOrThemeChange = (e?: any) => {
+      if (e?.detail && e.detail.primary && e.detail.moduleColors) {
+        const resolved = resolveThemeConfig(e.detail);
+        setThemeState(resolved);
+        applyThemeCSSVariables(resolved);
+        return;
+      }
+      try {
+        const activeProf = getActiveProfile();
+        if (activeProf?.config?.themeConfig || activeProf?.config?.theme) {
+          const resolved = resolveThemeConfig(activeProf.config.themeConfig || activeProf.config.theme);
+          setThemeState(resolved);
+          applyThemeCSSVariables(resolved);
+          return;
+        }
+      } catch {
+        // fallback
+      }
+      const loaded = loadSavedAppTheme();
+      setThemeState(loaded);
+      applyThemeCSSVariables(loaded);
+    };
+
+    window.addEventListener(EVENT_THEME_CHANGED, handleProfileOrThemeChange);
+    window.addEventListener(EVENT_PROFILE_CHANGED, handleProfileOrThemeChange);
+    window.addEventListener('storage', handleProfileOrThemeChange);
+
+    return () => {
+      window.removeEventListener(EVENT_THEME_CHANGED, handleProfileOrThemeChange);
+      window.removeEventListener(EVENT_PROFILE_CHANGED, handleProfileOrThemeChange);
+      window.removeEventListener('storage', handleProfileOrThemeChange);
+    };
+  }, []);
+
   const updateTheme = (updater: (prev: AppThemeConfig) => AppThemeConfig) => {
     setThemeState(prev => {
       const next = updater(prev);
       saveAppTheme(next);
+      try {
+        updateActiveProfileConfig({
+          theme: next.id || next.name,
+          themeConfig: next
+        });
+      } catch {
+        // safe fallback
+      }
       return next;
     });
   };

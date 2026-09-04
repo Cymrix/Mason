@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.278';
-export const MASON_VERSION_DISPLAY = 'v0.278';
-export const MASON_FULL_VERSION = 'v0.278';
+export const MASON_VERSION = '0.280';
+export const MASON_VERSION_DISPLAY = 'v0.280';
+export const MASON_FULL_VERSION = 'v0.280';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.280',
+    date: '2026-09-03',
+    notes: 'Fixed profile configuration importing to immediately parse, save, and apply active and custom theme colors, swatches, and CSS variables across all UI modules and ThemeContext.'
+  },
+  {
+    version: 'v0.279',
+    date: '2026-09-03',
+    notes: 'Standardized cloud and workspace backup subfolder naming from "Mason Backups" to "backups" within project workspaces, retaining automatic discovery for legacy backup directories.'
+  },
   {
     version: 'v0.278',
     date: '2026-09-03',

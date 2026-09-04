@@ -934,14 +934,14 @@ export class ParticleEngine {
         const lifeMax = source.sparkLifetimeMax !== undefined ? Math.max(lifeMin, source.sparkLifetimeMax) : (isImpact ? 0.35 : 0.45);
         const sparkMaxLifetime = lifeMin + Math.random() * Math.max(0.01, lifeMax - lifeMin);
 
-        // Start size range
-        const startMin = source.sparkStartSizeMin !== undefined ? source.sparkStartSizeMin : Math.max(1.0, source.startSize * (isImpact ? 0.3 : 0.35));
-        const startMax = source.sparkStartSizeMax !== undefined ? Math.max(startMin, source.sparkStartSizeMax) : Math.max(startMin + 0.5, source.startSize * (isImpact ? 0.45 : 0.5));
+        // Standalone sub-particle size range (completely decoupled from parent particle size)
+        const startMin = source.sparkStartSizeMin !== undefined ? source.sparkStartSizeMin : (isImpact ? 2.5 : 3.0);
+        const startMax = source.sparkStartSizeMax !== undefined ? Math.max(startMin, source.sparkStartSizeMax) : (isImpact ? 4.0 : 4.5);
         const sparkStartSize = Math.max(0.1, startMin + Math.random() * (startMax - startMin));
 
         // End size range
-        const endMin = source.sparkEndSizeMin !== undefined ? source.sparkEndSizeMin : 0;
-        const endMax = source.sparkEndSizeMax !== undefined ? Math.max(endMin, source.sparkEndSizeMax) : 0;
+        const endMin = source.sparkEndSizeMin !== undefined ? source.sparkEndSizeMin : 0.5;
+        const endMax = source.sparkEndSizeMax !== undefined ? Math.max(endMin, source.sparkEndSizeMax) : 0.5;
         const sparkEndSize = Math.max(0, endMin + Math.random() * (endMax - endMin));
 
         // Color gradient
@@ -1047,11 +1047,11 @@ export class ParticleEngine {
         const subData = source.subEmitterId ? this.resolveSubEmitter(source.subEmitterId) : undefined;
 
         if (subData) {
-          const { kinematics, visuals, physics: subPhysics, emission } = subData;
-          const count = emission?.burstCount !== undefined
-            ? Math.max(1, emission.burstCount)
-            : (emission?.rate !== undefined
-                ? Math.max(1, Math.round(emission.rate))
+          const { kinematics, visuals, physics: subPhysics, emitter } = subData;
+          const count = emitter?.burstCount !== undefined
+            ? Math.max(1, emitter.burstCount)
+            : (emitter?.emissionRate !== undefined
+                ? Math.max(1, Math.round(emitter.emissionRate))
                 : 1);
 
           for (let s = 0; s < count; s++) {
@@ -1141,7 +1141,8 @@ export class ParticleEngine {
               animateRotation: visuals.animateRotation ?? true,
               isEmissive: visuals.isEmissive,
               emissiveStartStrength: visuals.emissiveStartStrength,
-              emissiveStartColor: visuals.emissiveStartColor
+              emissiveStartColor: visuals.emissiveStartColor,
+              trackNodes: visuals.trackNodes ? JSON.parse(JSON.stringify(visuals.trackNodes)) : undefined
             });
           }
         } else {
@@ -1188,9 +1189,11 @@ export class ParticleEngine {
         p.rotation *= p.angularDrag;
 
         // Apply Wind Force
-        const wind = globalWindForce + (p.windForce || 0);
-        if (wind !== 0) {
-          p.vx += wind * (p.windSensitivity ?? 1.0) * dt;
+        // Global wind force is scaled so environmental biome winds produce realistic, clearly visible horizontal drift and turbulence
+        const sensitivity = (p.windSensitivity !== undefined && p.windSensitivity !== 0) ? p.windSensitivity : 1.0;
+        const totalWindAcc = (globalWindForce * 6.0) + ((p.windForce || 0) * 4.0);
+        if (totalWindAcc !== 0) {
+          p.vx += totalWindAcc * sensitivity * dt;
         }
 
         // Turbulence Jitter

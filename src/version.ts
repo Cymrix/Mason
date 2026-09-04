@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.297';
-export const MASON_VERSION_DISPLAY = 'v0.297';
-export const MASON_FULL_VERSION = 'v0.297';
+export const MASON_VERSION = '0.299';
+export const MASON_VERSION_DISPLAY = 'v0.299';
+export const MASON_FULL_VERSION = 'v0.299';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,16 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.299',
+    date: '2026-09-04',
+    notes: 'Fixed simulated biome wind in particle viewport: enabled responsive toolbar visibility across all screen sizes, implemented synchronous mutable ref synchronization for the 60fps render loop, and properly scaled aerodynamic global wind force integration across all active particles.'
+  },
+  {
+    version: 'v0.298',
+    date: '2026-09-04',
+    notes: 'Enabled interactive grab/grabbing hand cursor states and visual targeting glow when hovering over or dragging the canvas emitter handle, and fully decoupled sub-particle sizes from parent particle size so increasing primary particle size does not scale sub-particles.'
+  },
   {
     version: 'v0.297',
     date: '2026-09-04',

@@ -729,7 +729,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         updated.kinematics.endDrag = 0;
       } else if (propId === 'wind') {
         updated.kinematics.windForce = 0;
-        updated.kinematics.windSensitivity = 0;
+        updated.kinematics.windSensitivity = 1.0;
       } else if (propId === 'angle') {
         updated.kinematics.angleDeg = 270;
         updated.kinematics.spreadDeg = 0;
@@ -862,6 +862,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
   const [isDraggingEmitter, setIsDraggingEmitter] = useState<boolean>(false);
+  const [isHoveringEmitter, setIsHoveringEmitter] = useState<boolean>(false);
 
   // New File Creation Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -930,14 +931,10 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   }, [showCollisionWireframe]);
 
   const simulatedBiomeWindRef = useRef<number>(simulatedBiomeWind);
-  useEffect(() => {
-    simulatedBiomeWindRef.current = simulatedBiomeWind;
-  }, [simulatedBiomeWind]);
+  simulatedBiomeWindRef.current = simulatedBiomeWind;
 
   const simulatedBiomeWindEnabledRef = useRef<boolean>(simulatedBiomeWindEnabled);
-  useEffect(() => {
-    simulatedBiomeWindEnabledRef.current = simulatedBiomeWindEnabled;
-  }, [simulatedBiomeWindEnabled]);
+  simulatedBiomeWindEnabledRef.current = simulatedBiomeWindEnabled;
 
   // High-frequency mutable refs to decouple the 60fps canvas render loop from React state re-renders
   const activeParticleDataRef = useRef<ParticleSystemData>(activeParticleData);
@@ -966,6 +963,12 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
   const isHoveringFloorRef = useRef(isHoveringFloor);
   isHoveringFloorRef.current = isHoveringFloor;
+
+  const isDraggingEmitterRef = useRef(isDraggingEmitter);
+  isDraggingEmitterRef.current = isDraggingEmitter;
+
+  const isHoveringEmitterRef = useRef(isHoveringEmitter);
+  isHoveringEmitterRef.current = isHoveringEmitter;
 
   // Custom FX Presets State (saved in localStorage)
   const [customPresets, setCustomPresets] = useState<{name: string, visuals: any, kinematics?: any}[]>(() => {
@@ -2782,18 +2785,45 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         ctx.fillText(floorLabel, startX + 16 / curZoom, curFloorWorldY + 20 / curZoom);
       }
       
-      // Draw emitter handle
+      // Draw emitter handle with interactive hover and dragging state
       if (isPlaying) {
-        ctx.fillStyle = '#10b981';
+        const isHovEm = isHoveringEmitterRef.current;
+        const isDragEm = isDraggingEmitterRef.current;
+        const ringRadius = (isDragEm ? 16 : isHovEm ? 15 : 12) / curZoom;
+
+        // Outer glow & halo when hovered/dragged
+        if (isHovEm || isDragEm) {
+          ctx.fillStyle = isDragEm ? 'rgba(56, 189, 248, 0.22)' : 'rgba(52, 211, 153, 0.22)';
+          ctx.beginPath();
+          ctx.arc(curEmitterPos.x, curEmitterPos.y, ringRadius + 4 / curZoom, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Outer targeting ring
+        ctx.strokeStyle = isDragEm ? '#38bdf8' : isHovEm ? '#34d399' : '#10b981';
+        ctx.lineWidth = (isDragEm || isHovEm ? 2.5 : 2) / curZoom;
         ctx.beginPath();
-        ctx.arc(curEmitterPos.x, curEmitterPos.y, 4 / curZoom, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 2 / curZoom;
-        ctx.beginPath();
-        ctx.arc(curEmitterPos.x, curEmitterPos.y, 12 / curZoom, 0, Math.PI * 2);
+        ctx.arc(curEmitterPos.x, curEmitterPos.y, ringRadius, 0, Math.PI * 2);
         ctx.stroke();
+
+        // Crosshair reticle ticks
+        const tickLen = 4 / curZoom;
+        ctx.beginPath();
+        ctx.moveTo(curEmitterPos.x - ringRadius - tickLen, curEmitterPos.y);
+        ctx.lineTo(curEmitterPos.x - ringRadius + tickLen, curEmitterPos.y);
+        ctx.moveTo(curEmitterPos.x + ringRadius - tickLen, curEmitterPos.y);
+        ctx.lineTo(curEmitterPos.x + ringRadius + tickLen, curEmitterPos.y);
+        ctx.moveTo(curEmitterPos.x, curEmitterPos.y - ringRadius - tickLen);
+        ctx.lineTo(curEmitterPos.x, curEmitterPos.y - ringRadius + tickLen);
+        ctx.moveTo(curEmitterPos.x, curEmitterPos.y + ringRadius - tickLen);
+        ctx.lineTo(curEmitterPos.x, curEmitterPos.y + ringRadius + tickLen);
+        ctx.stroke();
+
+        // Inner glowing core
+        ctx.fillStyle = isDragEm ? '#38bdf8' : isHovEm ? '#34d399' : '#10b981';
+        ctx.beginPath();
+        ctx.arc(curEmitterPos.x, curEmitterPos.y, (isDragEm ? 5 : isHovEm ? 4.5 : 4) / curZoom, 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.restore();
 
@@ -2880,20 +2910,26 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       return;
     }
 
+    const { worldX, worldY } = getCanvasCoords(e);
+
     if (isDraggingEmitter) {
-      const { worldX, worldY } = getCanvasCoords(e);
       setEmitterPos({ x: Math.round(worldX), y: Math.round(worldY) });
       return;
     }
 
     if (isDraggingFloor) {
-      const { worldY } = getCanvasCoords(e);
       setFloorWorldY(Math.round(worldY));
       return;
     }
 
+    // Check hover state for emitter drag handle
+    const distToEmitter = Math.hypot(worldX - emitterPos.x, worldY - emitterPos.y);
+    const isNearEmitter = distToEmitter < 24 / zoom;
+    if (isNearEmitter !== isHoveringEmitter) {
+      setIsHoveringEmitter(isNearEmitter);
+    }
+
     if (floorCollisionEnabled) {
-      const { worldY } = getCanvasCoords(e);
       const isNear = Math.abs(worldY - floorWorldY) < 12 / zoom;
       if (isNear !== isHoveringFloor) {
         setIsHoveringFloor(isNear);
@@ -3386,23 +3422,24 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
             {/* Scenery Selector & Performance / Wireframe / Biome Wind Controls */}
             <div className="flex items-center gap-2.5">
               {/* Simulated Biome Wind Test Bar */}
-              <div className="hidden xl:flex items-center gap-2 px-2.5 py-1 bg-neutral-950 rounded-lg border border-neutral-800 text-[11px]">
+              <div className="flex items-center gap-2 px-2.5 py-1 bg-neutral-950 rounded-lg border border-neutral-800 text-[11px] shadow-sm">
                 <label className="flex items-center gap-1.5 cursor-pointer font-bold select-none" title="Enable or disable simulated Biome Wind force in editor preview">
                   <input
                     type="checkbox"
                     checked={simulatedBiomeWindEnabled}
                     onChange={(e) => setSimulatedBiomeWindEnabled(e.target.checked)}
-                    className="rounded border-neutral-700 bg-neutral-900 text-sky-500 focus:ring-0 w-3.5 h-3.5"
+                    className="rounded border-neutral-700 bg-neutral-900 text-sky-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                   />
                   <Wind size={13} className={simulatedBiomeWindEnabled ? 'text-sky-400' : 'text-neutral-500'} />
                   <span className={simulatedBiomeWindEnabled ? 'text-neutral-200' : 'text-neutral-500'}>
-                    Simulated Biome Wind:
+                    Biome Wind:
                   </span>
                 </label>
                 <input
                   type="range"
                   min="-100"
                   max="100"
+                  step="5"
                   disabled={!simulatedBiomeWindEnabled}
                   value={simulatedBiomeWind}
                   onChange={(e) => setSimulatedBiomeWind(Number(e.target.value))}
@@ -3498,6 +3535,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                 setIsDraggingFloor(false);
                 setIsPanning(false);
                 setIsHoveringFloor(false);
+                setIsHoveringEmitter(false);
               }}
               onContextMenu={(e) => e.preventDefault()}
               className={`w-full h-full max-w-[720px] max-h-[500px] rounded-2xl border border-neutral-800/80 shadow-2xl object-contain ${
@@ -3505,6 +3543,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   ? 'cursor-row-resize'
                   : isDraggingEmitter
                   ? 'cursor-grabbing'
+                  : isHoveringEmitter
+                  ? 'cursor-grab active:cursor-grabbing'
                   : isPanning || canvasTool === 'pan'
                   ? 'cursor-grab active:cursor-grabbing'
                   : 'cursor-crosshair'

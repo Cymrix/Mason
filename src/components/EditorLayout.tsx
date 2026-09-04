@@ -210,6 +210,13 @@ export const EditorLayout: React.FC = () => {
   const [isModulesModalOpen, setIsModulesModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
+
+  // Refresh saved projects index whenever the Load Project modal is opened
+  useEffect(() => {
+    if (isLoadModalOpen) {
+      setSavedProjects(listSavedProjects());
+    }
+  }, [isLoadModalOpen]);
   const [isExplorerModalOpen, setIsExplorerModalOpen] = useState(false);
   const [isBiomeMacroModalOpen, setIsBiomeMacroModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
@@ -289,18 +296,28 @@ export const EditorLayout: React.FC = () => {
     options?: { preserveUpdatedAt?: boolean; skipBackups?: boolean; actionLabel?: string; syncLinked?: boolean }
   ) => {
     let nextProj: MasonProject | null = null;
+    const isExplicitSave = options?.syncLinked || (options?.actionLabel && options.actionLabel.toLowerCase().startsWith('save'));
+    const effectiveSkipBackups = options?.skipBackups !== undefined ? options.skipBackups : !isExplicitSave;
+
     setProject(prev => {
       if (!prev) return prev;
       const newProject = typeof updated === 'function' ? updated(prev) : updated;
-      saveActiveMasonProject(newProject, options?.actionLabel, undefined, options);
-      refreshSavedProjects();
       nextProj = newProject;
       return newProject;
     });
 
     if (nextProj) {
       const p = nextProj as MasonProject;
-      const isExplicitSave = options?.syncLinked || (options?.actionLabel && options.actionLabel.toLowerCase().startsWith('save'));
+      // Persist to IDB/memory outside React state updater without blocking the render loop
+      saveActiveMasonProject(p, options?.actionLabel, undefined, {
+        ...options,
+        skipBackups: effectiveSkipBackups
+      });
+
+      if (isExplicitSave) {
+        refreshSavedProjects();
+      }
+
       if (isExplicitSave && p.storageLocation && p.storageLocation.type !== 'local_idb') {
         setAutoSyncStatus('syncing');
         saveProjectToLinkedLocation(p).then(res => {
@@ -501,39 +518,35 @@ export const EditorLayout: React.FC = () => {
   // Auto-Sync Status State
   const [autoSyncStatus, setAutoSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
-  const lastProjectSerializedRef = useRef<string>('');
+  const lastProjectUpdatedAtRef = useRef<string>('');
   const lastLoadedProjectIdRef = useRef<string | null>(null);
 
   // Background Auto-Sync (debounced by 3.5s so it doesn't overload disk or network)
   useEffect(() => {
     if (!project) {
       lastLoadedProjectIdRef.current = null;
-      lastProjectSerializedRef.current = '';
+      lastProjectUpdatedAtRef.current = '';
       return;
     }
-    const serialized = JSON.stringify({
-      id: project.id,
-      name: project.name,
-      fileSystem: project.fileSystem,
-      activeFiles: project.activeFiles
-    });
+
+    const currentUpdatedAt = project.updatedAt || project.id;
 
     // If switching projects or initially loading project into editor, capture state without triggering auto-sync write
-    if (lastLoadedProjectIdRef.current !== project.id || !lastProjectSerializedRef.current) {
+    if (lastLoadedProjectIdRef.current !== project.id || !lastProjectUpdatedAtRef.current) {
       lastLoadedProjectIdRef.current = project.id;
-      lastProjectSerializedRef.current = serialized;
+      lastProjectUpdatedAtRef.current = currentUpdatedAt;
       return;
     }
 
-    if (lastProjectSerializedRef.current === serialized) {
+    if (lastProjectUpdatedAtRef.current === currentUpdatedAt) {
       return;
     }
 
-    lastProjectSerializedRef.current = serialized;
+    lastProjectUpdatedAtRef.current = currentUpdatedAt;
 
     const timer = setTimeout(async () => {
-      // 1. Always update browser cache (IndexedDB)
-      saveActiveMasonProject(project);
+      // 1. Update browser cache (IndexedDB) with skipBackups: true to prevent UI stutter
+      saveActiveMasonProject(project, 'Auto-Sync', undefined, { skipBackups: true, preserveUpdatedAt: true });
 
       // 2. If project has a linked target with auto-sync enabled, write back
       if (project.storageLocation && project.storageLocation.type !== 'local_idb' && project.storageLocation.isAutoSyncEnabled !== false) {

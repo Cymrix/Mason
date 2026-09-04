@@ -252,6 +252,9 @@ export const linkProjectToLocalDirectory = async (projectName: string, projectId
   }
 };
 
+// In-memory cache of written modular files to avoid re-writing unchanged files on disk
+const writtenModularFileTimestampCache = new Map<string, string>();
+
 /**
  * Writes modular files (Step 1: Modular Multi-File Structure) to a connected local directory
  */
@@ -260,49 +263,68 @@ export const writeModularProjectToDirectory = async (project: MasonProject, dirH
 
   // 1. Write root project manifest file (e.g. mourne_edris.mason)
   const manifestFileName = getProjectMasonFileName(project.name);
-  const manifestFileHandle = await dirHandle.getFileHandle(manifestFileName, { create: true });
-  const manifestWritable = await manifestFileHandle.createWritable();
-  
-  // Clean manifest copy containing metadata and index
-  const manifestData = {
-    id: project.id,
-    name: project.name,
-    description: project.description,
-    author: project.author,
-    createdAt: project.createdAt,
-    updatedAt: project.updatedAt,
-    engineVersion: project.engineVersion,
-    activeModule: project.activeModule,
-    activeFiles: project.activeFiles,
-    storageLocation: project.storageLocation,
-    lockInfo: project.lockInfo,
-    taskBoard: project.taskBoard,
-    fileIndex: {
-      maps: (project.fileSystem?.maps || []).map(m => m.fileName),
-      biomes: (project.fileSystem?.biomes || []).map(b => b.fileName),
-      prefabs: (project.fileSystem?.prefabs || []).map(p => p.fileName),
-      ui: (project.fileSystem?.ui || []).map(u => u.fileName),
-      game: (project.fileSystem?.game || []).map(g => g.fileName),
-      particles: (project.fileSystem?.particles || []).map(p => p.fileName),
-      sprites: (project.fileSystem?.sprites || []).map(s => s.fileName),
-      behaviors: (project.fileSystem?.behaviors || []).map(b => b.fileName),
-      images: (project.fileSystem?.images || []).map(i => i.fileName)
-    }
-  };
+  const manifestCacheKey = `${project.id}:root:${manifestFileName}`;
+  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}`;
 
-  await manifestWritable.write(JSON.stringify(manifestData, null, 2));
-  await manifestWritable.close();
+  if (writtenModularFileTimestampCache.get(manifestCacheKey) !== manifestStamp) {
+    const manifestFileHandle = await dirHandle.getFileHandle(manifestFileName, { create: true });
+    const manifestWritable = await manifestFileHandle.createWritable();
+    
+    // Clean manifest copy containing metadata and index
+    const manifestData = {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      author: project.author,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      engineVersion: project.engineVersion,
+      activeModule: project.activeModule,
+      activeFiles: project.activeFiles,
+      storageLocation: project.storageLocation,
+      lockInfo: project.lockInfo,
+      taskBoard: project.taskBoard,
+      fileIndex: {
+        maps: (project.fileSystem?.maps || []).map(m => m.fileName),
+        biomes: (project.fileSystem?.biomes || []).map(b => b.fileName),
+        prefabs: (project.fileSystem?.prefabs || []).map(p => p.fileName),
+        ui: (project.fileSystem?.ui || []).map(u => u.fileName),
+        game: (project.fileSystem?.game || []).map(g => g.fileName),
+        particles: (project.fileSystem?.particles || []).map(p => p.fileName),
+        sprites: (project.fileSystem?.sprites || []).map(s => s.fileName),
+        behaviors: (project.fileSystem?.behaviors || []).map(b => b.fileName),
+        images: (project.fileSystem?.images || []).map(i => i.fileName)
+      }
+    };
 
-  // Helper to write subdirectories
+    await manifestWritable.write(JSON.stringify(manifestData, null, 2));
+    await manifestWritable.close();
+    writtenModularFileTimestampCache.set(manifestCacheKey, manifestStamp);
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  // Helper to write subdirectories incrementally
   const writeSubdirFiles = async (subdirName: string, files: any[]) => {
     if (!files || files.length === 0) return;
     const subDirHandle = await dirHandle.getDirectoryHandle(subdirName, { create: true });
     for (const file of files) {
       const fileName = file.fileName || `${file.id || 'file'}.json`;
+      const cacheKey = `${project.id}:${subdirName}:${fileName}`;
+      const currentStamp = file.updatedAt || file.id || 'initial';
+
+      // Skip re-writing file if it hasn't changed since last sync
+      if (writtenModularFileTimestampCache.get(cacheKey) === currentStamp) {
+        continue;
+      }
+
       const fileHandle = await subDirHandle.getFileHandle(fileName, { create: true });
       const writable = await fileHandle.createWritable();
       await writable.write(JSON.stringify(file, null, 2));
       await writable.close();
+      writtenModularFileTimestampCache.set(cacheKey, currentStamp);
+
+      // Cooperative yield to the browser event loop so animation frames render smoothly
+      await new Promise(r => setTimeout(r, 0));
     }
   };
 

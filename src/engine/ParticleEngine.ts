@@ -3,7 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ParticleSystemData, ParticleBlendMode, ParticleShape, ParticleCurveMode, ParticleFxStyle, ParticleAnimStyle, ParticleSizeCurve, ParticleEmissiveMode, ParticlePhysicsConfig } from "./masonProjectSchema";
+import { 
+  ParticleSystemData, 
+  ParticleBlendMode, 
+  ParticleShape, 
+  ParticleCurveMode, 
+  ParticleFxStyle, 
+  ParticleAnimStyle, 
+  ParticleSizeCurve, 
+  ParticleEmissiveMode, 
+  ParticlePhysicsConfig, 
+  CustomCompositeShape,
+  SubEmitterTriggerMode,
+  DEFAULT_PARTICLE_SYSTEMS,
+  SUB_EMITTER_PRESETS
+} from "./masonProjectSchema";
 
 export interface ParticleInstance {
   x: number;
@@ -28,6 +42,7 @@ export interface ParticleInstance {
   shape: ParticleShape;
   customGlyph?: string;
   customSvgPath?: string;
+  compositeShape?: CustomCompositeShape;
   glowBlurRadius: number;
   blendMode: ParticleBlendMode;
   drag: number;
@@ -53,7 +68,32 @@ export interface ParticleInstance {
   destroyOnCollision: boolean;
   spawnCollisionSparks: boolean;
   spawnOnDeath?: boolean;
+  subEmitterId?: string;
+  subEmitterTrigger?: SubEmitterTriggerMode;
+  subEmitterCount?: number;
+  subEmitterInheritVelocity?: number;
+  subEmitterProbability?: number;
+  subEmitterPositionJitter?: number;
+  subEmitterAlphaStartMin?: number;
+  subEmitterAlphaStartMax?: number;
+  subEmitterAlphaEndMin?: number;
+  subEmitterAlphaEndMax?: number;
+  isSubParticle?: boolean;
   sparkCount?: number;
+  sparkGravity?: number;
+  sparkLifetimeMin?: number;
+  sparkLifetimeMax?: number;
+  sparkStartSizeMin?: number;
+  sparkStartSizeMax?: number;
+  sparkEndSizeMin?: number;
+  sparkEndSizeMax?: number;
+  sparkStartColor?: string;
+  sparkEndColor?: string;
+  sparkColorMode?: 'gradient_lifecycle' | 'gradient_random';
+  randomColorRange?: boolean;
+  colorRangeStart?: string;
+  colorRangeEnd?: string;
+  colorRangeStops?: Array<{ position: number; color: string }>;
   isRestingOnFloor?: boolean;
   fxStyle?: ParticleFxStyle;
   isEmissive?: boolean;
@@ -78,6 +118,9 @@ export interface ParticleInstance {
   animateAlpha?: boolean;
   animateEmissive?: boolean;
   animateRotation?: boolean;
+  faceVelocity?: boolean;
+  velocityRotationOffsetDeg?: number;
+  lastVelAngle?: number;
   animateMotionBlur?: boolean;
   startMotionBlur?: number;
   midMotionBlur?: number;
@@ -112,6 +155,88 @@ export function rgbToHex(r: number, g: number, b: number): string {
     return hex.length === 1 ? "0" + hex : hex;
   };
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+export function quantizeColor(color: string): string {
+  if (color.startsWith("#")) {
+    const rgb = hexToRgb(color);
+    const r = Math.round(rgb.r / 8) * 8;
+    const g = Math.round(rgb.g / 8) * 8;
+    const b = Math.round(rgb.b / 8) * 8;
+    return `rgb(${r},${g},${b})`;
+  } else if (color.startsWith("rgb")) {
+    const m = color.match(/\d+/g);
+    if (m && m.length >= 3) {
+      const r = Math.round(parseInt(m[0], 10) / 8) * 8;
+      const g = Math.round(parseInt(m[1], 10) / 8) * 8;
+      const b = Math.round(parseInt(m[2], 10) / 8) * 8;
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  return color;
+}
+
+export function interpolateHexColor(colorA: string, colorB: string, t: number): string {
+  const rgbA = hexToRgb(colorA);
+  const rgbB = hexToRgb(colorB);
+  const clampedT = Math.max(0, Math.min(1, t));
+  const r = Math.round(rgbA.r + (rgbB.r - rgbA.r) * clampedT);
+  const g = Math.round(rgbA.g + (rgbB.g - rgbA.g) * clampedT);
+  const b = Math.round(rgbA.b + (rgbB.b - rgbA.b) * clampedT);
+  return rgbToHex(r, g, b);
+}
+
+export function evaluateGradientColor(
+  stops: Array<{ position: number; color: string }>,
+  t: number
+): string {
+  if (!stops || stops.length === 0) return "#ffffff";
+  if (stops.length === 1) return stops[0].color;
+  const sorted = [...stops].sort((a, b) => a.position - b.position);
+  const clampedT = Math.max(0, Math.min(1, t));
+  if (clampedT <= sorted[0].position) return sorted[0].color;
+  if (clampedT >= sorted[sorted.length - 1].position) return sorted[sorted.length - 1].color;
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    if (clampedT >= a.position && clampedT <= b.position) {
+      const range = b.position - a.position;
+      const segT = range <= 0.00001 ? 0 : (clampedT - a.position) / range;
+      const rgbA = hexToRgb(a.color);
+      const rgbB = hexToRgb(b.color);
+      const r = Math.round(rgbA.r + (rgbB.r - rgbA.r) * segT);
+      const g = Math.round(rgbA.g + (rgbB.g - rgbA.g) * segT);
+      const bColor = Math.round(rgbA.b + (rgbB.b - rgbA.b) * segT);
+      return rgbToHex(r, g, bColor);
+    }
+  }
+  return sorted[sorted.length - 1].color;
+}
+
+/**
+ * Computes a frame-rate independent, visually linear drag damping factor.
+ * In earlier iterations, velocity was scaled by (1 - drag) per frame at 60 FPS.
+ * Mathematically, (1 - 0.25)^10 ≈ 0.05, which meant that by drag = 0.25 the particle
+ * lost 95% of its velocity in under 0.16s, leaving a massive unresponsive dead-zone
+ * from 0.25 up to 1.0 where all particles stopped almost immediately.
+ *
+ * This continuous damping model translates drag ∈ [0.0, 1.0] into a smooth,
+ * physically calibrated decay rate where stopping distance and velocity retention
+ * decrease progressively and perceptibly across the entire 0.0 to 1.0 slider range.
+ */
+export function calculateLinearDragFactor(drag: number, dt: number): number {
+  if (!drag || drag <= 0) return 1.0;
+  const d = Math.max(0, Math.min(1.0, drag));
+  // Calibrated exponential decay rate:
+  // d = 0.00 -> damping = 0.00 (100% velocity retention)
+  // d = 0.15 -> damping ≈ 0.45 (~80% retention / long drift)
+  // d = 0.35 -> damping ≈ 1.30 (~50% retention / steady slowing)
+  // d = 0.60 -> damping ≈ 3.30 (~20% retention / firm deceleration)
+  // d = 0.85 -> damping ≈ 8.80 (~5% retention / strong brake)
+  // d = 1.00 -> damping ≈ 21.7 (rapid halt near emitter)
+  const damping = (2.6 * d) / Math.max(0.06, 1.0 - 0.88 * d);
+  return Math.exp(-damping * dt);
 }
 
 export function getTrackNodesForData(visuals: any, track: string): { time: number; value: any }[] {
@@ -162,7 +287,7 @@ export function getTrackNodesForData(visuals: any, track: string): { time: numbe
     return [{ time: 0, value: 100 }, { time: 1, value: 50 }];
   }
   if (track === "drag") {
-    return [{ time: 0, value: 0.98 }, { time: 1, value: 0.98 }];
+    return [{ time: 0, value: 0.02 }, { time: 1, value: 0.02 }];
   }
   if (track === "motionBlur") {
     const start = visuals?.startMotionBlur ?? 0;
@@ -363,6 +488,134 @@ export class ParticleEngine {
   public activeEmitters: ActiveEmitter[] = [];
   private spatialGrid: Map<string, ParticleInstance[]> = new Map();
   private CELL_SIZE = 64;
+  private compositeSpriteCache: Map<string, HTMLCanvasElement> = new Map();
+  private path2dCache: Map<string, Path2D> = new Map();
+
+  public clearSpriteCache() {
+    this.compositeSpriteCache.clear();
+    this.path2dCache.clear();
+  }
+
+  public getOrCreateCompositeSprite(comp: CustomCompositeShape, color: string): HTMLCanvasElement | null {
+    if (typeof document === "undefined") return null;
+    if (!comp || !comp.layers || comp.layers.length === 0) return null;
+
+    const quantizedColor = quantizeColor(color);
+    const layersKey = comp.layers.map(l => 
+      `${l.id}:${l.x},${l.y},${l.width},${l.height},${l.rotationDeg},${l.visible},${l.type},${l.isStroke},${l.strokeWidth},${l.glowBlurRadius},${l.glowColor},${l.colorMode},${l.fixedColor},${l.blendMode},${l.alpha}`
+    ).join("|");
+    const cacheKey = `${comp.id}_${layersKey}_${quantizedColor}`;
+
+    let cached = this.compositeSpriteCache.get(cacheKey);
+    if (cached) return cached;
+
+    const baseRef = comp.baseSize || 64;
+    // Provide generous 2.5x padding so blurs and layer offsets never clip
+    const textureSize = Math.max(128, Math.round(baseRef * 2.5));
+    const center = textureSize / 2;
+
+    const offscreen = document.createElement("canvas");
+    offscreen.width = textureSize;
+    offscreen.height = textureSize;
+    const oCtx = offscreen.getContext("2d");
+    if (!oCtx) return null;
+
+    oCtx.imageSmoothingEnabled = true;
+
+    // Draw all composite shape layers centered at (center, center)
+    for (const layer of comp.layers) {
+      if (layer.visible === false) continue;
+      oCtx.save();
+      oCtx.translate(center + (layer.x || 0), center + (layer.y || 0));
+      if (layer.rotationDeg) {
+        oCtx.rotate((layer.rotationDeg * Math.PI) / 180);
+      }
+      if (layer.blendMode) {
+        oCtx.globalCompositeOperation = layer.blendMode;
+      }
+      const layerAlpha = layer.alpha !== undefined ? layer.alpha : 1.0;
+      oCtx.globalAlpha = layerAlpha;
+
+      const layerColor = layer.colorMode === "fixed" && layer.fixedColor ? layer.fixedColor : quantizedColor;
+      oCtx.fillStyle = layerColor;
+      oCtx.strokeStyle = layerColor;
+      if (layer.strokeWidth) {
+        oCtx.lineWidth = layer.strokeWidth;
+      }
+
+      if (layer.glowBlurRadius && layer.glowBlurRadius > 0) {
+        oCtx.shadowBlur = layer.glowBlurRadius;
+        oCtx.shadowColor = layer.glowColor || layerColor;
+      } else {
+        oCtx.shadowBlur = 0;
+      }
+
+      const w = layer.width || 16;
+      const h = layer.height || 16;
+      const r = layer.radius !== undefined ? layer.radius : w / 2;
+
+      oCtx.beginPath();
+      if (layer.type === "circle") {
+        oCtx.arc(0, 0, r, 0, Math.PI * 2);
+      } else if (layer.type === "rect") {
+        if (layer.isStroke) oCtx.strokeRect(-w / 2, -h / 2, w, h);
+        else oCtx.fillRect(-w / 2, -h / 2, w, h);
+      } else if (layer.type === "rounded_rect") {
+        const cr = Math.min(layer.radius || 4, w / 2, h / 2);
+        if (typeof (oCtx as any).roundRect === "function") {
+          (oCtx as any).roundRect(-w / 2, -h / 2, w, h, cr);
+        } else {
+          oCtx.rect(-w / 2, -h / 2, w, h);
+        }
+      } else if (layer.type === "ring") {
+        oCtx.lineWidth = layer.strokeWidth || 2;
+        oCtx.arc(0, 0, r, 0, Math.PI * 2);
+        oCtx.stroke();
+      } else if (layer.type === "line") {
+        oCtx.lineWidth = layer.strokeWidth || 2;
+        oCtx.moveTo(-w / 2, 0);
+        oCtx.lineTo(w / 2, 0);
+        oCtx.stroke();
+      } else if (layer.type === "star") {
+        const spikes = 4;
+        const outerR = r;
+        const innerR = outerR * 0.4;
+        for (let s = 0; s < spikes * 2; s++) {
+          const rad = (s * Math.PI) / spikes;
+          const currentR = s % 2 === 0 ? outerR : innerR;
+          const sx = Math.cos(rad) * currentR;
+          const sy = Math.sin(rad) * currentR;
+          if (s === 0) oCtx.moveTo(sx, sy);
+          else oCtx.lineTo(sx, sy);
+        }
+        oCtx.closePath();
+      } else if (layer.type === "diamond") {
+        oCtx.moveTo(0, -h / 2);
+        oCtx.lineTo(w / 2, 0);
+        oCtx.lineTo(0, h / 2);
+        oCtx.lineTo(-w / 2, 0);
+        oCtx.closePath();
+      } else if (layer.type === "ellipse") {
+        oCtx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+      }
+
+      if (layer.type !== "rect" && layer.type !== "ring" && layer.type !== "line") {
+        if (layer.isStroke) {
+          oCtx.stroke();
+        } else {
+          oCtx.fill();
+        }
+      }
+      oCtx.restore();
+    }
+
+    if (this.compositeSpriteCache.size > 128) {
+      const oldestKey = this.compositeSpriteCache.keys().next().value;
+      if (oldestKey) this.compositeSpriteCache.delete(oldestKey);
+    }
+    this.compositeSpriteCache.set(cacheKey, offscreen);
+    return offscreen;
+  }
 
   public addEmitter(system: ParticleSystemData, originX: number, originY: number) {
     this.activeEmitters.push({ system, originX, originY, accumulator: 0 });
@@ -376,6 +629,44 @@ export class ParticleEngine {
     this.particles = [];
   }
 
+  private subEmitterResolver?: (id: string) => ParticleSystemData | undefined;
+  private projectParticlesCache: Map<string, ParticleSystemData> = new Map();
+
+  public setSubEmitterResolver(resolver: (id: string) => ParticleSystemData | undefined) {
+    this.subEmitterResolver = resolver;
+  }
+
+  public setProjectParticles(particles: ParticleSystemData[]) {
+    this.projectParticlesCache.clear();
+    if (Array.isArray(particles)) {
+      particles.forEach(p => {
+        if (p && p.id) {
+          this.projectParticlesCache.set(p.id, p);
+        }
+      });
+    }
+  }
+
+  public resolveSubEmitter(id: string): ParticleSystemData | undefined {
+    if (!id) return undefined;
+    // 1. Check custom resolver
+    if (this.subEmitterResolver) {
+      const resolved = this.subEmitterResolver(id);
+      if (resolved) return resolved;
+    }
+    // 2. Check project cache
+    if (this.projectParticlesCache.has(id)) {
+      return this.projectParticlesCache.get(id);
+    }
+    // 3. Check SUB_EMITTER_PRESETS
+    const subPreset = SUB_EMITTER_PRESETS.find(p => p.id === id);
+    if (subPreset) return subPreset;
+    // 4. Check DEFAULT_PARTICLE_SYSTEMS
+    const defaultPreset = DEFAULT_PARTICLE_SYSTEMS.find(p => p.id === id);
+    if (defaultPreset) return defaultPreset;
+    return undefined;
+  }
+
   public spawnParticles(
     count: number,
     data: ParticleSystemData,
@@ -387,8 +678,17 @@ export class ParticleEngine {
       return min + Math.random() * (max - min);
     };
 
+    const maxPrimary = emitter.maxParticles || 300;
+    let currentPrimaryCount = 0;
+    for (let j = 0; j < this.particles.length; j++) {
+      if (!this.particles[j].isSubParticle) {
+        currentPrimaryCount++;
+      }
+    }
+
     for (let i = 0; i < count; i++) {
-      if (this.particles.length >= (emitter.maxParticles || 300)) break;
+      if (currentPrimaryCount + i >= maxPrimary) break;
+      if (this.particles.length >= 1000) break; // Global pool safety cap
 
       let spawnX = origin.x;
       let spawnY = origin.y;
@@ -469,9 +769,28 @@ export class ParticleEngine {
       const instEmissiveMidStr = visuals.emissiveMidStrength !== undefined ? getRandVal(visuals.emissiveMidStrength, visuals.emissiveMidStrengthMax) : undefined;
       const instEmissiveEndStr = getRandVal(visuals.emissiveEndStrength ?? 0, visuals.emissiveEndStrengthMax);
 
-      const instStartDrag = getRandVal(kinematics.startDrag ?? kinematics.drag ?? 0.98, kinematics.startDragMax);
+      const instStartDrag = getRandVal(kinematics.startDrag ?? kinematics.drag ?? 0.0, kinematics.startDragMax);
       const instMidDrag = kinematics.midDrag !== undefined ? getRandVal(kinematics.midDrag, kinematics.midDragMax) : undefined;
-      const instEndDrag = getRandVal(kinematics.endDrag ?? kinematics.drag ?? 0.98, kinematics.endDragMax);
+      const instEndDrag = getRandVal(kinematics.endDrag ?? kinematics.drag ?? 0.0, kinematics.endDragMax);
+
+      let instStartColor = visuals.startColor || "#ffffff";
+      let instEndColor = visuals.endColor || visuals.startColor || "#ffffff";
+
+      if (visuals.randomColorRange) {
+        const rangeStart = visuals.colorRangeStart || visuals.startColor || "#ff4500";
+        const rangeEnd = visuals.colorRangeEnd || "#ffd700";
+        const stops = visuals.colorRangeStops && visuals.colorRangeStops.length >= 2
+          ? visuals.colorRangeStops
+          : [
+              { position: 0, color: rangeStart },
+              { position: 1, color: rangeEnd }
+            ];
+        const t = Math.random();
+        instStartColor = evaluateGradientColor(stops, t);
+        if (visuals.animateColor === false || !visuals.endColor) {
+          instEndColor = instStartColor;
+        }
+      }
 
       this.particles.push({
         x: spawnX,
@@ -487,15 +806,20 @@ export class ParticleEngine {
         endSize: instEndSize,
         sizeCurve: visuals.sizeCurve || "linear",
         alphaCurve: visuals.alphaCurve || "linear",
-        startColor: visuals.startColor || "#ffffff",
+        startColor: instStartColor,
         startAlpha: visuals.startAlpha !== undefined ? visuals.startAlpha : 1,
         midColor: visuals.midColor,
         midAlpha: visuals.midAlpha,
-        endColor: visuals.endColor || visuals.startColor || "#ffffff",
+        endColor: instEndColor,
         endAlpha: visuals.endAlpha !== undefined ? visuals.endAlpha : 0,
+        randomColorRange: visuals.randomColorRange,
+        colorRangeStart: visuals.colorRangeStart,
+        colorRangeEnd: visuals.colorRangeEnd,
+        colorRangeStops: visuals.colorRangeStops,
         shape: visuals.shape || "glow_circle",
         customGlyph: visuals.customGlyph,
         customSvgPath: visuals.customSvgPath,
+        compositeShape: visuals.compositeShape,
         glowBlurRadius: visuals.glowBlurRadius || 0,
         blendMode: visuals.blendMode || "source-over",
         drag: instStartDrag,
@@ -521,7 +845,32 @@ export class ParticleEngine {
         destroyOnCollision: physics.destroyOnCollision ?? false,
         spawnCollisionSparks: physics.spawnCollisionSparks ?? false,
         spawnOnDeath: physics.spawnOnDeath ?? false,
+        subEmitterId: physics.subEmitterId,
+        subEmitterTrigger: physics.subEmitterTrigger || (
+          physics.spawnCollisionSparks && physics.spawnOnDeath ? 'both' :
+          physics.spawnCollisionSparks ? 'impact' :
+          physics.spawnOnDeath ? 'death' : 'none'
+        ),
+        subEmitterCount: physics.subEmitterCount ?? physics.sparkCount,
+        subEmitterInheritVelocity: physics.subEmitterInheritVelocity ?? 0,
+        subEmitterProbability: physics.subEmitterProbability ?? 1.0,
+        subEmitterPositionJitter: physics.subEmitterPositionJitter,
+        subEmitterAlphaStartMin: physics.subEmitterAlphaStartMin,
+        subEmitterAlphaStartMax: physics.subEmitterAlphaStartMax,
+        subEmitterAlphaEndMin: physics.subEmitterAlphaEndMin,
+        subEmitterAlphaEndMax: physics.subEmitterAlphaEndMax,
+        isSubParticle: false,
         sparkCount: physics.sparkCount,
+        sparkGravity: physics.sparkGravity,
+        sparkLifetimeMin: physics.sparkLifetimeMin,
+        sparkLifetimeMax: physics.sparkLifetimeMax,
+        sparkStartSizeMin: physics.sparkStartSizeMin,
+        sparkStartSizeMax: physics.sparkStartSizeMax,
+        sparkEndSizeMin: physics.sparkEndSizeMin,
+        sparkEndSizeMax: physics.sparkEndSizeMax,
+        sparkStartColor: physics.sparkStartColor,
+        sparkEndColor: physics.sparkEndColor,
+        sparkColorMode: physics.sparkColorMode,
         fxStyle: visuals.fxStyle || "default",
         isEmissive: visuals.isEmissive ?? false,
         emissiveMode: visuals.emissiveMode || "glow_only",
@@ -544,6 +893,9 @@ export class ParticleEngine {
         animateAlpha: visuals.animateAlpha ?? true,
         animateEmissive: visuals.animateEmissive ?? false,
         animateRotation: visuals.animateRotation ?? false,
+        faceVelocity: visuals.faceVelocity ?? kinematics.faceVelocity ?? false,
+        velocityRotationOffsetDeg: visuals.velocityRotationOffsetDeg ?? kinematics.velocityRotationOffsetDeg ?? 0,
+        lastVelAngle: Math.atan2(vy, vx),
         animateMotionBlur: visuals.animateMotionBlur ?? true,
         startMotionBlur: visuals.startMotionBlur,
         midMotionBlur: visuals.midMotionBlur,
@@ -571,58 +923,268 @@ export class ParticleEngine {
       const aliveParticles: ParticleInstance[] = [];
       const newSparks: ParticleInstance[] = [];
 
+      const createSubParticle = (
+        source: ParticleInstance,
+        vx: number,
+        vy: number,
+        isImpact: boolean
+      ): ParticleInstance => {
+        // Lifetime range
+        const lifeMin = source.sparkLifetimeMin !== undefined ? source.sparkLifetimeMin : (isImpact ? 0.15 : 0.2);
+        const lifeMax = source.sparkLifetimeMax !== undefined ? Math.max(lifeMin, source.sparkLifetimeMax) : (isImpact ? 0.35 : 0.45);
+        const sparkMaxLifetime = lifeMin + Math.random() * Math.max(0.01, lifeMax - lifeMin);
+
+        // Start size range
+        const startMin = source.sparkStartSizeMin !== undefined ? source.sparkStartSizeMin : Math.max(1.0, source.startSize * (isImpact ? 0.3 : 0.35));
+        const startMax = source.sparkStartSizeMax !== undefined ? Math.max(startMin, source.sparkStartSizeMax) : Math.max(startMin + 0.5, source.startSize * (isImpact ? 0.45 : 0.5));
+        const sparkStartSize = Math.max(0.1, startMin + Math.random() * (startMax - startMin));
+
+        // End size range
+        const endMin = source.sparkEndSizeMin !== undefined ? source.sparkEndSizeMin : 0;
+        const endMax = source.sparkEndSizeMax !== undefined ? Math.max(endMin, source.sparkEndSizeMax) : 0;
+        const sparkEndSize = Math.max(0, endMin + Math.random() * (endMax - endMin));
+
+        // Color gradient
+        const mode = source.sparkColorMode || 'gradient_lifecycle';
+        const gradStart = source.sparkStartColor || "#ffffff";
+        const gradEnd = source.sparkEndColor || (source.startColor || "#ffaa00");
+
+        let instStartColor = gradStart;
+        let instEndColor = gradEnd;
+
+        if (mode === 'gradient_random') {
+          const randT = Math.random();
+          const picked = interpolateHexColor(gradStart, gradEnd, randT);
+          instStartColor = picked;
+          instEndColor = picked;
+        }
+
+        let spawnX = source.x;
+        let spawnY = source.y;
+        const jitterRadius = source.subEmitterPositionJitter !== undefined ? source.subEmitterPositionJitter : 0;
+        if (jitterRadius > 0) {
+          const jAngle = Math.random() * Math.PI * 2;
+          const jDist = Math.random() * jitterRadius;
+          spawnX += Math.cos(jAngle) * jDist;
+          spawnY += Math.sin(jAngle) * jDist;
+        }
+
+        const effStartAlphaMin = source.subEmitterAlphaStartMin !== undefined ? source.subEmitterAlphaStartMin : 1;
+        const effStartAlphaMax = source.subEmitterAlphaStartMax !== undefined ? source.subEmitterAlphaStartMax : effStartAlphaMin;
+        const startAlpha = effStartAlphaMin + Math.random() * Math.max(0, effStartAlphaMax - effStartAlphaMin);
+
+        const effEndAlphaMin = source.subEmitterAlphaEndMin !== undefined ? source.subEmitterAlphaEndMin : 0;
+        const effEndAlphaMax = source.subEmitterAlphaEndMax !== undefined ? source.subEmitterAlphaEndMax : effEndAlphaMin;
+        const endAlpha = effEndAlphaMin + Math.random() * Math.max(0, effEndAlphaMax - effEndAlphaMin);
+
+        return {
+          x: spawnX,
+          y: spawnY,
+          vx,
+          vy,
+          rotation: 0,
+          vRot: (Math.random() - 0.5) * 10,
+          lifetime: 0,
+          maxLifetime: sparkMaxLifetime,
+          startSize: sparkStartSize,
+          endSize: sparkEndSize,
+          sizeCurve: "linear",
+          startColor: instStartColor,
+          startAlpha,
+          endColor: instEndColor,
+          endAlpha,
+          shape: source.shape === "bubble" ? "bubble" : "glow_circle",
+          glowBlurRadius: Math.max(2, (source.glowBlurRadius || 4) * 0.5),
+          blendMode: "screen",
+          drag: 0.06,
+          angularDrag: 0.94,
+          gravityX: 0,
+          gravityY: source.sparkGravity !== undefined ? source.sparkGravity : (isImpact ? 980 : (source.gravityY || 0) * 0.5),
+          windForce: 0,
+          turbulenceJitter: 0,
+          collides: false,
+          restitution: 0,
+          destroyOnCollision: false,
+          spawnCollisionSparks: false,
+          spawnOnDeath: false,
+          subEmitterTrigger: 'none',
+          isSubParticle: true,
+          fxStyle: "default",
+          animateSize: true,
+          animateColor: true,
+          animateAlpha: true,
+          animateEmissive: false,
+          animateRotation: true
+        };
+      };
+
+      const spawnSubParticlesForEvent = (
+        source: ParticleInstance,
+        isImpact: boolean
+      ) => {
+        // Prevent recursive cascades: sub-particles never spawn sub-sub-particles
+        if (source.isSubParticle) return;
+
+        // Check probability
+        if (source.subEmitterProbability !== undefined && source.subEmitterProbability < 1.0) {
+          if (Math.random() > source.subEmitterProbability) return;
+        }
+
+        // Check trigger condition
+        const trigger = source.subEmitterTrigger || (
+          source.spawnCollisionSparks && source.spawnOnDeath ? 'both' :
+          source.spawnCollisionSparks ? 'impact' :
+          source.spawnOnDeath ? 'death' : 'none'
+        );
+
+        if (trigger === 'none') return;
+        if (isImpact && trigger !== 'impact' && trigger !== 'both') return;
+        if (!isImpact && trigger !== 'death' && trigger !== 'both') return;
+
+        // Respect total particle pool budget cap
+        if (this.particles.length + newSparks.length >= 1000) return;
+
+        const subData = source.subEmitterId ? this.resolveSubEmitter(source.subEmitterId) : undefined;
+
+        if (subData) {
+          const { kinematics, visuals, physics: subPhysics, emission } = subData;
+          const count = emission?.burstCount !== undefined
+            ? Math.max(1, emission.burstCount)
+            : (emission?.rate !== undefined
+                ? Math.max(1, Math.round(emission.rate))
+                : 1);
+
+          for (let s = 0; s < count; s++) {
+            if (this.particles.length + newSparks.length >= 1000) break;
+
+            const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : (isImpact ? 270 : 0);
+            const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : (isImpact ? 140 : 360);
+            const baseAngleRad = angleDeg * (Math.PI / 180);
+            const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
+            const launchAngle = baseAngleRad + spreadRad;
+
+            const rawMinSpd = kinematics.minSpeed !== undefined ? kinematics.minSpeed : 0.4;
+            const rawMaxSpd = kinematics.maxSpeed !== undefined ? kinematics.maxSpeed : 1.2;
+            const effMinSpd = (rawMinSpd > 15 ? rawMinSpd / 100 : rawMinSpd) * 100;
+            const effMaxSpd = (rawMaxSpd > 15 ? rawMaxSpd / 100 : rawMaxSpd) * 100;
+            const speed = effMinSpd + Math.random() * Math.max(0, effMaxSpd - effMinSpd);
+
+            let vx = Math.cos(launchAngle) * speed;
+            let vy = Math.sin(launchAngle) * speed;
+
+            // If impact with floor and vy is pushing down into floor, bounce upward
+            if (isImpact && vy > 0) {
+              vy = -Math.abs(vy);
+            }
+
+            const lifetime = visuals.minLifetime + Math.random() * Math.max(0.05, visuals.maxLifetime - visuals.minLifetime);
+            const vRot = kinematics.minAngularVelocity + Math.random() * Math.max(0, kinematics.maxAngularVelocity - kinematics.minAngularVelocity);
+
+            const startSize = visuals.startSize ?? 4;
+            const midSize = visuals.midSize;
+            const endSize = visuals.endSize ?? 1;
+
+            const startColor = visuals.startColor || "#ffffff";
+            const endColor = visuals.endColor || startColor;
+
+            const startAlpha = visuals.startAlpha !== undefined ? visuals.startAlpha : 1;
+            const endAlpha = visuals.endAlpha !== undefined ? visuals.endAlpha : 0;
+
+            newSparks.push({
+              x: source.x,
+              y: source.y,
+              vx,
+              vy,
+              rotation: (visuals.startRotationDeg ?? 0) * (Math.PI / 180),
+              vRot,
+              lifetime: 0,
+              maxLifetime: lifetime,
+              startSize,
+              midSize,
+              endSize,
+              sizeCurve: visuals.sizeCurve || "linear",
+              alphaCurve: visuals.alphaCurve || "linear",
+              startColor,
+              startAlpha,
+              midColor: visuals.midColor,
+              midAlpha: visuals.midAlpha,
+              endColor,
+              endAlpha,
+              shape: visuals.shape || "glow_circle",
+              customGlyph: visuals.customGlyph,
+              customSvgPath: visuals.customSvgPath,
+              compositeShape: visuals.compositeShape,
+              glowBlurRadius: visuals.glowBlurRadius || 0,
+              blendMode: visuals.blendMode || "screen",
+              drag: kinematics.startDrag ?? kinematics.drag ?? 0.05,
+              angularDrag: kinematics.angularDrag ?? 0.96,
+              gravityScale: kinematics.gravityScale,
+              gravityScaleX: kinematics.gravityScaleX,
+              gravityX: kinematics.gravityX ?? 0,
+              gravityY: kinematics.gravityY ?? (isImpact ? 400 : 0),
+              windSensitivity: kinematics.windSensitivity ?? 1.0,
+              windForce: kinematics.windForce ?? 0,
+              turbulenceJitter: kinematics.turbulenceJitter ?? 0,
+              collides: subPhysics?.collideWithMapSolids ?? false,
+              restitution: subPhysics?.collisionRestitution ?? 0.3,
+              bounces: 0,
+              destroyOnCollision: subPhysics?.destroyOnCollision ?? false,
+              spawnCollisionSparks: false,
+              spawnOnDeath: false,
+              subEmitterTrigger: 'none',
+              isSubParticle: true,
+              fxStyle: visuals.fxStyle || "default",
+              animateSize: visuals.animateSize ?? true,
+              animateColor: visuals.animateColor ?? true,
+              animateAlpha: visuals.animateAlpha ?? true,
+              animateEmissive: visuals.animateEmissive ?? false,
+              animateRotation: visuals.animateRotation ?? true,
+              isEmissive: visuals.isEmissive,
+              emissiveStartStrength: visuals.emissiveStartStrength,
+              emissiveStartColor: visuals.emissiveStartColor
+            });
+          }
+        } else {
+          // Fallback legacy sub-particle generation
+          const fallbackCount = source.subEmitterCount ?? source.sparkCount ?? 1;
+          for (let s = 0; s < fallbackCount; s++) {
+            const vx = isImpact ? (Math.random() - 0.5) * 200 : (Math.random() - 0.5) * 140;
+            const vy = isImpact ? -Math.random() * 150 : (Math.random() - 0.5) * 140;
+            const sub = createSubParticle(source, vx, vy, isImpact);
+            sub.isSubParticle = true;
+            newSparks.push(sub);
+          }
+        }
+      };
+
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
         p.lifetime += dt;
         if (p.lifetime >= p.maxLifetime) {
-          if (p.spawnOnDeath) {
-            const count = p.sparkCount ?? (Math.floor(Math.random() * 3) + 1);
-            for (let s = 0; s < count; s++) {
-              newSparks.push({
-                x: p.x,
-                y: p.y,
-                vx: (Math.random() - 0.5) * 140,
-                vy: (Math.random() - 0.5) * 140,
-                rotation: 0,
-                vRot: (Math.random() - 0.5) * 10,
-                lifetime: 0,
-                maxLifetime: 0.25 + Math.random() * 0.25,
-                startSize: Math.max(1.5, p.startSize * 0.4),
-                endSize: 0,
-                sizeCurve: "linear",
-                startColor: "#ffffff",
-                startAlpha: 1,
-                endColor: p.startColor || "#ffaa00",
-                endAlpha: 0,
-                shape: p.shape === "bubble" ? "bubble" : "glow_circle",
-                glowBlurRadius: Math.max(2, (p.glowBlurRadius || 4) * 0.5),
-                blendMode: "screen",
-                drag: 0.94,
-                angularDrag: 0.94,
-                gravityX: 0,
-                gravityY: (p.gravityY || 0) * 0.5,
-                windForce: 0,
-                turbulenceJitter: 0,
-                collides: false,
-                restitution: 0,
-                destroyOnCollision: false,
-                spawnCollisionSparks: false,
-                spawnOnDeath: false,
-                fxStyle: "default",
-                animateSize: true,
-                animateColor: true,
-                animateAlpha: true,
-                animateEmissive: false,
-                animateRotation: true
-              });
-            }
-          }
+          spawnSubParticlesForEvent(p, false);
           continue;
         }
 
-        // Apply Drag
-        p.vx *= p.drag;
-        p.vy *= p.drag;
+        // Apply Drag (0.0 = no drag / 100% velocity retention, 1.0 = full drag / rapid halt)
+        let curDrag = p.drag ?? 0;
+        if (p.midDrag !== undefined || (p.endDrag !== undefined && p.endDrag !== p.startDrag)) {
+          const rawProgress = p.maxLifetime > 0 ? Math.min(1, p.lifetime / p.maxLifetime) : 0;
+          if (p.midDrag !== undefined) {
+            if (rawProgress < 0.5) {
+              const t = rawProgress * 2;
+              curDrag = (p.startDrag ?? p.drag ?? 0) * (1 - t) + p.midDrag * t;
+            } else {
+              const t = (rawProgress - 0.5) * 2;
+              curDrag = p.midDrag * (1 - t) + (p.endDrag ?? p.drag ?? 0) * t;
+            }
+          } else {
+            curDrag = (p.startDrag ?? p.drag ?? 0) * (1 - rawProgress) + (p.endDrag ?? p.drag ?? 0) * rawProgress;
+          }
+        }
+
+        const dragFactor = calculateLinearDragFactor(curDrag, dt);
+        p.vx *= dragFactor;
+        p.vy *= dragFactor;
         p.rotation *= p.angularDrag;
 
         // Apply Wind Force
@@ -678,6 +1240,11 @@ export class ParticleEngine {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
 
+        const spdSq = p.vx * p.vx + p.vy * p.vy;
+        if (spdSq > 0.001) {
+          p.lastVelAngle = Math.atan2(p.vy, p.vx);
+        }
+
         if (p.animateRotation) {
           p.rotation += p.vRot * dt;
         }
@@ -690,48 +1257,7 @@ export class ParticleEngine {
           if (p.bounces === undefined) p.bounces = 0;
           p.bounces++;
 
-          if (p.spawnCollisionSparks) {
-            const sparkCount = p.sparkCount ?? (Math.floor(Math.random() * 3) + 1);
-            for (let s = 0; s < sparkCount; s++) {
-              newSparks.push({
-                x: p.x,
-                y: p.y,
-                vx: (Math.random() - 0.5) * 200,
-                vy: -Math.random() * 150,
-                rotation: 0,
-                vRot: (Math.random() - 0.5) * 10,
-                lifetime: 0,
-                maxLifetime: 0.2 + Math.random() * 0.2,
-                startSize: Math.max(1.5, p.startSize * 0.35),
-                endSize: 0,
-                sizeCurve: "linear",
-                startColor: "#ffffff",
-                startAlpha: 1,
-                endColor: p.startColor || "#ffaa00",
-                endAlpha: 0,
-                shape: p.shape === "bubble" ? "bubble" : "glow_circle",
-                glowBlurRadius: Math.max(2, (p.glowBlurRadius || 4) * 0.5),
-                blendMode: "screen",
-                drag: 0.95,
-                angularDrag: 0.95,
-                gravityX: 0,
-                gravityY: 980,
-                windForce: 0,
-                turbulenceJitter: 0,
-                collides: false,
-                restitution: 0,
-                destroyOnCollision: false,
-                spawnCollisionSparks: false,
-                spawnOnDeath: false,
-                fxStyle: "default",
-                animateSize: true,
-                animateColor: true,
-                animateAlpha: true,
-                animateEmissive: false,
-                animateRotation: true
-              });
-            }
-          }
+          spawnSubParticlesForEvent(p, true);
 
           if (p.destroyOnCollision) {
             p.lifetime = p.maxLifetime;
@@ -818,6 +1344,15 @@ export class ParticleEngine {
         let currentRotation = p.rotation;
         if (p.animateRotation && visuals.startRotationDeg !== undefined) {
           currentRotation += evaluateTrackValue(rotationProgress, "rotation", visuals) * (Math.PI / 180);
+        }
+
+        const isFaceVelocity = p.faceVelocity ?? particleData?.visuals?.faceVelocity ?? particleData?.kinematics?.faceVelocity ?? false;
+        if (isFaceVelocity) {
+          const spdSq = p.vx * p.vx + p.vy * p.vy;
+          const heading = spdSq > 0.001 ? Math.atan2(p.vy, p.vx) : (p.lastVelAngle ?? 0);
+          const offsetDeg = p.velocityRotationOffsetDeg ?? particleData?.visuals?.velocityRotationOffsetDeg ?? particleData?.kinematics?.velocityRotationOffsetDeg ?? 0;
+          const offsetRad = (offsetDeg * Math.PI) / 180;
+          currentRotation = heading + offsetRad + currentRotation;
         }
         
         if (p.hasTrails && p.trailHistory && p.trailHistory.length > 1) {
@@ -1015,6 +1550,55 @@ export class ParticleEngine {
           ctx.beginPath();
           ctx.arc(0, 0, currentSize * 1.3, 0, Math.PI * 2);
           ctx.fill();
+        } else if (shape === "custom_glyph" && p.customGlyph) {
+          ctx.font = `${Math.max(8, currentSize * 2)}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(p.customGlyph, 0, 0);
+        } else if (shape === "svg_path" && p.customSvgPath && typeof Path2D !== "undefined") {
+          try {
+            let path2d = this.path2dCache.get(p.customSvgPath);
+            if (!path2d) {
+              path2d = new Path2D(p.customSvgPath);
+              if (this.path2dCache.size > 64) {
+                const firstKey = this.path2dCache.keys().next().value;
+                if (firstKey) this.path2dCache.delete(firstKey);
+              }
+              this.path2dCache.set(p.customSvgPath, path2d);
+            }
+            ctx.save();
+            const scale = currentSize / 16;
+            ctx.scale(scale, scale);
+            ctx.fill(path2d);
+            ctx.restore();
+          } catch {
+            ctx.beginPath();
+            ctx.arc(0, 0, currentSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (shape === "composite") {
+          const comp = p.compositeShape || particleData?.visuals?.compositeShape;
+          if (comp && comp.layers && comp.layers.length > 0) {
+            const sprite = this.getOrCreateCompositeSprite(comp, color);
+            if (sprite) {
+              const baseRef = comp.baseSize || 64;
+              // quadSize scales sprite so the nominal core dimension (baseRef) matches 2 * currentSize
+              const quadSize = sprite.width * (currentSize / (baseRef / 2));
+              // Clear shadowBlur on main context to prevent double-blurring on pre-baked sprite
+              const prevShadow = ctx.shadowBlur;
+              if (prevShadow > 0) ctx.shadowBlur = 0;
+              ctx.drawImage(sprite, -quadSize / 2, -quadSize / 2, quadSize, quadSize);
+              if (prevShadow > 0) ctx.shadowBlur = prevShadow;
+            } else {
+              ctx.beginPath();
+              ctx.arc(0, 0, currentSize, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else {
+            ctx.beginPath();
+            ctx.arc(0, 0, currentSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
         } else {
           // Default fallback to circle
           ctx.beginPath();

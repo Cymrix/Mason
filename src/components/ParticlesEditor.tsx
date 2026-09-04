@@ -48,9 +48,15 @@ import {
   ParticleFxStyle,
   ParticleEmissiveMode,
   ParticleAnimStyle,
-  DEFAULT_PARTICLE_SYSTEMS
+  DEFAULT_PARTICLE_SYSTEMS,
+  SUB_EMITTER_PRESETS,
+  SubEmitterTriggerMode,
+  CustomCompositeShape,
+  CompositeShapeLayer,
+  CompositePrimitiveType
 } from '../engine/masonProjectSchema';
-import { ParticleEngine, evaluateTrackValue } from '../engine/ParticleEngine';
+import { ParticleEngine, evaluateTrackValue, evaluateGradientColor } from '../engine/ParticleEngine';
+import { ParticleShapeStudio, DEFAULT_COMPOSITE_SHAPES } from './ParticleShapeStudio';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { useAppTheme } from '../theme/ThemeContext';
 import { exportParticleFile, createNewParticleInProject } from '../utils/masonStorage';
@@ -338,6 +344,13 @@ const AVAILABLE_INITIALIZE_PROPS = [
     desc: 'Configure starting rotation angles and spin velocity.'
   },
   {
+    id: 'face_velocity',
+    label: '🧭 Face Velocity Direction',
+    category: 'visuals' as const,
+    badge: 'Heading Alignment',
+    desc: 'Automatically rotate particles to face their direction of velocity.'
+  },
+  {
     id: 'bloom',
     label: '🔆 Glow Bloom',
     category: 'visuals' as const,
@@ -423,10 +436,17 @@ const AVAILABLE_INITIALIZE_PROPS = [
   },
   {
     id: 'spawn_sparks',
-    label: '✨ Spawn Sub-Particles on Destroy',
+    label: '✨ Spawn Sub-Particle Emitter',
     category: 'physics' as const,
-    badge: 'Impact / Death Burst',
-    desc: 'Creates new secondary particles or sparks when particles hit surfaces or expire.'
+    badge: 'Referenced Emitter',
+    desc: 'Spawns secondary particles referencing an existing emitter preset or project system upon collision impact or expiration.'
+  },
+  {
+    id: 'color_range',
+    label: '🌈 Color Gradient Range',
+    category: 'visuals' as const,
+    badge: 'Randomized Palette',
+    desc: 'Randomly pick each particle\'s starting color from a customizable gradient spectrum.'
   }
 ];
 
@@ -439,11 +459,13 @@ export const getPropsFromParticleData = (data: ParticleSystemData): string[] => 
 
   if (v.animateSize !== false) props.push('size_curve');
   if (v.animateColor !== false) props.push('color_flow');
+  if (v.randomColorRange) props.push('color_range');
   if (v.animateAlpha !== false) props.push('alpha_opac');
   if (v.animateRotation || (k.minAngularVelocity ?? 0) !== 0 || (k.maxAngularVelocity ?? 0) !== 0) props.push('rotation');
+  if (v.faceVelocity || k.faceVelocity) props.push('face_velocity');
   if ((k.minSpeed ?? 0) !== 0 || (k.maxSpeed ?? 0) !== 0) props.push('launch_speed');
   if ((k.gravityX ?? 0) !== 0 || (k.gravityY ?? 0) !== 0 || (k.gravityScale ?? 0) !== 0 || (k.gravityScaleX ?? 0) !== 0) props.push('gravity');
-  if ((k.drag ?? 1.0) !== 1.0 || (k.angularDrag !== undefined && k.angularDrag !== 1.0)) props.push('drag');
+  if ((k.drag ?? 0) > 0 || (k.angularDrag !== undefined && k.angularDrag !== 1.0)) props.push('drag');
   if ((k.windForce ?? 0) !== 0 || (k.windSensitivity !== undefined && k.windSensitivity !== 1.0)) props.push('wind');
   if ((k.angleDeg ?? 270) !== 270 || (k.spreadDeg ?? 0) !== 0) props.push('angle');
   if ((k.turbulenceJitter ?? 0) > 0) props.push('turbulence');
@@ -453,7 +475,16 @@ export const getPropsFromParticleData = (data: ParticleSystemData): string[] => 
   if (v.hasTrails) props.push('trails');
   if (ph.collideWithMapSolids || ph.fluidSelfCollision) props.push('physics');
   if (ph.destroyOnCollision) props.push('destroy_on_hit');
-  if (ph.spawnCollisionSparks || ph.spawnOnDeath) props.push('spawn_sparks');
+  if (
+    ph.spawnCollisionSparks ||
+    ph.spawnOnDeath ||
+    Boolean(ph.subEmitterId) ||
+    ph.subEmitterTrigger !== undefined ||
+    ph.sparkGravity !== undefined ||
+    ph.sparkLifetimeMin !== undefined ||
+    ph.sparkStartSizeMin !== undefined ||
+    ph.sparkStartColor !== undefined
+  ) props.push('spawn_sparks');
 
   return Array.from(new Set(props));
 };
@@ -485,10 +516,10 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const activeParticleData = activeFile?.particleData || DEFAULT_PARTICLE_SYSTEMS[0];
 
   // UI State
-  const [activeTab, setActiveTabState] = useState<'initialize' | 'animation' | 'spritesheets' | 'presets'>(
+  const [activeTab, setActiveTabState] = useState<'initialize' | 'animation' | 'shape_builder' | 'spritesheets' | 'presets'>(
     () => getSavedModuleTab('particles', 'initialize') as any
   );
-  const setActiveTab = (tab: 'initialize' | 'animation' | 'spritesheets' | 'presets') => {
+  const setActiveTab = (tab: 'initialize' | 'animation' | 'shape_builder' | 'spritesheets' | 'presets') => {
     setActiveTabState(tab);
     saveModuleTab('particles', tab);
   };
@@ -563,6 +594,12 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           updated.kinematics.maxAngularVelocity = 90;
           updated.kinematics.angularDrag = 0.98;
         }
+      } else if (propId === 'face_velocity') {
+        updated.visuals.faceVelocity = true;
+        if (updated.kinematics) updated.kinematics.faceVelocity = true;
+        if (updated.visuals.velocityRotationOffsetDeg === undefined) {
+          updated.visuals.velocityRotationOffsetDeg = 0;
+        }
       } else if (propId === 'launch_speed') {
         if ((updated.kinematics.minSpeed ?? 0) === 0 && (updated.kinematics.maxSpeed ?? 0) === 0) {
           updated.kinematics.minSpeed = 60;
@@ -574,8 +611,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           updated.kinematics.gravityX = 0;
         }
       } else if (propId === 'drag') {
-        if ((updated.kinematics.drag ?? 1.0) === 1.0) {
-          updated.kinematics.drag = 0.98;
+        if ((updated.kinematics.drag ?? 0) === 0) {
+          updated.kinematics.drag = 0.25;
           updated.kinematics.angularDrag = 0.98;
         }
       } else if (propId === 'wind') {
@@ -621,6 +658,28 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         updated.physics.destroyOnCollision = true;
       } else if (propId === 'spawn_sparks') {
         updated.physics.spawnCollisionSparks = true;
+        updated.physics.spawnOnDeath = true;
+        updated.physics.subEmitterTrigger = 'both';
+        if (!updated.physics.subEmitterId) {
+          updated.physics.subEmitterId = 'sub_sparks_electric';
+        }
+        if (updated.physics.subEmitterProbability === undefined) {
+          updated.physics.subEmitterProbability = 1.0;
+        }
+      } else if (propId === 'color_range') {
+        updated.visuals.randomColorRange = true;
+        if (!updated.visuals.colorRangeStart) {
+          updated.visuals.colorRangeStart = updated.visuals.startColor || '#ff4500';
+        }
+        if (!updated.visuals.colorRangeEnd) {
+          updated.visuals.colorRangeEnd = '#ffd700';
+        }
+        if (!updated.visuals.colorRangeStops || updated.visuals.colorRangeStops.length < 2) {
+          updated.visuals.colorRangeStops = [
+            { position: 0, color: updated.visuals.colorRangeStart },
+            { position: 1, color: updated.visuals.colorRangeEnd }
+          ];
+        }
       }
       return updated;
     });
@@ -636,6 +695,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       } else if (propId === 'color_flow') {
         updated.visuals.animateColor = false;
         updated.visuals.midColor = undefined;
+      } else if (propId === 'color_range') {
+        updated.visuals.randomColorRange = false;
       } else if (propId === 'alpha_opac') {
         updated.visuals.animateAlpha = false;
         updated.visuals.startAlpha = 1.0;
@@ -649,6 +710,9 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         updated.kinematics.minAngularVelocity = 0;
         updated.kinematics.maxAngularVelocity = 0;
         updated.kinematics.angularDrag = 1.0;
+      } else if (propId === 'face_velocity') {
+        updated.visuals.faceVelocity = false;
+        if (updated.kinematics) updated.kinematics.faceVelocity = false;
       } else if (propId === 'launch_speed') {
         updated.kinematics.minSpeed = 0;
         updated.kinematics.maxSpeed = 0;
@@ -658,11 +722,11 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         updated.kinematics.gravityScale = 0;
         updated.kinematics.gravityScaleX = 0;
       } else if (propId === 'drag') {
-        updated.kinematics.drag = 1.0;
+        updated.kinematics.drag = 0;
         updated.kinematics.angularDrag = 1.0;
-        updated.kinematics.startDrag = 1.0;
+        updated.kinematics.startDrag = 0;
         updated.kinematics.midDrag = undefined;
-        updated.kinematics.endDrag = 1.0;
+        updated.kinematics.endDrag = 0;
       } else if (propId === 'wind') {
         updated.kinematics.windForce = 0;
         updated.kinematics.windSensitivity = 0;
@@ -695,6 +759,26 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       } else if (propId === 'spawn_sparks') {
         updated.physics.spawnCollisionSparks = false;
         updated.physics.spawnOnDeath = false;
+        updated.physics.subEmitterId = undefined;
+        updated.physics.subEmitterTrigger = undefined;
+        updated.physics.subEmitterCount = undefined;
+        updated.physics.subEmitterInheritVelocity = undefined;
+        updated.physics.subEmitterProbability = undefined;
+        updated.physics.subEmitterPositionJitter = undefined;
+        updated.physics.subEmitterAlphaStartMin = undefined;
+        updated.physics.subEmitterAlphaStartMax = undefined;
+        updated.physics.subEmitterAlphaEndMin = undefined;
+        updated.physics.subEmitterAlphaEndMax = undefined;
+        updated.physics.sparkGravity = undefined;
+        updated.physics.sparkLifetimeMin = undefined;
+        updated.physics.sparkLifetimeMax = undefined;
+        updated.physics.sparkStartSizeMin = undefined;
+        updated.physics.sparkStartSizeMax = undefined;
+        updated.physics.sparkEndSizeMin = undefined;
+        updated.physics.sparkEndSizeMax = undefined;
+        updated.physics.sparkStartColor = undefined;
+        updated.physics.sparkEndColor = undefined;
+        updated.physics.sparkColorMode = undefined;
       }
       return updated;
     });
@@ -705,14 +789,39 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         if (propId === 'gravity') { p.gravityX = 0; p.gravityY = 0; }
         else if (propId === 'wind') { p.windForce = 0; }
         else if (propId === 'turbulence') { p.turbulenceJitter = 0; }
-        else if (propId === 'drag') { p.drag = 1.0; p.angularDrag = 1.0; }
+        else if (propId === 'drag') { p.drag = 0; p.angularDrag = 1.0; }
         else if (propId === 'pull') { p.emitterPull = false; }
         else if (propId === 'bloom') { p.glowBlurRadius = 0; p.isEmissive = false; }
         else if (propId === 'trails') { p.hasTrails = false; p.trailHistory = []; }
         else if (propId === 'physics') { p.collides = false; }
         else if (propId === 'destroy_on_hit') { p.destroyOnCollision = false; }
-        else if (propId === 'spawn_sparks') { p.spawnCollisionSparks = false; p.spawnOnDeath = false; }
+        else if (propId === 'spawn_sparks') {
+          p.spawnCollisionSparks = false;
+          p.spawnOnDeath = false;
+          p.subEmitterId = undefined;
+          p.subEmitterTrigger = 'none';
+          p.subEmitterCount = undefined;
+          p.subEmitterInheritVelocity = undefined;
+          p.subEmitterProbability = undefined;
+          p.subEmitterPositionJitter = undefined;
+          p.subEmitterAlphaStartMin = undefined;
+          p.subEmitterAlphaStartMax = undefined;
+          p.subEmitterAlphaEndMin = undefined;
+          p.subEmitterAlphaEndMax = undefined;
+          p.sparkGravity = undefined;
+          p.sparkLifetimeMin = undefined;
+          p.sparkLifetimeMax = undefined;
+          p.sparkStartSizeMin = undefined;
+          p.sparkStartSizeMax = undefined;
+          p.sparkEndSizeMin = undefined;
+          p.sparkEndSizeMax = undefined;
+          p.sparkStartColor = undefined;
+          p.sparkEndColor = undefined;
+          p.sparkColorMode = undefined;
+        }
+        else if (propId === 'color_range') { p.randomColorRange = false; }
         else if (propId === 'rotation') { p.animateRotation = false; p.vRot = 0; }
+        else if (propId === 'face_velocity') { p.faceVelocity = false; }
         else if (propId === 'size_curve') { p.animateSize = false; }
         else if (propId === 'color_flow') { p.animateColor = false; }
         else if (propId === 'alpha_opac') { p.animateAlpha = false; }
@@ -725,6 +834,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   useEffect(() => {
     if (engineRef.current) {
       engineRef.current.clear();
+      engineRef.current.setProjectParticles(particleFiles.map(f => f.particleData));
     }
     const now = performance.now();
     lastFrameTimeRef.current = now;
@@ -828,6 +938,34 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   useEffect(() => {
     simulatedBiomeWindEnabledRef.current = simulatedBiomeWindEnabled;
   }, [simulatedBiomeWindEnabled]);
+
+  // High-frequency mutable refs to decouple the 60fps canvas render loop from React state re-renders
+  const activeParticleDataRef = useRef<ParticleSystemData>(activeParticleData);
+  activeParticleDataRef.current = activeParticleData;
+
+  const emitterPosRef = useRef(emitterPos);
+  emitterPosRef.current = emitterPos;
+
+  const panOffsetRef = useRef(panOffset);
+  panOffsetRef.current = panOffset;
+
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+
+  const bgThemeRef = useRef(bgTheme);
+  bgThemeRef.current = bgTheme;
+
+  const floorCollisionEnabledRef = useRef(floorCollisionEnabled);
+  floorCollisionEnabledRef.current = floorCollisionEnabled;
+
+  const floorWorldYRef = useRef(floorWorldY);
+  floorWorldYRef.current = floorWorldY;
+
+  const isDraggingFloorRef = useRef(isDraggingFloor);
+  isDraggingFloorRef.current = isDraggingFloor;
+
+  const isHoveringFloorRef = useRef(isHoveringFloor);
+  isHoveringFloorRef.current = isHoveringFloor;
 
   // Custom FX Presets State (saved in localStorage)
   const [customPresets, setCustomPresets] = useState<{name: string, visuals: any, kinematics?: any}[]>(() => {
@@ -1127,15 +1265,17 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   const detailsSvgRef = useRef<SVGSVGElement | null>(null);
   const lastEmitterPosRef = useRef<{x: number, y: number} | null>(null);
 
-  // Bakes and caches any particle shape (standard, glyph, or vector SVG) into a high-res offscreen raster canvas texture
+  // Bakes and caches any particle shape (standard, glyph, vector SVG, or composite multi-layer) into a high-res offscreen raster canvas texture
   const getOrCreateParticleSprite = (
     shape: ParticleShape,
     customGlyph: string | undefined,
     customSvgPath: string | undefined,
     glowBlurRadius: number,
-    colorRgbStr: string
+    colorRgbStr: string,
+    compositeShape?: CustomCompositeShape
   ): HTMLCanvasElement => {
-    const cacheKey = `${shape}_${customGlyph || ''}_${customSvgPath || ''}_${glowBlurRadius}_${colorRgbStr}`;
+    const compKey = compositeShape ? `${compositeShape.id}_${compositeShape.layers.map(l => `${l.id}:${l.x},${l.y},${l.width},${l.height},${l.rotationDeg},${l.alpha},${l.visible}`).join(';')}` : '';
+    const cacheKey = `${shape}_${customGlyph || ''}_${customSvgPath || ''}_${compKey}_${glowBlurRadius}_${colorRgbStr}`;
     let sprite = spriteCacheRef.current.get(cacheKey);
     if (sprite) return sprite;
 
@@ -1237,6 +1377,95 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       oCtx.fill(path2d);
       oCtx.lineWidth = 1;
       oCtx.stroke(path2d);
+    } else if (shape === 'composite' && compositeShape) {
+      const baseRef = compositeShape.baseSize || 64;
+      const zoom = baseSize / baseRef;
+      oCtx.scale(zoom, zoom);
+      for (const layer of compositeShape.layers) {
+        if (layer.visible === false) continue;
+        oCtx.save();
+        oCtx.translate(layer.x || 0, layer.y || 0);
+        if (layer.rotationDeg) {
+          oCtx.rotate((layer.rotationDeg * Math.PI) / 180);
+        }
+        if (layer.blendMode) {
+          oCtx.globalCompositeOperation = layer.blendMode;
+        }
+        const layerAlpha = layer.alpha !== undefined ? layer.alpha : 1.0;
+        oCtx.globalAlpha = layerAlpha;
+
+        const layerColor = layer.colorMode === 'fixed' && layer.fixedColor ? layer.fixedColor : `rgb(${colorRgbStr})`;
+        oCtx.fillStyle = layerColor;
+        oCtx.strokeStyle = layerColor;
+        if (layer.strokeWidth) {
+          oCtx.lineWidth = layer.strokeWidth;
+        }
+
+        if (layer.glowBlurRadius && layer.glowBlurRadius > 0) {
+          oCtx.shadowBlur = layer.glowBlurRadius;
+          oCtx.shadowColor = layer.glowColor || layerColor;
+        } else {
+          oCtx.shadowBlur = 0;
+        }
+
+        const w = layer.width || 16;
+        const h = layer.height || 16;
+        const r = layer.radius !== undefined ? layer.radius : w / 2;
+
+        oCtx.beginPath();
+        if (layer.type === 'circle') {
+          oCtx.arc(0, 0, r, 0, Math.PI * 2);
+        } else if (layer.type === 'rect') {
+          if (layer.isStroke) oCtx.strokeRect(-w / 2, -h / 2, w, h);
+          else oCtx.fillRect(-w / 2, -h / 2, w, h);
+        } else if (layer.type === 'rounded_rect') {
+          const cr = Math.min(layer.radius || 4, w / 2, h / 2);
+          if (typeof (oCtx as any).roundRect === 'function') {
+            (oCtx as any).roundRect(-w / 2, -h / 2, w, h, cr);
+          } else {
+            oCtx.rect(-w / 2, -h / 2, w, h);
+          }
+        } else if (layer.type === 'ring') {
+          oCtx.lineWidth = layer.strokeWidth || 2;
+          oCtx.arc(0, 0, r, 0, Math.PI * 2);
+          oCtx.stroke();
+        } else if (layer.type === 'line') {
+          oCtx.lineWidth = layer.strokeWidth || 2;
+          oCtx.moveTo(-w / 2, 0);
+          oCtx.lineTo(w / 2, 0);
+          oCtx.stroke();
+        } else if (layer.type === 'star') {
+          const spikes = 4;
+          const outerR = r;
+          const innerR = outerR * 0.4;
+          for (let s = 0; s < spikes * 2; s++) {
+            const rad = (s * Math.PI) / spikes;
+            const currentR = s % 2 === 0 ? outerR : innerR;
+            const sx = Math.cos(rad) * currentR;
+            const sy = Math.sin(rad) * currentR;
+            if (s === 0) oCtx.moveTo(sx, sy);
+            else oCtx.lineTo(sx, sy);
+          }
+          oCtx.closePath();
+        } else if (layer.type === 'diamond') {
+          oCtx.moveTo(0, -h / 2);
+          oCtx.lineTo(w / 2, 0);
+          oCtx.lineTo(0, h / 2);
+          oCtx.lineTo(-w / 2, 0);
+          oCtx.closePath();
+        } else if (layer.type === 'ellipse') {
+          oCtx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+        }
+
+        if (layer.type !== 'rect' && layer.type !== 'ring' && layer.type !== 'line') {
+          if (layer.isStroke) {
+            oCtx.stroke();
+          } else {
+            oCtx.fill();
+          }
+        }
+        oCtx.restore();
+      }
     }
 
     oCtx.restore();
@@ -1468,6 +1697,20 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
             p.glowBlurRadius = rad;
           });
         }
+        if (updatedData.kinematics?.drag !== undefined) {
+          const d = updatedData.kinematics.drag;
+          engineRef.current.particles.forEach(p => {
+            p.drag = d;
+          });
+        }
+        if (updatedData.visuals?.faceVelocity !== undefined || updatedData.kinematics?.faceVelocity !== undefined) {
+          const fv = Boolean(updatedData.visuals?.faceVelocity ?? updatedData.kinematics?.faceVelocity);
+          const deg = updatedData.visuals?.velocityRotationOffsetDeg ?? updatedData.kinematics?.velocityRotationOffsetDeg ?? 0;
+          engineRef.current.particles.forEach(p => {
+            p.faceVelocity = fv;
+            p.velocityRotationOffsetDeg = deg;
+          });
+        }
         if (updatedData.physics) {
           engineRef.current.particles.forEach(p => {
             if (updatedData.physics.spawnCollisionSparks !== undefined) {
@@ -1476,12 +1719,84 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
             if (updatedData.physics.spawnOnDeath !== undefined) {
               p.spawnOnDeath = updatedData.physics.spawnOnDeath;
             }
+            if (updatedData.physics.subEmitterId !== undefined) {
+              p.subEmitterId = updatedData.physics.subEmitterId;
+            }
+            if (updatedData.physics.subEmitterTrigger !== undefined) {
+              p.subEmitterTrigger = updatedData.physics.subEmitterTrigger;
+            }
+            if (updatedData.physics.subEmitterCount !== undefined) {
+              p.subEmitterCount = updatedData.physics.subEmitterCount;
+            }
+            if (updatedData.physics.subEmitterInheritVelocity !== undefined) {
+              p.subEmitterInheritVelocity = updatedData.physics.subEmitterInheritVelocity;
+            }
+            if (updatedData.physics.subEmitterProbability !== undefined) {
+              p.subEmitterProbability = updatedData.physics.subEmitterProbability;
+            }
+            if (updatedData.physics.subEmitterPositionJitter !== undefined) {
+              p.subEmitterPositionJitter = updatedData.physics.subEmitterPositionJitter;
+            }
+            if (updatedData.physics.subEmitterAlphaStartMin !== undefined) {
+              p.subEmitterAlphaStartMin = updatedData.physics.subEmitterAlphaStartMin;
+            }
+            if (updatedData.physics.subEmitterAlphaStartMax !== undefined) {
+              p.subEmitterAlphaStartMax = updatedData.physics.subEmitterAlphaStartMax;
+            }
+            if (updatedData.physics.subEmitterAlphaEndMin !== undefined) {
+              p.subEmitterAlphaEndMin = updatedData.physics.subEmitterAlphaEndMin;
+            }
+            if (updatedData.physics.subEmitterAlphaEndMax !== undefined) {
+              p.subEmitterAlphaEndMax = updatedData.physics.subEmitterAlphaEndMax;
+            }
             if (updatedData.physics.destroyOnCollision !== undefined) {
               p.destroyOnCollision = updatedData.physics.destroyOnCollision;
             }
             if (updatedData.physics.sparkCount !== undefined) {
               p.sparkCount = updatedData.physics.sparkCount;
             }
+            if (updatedData.physics.sparkGravity !== undefined) {
+              p.sparkGravity = updatedData.physics.sparkGravity;
+            }
+            if (updatedData.physics.sparkLifetimeMin !== undefined) {
+              p.sparkLifetimeMin = updatedData.physics.sparkLifetimeMin;
+            }
+            if (updatedData.physics.sparkLifetimeMax !== undefined) {
+              p.sparkLifetimeMax = updatedData.physics.sparkLifetimeMax;
+            }
+            if (updatedData.physics.sparkStartSizeMin !== undefined) {
+              p.sparkStartSizeMin = updatedData.physics.sparkStartSizeMin;
+            }
+            if (updatedData.physics.sparkStartSizeMax !== undefined) {
+              p.sparkStartSizeMax = updatedData.physics.sparkStartSizeMax;
+            }
+            if (updatedData.physics.sparkEndSizeMin !== undefined) {
+              p.sparkEndSizeMin = updatedData.physics.sparkEndSizeMin;
+            }
+            if (updatedData.physics.sparkEndSizeMax !== undefined) {
+              p.sparkEndSizeMax = updatedData.physics.sparkEndSizeMax;
+            }
+            if (updatedData.physics.sparkStartColor !== undefined) {
+              p.sparkStartColor = updatedData.physics.sparkStartColor;
+            }
+            if (updatedData.physics.sparkEndColor !== undefined) {
+              p.sparkEndColor = updatedData.physics.sparkEndColor;
+            }
+            if (updatedData.physics.sparkColorMode !== undefined) {
+              p.sparkColorMode = updatedData.physics.sparkColorMode;
+            }
+          });
+        }
+        if (updatedData.visuals?.randomColorRange !== undefined) {
+          const rcr = updatedData.visuals.randomColorRange;
+          const crs = updatedData.visuals.colorRangeStart;
+          const cre = updatedData.visuals.colorRangeEnd;
+          const stops = updatedData.visuals.colorRangeStops;
+          engineRef.current.particles.forEach(p => {
+            p.randomColorRange = rcr;
+            p.colorRangeStart = crs;
+            p.colorRangeEnd = cre;
+            p.colorRangeStops = stops;
           });
         }
       }
@@ -1504,7 +1819,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           particles: updatedFiles
         }
       };
-    });
+    }, { skipBackups: true, actionLabel: 'Update Particle System' });
   };
 
   const toValidHex = (hex: any): string => {
@@ -1556,7 +1871,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       case 'speed':
         return { min: 0, max: 400 };
       case 'drag':
-        return { min: 0.8, max: 1.05 };
+        return { min: 0, max: 1 };
       case 'motionBlur':
         return { min: 0, max: 10 };
       case 'gravity':
@@ -1612,7 +1927,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       case 'speed':
         return { label: 'Launch Speed', icon: '🚀', colorClass: 'text-cyan-400', stroke: '#06b6d4', badge: 'Forces', desc: 'Speed modifier over lifetime', unit: 'px/s' };
       case 'drag':
-        return { label: 'Fluid Drag', icon: '💧', colorClass: 'text-blue-400', stroke: '#60a5fa', badge: 'Forces', desc: 'Deceleration and air resistance', unit: '' };
+        return { label: 'Fluid Drag', icon: '💧', colorClass: 'text-blue-400', stroke: '#60a5fa', badge: 'Forces', desc: 'Air and fluid drag resistance (0 = none, 1 = full drag)', unit: '' };
       case 'motionBlur':
         return { label: 'Motion Blur', icon: '☄️', colorClass: 'text-pink-400', stroke: '#f472b6', badge: 'Visuals', desc: 'Velocity streak stretch', unit: 'px' };
       case 'gravity':
@@ -1807,6 +2122,90 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     return `linear-gradient(to right, ${stops.join(', ')})`;
   };
 
+  const getColorRangeGradient = () => {
+    const v = activeParticleData.visuals;
+    if (v.colorRangeStops && v.colorRangeStops.length >= 2) {
+      const sorted = [...v.colorRangeStops].sort((a, b) => a.position - b.position);
+      const stops = sorted.map(s => `${s.color} ${(s.position * 100).toFixed(0)}%`);
+      return `linear-gradient(to right, ${stops.join(', ')})`;
+    }
+    const start = v.colorRangeStart || v.startColor || '#ff4500';
+    const end = v.colorRangeEnd || '#ffd700';
+    return `linear-gradient(to right, ${start} 0%, ${end} 100%)`;
+  };
+
+  const GRADIENT_RANGE_PRESETS: Array<{
+    name: string;
+    stops: Array<{ position: number; color: string }>;
+  }> = [
+    {
+      name: '🔥 Fire & Embers',
+      stops: [
+        { position: 0, color: '#ff1a00' },
+        { position: 0.5, color: '#ff7700' },
+        { position: 1, color: '#ffd700' }
+      ]
+    },
+    {
+      name: '🔮 Arcane Magic',
+      stops: [
+        { position: 0, color: '#7e22ce' },
+        { position: 0.5, color: '#c026d3' },
+        { position: 1, color: '#06b6d4' }
+      ]
+    },
+    {
+      name: '❄️ Frost & Ice',
+      stops: [
+        { position: 0, color: '#0284c7' },
+        { position: 0.5, color: '#38bdf8' },
+        { position: 1, color: '#ffffff' }
+      ]
+    },
+    {
+      name: '🧪 Toxic Flora',
+      stops: [
+        { position: 0, color: '#15803d' },
+        { position: 0.5, color: '#84cc16' },
+        { position: 1, color: '#eab308' }
+      ]
+    },
+    {
+      name: '🌌 Cosmic Nebula',
+      stops: [
+        { position: 0, color: '#4338ca' },
+        { position: 0.5, color: '#ec4899' },
+        { position: 1, color: '#fbbf24' }
+      ]
+    },
+    {
+      name: '✨ Golden Sparks',
+      stops: [
+        { position: 0, color: '#b45309' },
+        { position: 0.5, color: '#f59e0b' },
+        { position: 1, color: '#fef08a' }
+      ]
+    },
+    {
+      name: '🌈 Rainbow',
+      stops: [
+        { position: 0, color: '#ef4444' },
+        { position: 0.25, color: '#f59e0b' },
+        { position: 0.5, color: '#10b981' },
+        { position: 0.75, color: '#06b6d4' },
+        { position: 1, color: '#8b5cf6' }
+      ]
+    },
+    {
+      name: '🪙 Cyber Neon',
+      stops: [
+        { position: 0, color: '#ff007f' },
+        { position: 0.5, color: '#7928ca' },
+        { position: 1, color: '#00f0ff' }
+      ]
+    }
+  ];
+
   const getDynamicAlphaGradient = () => {
     const stops: string[] = [];
     const steps = 10;
@@ -1904,7 +2303,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       return [{ time: 0, value: minS }, { time: 1, value: maxS }];
     }
     if (track === 'drag') {
-      const d = k?.drag ?? 0.98;
+      const d = k?.drag ?? 0.02;
       return [{ time: 0, value: d }, { time: 1, value: d }];
     }
     if (track === 'motionBlur') {
@@ -2170,11 +2569,11 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   };
 
   const spawnParticles = (count: number, customOrigin?: { x: number; y: number }) => {
-    const origin = customOrigin || emitterPos;
-    engineRef.current.spawnParticles(count, activeParticleData, origin);
+    const origin = customOrigin || emitterPosRef.current;
+    engineRef.current.spawnParticles(count, activeParticleDataRef.current, origin);
   };
 
-  // Main 60fps GPU simulation render loop
+  // Main 60fps GPU simulation render loop (decoupled from React re-renders via mutable refs)
   useEffect(() => {
     let animId: number;
 
@@ -2193,10 +2592,14 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.1);
       lastFrameTimeRef.current = now;
 
-      // Calculate FPS
+      // Update telemetry (FPS and active particle count) at throttled interval (~250ms)
+      // to avoid triggering 60 React component re-renders per second
       frameCountRef.current++;
-      if (now - fpsTimerRef.current >= 500) {
+      if (now - fpsTimerRef.current >= 250) {
         setFps(Math.round((frameCountRef.current * 1000) / (now - fpsTimerRef.current)));
+        if (engineRef.current) {
+          setActiveParticleCount(engineRef.current.particles.length);
+        }
         frameCountRef.current = 0;
         fpsTimerRef.current = now;
       }
@@ -2217,10 +2620,21 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       const width = canvas.width;
       const height = canvas.height;
 
+      // Read current state from refs to prevent loop restarts on user interaction or background project updates
+      const activeData = activeParticleDataRef.current;
+      const curEmitterPos = emitterPosRef.current;
+      const curPanOffset = panOffsetRef.current;
+      const curZoom = zoomRef.current;
+      const curFloorCollisionEnabled = floorCollisionEnabledRef.current;
+      const curFloorWorldY = floorWorldYRef.current;
+      const isDragFloor = isDraggingFloorRef.current;
+      const isHovFloor = isHoveringFloorRef.current;
+      const curWireframe = showCollisionWireframeRef.current;
+
       // Handle continuous stream emission with accumulator to avoid initial burst catch-up
-      if (isPlaying && activeParticleData.emitter.isContinuous) {
-        const rateMin = activeParticleData.emitter.emissionRateMin ?? activeParticleData.emitter.emissionRate ?? 20;
-        const rateMax = activeParticleData.emitter.emissionRateMax ?? activeParticleData.emitter.emissionRate ?? 20;
+      if (isPlaying && activeData.emitter.isContinuous) {
+        const rateMin = activeData.emitter.emissionRateMin ?? activeData.emitter.emissionRate ?? 20;
+        const rateMax = activeData.emitter.emissionRateMax ?? activeData.emitter.emissionRate ?? 20;
         const currentRate = rateMin + Math.random() * (rateMax - rateMin);
         
         if (currentRate > 0) {
@@ -2240,15 +2654,15 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
 
       // Handle periodic bursts
       // Only burst periodically if explicitly enabled, or if not continuous and has a positive burst interval and count
-      const burstEnabled = activeParticleData.emitter.burstEnabled === true ||
-        (activeParticleData.emitter.burstEnabled === undefined &&
-          (activeParticleData.emitter.burstInterval ?? 0) > 0 &&
-          (activeParticleData.emitter.burstCount ?? 0) > 0 &&
-          !activeParticleData.emitter.isContinuous);
+      const burstEnabled = activeData.emitter.burstEnabled === true ||
+        (activeData.emitter.burstEnabled === undefined &&
+          (activeData.emitter.burstInterval ?? 0) > 0 &&
+          (activeData.emitter.burstCount ?? 0) > 0 &&
+          !activeData.emitter.isContinuous);
 
       if (isPlaying && burstEnabled) {
-        const intervalMin = activeParticleData.emitter.burstIntervalMin ?? activeParticleData.emitter.burstInterval ?? 1.0;
-        const intervalMax = activeParticleData.emitter.burstIntervalMax ?? activeParticleData.emitter.burstInterval ?? 1.0;
+        const intervalMin = activeData.emitter.burstIntervalMin ?? activeData.emitter.burstInterval ?? 1.0;
+        const intervalMax = activeData.emitter.burstIntervalMax ?? activeData.emitter.burstInterval ?? 1.0;
         
         if (intervalMin > 0 || intervalMax > 0) {
           if (nextBurstIntervalRef.current === null) {
@@ -2256,8 +2670,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           }
 
           if (now - lastBurstTimeRef.current >= nextBurstIntervalRef.current * 1000) {
-            const countMin = activeParticleData.emitter.burstCountMin ?? activeParticleData.emitter.burstCount ?? 30;
-            const countMax = activeParticleData.emitter.burstCountMax ?? activeParticleData.emitter.burstCount ?? 30;
+            const countMin = activeData.emitter.burstCountMin ?? activeData.emitter.burstCount ?? 30;
+            const countMax = activeData.emitter.burstCountMax ?? activeData.emitter.burstCount ?? 30;
             const count = Math.floor(countMin + Math.random() * Math.max(0, countMax - countMin));
             if (count > 0) {
               spawnParticles(count);
@@ -2268,45 +2682,44 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }
       }
 
-            const globalWind = simulatedBiomeWindEnabled ? simulatedBiomeWind : 0;
+      const globalWind = simulatedBiomeWindEnabledRef.current ? simulatedBiomeWindRef.current : 0;
       
       let edx = 0;
       let edy = 0;
       if (lastEmitterPosRef.current) {
-        edx = emitterPos.x - lastEmitterPosRef.current.x;
-        edy = emitterPos.y - lastEmitterPosRef.current.y;
+        edx = curEmitterPos.x - lastEmitterPosRef.current.x;
+        edy = curEmitterPos.y - lastEmitterPosRef.current.y;
       }
-      lastEmitterPosRef.current = { x: emitterPos.x, y: emitterPos.y };
+      lastEmitterPosRef.current = { x: curEmitterPos.x, y: curEmitterPos.y };
       
       const effectivePhysics = {
-        ...activeParticleData.physics,
-        collideWithMapSolids: floorCollisionEnabled && activeParticleData.physics.collideWithMapSolids
+        ...activeData.physics,
+        collideWithMapSolids: curFloorCollisionEnabled && activeData.physics.collideWithMapSolids
       };
 
-      engineRef.current.update(dt, effectivePhysics, floorWorldY, globalWind, {
-        x: emitterPos.x,
-        y: emitterPos.y,
+      engineRef.current.update(dt, effectivePhysics, curFloorWorldY, globalWind, {
+        x: curEmitterPos.x,
+        y: curEmitterPos.y,
         dx: edx,
         dy: edy
       });
-      setActiveParticleCount(engineRef.current.particles.length);
 
       // Render environment
       ctx.clearRect(0, 0, width, height);
 
       // World Space Rendering (Grid, Solid Floor Geometry, Emitter Handle)
       ctx.save();
-      ctx.translate(panOffset.x, panOffset.y);
-      ctx.scale(zoom, zoom);
+      ctx.translate(curPanOffset.x, curPanOffset.y);
+      ctx.scale(curZoom, curZoom);
       
-      const scaledWidth = width / zoom;
-      const scaledHeight = height / zoom;
-      const startX = -panOffset.x / zoom;
-      const startY = -panOffset.y / zoom;
+      const scaledWidth = width / curZoom;
+      const scaledHeight = height / curZoom;
+      const startX = -curPanOffset.x / curZoom;
+      const startY = -curPanOffset.y / curZoom;
       
       // Draw World Grid
       ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 1 / zoom;
+      ctx.lineWidth = 1 / curZoom;
       const gridSize = 64;
       
       ctx.beginPath();
@@ -2321,78 +2734,78 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
       ctx.stroke();
 
       // Render Solid Floor Geometry in World Space
-      if (floorCollisionEnabled) {
+      if (curFloorCollisionEnabled) {
         const floorLeft = startX - 200;
         const floorRight = startX + scaledWidth + 200;
-        const floorBottom = Math.max(floorWorldY + 3000, startY + scaledHeight + 200);
+        const floorBottom = Math.max(curFloorWorldY + 3000, startY + scaledHeight + 200);
 
         // Solid floor slab body (covers grid below floor plane)
         ctx.fillStyle = '#090d16';
-        ctx.fillRect(floorLeft, floorWorldY, floorRight - floorLeft, floorBottom - floorWorldY);
+        ctx.fillRect(floorLeft, curFloorWorldY, floorRight - floorLeft, floorBottom - curFloorWorldY);
 
         // Subsurface accent band for tactile physical depth
-        ctx.fillStyle = activeParticleData.physics.collideWithMapSolids ? '#0f172a' : '#111827';
-        ctx.fillRect(floorLeft, floorWorldY, floorRight - floorLeft, 14 / zoom);
+        ctx.fillStyle = activeData.physics.collideWithMapSolids ? '#0f172a' : '#111827';
+        ctx.fillRect(floorLeft, curFloorWorldY, floorRight - floorLeft, 14 / curZoom);
 
         // Top surface collision boundary line
-        const isActive = activeParticleData.physics.collideWithMapSolids;
+        const isActive = activeData.physics.collideWithMapSolids;
         ctx.strokeStyle = isActive ? '#38bdf8' : '#475569';
-        ctx.lineWidth = (isDraggingFloor || isHoveringFloor ? 3 : 2) / zoom;
+        ctx.lineWidth = (isDragFloor || isHovFloor ? 3 : 2) / curZoom;
         ctx.beginPath();
-        ctx.moveTo(floorLeft, floorWorldY);
-        ctx.lineTo(floorRight, floorWorldY);
+        ctx.moveTo(floorLeft, curFloorWorldY);
+        ctx.lineTo(floorRight, curFloorWorldY);
         ctx.stroke();
 
         // Subtle glow along collision line when active
         if (isActive) {
           ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
-          ctx.lineWidth = 6 / zoom;
+          ctx.lineWidth = 6 / curZoom;
           ctx.beginPath();
-          ctx.moveTo(floorLeft, floorWorldY);
-          ctx.lineTo(floorRight, floorWorldY);
+          ctx.moveTo(floorLeft, curFloorWorldY);
+          ctx.lineTo(floorRight, curFloorWorldY);
           ctx.stroke();
         }
 
         // Center grab handle indicator on the floor line
         const centerX = startX + scaledWidth / 2;
-        const handleW = 64 / zoom;
-        const handleH = 6 / zoom;
-        ctx.fillStyle = isActive ? (isDraggingFloor ? '#38bdf8' : 'rgba(56, 189, 248, 0.45)') : 'rgba(100, 116, 139, 0.45)';
-        ctx.fillRect(centerX - handleW / 2, floorWorldY - handleH / 2, handleW, handleH);
+        const handleW = 64 / curZoom;
+        const handleH = 6 / curZoom;
+        ctx.fillStyle = isActive ? (isDragFloor ? '#38bdf8' : 'rgba(56, 189, 248, 0.45)') : 'rgba(100, 116, 139, 0.45)';
+        ctx.fillRect(centerX - handleW / 2, curFloorWorldY - handleH / 2, handleW, handleH);
 
         // Floor label in world space, aligned cleanly inside visible viewport
-        ctx.font = `${Math.max(9, 11 / zoom)}px Inter, sans-serif`;
+        ctx.font = `${Math.max(9, 11 / curZoom)}px Inter, sans-serif`;
         ctx.fillStyle = isActive ? '#94a3b8' : '#64748b';
         const floorLabel = isActive
-          ? `SOLID FLOOR GEOMETRY (WORLD Y: ${floorWorldY} | COLLISION ACTIVE)`
-          : `SOLID FLOOR GEOMETRY (WORLD Y: ${floorWorldY} | MAP COLLISION OFF)`;
-        ctx.fillText(floorLabel, startX + 16 / zoom, floorWorldY + 20 / zoom);
+          ? `SOLID FLOOR GEOMETRY (WORLD Y: ${curFloorWorldY} | COLLISION ACTIVE)`
+          : `SOLID FLOOR GEOMETRY (WORLD Y: ${curFloorWorldY} | MAP COLLISION OFF)`;
+        ctx.fillText(floorLabel, startX + 16 / curZoom, curFloorWorldY + 20 / curZoom);
       }
       
       // Draw emitter handle
       if (isPlaying) {
         ctx.fillStyle = '#10b981';
         ctx.beginPath();
-        ctx.arc(emitterPos.x, emitterPos.y, 4 / zoom, 0, Math.PI * 2);
+        ctx.arc(curEmitterPos.x, curEmitterPos.y, 4 / curZoom, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 2 / zoom;
+        ctx.lineWidth = 2 / curZoom;
         ctx.beginPath();
-        ctx.arc(emitterPos.x, emitterPos.y, 12 / zoom, 0, Math.PI * 2);
+        ctx.arc(curEmitterPos.x, curEmitterPos.y, 12 / curZoom, 0, Math.PI * 2);
         ctx.stroke();
       }
       ctx.restore();
 
       // Render particles in World Space (ParticleEngine.render applies panOffset and zoom internally)
-      engineRef.current.render(ctx, panOffset, zoom, activeParticleData, showCollisionWireframe, emitterPos);
+      engineRef.current.render(ctx, curPanOffset, curZoom, activeData, curWireframe, curEmitterPos);
 
       animId = requestAnimationFrame(renderLoop);
     };
 
     animId = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(animId);
-  }, [isPlaying, activeParticleData, bgTheme, floorCollisionEnabled, floorWorldY, emitterPos, isDraggingEmitter, isDraggingFloor, isHoveringFloor, zoom, panOffset, showCollisionWireframe, activeTab]);
+  }, [isPlaying]);
 
   // Screen mouse coordinates to transformed World coordinates converter
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -3132,17 +3545,21 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
             />
 
             {/* Real-time Telemetry Overlay */}
-            <div className="absolute bottom-6 left-6 pointer-events-none flex items-center gap-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-neutral-800 text-[11px] font-mono text-neutral-400 z-20">
-              <div className="flex items-center gap-1">
-                <Gauge size={13} className="text-amber-400" />
-                <span className="text-white font-bold">{fps}</span> FPS
+            <div className="absolute bottom-6 left-6 pointer-events-none select-none flex items-center gap-3 bg-neutral-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-neutral-800 text-[11px] font-mono text-neutral-400 z-20">
+              <div className="flex items-center gap-1.5 w-16 shrink-0 tabular-nums">
+                <Gauge size={13} className="text-amber-400 shrink-0" />
+                <span><span className="text-white font-bold inline-block min-w-[16px] text-right">{fps}</span> FPS</span>
               </div>
-              <div className="w-px h-3 bg-neutral-800" />
-              <div className="flex items-center gap-1">
-                <Sparkles size={13} className="text-cyan-400" />
-                <span className="text-white font-bold">{activeParticleCount}</span> / {activeParticleData.emitter.maxParticles || 300}
+              <div className="w-px h-3 bg-neutral-800 shrink-0" />
+              <div className="flex items-center gap-1.5 w-28 shrink-0 tabular-nums">
+                <Sparkles size={13} className="text-cyan-400 shrink-0" />
+                <span className="inline-flex items-center">
+                  <span className="text-white font-bold inline-block min-w-[24px] text-right">{activeParticleCount}</span>
+                  <span className="text-neutral-500 mx-1">/</span>
+                  <span>{activeParticleData.emitter.maxParticles || 300}</span>
+                </span>
               </div>
-              <div className="w-px h-3 bg-neutral-800" />
+              <div className="w-px h-3 bg-neutral-800 shrink-0" />
               <div className="px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold">
                 ⚡ Baked Raster Sprites
               </div>
@@ -3178,6 +3595,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
             {[
               { id: 'initialize', label: 'Initialize', icon: Flame },
               { id: 'animation', label: 'Animation', icon: Activity },
+              { id: 'shape_builder', label: 'Shape Studio', icon: Layers },
               { id: 'spritesheets', label: 'Spritesheets', icon: Upload },
               { id: 'presets', label: 'Presets', icon: Sparkles },
             ].map(tab => {
@@ -3739,11 +4157,35 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         <option value="square">Solid Box Square</option>
                         <option value="pixel_square">Crisp Retro Pixel</option>
                         <option value="bubble">Translucent Floating Bubble</option>
+                        <option value="composite">🎨 Custom Composite Shape (Multi-Primitive)</option>
                         <option value="custom_glyph">Procedural Prefab Glyph</option>
                         <option value="svg_path">Custom Vector SVG Path</option>
                         <option value="spritesheet">Animated Spritesheet Atlas</option>
                       </select>
                     </div>
+
+                    {/* Composite Shape Shortcut Banner */}
+                    {activeParticleData.visuals.shape === 'composite' && (
+                      <div className="p-2.5 bg-amber-950/20 border border-amber-500/30 rounded-lg space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                            <Layers size={13} />
+                            {activeParticleData.visuals.compositeShape?.name || 'Custom Shape'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('shape_builder')}
+                            className="px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
+                          >
+                            <span>Open Shape Studio</span>
+                            <span>➔</span>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-neutral-400">
+                          {activeParticleData.visuals.compositeShape?.layers?.length || DEFAULT_COMPOSITE_SHAPES[0].layers.length} primitive layers stacked. Open Shape Studio to customize layers, offsets &amp; effects.
+                        </p>
+                      </div>
+                    )}
 
                     {/* Custom glyph / svg inputs if active */}
                     {activeParticleData.visuals.shape === 'custom_glyph' && (
@@ -3874,6 +4316,250 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       <p className="text-[10px] text-neutral-500 italic">
                         Go to the Animation tab to add multi-color keyframe nodes or use a flow preset.
                       </p>
+
+                      <div className="pt-2 border-t border-neutral-800/60 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold text-neutral-300 block">Random Color from Gradient Range</span>
+                          <span className="text-[9px] text-neutral-500">Pick random color for each particle from gradient spectrum</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!addedProps.includes('color_range')) {
+                              handleAddParam('color_range');
+                            } else {
+                              updateActiveParticle(p => ({
+                                ...p,
+                                visuals: { ...p.visuals, randomColorRange: !p.visuals.randomColorRange }
+                              }));
+                            }
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-medium border transition ${
+                            activeParticleData.visuals.randomColorRange
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                              : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                          }`}
+                        >
+                          {activeParticleData.visuals.randomColorRange ? '🌈 Active' : '+ Enable Range'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {addedProps.includes('color_range') && (
+                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span>🌈 Color Gradient Range</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium">
+                          Randomized Palette
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveParam('color_range')}
+                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                        title="Remove Color Gradient Range Module"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+
+                    <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
+                      {/* Enable Switch */}
+                      <label className="flex items-center justify-between cursor-pointer p-2 rounded bg-neutral-950 border border-neutral-800">
+                        <div>
+                          <span className="text-neutral-200 font-semibold block text-[11px]">Enable Random Color Selection</span>
+                          <span className="text-[10px] text-neutral-500 block">Each spawned particle randomly selects its starting color along this gradient spectrum</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={activeParticleData.visuals.randomColorRange ?? true}
+                          onChange={(e) => updateActiveParticle(p => ({
+                            ...p,
+                            visuals: { ...p.visuals, randomColorRange: e.target.checked }
+                          }))}
+                          className="rounded accent-amber-500 font-mono w-4 h-4"
+                        />
+                      </label>
+
+                      {/* Visual Gradient Ribbon Preview */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[10px] font-bold text-neutral-400 block">Gradient Range Spectrum</label>
+                          <span className="text-[9px] font-mono text-neutral-500">
+                            {activeParticleData.visuals.colorRangeStops?.length ?? 2} color stops
+                          </span>
+                        </div>
+                        <div
+                          className="w-full h-7 rounded-lg border border-neutral-700/80 shadow-inner relative overflow-hidden flex items-center"
+                          style={{ background: getColorRangeGradient() }}
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-black/20 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      {/* Color Bounds: Min / Max */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Range Start Color (Min)</label>
+                          <div className="flex items-center gap-1.5 bg-neutral-950 border border-neutral-800 rounded-lg p-1">
+                            <input
+                              type="color"
+                              value={activeParticleData.visuals.colorRangeStart || activeParticleData.visuals.startColor || '#ff4500'}
+                              onChange={(e) => {
+                                const newColor = e.target.value;
+                                updateActiveParticle(p => {
+                                  const stops = p.visuals.colorRangeStops && p.visuals.colorRangeStops.length >= 2
+                                    ? p.visuals.colorRangeStops.map((s, idx) => idx === 0 ? { ...s, color: newColor } : s)
+                                    : [
+                                        { position: 0, color: newColor },
+                                        { position: 1, color: p.visuals.colorRangeEnd || '#ffd700' }
+                                      ];
+                                  return {
+                                    ...p,
+                                    visuals: {
+                                      ...p.visuals,
+                                      colorRangeStart: newColor,
+                                      colorRangeStops: stops
+                                    }
+                                  };
+                                });
+                              }}
+                              className="w-8 h-6 bg-transparent rounded cursor-pointer border-none"
+                            />
+                            <input
+                              type="text"
+                              value={activeParticleData.visuals.colorRangeStart || activeParticleData.visuals.startColor || '#ff4500'}
+                              onChange={(e) => {
+                                const newColor = e.target.value;
+                                updateActiveParticle(p => ({
+                                  ...p,
+                                  visuals: {
+                                    ...p.visuals,
+                                    colorRangeStart: newColor
+                                  }
+                                }));
+                              }}
+                              className="w-full bg-transparent font-mono text-[10px] text-neutral-200 uppercase focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-400 block mb-1">Range End Color (Max)</label>
+                          <div className="flex items-center gap-1.5 bg-neutral-950 border border-neutral-800 rounded-lg p-1">
+                            <input
+                              type="color"
+                              value={activeParticleData.visuals.colorRangeEnd || '#ffd700'}
+                              onChange={(e) => {
+                                const newColor = e.target.value;
+                                updateActiveParticle(p => {
+                                  const currentStops = p.visuals.colorRangeStops && p.visuals.colorRangeStops.length >= 2
+                                    ? p.visuals.colorRangeStops
+                                    : [
+                                        { position: 0, color: p.visuals.colorRangeStart || '#ff4500' },
+                                        { position: 1, color: '#ffd700' }
+                                      ];
+                                  const stops = currentStops.map((s, idx) => idx === currentStops.length - 1 ? { ...s, color: newColor } : s);
+                                  return {
+                                    ...p,
+                                    visuals: {
+                                      ...p.visuals,
+                                      colorRangeEnd: newColor,
+                                      colorRangeStops: stops
+                                    }
+                                  };
+                                });
+                              }}
+                              className="w-8 h-6 bg-transparent rounded cursor-pointer border-none"
+                            />
+                            <input
+                              type="text"
+                              value={activeParticleData.visuals.colorRangeEnd || '#ffd700'}
+                              onChange={(e) => {
+                                const newColor = e.target.value;
+                                updateActiveParticle(p => ({
+                                  ...p,
+                                  visuals: {
+                                    ...p.visuals,
+                                    colorRangeEnd: newColor
+                                  }
+                                }));
+                              }}
+                              className="w-full bg-transparent font-mono text-[10px] text-neutral-200 uppercase focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Curated Gradient Palette Presets */}
+                      <div className="pt-2 border-t border-neutral-800/60">
+                        <label className="text-[10px] font-bold text-neutral-400 block mb-1.5">Curated Gradient Presets</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {GRADIENT_RANGE_PRESETS.map(preset => {
+                            const stops = preset.stops;
+                            const gradientCss = `linear-gradient(to right, ${stops.map(s => `${s.color} ${(s.position * 100).toFixed(0)}%`).join(', ')})`;
+                            return (
+                              <button
+                                key={preset.name}
+                                type="button"
+                                onClick={() => {
+                                  updateActiveParticle(p => ({
+                                    ...p,
+                                    visuals: {
+                                      ...p.visuals,
+                                      randomColorRange: true,
+                                      colorRangeStart: stops[0].color,
+                                      colorRangeEnd: stops[stops.length - 1].color,
+                                      colorRangeStops: stops
+                                    }
+                                  }));
+                                  showToast(`Applied ${preset.name} palette`);
+                                }}
+                                className="flex items-center gap-2 p-1.5 rounded-lg bg-neutral-900 border border-neutral-800 hover:border-neutral-600 transition text-left group"
+                              >
+                                <div
+                                  className="w-5 h-5 rounded-md border border-neutral-700/60 shadow-sm shrink-0"
+                                  style={{ background: gradientCss }}
+                                />
+                                <span className="text-[10px] text-neutral-300 group-hover:text-white truncate">
+                                  {preset.name}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Live Random Swatches Demonstration */}
+                      <div className="p-2.5 rounded-lg bg-neutral-900/90 border border-neutral-800 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-neutral-300">Live Sample Swatches (10 Random Picks)</span>
+                          <span className="text-[9px] text-neutral-500">Each particle randomly evaluates along spectrum</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-1 pt-1">
+                          {Array.from({ length: 10 }).map((_, i) => {
+                            const stops = activeParticleData.visuals.colorRangeStops && activeParticleData.visuals.colorRangeStops.length >= 2
+                              ? activeParticleData.visuals.colorRangeStops
+                              : [
+                                  { position: 0, color: activeParticleData.visuals.colorRangeStart || activeParticleData.visuals.startColor || '#ff4500' },
+                                  { position: 1, color: activeParticleData.visuals.colorRangeEnd || '#ffd700' }
+                                ];
+                            const pseudoRandomT = ((i * 37 + 13) % 100) / 100;
+                            const sampleCol = evaluateGradientColor(stops, pseudoRandomT);
+                            return (
+                              <div
+                                key={i}
+                                className="w-5 h-5 rounded-full border border-white/20 shadow-sm flex-shrink-0 transition-transform hover:scale-125"
+                                style={{ backgroundColor: sampleCol }}
+                                title={`Sample ${i + 1}: ${sampleCol}`}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3969,9 +4655,249 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           />
                         </div>
                       </div>
+
+                      {/* Face Direction of Velocity Control */}
+                      <div className="pt-2 border-t border-neutral-800/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              🧭 Face Direction of Velocity
+                            </span>
+                            <span className="text-[10px] text-neutral-400 block">
+                              Automatically orient particle angle to follow its velocity vector
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextVal = !(activeParticleData.visuals.faceVelocity || activeParticleData.kinematics.faceVelocity);
+                              updateActiveParticle(p => ({
+                                ...p,
+                                visuals: { ...p.visuals, faceVelocity: nextVal, velocityRotationOffsetDeg: p.visuals.velocityRotationOffsetDeg ?? 0 },
+                                kinematics: { ...p.kinematics, faceVelocity: nextVal, velocityRotationOffsetDeg: p.kinematics.velocityRotationOffsetDeg ?? 0 }
+                              }));
+                              if (nextVal && !addedProps.includes('face_velocity')) {
+                                setAddedProps(prev => [...prev, 'face_velocity']);
+                              }
+                            }}
+                            className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
+                              (activeParticleData.visuals.faceVelocity || activeParticleData.kinematics.faceVelocity)
+                                ? 'bg-amber-600'
+                                : 'bg-neutral-800'
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                                (activeParticleData.visuals.faceVelocity || activeParticleData.kinematics.faceVelocity)
+                                  ? 'transform translate-x-5'
+                                  : ''
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {(activeParticleData.visuals.faceVelocity || activeParticleData.kinematics.faceVelocity) && (
+                          <div className="space-y-2 pt-1.5 bg-neutral-900/60 p-2.5 rounded-lg border border-neutral-800/60">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] font-bold text-neutral-300">
+                                Heading Offset Angle: <span className="font-mono text-amber-400">{(activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0)}°</span>
+                              </label>
+                              <div className="flex items-center gap-1">
+                                {[
+                                  { label: '0° (Right)', val: 0 },
+                                  { label: '90° (Up)', val: 90 },
+                                  { label: '180° (Left)', val: 180 },
+                                  { label: '-90° (Down)', val: -90 }
+                                ].map(preset => (
+                                  <button
+                                    key={preset.label}
+                                    type="button"
+                                    onClick={() => updateActiveParticle(p => ({
+                                      ...p,
+                                      visuals: { ...p.visuals, velocityRotationOffsetDeg: preset.val },
+                                      kinematics: { ...p.kinematics, velocityRotationOffsetDeg: preset.val }
+                                    }))}
+                                    className={`px-1.5 py-0.5 text-[9px] font-mono rounded border transition ${
+                                      (activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0) === preset.val
+                                        ? 'bg-amber-600 border-amber-500 text-white'
+                                        : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:text-white'
+                                    }`}
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="range"
+                                min="-180"
+                                max="180"
+                                step="5"
+                                value={activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  updateActiveParticle(p => ({
+                                    ...p,
+                                    visuals: { ...p.visuals, velocityRotationOffsetDeg: val },
+                                    kinematics: { ...p.kinematics, velocityRotationOffsetDeg: val }
+                                  }));
+                                }}
+                                className="flex-1 accent-amber-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+                              />
+                              <input
+                                type="number"
+                                min="-360"
+                                max="360"
+                                value={activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  updateActiveParticle(p => ({
+                                    ...p,
+                                    visuals: { ...p.visuals, velocityRotationOffsetDeg: val },
+                                    kinematics: { ...p.kinematics, velocityRotationOffsetDeg: val }
+                                  }));
+                                }}
+                                className="w-14 bg-neutral-950 border border-neutral-800 rounded p-1 text-xs text-center text-white font-mono"
+                              />
+                            </div>
+                            <p className="text-[9.5px] text-neutral-400 leading-tight">
+                              Adjust offset to match your particle graphic (e.g., 90° for graphics pointing upward, 0° for rightward).
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
                       <p className="text-[10px] text-neutral-500 italic">
                         Go to the Animation tab to customize easing or repeat curves.
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Standalone Face Velocity Direction Card when Rotation module is not displayed */}
+                {addedProps.includes('face_velocity') && !addedProps.includes('rotation') && (
+                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span>🧭 Face Velocity Direction</span>
+                        <span className="text-[9px] bg-amber-950 border border-amber-500/40 text-amber-400 px-1.5 py-0.5 rounded uppercase font-bold">
+                          Active
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveParam('face_velocity')}
+                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                        title="Remove Face Velocity"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-white block">
+                            Velocity Alignment
+                          </span>
+                          <span className="text-[10px] text-neutral-400 block">
+                            Automatically orient particle rotation to match its live trajectory vector
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextVal = !(activeParticleData.visuals.faceVelocity || activeParticleData.kinematics.faceVelocity);
+                            updateActiveParticle(p => ({
+                              ...p,
+                              visuals: { ...p.visuals, faceVelocity: nextVal, velocityRotationOffsetDeg: p.visuals.velocityRotationOffsetDeg ?? 0 },
+                              kinematics: { ...p.kinematics, faceVelocity: nextVal, velocityRotationOffsetDeg: p.kinematics.velocityRotationOffsetDeg ?? 0 }
+                            }));
+                          }}
+                          className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
+                            (activeParticleData.visuals.faceVelocity || activeParticleData.kinematics.faceVelocity)
+                              ? 'bg-amber-600'
+                              : 'bg-neutral-800'
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                              (activeParticleData.visuals.faceVelocity || activeParticleData.kinematics.faceVelocity)
+                                ? 'transform translate-x-5'
+                                : ''
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 pt-1.5 bg-neutral-900/60 p-2.5 rounded-lg border border-neutral-800/60">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-bold text-neutral-300">
+                            Heading Offset Angle: <span className="font-mono text-amber-400">{(activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0)}°</span>
+                          </label>
+                          <div className="flex items-center gap-1">
+                            {[
+                              { label: '0° (Right)', val: 0 },
+                              { label: '90° (Up)', val: 90 },
+                              { label: '180° (Left)', val: 180 },
+                              { label: '-90° (Down)', val: -90 }
+                            ].map(preset => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => updateActiveParticle(p => ({
+                                  ...p,
+                                  visuals: { ...p.visuals, velocityRotationOffsetDeg: preset.val },
+                                  kinematics: { ...p.kinematics, velocityRotationOffsetDeg: preset.val }
+                                }))}
+                                className={`px-1.5 py-0.5 text-[9px] font-mono rounded border transition ${
+                                  (activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0) === preset.val
+                                    ? 'bg-amber-600 border-amber-500 text-white'
+                                    : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:text-white'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="-180"
+                            max="180"
+                            step="5"
+                            value={activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateActiveParticle(p => ({
+                                ...p,
+                                visuals: { ...p.visuals, velocityRotationOffsetDeg: val },
+                                kinematics: { ...p.kinematics, velocityRotationOffsetDeg: val }
+                              }));
+                            }}
+                            className="flex-1 accent-amber-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+                          />
+                          <input
+                            type="number"
+                            min="-360"
+                            max="360"
+                            value={activeParticleData.visuals.velocityRotationOffsetDeg ?? activeParticleData.kinematics.velocityRotationOffsetDeg ?? 0}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateActiveParticle(p => ({
+                                ...p,
+                                visuals: { ...p.visuals, velocityRotationOffsetDeg: val },
+                                kinematics: { ...p.kinematics, velocityRotationOffsetDeg: val }
+                              }));
+                            }}
+                            className="w-14 bg-neutral-950 border border-neutral-800 rounded p-1 text-xs text-center text-white font-mono"
+                          />
+                        </div>
+                        <p className="text-[9.5px] text-neutral-400 leading-tight">
+                          Adjust angle offset to align with your particle art direction (0° for right-pointing, 90° for top-pointing).
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -4095,6 +5021,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                     <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs font-bold text-white">
                         <span>💧 Fluid Drag</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/50 font-mono">Linear Response</span>
                       </div>
                       <button
                         type="button"
@@ -4105,17 +5032,80 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <div className="p-3 bg-neutral-950/20 text-xs">
-                      <label className="text-[10px] font-bold text-neutral-400 block mb-1">Fluid Drag Coefficient</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.8"
-                        max="1.0"
-                        value={activeParticleData.kinematics.drag ?? 0.98}
-                        onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, drag: Number(e.target.value) } }))}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                      />
+                    <div className="p-3 bg-neutral-950/20 text-xs flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-neutral-400">Fluid Drag Resistance</label>
+                        <span className="text-[10px] font-mono text-cyan-400 font-bold">
+                          {((activeParticleData.kinematics.drag ?? 0) * 100).toFixed(1)}% Drag
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value={activeParticleData.kinematics.drag ?? 0}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, drag: Number(e.target.value) } }))}
+                          className="flex-1 accent-cyan-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="1"
+                          value={activeParticleData.kinematics.drag ?? 0}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, drag: Math.max(0, Math.min(1, Number(e.target.value))) } }))}
+                          className="w-16 bg-neutral-950 border border-neutral-800 rounded-lg p-1 text-xs text-white font-mono text-center focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+
+                      {/* Behavior description indicator */}
+                      <div className="px-2.5 py-1.5 rounded-lg bg-neutral-900/70 border border-neutral-800/60 flex items-center justify-between text-[10px]">
+                        <span className="text-neutral-400">Physical Damping:</span>
+                        <span className="font-medium text-cyan-300">
+                          {(activeParticleData.kinematics.drag ?? 0) === 0
+                            ? "🫧 Frictionless (100% velocity retention)"
+                            : (activeParticleData.kinematics.drag ?? 0) <= 0.25
+                            ? "🍃 Light Air (Gentle drift, long travel)"
+                            : (activeParticleData.kinematics.drag ?? 0) <= 0.55
+                            ? "💧 Fluid / Water (Natural smooth slowing)"
+                            : (activeParticleData.kinematics.drag ?? 0) <= 0.85
+                            ? "🍯 Viscous Medium (Firm deceleration)"
+                            : "🛑 Heavy Brake (Rapid halt near emitter)"}
+                        </span>
+                      </div>
+
+                      {/* Presets */}
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {[
+                          { label: 'Zero (0%)', val: 0 },
+                          { label: 'Air (15%)', val: 0.15 },
+                          { label: 'Water (35%)', val: 0.35 },
+                          { label: 'Medium (55%)', val: 0.55 },
+                          { label: 'Viscous (75%)', val: 0.75 },
+                          { label: 'Full Brake (100%)', val: 1.0 }
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => updateActiveParticle(p => ({ ...p, kinematics: { ...p.kinematics, drag: preset.val } }))}
+                            className={`px-2 py-0.5 rounded text-[9px] font-medium transition ${
+                              Math.abs((activeParticleData.kinematics.drag ?? 0) - preset.val) < 0.02
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800/60'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex justify-between text-[9px] text-neutral-500 font-mono pt-0.5">
+                        <span>0.0 (Frictionless)</span>
+                        <span>0.5 (Balanced)</span>
+                        <span>1.0 (Maximum)</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -4552,65 +5542,237 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   </div>
                 )}
 
-                {addedProps.includes('spawn_sparks') && (
-                  <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
-                    <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold text-white">
-                        <span>✨ Spawn Sub-Particles on Destroy</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveParam('spawn_sparks')}
-                        className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
-                        title="Remove sub-particles parameter"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                    <div className="p-3 bg-neutral-950/20 text-xs space-y-3">
-                      <label className="flex items-center justify-between cursor-pointer p-2 rounded bg-neutral-950 border border-neutral-800">
-                        <div>
-                          <span className="text-neutral-200 font-semibold block text-[11px]">Spawn Sparks on Collision Impact</span>
-                          <span className="text-[10px] text-neutral-500 block">Creates splash particles when hitting solid floors or geometry</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={activeParticleData.physics.spawnCollisionSparks ?? false}
-                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, spawnCollisionSparks: e.target.checked } }))}
-                          className="rounded accent-amber-500 font-mono w-4 h-4"
-                        />
-                      </label>
+                {addedProps.includes('spawn_sparks') && (() => {
+                  const subId = activeParticleData.physics.subEmitterId || 'sub_sparks_electric';
+                  const triggerMode: SubEmitterTriggerMode = activeParticleData.physics.subEmitterTrigger || (
+                    activeParticleData.physics.spawnCollisionSparks && activeParticleData.physics.spawnOnDeath ? 'both' :
+                    activeParticleData.physics.spawnCollisionSparks ? 'impact' :
+                    activeParticleData.physics.spawnOnDeath ? 'death' : 'both'
+                  );
+                  const probability = activeParticleData.physics.subEmitterProbability ?? 1.0;
 
-                      <label className="flex items-center justify-between cursor-pointer p-2 rounded bg-neutral-950 border border-neutral-800">
-                        <div>
-                          <span className="text-neutral-200 font-semibold block text-[11px]">Spawn Burst on Lifetime Expire (Death)</span>
-                          <span className="text-[10px] text-neutral-500 block">Creates sub-particles when particle reaches its max lifetime</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={activeParticleData.physics.spawnOnDeath ?? false}
-                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, spawnOnDeath: e.target.checked } }))}
-                          className="rounded accent-amber-500 font-mono w-4 h-4"
-                        />
-                      </label>
+                  const selectedSubPreset = SUB_EMITTER_PRESETS.find(p => p.id === subId);
+                  const selectedProjPreset = particleFiles.find(f => f.particleData?.id === subId || f.fileName === subId);
+                  const selectedDefaultPreset = DEFAULT_PARTICLE_SYSTEMS.find(p => p.id === subId);
+                  const referencedSystem: ParticleSystemData | undefined = 
+                    selectedSubPreset || 
+                    selectedProjPreset?.particleData || 
+                    selectedDefaultPreset;
 
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[10px] font-bold text-neutral-400 block">Sub-Particles per Impact / Death</label>
-                          <span className="text-[10px] font-mono text-amber-400 font-bold">{activeParticleData.physics.sparkCount ?? 'Random (1-3)'}</span>
+                  return (
+                    <div className="border border-neutral-800 rounded-xl bg-neutral-950/40 overflow-hidden">
+                      <div className="p-3 bg-neutral-900 border-b border-neutral-800/60 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-bold text-white">
+                          <Zap size={14} className="text-amber-400" />
+                          <span>Sub-Particle Emitter</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono border border-amber-500/20">
+                            Referenced System
+                          </span>
                         </div>
-                        <input
-                          type="range"
-                          min="1"
-                          max="8"
-                          value={activeParticleData.physics.sparkCount ?? 2}
-                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, sparkCount: Number(e.target.value) } }))}
-                          className="w-full accent-amber-500 cursor-pointer"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveParam('spawn_sparks')}
+                          className="p-1 hover:bg-neutral-800 rounded text-neutral-500 hover:text-rose-400 transition"
+                          title="Remove sub-particles parameter"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+
+                      <div className="p-3 bg-neutral-950/20 text-xs space-y-4">
+                        {/* 1. Referenced Emitter Selector */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-neutral-300 block uppercase tracking-wider">
+                              Referenced Particle System
+                            </label>
+                            {selectedProjPreset && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onUpdateProject(p => ({
+                                    ...p,
+                                    activeFiles: {
+                                      ...p.activeFiles,
+                                      particleFileName: selectedProjPreset.fileName
+                                    }
+                                  }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: 'Select Particle File' } as any);
+                                  engineRef.current.particles = [];
+                                }}
+                                className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-medium transition"
+                              >
+                                <span>Edit Emitter System ↗</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <select
+                            value={subId}
+                            onChange={(e) => {
+                              const newId = e.target.value;
+                              updateActiveParticle(p => ({
+                                ...p,
+                                physics: {
+                                  ...p.physics,
+                                  subEmitterId: newId,
+                                  spawnCollisionSparks: triggerMode === 'impact' || triggerMode === 'both',
+                                  spawnOnDeath: triggerMode === 'death' || triggerMode === 'both'
+                                }
+                              }));
+                            }}
+                            className="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-200 font-medium focus:outline-none focus:border-amber-500"
+                          >
+                            <optgroup label="⚡ Curated Sub-Emitter Presets">
+                              {SUB_EMITTER_PRESETS.map(preset => (
+                                <option key={preset.id} value={preset.id}>
+                                  {preset.name}
+                                </option>
+                              ))}
+                            </optgroup>
+
+                            {particleFiles.filter(f => f.fileName !== activeFile.fileName).length > 0 && (
+                              <optgroup label="📁 Project Particle Systems">
+                                {particleFiles
+                                  .filter(f => f.fileName !== activeFile.fileName)
+                                  .map(f => (
+                                    <option key={f.id || f.fileName} value={f.particleData?.id || f.fileName}>
+                                      {f.particleData?.name || f.fileName}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            )}
+
+                            <optgroup label="✨ Built-in Engine Systems">
+                              {DEFAULT_PARTICLE_SYSTEMS
+                                .filter(p => p.id !== activeParticleData.id)
+                                .map(preset => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.name}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          </select>
+
+                          {/* Reference Preview Card */}
+                          {referencedSystem && (
+                            <div className="p-2.5 rounded-lg bg-neutral-900/80 border border-neutral-800 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div 
+                                  className="w-7 h-7 rounded-md flex items-center justify-center border border-white/10 shrink-0 shadow-inner"
+                                  style={{
+                                    background: `linear-gradient(135deg, ${referencedSystem.visuals?.startColor || '#ffffff'}, ${referencedSystem.visuals?.endColor || referencedSystem.visuals?.startColor || '#ffffff'})`
+                                  }}
+                                >
+                                  <span className="text-xs font-mono drop-shadow">✨</span>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[11px] font-bold text-white truncate">
+                                    {referencedSystem.name}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 font-mono mt-0.5">
+                                    <span className="capitalize">{referencedSystem.visuals?.shape || 'circle'}</span>
+                                    <span>•</span>
+                                    <span>{referencedSystem.visuals?.minLifetime?.toFixed(2)}s - {referencedSystem.visuals?.maxLifetime?.toFixed(2)}s</span>
+                                    <span>•</span>
+                                    <span className="uppercase">{referencedSystem.visuals?.blendMode || 'screen'}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <div 
+                                  className="w-3.5 h-3.5 rounded-full border border-neutral-700" 
+                                  style={{ backgroundColor: referencedSystem.visuals?.startColor || '#fff' }} 
+                                  title={`Start Color: ${referencedSystem.visuals?.startColor}`} 
+                                />
+                                <span className="text-[9px] text-neutral-600">→</span>
+                                <div 
+                                  className="w-3.5 h-3.5 rounded-full border border-neutral-700" 
+                                  style={{ backgroundColor: referencedSystem.visuals?.endColor || referencedSystem.visuals?.startColor || '#fff' }} 
+                                  title={`End Color: ${referencedSystem.visuals?.endColor}`} 
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. Trigger Events Selector */}
+                        <div className="space-y-1.5 pt-2 border-t border-neutral-800/60">
+                          <label className="text-[10px] font-bold text-neutral-300 block uppercase tracking-wider">
+                            Trigger Events
+                          </label>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'impact' as SubEmitterTriggerMode, label: '💥 On Impact', desc: 'Floor / Wall Hit' },
+                              { id: 'death' as SubEmitterTriggerMode, label: '⏳ On Death', desc: 'Lifetime Expired' },
+                              { id: 'both' as SubEmitterTriggerMode, label: '⚡ Both Events', desc: 'Impact & Death' }
+                            ].map(btn => {
+                              const isSelected = triggerMode === btn.id;
+                              return (
+                                <button
+                                  key={btn.id}
+                                  type="button"
+                                  onClick={() => {
+                                    updateActiveParticle(p => ({
+                                      ...p,
+                                      physics: {
+                                        ...p.physics,
+                                        subEmitterTrigger: btn.id,
+                                        spawnCollisionSparks: btn.id === 'impact' || btn.id === 'both',
+                                        spawnOnDeath: btn.id === 'death' || btn.id === 'both'
+                                      }
+                                    }));
+                                  }}
+                                  className={`p-2 rounded-lg border text-left transition ${
+                                    isSelected
+                                      ? 'bg-amber-500/20 border-amber-500/60 text-amber-200'
+                                      : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-white'
+                                  }`}
+                                >
+                                  <div className="text-[11px] font-bold">{btn.label}</div>
+                                  <div className="text-[9px] text-neutral-500 font-mono mt-0.5">{btn.desc}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* 3. Trigger Probability */}
+                        <div className="space-y-1.5 pt-2 border-t border-neutral-800/60">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-bold text-neutral-300 block uppercase tracking-wider">
+                              Trigger Probability
+                            </label>
+                            <span className="text-[11px] font-mono text-amber-400 font-bold">{Math.round(probability * 100)}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.05"
+                            max="1.0"
+                            step="0.05"
+                            value={probability}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateActiveParticle(p => ({
+                                ...p,
+                                physics: {
+                                  ...p.physics,
+                                  subEmitterProbability: val
+                                }
+                              }));
+                            }}
+                            className="w-full accent-amber-500 cursor-pointer h-1.5 bg-neutral-800 rounded-lg"
+                          />
+                          <div className="flex justify-between text-[9px] text-neutral-500 font-mono mt-0.5">
+                            <span>10% (Rare spark)</span>
+                            <span>50% (Intermittent)</span>
+                            <span>100% (Every event)</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* 4. Enhanced Customizable Parameters Catalog */}
                 <div className="pt-2 space-y-3">
@@ -5718,6 +6880,53 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                   );
                 })()}
               </div>
+            )}
+
+            {/* TAB: SHAPE STUDIO */}
+            {activeTab === 'shape_builder' && (
+              <ParticleShapeStudio
+                currentShapes={activeParticleData.customShapes || DEFAULT_COMPOSITE_SHAPES}
+                activeShapeId={activeParticleData.visuals.compositeShape?.id}
+                appliedShapeId={activeParticleData.visuals.shape === 'composite' ? activeParticleData.visuals.compositeShape?.id : undefined}
+                onApplyShapeToEmitter={(shape) => {
+                  updateActiveParticle(p => ({
+                    ...p,
+                    visuals: {
+                      ...p.visuals,
+                      shape: 'composite',
+                      compositeShape: shape,
+                      compositeShapeId: shape.id
+                    }
+                  }));
+                  // Update current live particles in the engine
+                  if (engineRef.current) {
+                    engineRef.current.clearSpriteCache();
+                    engineRef.current.particles.forEach(pt => {
+                      pt.shape = 'composite';
+                      pt.compositeShape = shape;
+                    });
+                  }
+                  showToast(`Applied "${shape.name}" to active particle emitter!`);
+                }}
+                onUpdateShapes={(shapes, activeId) => {
+                  if (engineRef.current) {
+                    engineRef.current.clearSpriteCache();
+                  }
+                  updateActiveParticle(p => {
+                    const currentActiveShape = shapes.find(s => s.id === (activeId || p.visuals.compositeShape?.id));
+                    return {
+                      ...p,
+                      customShapes: shapes,
+                      visuals: {
+                        ...p.visuals,
+                        compositeShape: currentActiveShape && p.visuals.shape === 'composite' 
+                          ? currentActiveShape 
+                          : p.visuals.compositeShape
+                      }
+                    };
+                  });
+                }}
+              />
             )}
 
             {/* TAB 3: SPRITESHEETS */}

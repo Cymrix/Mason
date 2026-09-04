@@ -1378,8 +1378,38 @@ export interface GameStructureFile {
 // 5.5 PARTICLE SYSTEMS (.particle)
 // ==========================================
 export type ParticleEmitterShape = 'point' | 'box' | 'circle' | 'cone' | 'line' | 'ring';
-export type ParticleShape = 'glow_circle' | 'spark_line' | 'ember' | 'smoke_puff' | 'star' | 'diamond' | 'ring' | 'square' | 'pixel_square' | 'bubble' | 'custom_glyph' | 'svg_path' | 'spritesheet';
+export type ParticleShape = 'glow_circle' | 'spark_line' | 'ember' | 'smoke_puff' | 'star' | 'diamond' | 'ring' | 'square' | 'pixel_square' | 'bubble' | 'custom_glyph' | 'svg_path' | 'spritesheet' | 'composite';
 export type ParticleBlendMode = 'source-over' | 'lighter' | 'screen' | 'multiply';
+
+export type CompositePrimitiveType = 'circle' | 'rect' | 'rounded_rect' | 'ring' | 'line' | 'star' | 'diamond' | 'ellipse';
+
+export interface CompositeShapeLayer {
+  id: string;
+  name: string;
+  type: CompositePrimitiveType;
+  x: number; // Offset from center (px)
+  y: number; // Offset from center (px)
+  width: number; // Width or diameter (px)
+  height: number; // Height or diameter (px)
+  radius?: number; // Corner radius or outer radius
+  rotationDeg: number; // Local rotation in degrees
+  colorMode: 'inherit' | 'fixed'; // Inherit particle color vs fixed hex color
+  fixedColor?: string;
+  alpha: number; // 0.0 to 1.0
+  isStroke?: boolean; // Outline stroke vs solid fill
+  strokeWidth?: number; // Stroke width in px
+  glowBlurRadius?: number; // shadowBlur (0 = none, 1-30 = glow)
+  glowColor?: string; // Custom glow color (undefined = match layer color)
+  blendMode?: 'source-over' | 'lighter' | 'destination-out' | 'multiply' | 'screen';
+  visible?: boolean;
+}
+
+export interface CustomCompositeShape {
+  id: string;
+  name: string;
+  layers: CompositeShapeLayer[];
+  baseSize?: number; // Reference canvas size, default 64
+}
 export type ParticleCurveMode = 'balanced' | 'linear' | 'quick_in_long_out' | 'long_in_quick_out' | 'bell_arch' | 'burst_decay' | 'constant' | 'grow' | 'shrink' | 'bell' | 'burst_shrink';
 export type ParticleSizeCurve = ParticleCurveMode;
 export type ParticleFxStyle = 'default' | 'pulse_oscillate' | 'flicker_shimmer' | 'orbit_swirl' | 'spark_crackle';
@@ -1424,8 +1454,8 @@ export interface ParticleKinematicsConfig {
   gravityX: number;       // legacy/computed acceleration X (px/s^2)
   gravityY: number;       // legacy/computed acceleration Y (px/s^2, positive = down)
   windSensitivity?: number; // 0.0 to 2.0 (Sensitivity to Biome Environmental Wind, 1.0 = 100%)
-  drag: number;           // air resistance 0.0 to 1.0 (e.g. 0.98)
-  startDrag?: number;     // 3-keyframe air drag setup (e.g. 0.98)
+  drag: number;           // Fluid drag resistance 0.0 (no drag / frictionless) to 1.0 (full drag / instant stop)
+  startDrag?: number;     // 3-keyframe air drag setup (0.0 to 1.0)
   startDragMax?: number;  // Optional max range for random start drag
   midDrag?: number;       // Optional 50% keyframe air drag
   midDragMax?: number;    // Optional max range for random mid drag
@@ -1443,12 +1473,16 @@ export interface ParticleKinematicsConfig {
   minAngularVelocity: number; // deg/s
   maxAngularVelocity: number; // deg/s
   angularDrag: number;
+  faceVelocity?: boolean; // When true, particle automatically rotates to face its velocity direction
+  velocityRotationOffsetDeg?: number; // Angular offset in degrees added to velocity direction (0 = right, 90 = up, 180 = left, -90 = down)
 }
 
 export interface ParticleVisualsConfig {
   shape: ParticleShape;
   customGlyph?: string;   // Single prefab / emoji / icon symbol (e.g. ✦, ❄, 💧, ⚔️, 💀)
   customSvgPath?: string; // Custom vector SVG Path d="..." string
+  compositeShape?: CustomCompositeShape; // Custom composite shape made from primitives and effects
+  compositeShapeId?: string;
   minLifetime: number;    // seconds (e.g. 0.5)
   maxLifetime: number;    // seconds (e.g. 1.8)
   startSize: number;      // px
@@ -1499,6 +1533,8 @@ export interface ParticleVisualsConfig {
   animateAlpha?: boolean;
   animateEmissive?: boolean;
   animateRotation?: boolean;
+  faceVelocity?: boolean; // When true, particle automatically rotates to face its velocity direction
+  velocityRotationOffsetDeg?: number; // Angular offset in degrees added to velocity direction (0 = right, 90 = up, 180 = left, -90 = down)
   animateSpeed?: boolean;
   animateDrag?: boolean;
   animateMotionBlur?: boolean;
@@ -1525,6 +1561,10 @@ export interface ParticleVisualsConfig {
   frameLoop?: boolean;
   trackNodes?: Record<string, any>;
   trackRepeats?: Record<string, number>;
+  randomColorRange?: boolean; // When true, each particle picks a random color from a gradient range at spawn
+  colorRangeStart?: string; // Starting hex color for gradient range (e.g. #ff4500)
+  colorRangeEnd?: string; // Ending hex color for gradient range (e.g. #ffd700)
+  colorRangeStops?: Array<{ position: number; color: string }>; // Customizable color stops along the gradient range (positions 0.0 to 1.0)
 }
 
 export interface ParticleSpritesheetConfig {
@@ -1540,6 +1580,8 @@ export interface ParticleSpritesheetConfig {
   splitMode?: 'columns' | 'pixels';
 }
 
+export type SubEmitterTriggerMode = 'impact' | 'death' | 'both' | 'none';
+
 export interface ParticlePhysicsConfig {
   collideWithMapSolids: boolean; // Bounce / destroy on floor & walls
   collisionRestitution: number;  // Bounciness / Elasticity 0.0 to 1.0 (e.g. 0.5, 0.0 = sticky)
@@ -1547,7 +1589,31 @@ export interface ParticlePhysicsConfig {
   destroyOnCollision: boolean;
   spawnCollisionSparks: boolean;
   spawnOnDeath?: boolean;
+
+  // Referenced Sub-Emitter System (Points to an existing preset or project particle system)
+  subEmitterId?: string; // ID of referenced ParticleSystemData (e.g. 'sub_sparks_electric' or project file ID)
+  subEmitterTrigger?: SubEmitterTriggerMode; // When to spawn: 'impact' | 'death' | 'both' | 'none'
+  subEmitterCount?: number; // Number of sub-particles spawned per event (1-12, default: 3)
+  subEmitterInheritVelocity?: number; // 0.0 to 1.0 fraction of parent velocity inherited by sub-particles
+  subEmitterProbability?: number; // 0.0 to 1.0 chance to trigger (e.g. 1.0 = 100%)
+  subEmitterPositionJitter?: number; // Radial position jitter (px) when spawning sub-particles
+  subEmitterAlphaStartMin?: number; // Custom start alpha min override (0.0 to 1.0)
+  subEmitterAlphaStartMax?: number; // Custom start alpha max override (0.0 to 1.0)
+  subEmitterAlphaEndMin?: number; // Custom end alpha min override (0.0 to 1.0)
+  subEmitterAlphaEndMax?: number; // Custom end alpha max override (0.0 to 1.0)
+
+  // Legacy inline parameters maintained for backwards compatibility
   sparkCount?: number;
+  sparkGravity?: number; // Gravity acceleration (px/s^2) applied to spawned sub-particles/sparks
+  sparkLifetimeMin?: number; // Min lifetime in seconds for spawned sub-particles (e.g. 0.15)
+  sparkLifetimeMax?: number; // Max lifetime in seconds for spawned sub-particles (e.g. 0.45)
+  sparkStartSizeMin?: number; // Min initial size in px for spawned sub-particles (e.g. 1.0)
+  sparkStartSizeMax?: number; // Max initial size in px for spawned sub-particles (e.g. 4.0)
+  sparkEndSizeMin?: number; // Min final size in px for spawned sub-particles (e.g. 0.0)
+  sparkEndSizeMax?: number; // Max final size in px for spawned sub-particles (e.g. 0.5)
+  sparkStartColor?: string; // Sub-particle gradient start color (e.g. "#ffffff")
+  sparkEndColor?: string; // Sub-particle gradient end color (e.g. "#ffaa00")
+  sparkColorMode?: 'gradient_lifecycle' | 'gradient_random'; // Lifecycle transition vs random pick along gradient
   fluidSelfCollision?: boolean;
   fluidRepulsionForce?: number;
   collisionShape?: 'circle' | 'box' | 'triangle' | 'hexagon' | 'diamond' | 'custom_polygon';
@@ -1567,6 +1633,7 @@ export interface ParticleSystemData {
   kinematics: ParticleKinematicsConfig;
   visuals: ParticleVisualsConfig;
   physics: ParticlePhysicsConfig;
+  customShapes?: CustomCompositeShape[]; // Saved composite shape presets
 }
 
 export interface ParticleSystemFile {
@@ -3925,7 +3992,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 40,
       gravityX: 4,
       gravityY: -25,
-      drag: 0.985,
+      drag: 0.015,
       windForce: 6,
       turbulenceJitter: 12,
       minAngularVelocity: -90,
@@ -3982,7 +4049,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 25,
       gravityX: 0,
       gravityY: -45,
-      drag: 0.97,
+      drag: 0.03,
       windForce: 2,
       turbulenceJitter: 8,
       minAngularVelocity: 0,
@@ -4039,7 +4106,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 360,
       gravityX: 0,
       gravityY: -8,
-      drag: 0.96,
+      drag: 0.04,
       windForce: 0,
       turbulenceJitter: 14,
       minAngularVelocity: -120,
@@ -4097,7 +4164,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 70,
       gravityX: 0,
       gravityY: -12,
-      drag: 0.99,
+      drag: 0.01,
       windForce: 4,
       turbulenceJitter: 18,
       minAngularVelocity: -40,
@@ -4154,7 +4221,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 90,
       gravityX: 2,
       gravityY: -6,
-      drag: 0.99,
+      drag: 0.01,
       windForce: 5,
       turbulenceJitter: 15,
       minAngularVelocity: -30,
@@ -4211,7 +4278,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 6,
       gravityX: 15,
       gravityY: 150,
-      drag: 0.995,
+      drag: 0.005,
       windForce: 20,
       turbulenceJitter: 4,
       minAngularVelocity: 0,
@@ -4268,7 +4335,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 35,
       gravityX: -30,
       gravityY: 35,
-      drag: 0.98,
+      drag: 0.02,
       windForce: -25,
       turbulenceJitter: 22,
       minAngularVelocity: -80,
@@ -4326,7 +4393,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 15,
       gravityX: 0,
       gravityY: 180,
-      drag: 0.99,
+      drag: 0.01,
       windForce: 2,
       turbulenceJitter: 8,
       minAngularVelocity: 0,
@@ -4383,7 +4450,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 360,
       gravityX: 0,
       gravityY: 0,
-      drag: 0.97,
+      drag: 0.03,
       windForce: 0,
       turbulenceJitter: 16,
       minAngularVelocity: 180,
@@ -4440,7 +4507,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 360,
       gravityX: 0,
       gravityY: 60,
-      drag: 0.92,
+      drag: 0.08,
       windForce: 0,
       turbulenceJitter: 20,
       minAngularVelocity: -180,
@@ -4497,7 +4564,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 120,
       gravityX: 0,
       gravityY: -5,
-      drag: 0.92,
+      drag: 0.08,
       windForce: 0,
       turbulenceJitter: 10,
       minAngularVelocity: -60,
@@ -4554,7 +4621,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 60,
       gravityX: 0,
       gravityY: -30,
-      drag: 0.97,
+      drag: 0.03,
       windForce: 0,
       turbulenceJitter: 12,
       minAngularVelocity: -90,
@@ -4612,7 +4679,7 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       spreadDeg: 40,
       gravityX: 0,
       gravityY: 120,
-      drag: 0.98,
+      drag: 0.02,
       windForce: 0,
       turbulenceJitter: 12,
       minAngularVelocity: 0,
@@ -4638,6 +4705,408 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
     physics: {
       collideWithMapSolids: true,
       collisionRestitution: 0.5,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  }
+];
+
+export const SUB_EMITTER_PRESETS: ParticleSystemData[] = [
+  {
+    id: 'sub_sparks_electric',
+    name: '⚡ Electric Ricochet Sparks',
+    category: 'combat',
+    description: 'High-velocity electric spark arcs bouncing off impact surfaces with intense neon blue/white glow.',
+    icon: '⚡',
+    tintColor: '#60a5fa',
+    emitter: {
+      shape: 'point',
+      width: 4,
+      height: 4,
+      radius: 4,
+      emissionRate: 0,
+      maxParticles: 50,
+      duration: 0,
+      loop: false,
+      burstCount: 6,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 1.0,
+      maxSpeed: 2.6,
+      angleDeg: 270,
+      spreadDeg: 140,
+      gravityX: 0,
+      gravityY: 750,
+      drag: 0.08,
+      windForce: 0,
+      turbulenceJitter: 5,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'spark_line',
+      minLifetime: 0.15,
+      maxLifetime: 0.35,
+      startSize: 3.5,
+      endSize: 0.5,
+      sizeCurve: 'shrink',
+      startColor: '#ffffff',
+      startAlpha: 1.0,
+      midColor: '#93c5fd',
+      midAlpha: 0.9,
+      endColor: '#3b82f6',
+      endAlpha: 0.0,
+      blendMode: 'screen',
+      glowBlurRadius: 6
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.5,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'sub_embers_fiery',
+    name: '🔥 Molten Embers Burst',
+    category: 'environmental',
+    description: 'Slow buoyant rising fiery embers with soft orange heat and turbulence.',
+    icon: '🔥',
+    tintColor: '#f97316',
+    emitter: {
+      shape: 'point',
+      width: 4,
+      height: 4,
+      radius: 4,
+      emissionRate: 0,
+      maxParticles: 50,
+      duration: 0,
+      loop: false,
+      burstCount: 5,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.3,
+      maxSpeed: 0.9,
+      angleDeg: 270,
+      spreadDeg: 100,
+      gravityX: 0,
+      gravityY: -120,
+      drag: 0.04,
+      windForce: 2,
+      turbulenceJitter: 14,
+      minAngularVelocity: -90,
+      maxAngularVelocity: 90,
+      angularDrag: 0.98
+    },
+    visuals: {
+      shape: 'ember',
+      minLifetime: 0.35,
+      maxLifetime: 0.75,
+      startSize: 4.5,
+      endSize: 1.0,
+      sizeCurve: 'shrink',
+      startColor: '#fef08a',
+      startAlpha: 1.0,
+      midColor: '#f97316',
+      midAlpha: 0.85,
+      endColor: '#dc2626',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 8
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.2,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'sub_smoke_puff',
+    name: '💨 Dust & Smoke Cloud',
+    category: 'environmental',
+    description: 'Expanding translucent smoke puffs lingering and dissolving after impact or explosion.',
+    icon: '💨',
+    tintColor: '#94a3b8',
+    emitter: {
+      shape: 'point',
+      width: 6,
+      height: 6,
+      radius: 6,
+      emissionRate: 0,
+      maxParticles: 40,
+      duration: 0,
+      loop: false,
+      burstCount: 4,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.1,
+      maxSpeed: 0.5,
+      angleDeg: 270,
+      spreadDeg: 360,
+      gravityX: 0,
+      gravityY: -30,
+      drag: 0.12,
+      windForce: 1,
+      turbulenceJitter: 8,
+      minAngularVelocity: -45,
+      maxAngularVelocity: 45,
+      angularDrag: 0.97
+    },
+    visuals: {
+      shape: 'smoke_puff',
+      minLifetime: 0.45,
+      maxLifetime: 0.85,
+      startSize: 6,
+      endSize: 18,
+      sizeCurve: 'grow',
+      startColor: '#cbd5e1',
+      startAlpha: 0.7,
+      midColor: '#94a3b8',
+      midAlpha: 0.5,
+      endColor: '#475569',
+      endAlpha: 0.0,
+      blendMode: 'source-over',
+      glowBlurRadius: 0
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.0,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'sub_magic_glint',
+    name: '✨ Arcane Star Burst',
+    category: 'magic',
+    description: 'Radial burst of glittering celestial stars and shimmering diamonds.',
+    icon: '✨',
+    tintColor: '#c084fc',
+    emitter: {
+      shape: 'point',
+      width: 4,
+      height: 4,
+      radius: 4,
+      emissionRate: 0,
+      maxParticles: 60,
+      duration: 0,
+      loop: false,
+      burstCount: 6,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.8,
+      maxSpeed: 2.0,
+      angleDeg: 0,
+      spreadDeg: 360,
+      gravityX: 0,
+      gravityY: 90,
+      drag: 0.06,
+      windForce: 0,
+      turbulenceJitter: 6,
+      minAngularVelocity: -180,
+      maxAngularVelocity: 180,
+      angularDrag: 0.96
+    },
+    visuals: {
+      shape: 'star',
+      minLifetime: 0.25,
+      maxLifetime: 0.6,
+      startSize: 8,
+      endSize: 1.5,
+      sizeCurve: 'shrink',
+      startColor: '#fef08a',
+      startAlpha: 1.0,
+      midColor: '#e879f9',
+      midAlpha: 0.85,
+      endColor: '#818cf8',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 10
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.3,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'sub_blood_splatter',
+    name: '🩸 Droplet Splatter',
+    category: 'combat',
+    description: 'Viscous crimson liquid droplets spraying outward and falling heavy to the floor.',
+    icon: '🩸',
+    tintColor: '#ef4444',
+    emitter: {
+      shape: 'point',
+      width: 4,
+      height: 4,
+      radius: 4,
+      emissionRate: 0,
+      maxParticles: 40,
+      duration: 0,
+      loop: false,
+      burstCount: 5,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.6,
+      maxSpeed: 1.8,
+      angleDeg: 270,
+      spreadDeg: 140,
+      gravityX: 0,
+      gravityY: 980,
+      drag: 0.04,
+      windForce: 0,
+      turbulenceJitter: 4,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'glow_circle',
+      minLifetime: 0.3,
+      maxLifetime: 0.65,
+      startSize: 4.0,
+      endSize: 1.5,
+      sizeCurve: 'shrink',
+      startColor: '#ef4444',
+      startAlpha: 0.95,
+      midColor: '#991b1b',
+      midAlpha: 0.8,
+      endColor: '#450a0a',
+      endAlpha: 0.2,
+      blendMode: 'source-over',
+      glowBlurRadius: 2
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.05,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'sub_frost_shards',
+    name: '❄️ Frost Ice Shards',
+    category: 'magic',
+    description: 'Spinning crystalline ice needles and frosty blue diamonds.',
+    icon: '❄️',
+    tintColor: '#38bdf8',
+    emitter: {
+      shape: 'point',
+      width: 4,
+      height: 4,
+      radius: 4,
+      emissionRate: 0,
+      maxParticles: 40,
+      duration: 0,
+      loop: false,
+      burstCount: 5,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.7,
+      maxSpeed: 1.9,
+      angleDeg: 0,
+      spreadDeg: 360,
+      gravityX: 0,
+      gravityY: 220,
+      drag: 0.05,
+      windForce: 0,
+      turbulenceJitter: 5,
+      minAngularVelocity: -240,
+      maxAngularVelocity: 240,
+      angularDrag: 0.97
+    },
+    visuals: {
+      shape: 'diamond',
+      minLifetime: 0.2,
+      maxLifetime: 0.55,
+      startSize: 5.5,
+      endSize: 1.0,
+      sizeCurve: 'shrink',
+      startColor: '#f0f9ff',
+      startAlpha: 1.0,
+      midColor: '#7dd3fc',
+      midAlpha: 0.8,
+      endColor: '#0284c7',
+      endAlpha: 0.0,
+      blendMode: 'screen',
+      glowBlurRadius: 6
+    },
+    physics: {
+      collideWithMapSolids: true,
+      collisionRestitution: 0.4,
+      destroyOnCollision: false,
+      spawnCollisionSparks: false
+    }
+  },
+  {
+    id: 'sub_shockwave_ring',
+    name: '💫 Expanding Shockwave Ring',
+    category: 'combat',
+    description: 'Quick expanding hollow shockwave ring indicating impact or detonation.',
+    icon: '💫',
+    tintColor: '#fbbf24',
+    emitter: {
+      shape: 'point',
+      width: 2,
+      height: 2,
+      radius: 2,
+      emissionRate: 0,
+      maxParticles: 20,
+      duration: 0,
+      loop: false,
+      burstCount: 1,
+      burstInterval: 0,
+      isContinuous: false
+    },
+    kinematics: {
+      minSpeed: 0.0,
+      maxSpeed: 0.05,
+      angleDeg: 0,
+      spreadDeg: 0,
+      gravityX: 0,
+      gravityY: 0,
+      drag: 0.0,
+      windForce: 0,
+      turbulenceJitter: 0,
+      minAngularVelocity: 0,
+      maxAngularVelocity: 0,
+      angularDrag: 1.0
+    },
+    visuals: {
+      shape: 'ring',
+      minLifetime: 0.18,
+      maxLifetime: 0.32,
+      startSize: 4,
+      endSize: 32,
+      sizeCurve: 'grow',
+      startColor: '#ffffff',
+      startAlpha: 0.9,
+      midColor: '#fde047',
+      midAlpha: 0.6,
+      endColor: '#f59e0b',
+      endAlpha: 0.0,
+      blendMode: 'lighter',
+      glowBlurRadius: 8
+    },
+    physics: {
+      collideWithMapSolids: false,
+      collisionRestitution: 0.0,
       destroyOnCollision: false,
       spawnCollisionSparks: false
     }

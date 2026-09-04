@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.284';
-export const MASON_VERSION_DISPLAY = 'v0.284';
-export const MASON_FULL_VERSION = 'v0.284';
+export const MASON_VERSION = '0.297';
+export const MASON_VERSION_DISPLAY = 'v0.297';
+export const MASON_FULL_VERSION = 'v0.297';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,71 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.297',
+    date: '2026-09-04',
+    notes: 'Decoupled sub-particles from primary emitter max particle budget so secondary bursts do not choke primary emission, and streamlined sub-particle burst quantity to accurately match referenced emitter rate/burstCount.'
+  },
+  {
+    version: 'v0.296',
+    date: '2026-09-04',
+    notes: 'Fixed runtime error where count variable was undefined in fallback sub-particle generation branch within ParticleEngine.'
+  },
+  {
+    version: 'v0.295',
+    date: '2026-09-04',
+    notes: 'Streamlined Sub-Particle Emitter configuration to strictly 3 clean controls: Referenced Particle System (curated presets, project particle systems, built-in systems with live visual preview and direct edit link), Trigger Events (On Impact, On Death, Both Events), and Trigger Probability (0-100%). Eliminated redundant manual property overrides to automatically inherit intrinsic parameters from the referenced system.'
+  },
+  {
+    version: 'v0.294',
+    date: '2026-09-04',
+    notes: 'Architected referenced sub-emitter system and extended sub-particle controls: sub-particle spawning now references existing presets or project particle systems with live preview and deep links; added radial position jitter slider, start alpha random range sliders, and end alpha random range sliders; integrated velocity inheritance, burst count, and trigger probability controls while preserving backwards-compatible fallback overrides.'
+  },
+  {
+    version: 'v0.293',
+    date: '2026-09-04',
+    notes: 'Eliminated severe particle viewport performance hitches during background sync: decoupled 60fps canvas render loop from React state re-renders using high-frequency mutable refs; throttled telemetry updates from 60Hz to 250ms; eliminated full-filesystem JSON.stringify checks from background auto-sync; replaced synchronous localStorage writes and deep JSON clone backup comparisons with non-blocking idle execution and lightweight replacer serializers; and added incremental file change timestamp detection and cooperative event-loop yielding to modular directory and cloud sync.'
+  },
+  {
+    version: 'v0.292',
+    date: '2026-09-04',
+    notes: 'Implemented granular sub-particle (spark) parameter controls across the schema, engine, and editor UI: two-point Color Gradient with lifecycle fading vs random spectrum picking, visual preview ribbon and curated VFX presets; dynamic Lifetime Range (min/max) with duration presets; Start Size Range (min/max); and End Size Range (min/max) with zero-shrink and expansion presets.'
+  },
+  {
+    version: 'v0.291',
+    date: '2026-09-04',
+    notes: 'Re-engineered Fluid Drag into a frame-rate independent, visually linear physical damping curve. Replaced the flat plateau past 0.25 with a progressive response model spanning 0.0 to 1.0, and added physical damping status indicators and quick-select presets (Zero, Air, Water, Medium, Viscous, Full Brake).'
+  },
+  {
+    version: 'v0.290',
+    date: '2026-09-04',
+    notes: 'Added dedicated Gravity control slider and presets for spawned sub-particles (sparks), and added a Color Gradient Range module with real-time spectrum ribbon, min/max bounds, curated VFX presets, and randomized per-particle palette selection.'
+  },
+  {
+    version: 'v0.289',
+    date: '2026-09-04',
+    notes: 'Inverted fluid drag values across the Particle Engine and Editor so that 0 represents no drag (frictionless 100% velocity retention) and 1.0 represents full drag (instant deceleration stop).'
+  },
+  {
+    version: 'v0.288',
+    date: '2026-09-04',
+    notes: 'Set fixed widths and tabular-nums formatting for particle count and FPS telemetry indicators in viewport overlay, preventing layout jitter and horizontal stutter when values change between digit lengths.'
+  },
+  {
+    version: 'v0.287',
+    date: '2026-09-04',
+    notes: 'Implemented offscreen sprite caching and color quantization for custom composite shapes and vector SVGs in ParticleEngine, eliminating per-particle matrix transformations and real-time Gaussian blur passes for 60 FPS performance.'
+  },
+  {
+    version: 'v0.286',
+    date: '2026-09-04',
+    notes: 'Implemented Primitive Shape Studio for particle systems with layer stacking, relative center offset positioning, customizable dimensions, fill/stroke options, real-time shadowBlur glow, and alpha blend modes.'
+  },
+  {
+    version: 'v0.285',
+    date: '2026-09-03',
+    notes: 'Added "Face Direction of Velocity" orientation parameter and options for particles, enabling dynamic heading alignment with customizable angle offsets and direction presets.'
+  },
   {
     version: 'v0.284',
     date: '2026-09-03',

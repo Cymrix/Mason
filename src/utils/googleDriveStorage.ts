@@ -697,6 +697,8 @@ export const checkIfGoogleDriveFolderIsModularProject = async (folderId: string)
  * Saves a project in modular multi-file format to a selected Google Drive folder
  * (writes project_name.mason manifest + maps/, biomes/, prefabs/, ui/, structure/, particles/, sprites/, behaviors/, assets/)
  */
+const gdriveUploadedFileTimestampCache = new Map<string, string>();
+
 export const saveModularProjectToGoogleDrive = async (
   project: any,
   folderId: string,
@@ -742,19 +744,35 @@ export const saveModularProjectToGoogleDrive = async (
   };
 
   const manifestFileName = getProjectMasonFileName(project.name);
-  await saveFileToGoogleDrive(manifestFileName, JSON.stringify(manifestData, null, 2), 'application/json', {
-    targetFolderId: parentFolderId
-  });
+  const manifestCacheKey = `${project.id}:root:${manifestFileName}`;
+  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}`;
 
-  // Helper to write files into a category subfolder
+  if (gdriveUploadedFileTimestampCache.get(manifestCacheKey) !== manifestStamp) {
+    await saveFileToGoogleDrive(manifestFileName, JSON.stringify(manifestData, null, 2), 'application/json', {
+      targetFolderId: parentFolderId
+    });
+    gdriveUploadedFileTimestampCache.set(manifestCacheKey, manifestStamp);
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  // Helper to write files incrementally into a category subfolder
   const writeSubdir = async (subfolderName: string, files: any[]) => {
     if (!files || files.length === 0) return;
     const subFolderId = await ensureGoogleDriveSubfolder(parentFolderId, subfolderName);
     for (const file of files) {
       const fileName = file.fileName || `${file.id || 'file'}.json`;
+      const cacheKey = `${project.id}:${subfolderName}:${fileName}`;
+      const currentStamp = file.updatedAt || file.id || 'initial';
+
+      if (gdriveUploadedFileTimestampCache.get(cacheKey) === currentStamp) {
+        continue;
+      }
+
       await saveFileToGoogleDrive(fileName, JSON.stringify(file, null, 2), 'application/json', {
         targetFolderId: subFolderId
       });
+      gdriveUploadedFileTimestampCache.set(cacheKey, currentStamp);
+      await new Promise(r => setTimeout(r, 0));
     }
   };
 

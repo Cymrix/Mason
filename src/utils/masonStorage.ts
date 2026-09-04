@@ -149,15 +149,17 @@ export async function savePerFileBackupsForProject(
 
         const stripTimestamp = (obj: any) => {
           if (!obj) return null;
-          const clone = JSON.parse(JSON.stringify(obj));
-          delete clone.updatedAt;
-          return JSON.stringify(clone);
+          // Use JSON replacer function to skip updatedAt without allocating costly deep clones
+          return JSON.stringify(obj, (key, val) => (key === 'updatedAt' ? undefined : val));
         };
 
         const currentNormalized = stripTimestamp(file);
 
         // Check if current state matches any existing backup point
-        const matchingIndex = existingList.findIndex(bk => stripTimestamp(bk.fileSnapshot) === currentNormalized);
+        const matchingIndex = existingList.findIndex(bk => {
+          const cachedNormalized = (bk as any)._normalized || ((bk as any)._normalized = stripTimestamp(bk.fileSnapshot));
+          return cachedNormalized === currentNormalized;
+        });
 
         if (matchingIndex !== -1) {
           // Content matches an existing restore point — DO NOT create a new restore point!
@@ -609,6 +611,13 @@ export const getActiveMasonProject = (): MasonProject | null => {
             updatedAt: new Date().toISOString(),
             particleData: p
           }));
+        } else {
+          // Only migrate legacy retention multipliers (e.g. 0.98 which represented 2% drag in v0.10-v0.28)
+          parsed.fileSystem.particles.forEach(pf => {
+            if (pf.particleData?.kinematics?.drag !== undefined && pf.particleData.kinematics.drag >= 0.95 && pf.particleData.kinematics.drag < 1.0) {
+              pf.particleData.kinematics.drag = Math.round((1 - pf.particleData.kinematics.drag) * 1000) / 1000;
+            }
+          });
         }
         if (!parsed.activeFiles.particleFileName) {
           parsed.activeFiles.particleFileName = parsed.fileSystem.particles[0]?.fileName || 'fire_embers.particle';
@@ -675,13 +684,21 @@ export const saveActiveMasonProject = (
     // 2. Persist asynchronously in IndexedDB
     idbSaveProject(project);
 
-    // 3. Create differential project and file-level backup snapshots asynchronously ONLY if not skipping or loading
-    if (!options?.skipBackups && !actionLabel?.toLowerCase().includes('load') && !actionLabel?.toLowerCase().includes('selection')) {
-      saveProjectBackup(project, actionLabel, module);
-      savePerFileBackupsForProject(project, actionLabel);
+    // 3. Create differential project and file-level backup snapshots asynchronously ONLY if not skipping, auto-syncing, or loading
+    const isAutoSync = actionLabel?.toLowerCase().includes('auto-sync') || actionLabel?.toLowerCase().includes('auto sync');
+    if (!options?.skipBackups && !isAutoSync && !actionLabel?.toLowerCase().includes('load') && !actionLabel?.toLowerCase().includes('selection')) {
+      const runBackups = () => {
+        saveProjectBackup(project, actionLabel, module);
+        savePerFileBackupsForProject(project, actionLabel);
+      };
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(runBackups, { timeout: 2000 });
+      } else {
+        setTimeout(runBackups, 50);
+      }
     }
 
-    // 3. Update index list in localStorage (lightweight metadata, few kilobytes only)
+    // 4. Update index list in localStorage (lightweight metadata, few kilobytes only)
     try {
       const indexRaw = localStorage.getItem(MASON_PROJECT_LIST_INDEX);
       let index: ProjectIndexItem[] = indexRaw ? JSON.parse(indexRaw) : [];
@@ -702,19 +719,26 @@ export const saveActiveMasonProject = (
       // index update fallback
     }
 
-    // 4. Try saving to localStorage with safety catch for quota limits
-    try {
-      localStorage.removeItem('mason_all_saved_projects_store');
-      localStorage.setItem(MASON_PROJECT_STORAGE_KEY, JSON.stringify(project));
-    } catch (quotaErr) {
-      // If local storage is full, keep active project in memory + IndexedDB
+    // 5. Try saving to localStorage asynchronously with safety catch for quota limits
+    const persistToLocalStorage = () => {
       try {
         localStorage.removeItem('mason_all_saved_projects_store');
-        localStorage.removeItem(MASON_PROJECT_STORAGE_KEY);
-        localStorage.setItem(MASON_ACTIVE_ID_KEY, project.id);
-      } catch {
-        // Safe silence
+        localStorage.setItem(MASON_PROJECT_STORAGE_KEY, JSON.stringify(project));
+      } catch (quotaErr) {
+        // If local storage is full, keep active project in memory + IndexedDB
+        try {
+          localStorage.removeItem('mason_all_saved_projects_store');
+          localStorage.removeItem(MASON_PROJECT_STORAGE_KEY);
+          localStorage.setItem(MASON_ACTIVE_ID_KEY, project.id);
+        } catch {
+          // Safe silence
+        }
       }
+    };
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(persistToLocalStorage, { timeout: 1000 });
+    } else {
+      setTimeout(persistToLocalStorage, 0);
     }
   } catch (err) {
     console.error('Failed to save Mason project:', err);

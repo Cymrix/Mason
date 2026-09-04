@@ -26,6 +26,11 @@ import {
 } from '../utils/masonStorage';
 import { addToastLog } from '../utils/toastLogStore';
 import { 
+  performFileCheckout, 
+  performFileCheckIn, 
+  performFileForceUnlock 
+} from '../utils/fileCheckoutStore';
+import { 
   TreePine, 
   Layers, 
   Sparkles, 
@@ -712,9 +717,26 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
           name: b.name,
           fileName: b.fileName,
           updatedAt: b.updatedAt,
-          badge: b.biomeData.regionColor
+          badge: b.biomeData.regionColor,
+          checkout: b.checkout
         }))}
         activeFileName={currentBiomeFile.fileName}
+        checkout={currentBiomeFile.checkout}
+        onCheckOutFile={(fName, note) => {
+          const { project: updated } = performFileCheckout(project, 'biomes', fName, note);
+          onUpdateProject(() => updated, { actionLabel: `Check out ${fName}` });
+        }}
+        onCheckInFile={(fName, pushChanges, note) => {
+          if (pushChanges) {
+            handleSaveBiomeFile();
+          }
+          const { project: updated } = performFileCheckIn(project, 'biomes', fName, { note });
+          onUpdateProject(() => updated, { actionLabel: `Check in ${fName}` });
+        }}
+        onForceUnlockFile={(fName) => {
+          const { project: updated } = performFileForceUnlock(project, 'biomes', fName);
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+        }}
         onSelectFile={handleSelectBiomeFile}
         onNewFile={handleNewBiomeFile}
         onDuplicateFile={handleDuplicateBiomeFile}

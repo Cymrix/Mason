@@ -35,6 +35,11 @@ import { PrefabBehaviorsTab } from './shared/PrefabBehaviorsTab';
 import { SpriteEditorModal, SpriteSaveResult } from './SpriteEditorModal';
 import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 import { 
+  performFileCheckout, 
+  performFileCheckIn, 
+  performFileForceUnlock 
+} from '../utils/fileCheckoutStore';
+import { 
   Paintbrush,
   Play, 
   Pause, 
@@ -2357,9 +2362,45 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
           id: c.id,
           name: c.name || c.prefabData?.name || c.fileName,
           fileName: c.fileName,
-          updatedAt: c.updatedAt
+          updatedAt: c.updatedAt,
+          checkout: c.checkout
         }))}
         activeFileName={currentFile.fileName}
+        checkout={currentFile.checkout}
+        onCheckOutFile={(fName, note) => {
+          const { project: updated } = performFileCheckout(project, 'prefabs', fName, note);
+          onUpdateProject(() => updated, { actionLabel: `Check out ${fName}` });
+        }}
+        onCheckInFile={(fName, pushChanges, note) => {
+          if (pushChanges) {
+            const now = new Date().toISOString();
+            const updatedCharData = { ...char, updatedAt: now };
+            updateCharacter(() => updatedCharData);
+            onUpdateProject(p => ({
+              ...p,
+              updatedAt: now,
+              fileSystem: {
+                ...p.fileSystem,
+                prefabs: (p.fileSystem.prefabs || []).map(f =>
+                  f.fileName === currentFile.fileName ? {
+                    ...f,
+                    name: char.name || f.name,
+                    updatedAt: now,
+                    prefabData: updatedCharData,
+                    checkout: undefined
+                  } : f
+                )
+              }
+            }), { actionLabel: `Check in ${fName}`, syncLinked: true });
+          } else {
+            const { project: updated } = performFileCheckIn(project, 'prefabs', fName, { note });
+            onUpdateProject(() => updated, { actionLabel: `Check in ${fName}` });
+          }
+        }}
+        onForceUnlockFile={(fName) => {
+          const { project: updated } = performFileForceUnlock(project, 'prefabs', fName);
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+        }}
         accentColor="rose"
         onBackToDashboard={onBackToDashboard}
         onRefreshFromLinked={onRefreshFromLinked}

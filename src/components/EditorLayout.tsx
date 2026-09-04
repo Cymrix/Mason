@@ -45,6 +45,11 @@ import { AppProfileConfigModal } from './AppProfileConfigModal';
 import { ProfileBadgeSwitcher } from './ProfileBadgeSwitcher';
 import { ToastHistoryOverlay } from './ToastHistoryOverlay';
 import { addToastLog } from '../utils/toastLogStore';
+import { 
+  performFileCheckout, 
+  performFileCheckIn, 
+  performFileForceUnlock 
+} from '../utils/fileCheckoutStore';
 import {
   Paintbrush,
   Eraser,
@@ -1768,9 +1773,35 @@ export const EditorLayout: React.FC = () => {
                     id: m.id,
                     name: m.name,
                     fileName: m.fileName,
-                    updatedAt: m.updatedAt
+                    updatedAt: m.updatedAt,
+                    checkout: m.checkout
                   }))}
                   activeFileName={currentMapFile.fileName}
+                  checkout={currentMapFile.checkout}
+                  onCheckOutFile={(fName, note) => {
+                    const { project: updated } = performFileCheckout(project, 'maps', fName, note);
+                    handleUpdateProject(updated, { actionLabel: `Check out ${fName}` });
+                  }}
+                  onCheckInFile={(fName, pushChanges, note) => {
+                    if (pushChanges) {
+                      const now = new Date().toISOString();
+                      handleUpdateProject(p => ({
+                        ...p,
+                        updatedAt: now,
+                        fileSystem: {
+                          ...p.fileSystem,
+                          maps: (p.fileSystem.maps || []).map(m => m.fileName === fName ? { ...m, updatedAt: now, checkout: undefined } : m)
+                        }
+                      }), { actionLabel: `Check in ${fName}`, syncLinked: true });
+                    } else {
+                      const { project: updated } = performFileCheckIn(project, 'maps', fName, { note });
+                      handleUpdateProject(updated, { actionLabel: `Check in ${fName}` });
+                    }
+                  }}
+                  onForceUnlockFile={(fName) => {
+                    const { project: updated } = performFileForceUnlock(project, 'maps', fName);
+                    handleUpdateProject(updated, { actionLabel: `Force unlock ${fName}` });
+                  }}
                   onSelectFile={(fName) => {
                     handleUpdateProject(p => ({
                       ...p,

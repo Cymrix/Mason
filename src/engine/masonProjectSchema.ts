@@ -39,6 +39,17 @@ export interface MapParticleEmitter {
   tintOverride?: string;
 }
 
+export interface FileCheckoutInfo {
+  isCheckedOut: boolean;
+  checkedOutBy: string; // Display name e.g. "Jesse Marano"
+  userId?: string; // Profile ID
+  userAvatar?: string; // e.g. "🎨", "🚀"
+  userColor?: string; // e.g. "amber", "emerald", "sky"
+  sessionId: string; // Tab/Session unique ID e.g. "sess_ab8f2a"
+  checkedOutAt: string; // ISO date string
+  lockNote?: string; // Optional message / branch note
+}
+
 export interface MapFile {
   id: string;
   name: string;
@@ -57,6 +68,7 @@ export interface MapFile {
   cells?: RefinedCellState[][];
   chunks?: Record<string, RefinedCellState[]>;
   data?: any;
+  checkout?: FileCheckoutInfo;
 }
 
 // ==========================================
@@ -69,6 +81,7 @@ export interface BiomeFile {
   createdAt: string;
   updatedAt: string;
   biomeData: RefinedBiome;
+  checkout?: FileCheckoutInfo;
 }
 
 // ==========================================
@@ -639,6 +652,7 @@ export interface BehaviorFile {
   createdAt: string;
   updatedAt: string;
   behaviorData: BehaviorData;
+  checkout?: FileCheckoutInfo;
 }
 
 // ==========================================
@@ -987,6 +1001,7 @@ export interface PrefabFile {
   createdAt: string;
   updatedAt: string;
   prefabData: PrefabData;
+  checkout?: FileCheckoutInfo;
 }
 
 // ==========================================
@@ -1284,6 +1299,7 @@ export interface UIThemeFile {
   createdAt: string;
   updatedAt: string;
   uiConfig: UIConfigData;
+  checkout?: FileCheckoutInfo;
 }
 
 // ==========================================
@@ -1372,6 +1388,7 @@ export interface GameStructureFile {
   createdAt: string;
   updatedAt: string;
   structureData: GameStructureData;
+  checkout?: FileCheckoutInfo;
 }
 
 // ==========================================
@@ -1444,11 +1461,21 @@ export interface ParticleEmitterConfig {
   animateBurstInterval?: boolean;
 }
 
+export interface ParticleDirectionRange {
+  id?: string;
+  angleDeg: number;       // 0 to 360 (0 = right, 90 = down, 180 = left, 270 = up)
+  spreadDeg: number;      // 0 to 360
+  weight?: number;        // 1 to 10 emission weight distribution
+  enabled?: boolean;      // whether this direction range is active
+  label?: string;         // optional label (e.g. "North", "East")
+}
+
 export interface ParticleKinematicsConfig {
   minSpeed: number;
   maxSpeed: number;
   angleDeg: number;       // 0 to 360 (0 = right, 90 = down, 180 = left, 270 = up)
   spreadDeg: number;      // 0 to 360
+  directionRanges?: ParticleDirectionRange[]; // Up to 4 directional angle/spread ranges (e.g. 4 cardinal directions)
   gravityScale?: number;  // Standardized Gravity Scale matching Biomes & Prefabs (1.0 = Standard 1.0G Earth Gravity, 0.0 = Zero-G, -0.05 = Thermal Buoyancy)
   gravityScaleX?: number; // Optional horizontal gravity/drift scale (-1.0 to 1.0G)
   gravityX: number;       // legacy/computed acceleration X (px/s^2)
@@ -1643,6 +1670,7 @@ export interface ParticleSystemFile {
   createdAt: string;
   updatedAt: string;
   particleData: ParticleSystemData;
+  checkout?: FileCheckoutInfo;
 }
 
 // ==========================================
@@ -1676,6 +1704,7 @@ export interface SpriteFile {
   height?: number;
   exportSettings?: SpriteExportMetadata;
   linkedImageFileNames?: string[];
+  checkout?: FileCheckoutInfo;
 }
 
 export interface ImageFile {
@@ -1689,6 +1718,7 @@ export interface ImageFile {
   height?: number;
   sourceSpriteFileName?: string;
   exportSettings?: SpriteExportMetadata;
+  checkout?: FileCheckoutInfo;
 }
 
 export interface ProjectBackupRecord {

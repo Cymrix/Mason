@@ -64,6 +64,11 @@ import { SpritesheetSliceModal, SpritesheetSliceResult } from './shared/spritesh
 import { ViewportHUD } from './shared/viewport';
 import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 import { addToastLog } from '../utils/toastLogStore';
+import { 
+  performFileCheckout, 
+  performFileCheckIn, 
+  performFileForceUnlock 
+} from '../utils/fileCheckoutStore';
 
 interface ParticlesEditorProps {
   project: MasonProject;
@@ -853,20 +858,30 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     }
   };
 
-  // Reset engine particles and timing refs whenever switching active particle file or system
+  // Reset engine particles and timing refs whenever switching active particle file
+  const prevActiveFileNameRef = useRef<string>(activeFile?.fileName || '');
   useEffect(() => {
-    if (engineRef.current) {
-      engineRef.current.clear();
-      engineRef.current.setProjectParticles(particleFiles.map(f => f.particleData));
+    const currentFileName = activeFile?.fileName || '';
+    if (prevActiveFileNameRef.current !== currentFileName) {
+      prevActiveFileNameRef.current = currentFileName;
+      if (engineRef.current) {
+        engineRef.current.clear();
+        engineRef.current.setProjectParticles(particleFiles.map(f => f.particleData));
+      }
+      const now = performance.now();
+      lastFrameTimeRef.current = now;
+      lastEmitTimeRef.current = now;
+      lastBurstTimeRef.current = now;
+      emitAccumulatorRef.current = 0;
+      nextBurstIntervalRef.current = null;
+      isFirstFrameRef.current = true;
+    } else {
+      // Data updated without switching files: update definitions seamlessly without clearing live particles
+      if (engineRef.current) {
+        engineRef.current.setProjectParticles(particleFiles.map(f => f.particleData));
+      }
     }
-    const now = performance.now();
-    lastFrameTimeRef.current = now;
-    lastEmitTimeRef.current = now;
-    lastBurstTimeRef.current = now;
-    emitAccumulatorRef.current = 0;
-    nextBurstIntervalRef.current = null;
-    isFirstFrameRef.current = true;
-  }, [activeParticleData.id, activeFile.fileName]);
+  }, [activeFile?.fileName, particleFiles]);
 
   const [scrubberProgress, setScrubberProgress] = useState<number>(0.5);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -2620,7 +2635,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         return;
       }
 
-      const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.1);
+      const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.0333);
       lastFrameTimeRef.current = now;
 
       // Update telemetry (FPS and active particle count) at throttled interval (~250ms)
@@ -3330,9 +3345,49 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           id: f.id,
           name: f.particleData?.name || f.name || f.fileName,
           fileName: f.fileName,
-          updatedAt: f.updatedAt
+          updatedAt: f.updatedAt,
+          checkout: f.checkout
         }))}
         activeFileName={activeFile.fileName}
+        checkout={activeFile.checkout}
+        onCheckOutFile={(fName, note) => {
+          const { project: updatedProj } = performFileCheckout(project, 'particles', fName, note);
+          onUpdateProject(() => updatedProj, { actionLabel: `Check out ${fName}` });
+        }}
+        onCheckInFile={(fName, pushChanges, note) => {
+          if (pushChanges) {
+            const now = new Date().toISOString();
+            const updatedParticleFile: ParticleSystemFile = {
+              ...activeFile,
+              name: activeParticleData.name || activeFile.name,
+              fileName: activeFile.fileName,
+              updatedAt: now,
+              particleData: activeParticleData,
+              checkout: undefined
+            };
+            onUpdateProject(p => {
+              const currentFiles = (p.fileSystem.particles && p.fileSystem.particles.length > 0)
+                ? p.fileSystem.particles
+                : particleFiles;
+              const updatedParticles = currentFiles.map(f => (f.fileName === fName || f.id === fName) ? updatedParticleFile : f);
+              return {
+                ...p,
+                updatedAt: now,
+                fileSystem: {
+                  ...p.fileSystem,
+                  particles: updatedParticles
+                }
+              };
+            }, { actionLabel: `Check in ${fName}`, syncLinked: true });
+          } else {
+            const { project: updatedProj } = performFileCheckIn(project, 'particles', fName, { note });
+            onUpdateProject(() => updatedProj, { actionLabel: `Check in ${fName}` });
+          }
+        }}
+        onForceUnlockFile={(fName) => {
+          const { project: updatedProj } = performFileForceUnlock(project, 'particles', fName);
+          onUpdateProject(() => updatedProj, { actionLabel: `Force unlock ${fName}` });
+        }}
         onSelectFile={(fName) => {
           onUpdateProject(p => ({
             ...p,

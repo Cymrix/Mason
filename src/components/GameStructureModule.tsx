@@ -10,6 +10,11 @@ import {
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { addToastLog } from '../utils/toastLogStore';
 import { 
+  performFileCheckout, 
+  performFileCheckIn, 
+  performFileForceUnlock 
+} from '../utils/fileCheckoutStore';
+import { 
   Compass, 
   Sliders, 
   Play, 
@@ -374,9 +379,43 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           id: g.id,
           name: g.name,
           fileName: g.fileName,
-          updatedAt: g.updatedAt
+          updatedAt: g.updatedAt,
+          checkout: g.checkout
         }))}
         activeFileName={currentStructureFile.fileName}
+        checkout={currentStructureFile.checkout}
+        onCheckOutFile={(fName, note) => {
+          const { project: updated } = performFileCheckout(project, 'game', fName, note);
+          onUpdateProject(() => updated, { actionLabel: `Check out ${fName}` });
+        }}
+        onCheckInFile={(fName, pushChanges, note) => {
+          if (pushChanges) {
+            const now = new Date().toISOString();
+            const updatedStructFile: GameStructureFile = {
+              ...currentStructureFile,
+              name: data.gameTitle || currentStructureFile.name,
+              updatedAt: now,
+              structureData: data,
+              checkout: undefined
+            };
+            updateStructure(s => ({ ...s }));
+            onUpdateProject(p => ({
+              ...p,
+              updatedAt: now,
+              fileSystem: {
+                ...p.fileSystem,
+                game: (p.fileSystem.game || []).map(g => g.fileName === currentStructureFile.fileName ? updatedStructFile : g)
+              }
+            }), { actionLabel: `Check in ${fName}`, syncLinked: true });
+          } else {
+            const { project: updated } = performFileCheckIn(project, 'game', fName, { note });
+            onUpdateProject(() => updated, { actionLabel: `Check in ${fName}` });
+          }
+        }}
+        onForceUnlockFile={(fName) => {
+          const { project: updated } = performFileForceUnlock(project, 'game', fName);
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+        }}
         onSelectFile={(fName) => {
           onUpdateProject(p => ({
             ...p,

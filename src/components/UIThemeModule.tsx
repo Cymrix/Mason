@@ -16,6 +16,11 @@ import {
 } from '../engine/masonProjectSchema';
 import { getSavedModuleTab, saveModuleTab } from '../utils/moduleTabStore';
 import { addToastLog } from '../utils/toastLogStore';
+import { 
+  performFileCheckout, 
+  performFileCheckIn, 
+  performFileForceUnlock 
+} from '../utils/fileCheckoutStore';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { 
   Layout, 
@@ -798,9 +803,43 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
           id: u.id,
           name: u.name,
           fileName: u.fileName,
-          updatedAt: u.updatedAt
+          updatedAt: u.updatedAt,
+          checkout: u.checkout
         }))}
         activeFileName={currentUiFile.fileName}
+        checkout={currentUiFile.checkout}
+        onCheckOutFile={(fName, note) => {
+          const { project: updated } = performFileCheckout(project, 'ui', fName, note);
+          onUpdateProject(() => updated, { actionLabel: `Check out ${fName}` });
+        }}
+        onCheckInFile={(fName, pushChanges, note) => {
+          if (pushChanges) {
+            const now = new Date().toISOString();
+            const updatedUiFile: UIThemeFile = {
+              ...currentUiFile,
+              name: ui.name || currentUiFile.name,
+              updatedAt: now,
+              uiConfig: ui,
+              checkout: undefined
+            };
+            updateUI(u => ({ ...u, updatedAt: now }));
+            onUpdateProject(p => ({
+              ...p,
+              updatedAt: now,
+              fileSystem: {
+                ...p.fileSystem,
+                ui: (p.fileSystem.ui || []).map(u => u.fileName === currentUiFile.fileName ? updatedUiFile : u)
+              }
+            }), { actionLabel: `Check in ${fName}`, syncLinked: true });
+          } else {
+            const { project: updated } = performFileCheckIn(project, 'ui', fName, { note });
+            onUpdateProject(() => updated, { actionLabel: `Check in ${fName}` });
+          }
+        }}
+        onForceUnlockFile={(fName) => {
+          const { project: updated } = performFileForceUnlock(project, 'ui', fName);
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+        }}
         onSelectFile={(fName) => {
           onUpdateProject(p => ({
             ...p,

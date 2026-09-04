@@ -4,6 +4,11 @@ import { getModuleUrl } from '../engine/modulesRegistry';
 import { FileSubfolderHeader } from './FileSubfolderHeader';
 import { createNewSpriteInProject, saveActiveMasonProject } from '../utils/masonStorage';
 import { sliceSpritesheetToFrames } from '../utils/spriteUtils';
+import { 
+  performFileCheckout, 
+  performFileCheckIn, 
+  performFileForceUnlock 
+} from '../utils/fileCheckoutStore';
 import { VirtualExportImageModal, PendingExportData } from './VirtualExportImageModal';
 import { UnifiedFileManagerModal } from './UnifiedFileManagerModal';
 import { SpritesheetSliceModal } from './shared/spritesheet/SpritesheetSliceModal';
@@ -1203,9 +1208,26 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
           id: f.id,
           name: f.name,
           fileName: f.fileName,
-          updatedAt: f.updatedAt
+          updatedAt: f.updatedAt,
+          checkout: f.checkout
         }))}
         activeFileName={activeFileName}
+        checkout={activeFile?.checkout}
+        onCheckOutFile={(fName, note) => {
+          const { project: updated } = performFileCheckout(project, 'sprites', fName, note);
+          onUpdateProject(() => updated, { actionLabel: `Check out ${fName}` });
+        }}
+        onCheckInFile={(fName, pushChanges, note) => {
+          if (pushChanges) {
+            handleSaveFile();
+          }
+          const { project: updated } = performFileCheckIn(project, 'sprites', fName, { note });
+          onUpdateProject(() => updated, { actionLabel: `Check in ${fName}` });
+        }}
+        onForceUnlockFile={(fName) => {
+          const { project: updated } = performFileForceUnlock(project, 'sprites', fName);
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+        }}
         isDirty={isDirty}
         onSelectFile={handleSelectFile}
         onNewFile={handleNewFile}

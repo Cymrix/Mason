@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.304';
-export const MASON_VERSION_DISPLAY = 'v0.304';
-export const MASON_FULL_VERSION = 'v0.304';
+export const MASON_VERSION = '0.305';
+export const MASON_VERSION_DISPLAY = 'v0.305';
+export const MASON_FULL_VERSION = 'v0.305';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,11 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.305',
+    date: '2026-09-04',
+    notes: 'Implemented interactive "Check Out" & "Check In" file locking system: Added Check Out/Check In buttons, session ID indicators, custom checkout notes, push-on-checkin options, and high-visibility red banners with force-unlock overrides for files locked by other sessions. Resolved particle editor save stutter by decoupling property updates from engine simulation loops and clamping delta times.'
+  },
   {
     version: 'v0.304',
     date: '2026-09-04',

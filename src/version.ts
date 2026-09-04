@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.299';
-export const MASON_VERSION_DISPLAY = 'v0.299';
-export const MASON_FULL_VERSION = 'v0.299';
+export const MASON_VERSION = '0.300';
+export const MASON_VERSION_DISPLAY = 'v0.300';
+export const MASON_FULL_VERSION = 'v0.300';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,11 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.300',
+    date: '2026-09-04',
+    notes: 'Fixed particle emitter persistence and OneDrive synchronization: resolved mass-timestamp updates by adding timestamp-based delta upload caching for OneDrive, ensured particle emitter modifications properly persist and reload across sessions and cloud folder sync, and normalized raw and modular particle schema loaders across all storage adapters.'
+  },
   {
     version: 'v0.299',
     date: '2026-09-04',

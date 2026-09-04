@@ -833,7 +833,23 @@ export const readModularProjectFromGoogleDrive = async (folderId: string, folder
         jsonFiles.map(async (f) => {
           try {
             const content = await downloadFileAsTextFromGoogleDrive(f.id);
-            return JSON.parse(content);
+            const parsed = JSON.parse(content);
+            if (subfolderName === 'particles' && parsed) {
+              if (!parsed.particleData && parsed.emitter) {
+                return {
+                  id: parsed.id || f.name.replace(/\.[^/.]+$/, ''),
+                  name: parsed.name || f.name.replace(/\.[^/.]+$/, ''),
+                  fileName: f.name,
+                  createdAt: parsed.createdAt || new Date().toISOString(),
+                  updatedAt: parsed.updatedAt || new Date().toISOString(),
+                  particleData: parsed
+                };
+              }
+              if (!parsed.fileName) {
+                parsed.fileName = f.name;
+              }
+            }
+            return parsed;
           } catch (e) {
             console.warn(`Failed to parse file ${f.name} from Google Drive subfolder ${subfolderName}:`, e);
             return null;

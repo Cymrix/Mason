@@ -827,6 +827,9 @@ export const checkIfOneDriveFolderIsModularProject = async (folderId: string): P
   }
 };
 
+// In-memory cache to prevent re-uploading unchanged files to Microsoft OneDrive
+const onedriveUploadedFileTimestampCache = new Map<string, string>();
+
 /**
  * Saves a project in modular multi-file format to a selected OneDrive folder workspace
  */
@@ -875,19 +878,36 @@ export const saveModularProjectToOneDrive = async (
   };
 
   const manifestFileName = getProjectMasonFileName(project.name);
-  await saveFileToOneDrive(manifestFileName, JSON.stringify(manifestData, null, 2), 'application/json', {
-    targetFolderId: parentFolderId
-  });
+  const manifestCacheKey = `${project.id}:root:${manifestFileName}`;
+  const manifestStamp = `${project.updatedAt || ''}_${project.engineVersion || ''}`;
 
-  // Helper to write files into a category subfolder
+  if (onedriveUploadedFileTimestampCache.get(manifestCacheKey) !== manifestStamp) {
+    await saveFileToOneDrive(manifestFileName, JSON.stringify(manifestData, null, 2), 'application/json', {
+      targetFolderId: parentFolderId
+    });
+    onedriveUploadedFileTimestampCache.set(manifestCacheKey, manifestStamp);
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  // Helper to write files into a category subfolder incrementally
   const writeSubdir = async (subfolderName: string, files: any[]) => {
     if (!files || files.length === 0) return;
     const subFolderId = await ensureOneDriveSubfolder(parentFolderId, subfolderName);
     for (const file of files) {
       const fileName = file.fileName || `${file.id || 'file'}.json`;
+      const cacheKey = `${project.id}:${subfolderName}:${fileName}`;
+      const currentStamp = file.updatedAt || file.id || 'initial';
+
+      // Skip re-uploading file if it has not changed since last OneDrive sync
+      if (onedriveUploadedFileTimestampCache.get(cacheKey) === currentStamp) {
+        continue;
+      }
+
       await saveFileToOneDrive(fileName, JSON.stringify(file, null, 2), 'application/json', {
         targetFolderId: subFolderId
       });
+      onedriveUploadedFileTimestampCache.set(cacheKey, currentStamp);
+      await new Promise(r => setTimeout(r, 0));
     }
   };
 
@@ -944,7 +964,23 @@ export const readModularProjectFromOneDrive = async (folderId: string, folderNam
         jsonFiles.map(async (f) => {
           try {
             const content = await downloadFileAsTextFromOneDrive(f);
-            return JSON.parse(content);
+            const parsed = JSON.parse(content);
+            if (subfolderName === 'particles' && parsed) {
+              if (!parsed.particleData && parsed.emitter) {
+                return {
+                  id: parsed.id || f.name.replace(/\.[^/.]+$/, ''),
+                  name: parsed.name || f.name.replace(/\.[^/.]+$/, ''),
+                  fileName: f.name,
+                  createdAt: parsed.createdAt || new Date().toISOString(),
+                  updatedAt: parsed.updatedAt || new Date().toISOString(),
+                  particleData: parsed
+                };
+              }
+              if (!parsed.fileName) {
+                parsed.fileName = f.name;
+              }
+            }
+            return parsed;
           } catch (e) {
             console.warn(`Failed to parse file ${f.name} from OneDrive subfolder ${subfolderName}:`, e);
             return null;

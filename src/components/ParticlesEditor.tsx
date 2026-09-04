@@ -499,7 +499,19 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   // Ensure particles files array exists
   const particleFiles: ParticleSystemFile[] = useMemo(() => {
     if (project.fileSystem.particles && project.fileSystem.particles.length > 0) {
-      return project.fileSystem.particles;
+      return project.fileSystem.particles.map(f => {
+        if (!f.particleData && (f as any).emitter) {
+          return {
+            id: f.id,
+            name: f.name,
+            fileName: f.fileName || `${(f.id || 'particle').replace('particles_', '')}.particle`,
+            createdAt: f.createdAt || new Date().toISOString(),
+            updatedAt: f.updatedAt || new Date().toISOString(),
+            particleData: f as any
+          };
+        }
+        return f;
+      });
     }
     return DEFAULT_PARTICLE_SYSTEMS.map(p => ({
       id: p.id,
@@ -512,8 +524,12 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   }, [project.fileSystem.particles]);
 
   const activeFileName = project.activeFiles.particleFileName || particleFiles[0]?.fileName;
-  const activeFile = particleFiles.find(f => f.fileName === activeFileName) || particleFiles[0];
-  const activeParticleData = activeFile?.particleData || DEFAULT_PARTICLE_SYSTEMS[0];
+  const activeFile = particleFiles.find(f => f.fileName === activeFileName || f.id === activeFileName) || particleFiles[0];
+  const activeParticleData: ParticleSystemData = useMemo(() => {
+    if (activeFile?.particleData) return activeFile.particleData;
+    if ((activeFile as any)?.emitter) return activeFile as any;
+    return DEFAULT_PARTICLE_SYSTEMS[0];
+  }, [activeFile]);
 
   // UI State
   const [activeTab, setActiveTabState] = useState<'initialize' | 'animation' | 'shape_builder' | 'spritesheets' | 'presets'>(
@@ -1804,17 +1820,20 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }
       }
 
-      const updatedFiles = currentFiles.map(f => {
-        if (f.fileName === activeFile.fileName) {
-          return {
-            ...f,
-            name: updatedData.name,
-            updatedAt: new Date().toISOString(),
-            particleData: updatedData
-          };
-        }
-        return f;
-      });
+      const now = new Date().toISOString();
+      const updatedParticleFile: ParticleSystemFile = {
+        ...currentFile,
+        name: updatedData.name,
+        fileName: currentFile.fileName || `${(updatedData.id || 'particle').replace('particles_', '')}.particle`,
+        updatedAt: now,
+        particleData: updatedData
+      };
+
+      const fileExists = currentFiles.some(f => f.fileName === activeFile.fileName || f.id === activeFile.id);
+      const updatedFiles = fileExists
+        ? currentFiles.map(f => (f.fileName === activeFile.fileName || f.id === activeFile.id) ? updatedParticleFile : f)
+        : [...currentFiles, updatedParticleFile];
+
       return {
         ...p,
         fileSystem: {
@@ -1822,7 +1841,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           particles: updatedFiles
         }
       };
-    }, { skipBackups: true, actionLabel: 'Update Particle System' });
+    }, { skipBackups: true, actionLabel: 'Edit Particle Parameter' });
   };
 
   const toValidHex = (hex: any): string => {
@@ -3330,17 +3349,28 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
           const updatedParticleFile: ParticleSystemFile = {
             ...activeFile,
             name: activeParticleData.name || activeFile.name,
+            fileName: activeFile.fileName || `${(activeParticleData.id || 'particle').replace('particles_', '')}.particle`,
             updatedAt: now,
             particleData: activeParticleData
           };
-          onUpdateProject(p => ({
-            ...p,
-            updatedAt: now,
-            fileSystem: {
-              ...p.fileSystem,
-              particles: (p.fileSystem.particles || []).map(f => f.fileName === activeFile.fileName ? updatedParticleFile : f)
-            }
-          }), { actionLabel: `Saved particle file ${activeFile.fileName}`, syncLinked: true });
+          onUpdateProject(p => {
+            const currentFiles = (p.fileSystem.particles && p.fileSystem.particles.length > 0)
+              ? p.fileSystem.particles
+              : particleFiles;
+            const fileExists = currentFiles.some(f => f.fileName === activeFile.fileName || f.id === activeFile.id);
+            const updatedParticles = fileExists
+              ? currentFiles.map(f => (f.fileName === activeFile.fileName || f.id === activeFile.id) ? updatedParticleFile : f)
+              : [...currentFiles, updatedParticleFile];
+
+            return {
+              ...p,
+              updatedAt: now,
+              fileSystem: {
+                ...p.fileSystem,
+                particles: updatedParticles
+              }
+            };
+          }, { actionLabel: `Saved particle file ${activeFile.fileName}`, syncLinked: true });
           const targetName = project?.storageLocation?.displayName || project?.storageLocation?.targetFolderName || 'target folder';
           showToast(`Saved particle file "${activeParticleData.name || activeFile.name}" (${activeFile.fileName}) to ${targetName}`);
         }}

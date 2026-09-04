@@ -612,6 +612,20 @@ export const getActiveMasonProject = (): MasonProject | null => {
             particleData: p
           }));
         } else {
+          // Normalize particle files if raw
+          parsed.fileSystem.particles = parsed.fileSystem.particles.map(pf => {
+            if (!pf.particleData && (pf as any).emitter) {
+              return {
+                id: pf.id,
+                name: pf.name,
+                fileName: pf.fileName || `${(pf.id || 'particle').replace('particles_', '')}.particle`,
+                createdAt: pf.createdAt || new Date().toISOString(),
+                updatedAt: pf.updatedAt || new Date().toISOString(),
+                particleData: pf as any
+              };
+            }
+            return pf;
+          });
           // Only migrate legacy retention multipliers (e.g. 0.98 which represented 2% drag in v0.10-v0.28)
           parsed.fileSystem.particles.forEach(pf => {
             if (pf.particleData?.kinematics?.drag !== undefined && pf.particleData.kinematics.drag >= 0.95 && pf.particleData.kinematics.drag < 1.0) {

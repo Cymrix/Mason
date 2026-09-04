@@ -580,7 +580,24 @@ export const readModularProjectFromDirectory = async (dirHandle: any): Promise<M
           const f = await entry.getFile();
           const t = await f.text();
           try {
-            items.push(JSON.parse(t));
+            const parsed = JSON.parse(t);
+            if (subdirName === 'particles' && parsed) {
+              if (!parsed.particleData && parsed.emitter) {
+                items.push({
+                  id: parsed.id || entry.name.replace(/\.[^/.]+$/, ''),
+                  name: parsed.name || entry.name.replace(/\.[^/.]+$/, ''),
+                  fileName: entry.name,
+                  createdAt: parsed.createdAt || new Date().toISOString(),
+                  updatedAt: parsed.updatedAt || new Date().toISOString(),
+                  particleData: parsed
+                });
+              } else {
+                if (!parsed.fileName) parsed.fileName = entry.name;
+                items.push(parsed);
+              }
+            } else {
+              items.push(parsed);
+            }
           } catch (err) {
             console.warn(`Failed parsing modular file: ${subdirName}/${entry.name}`, err);
           }

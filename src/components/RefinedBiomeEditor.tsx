@@ -2055,6 +2055,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    const defaultEnvFx = project?.fileSystem?.particles?.find(p => p.particleData?.emitter?.shape === 'environmental_fx');
                     const newEffect: EnvironmentalEffectConfig = {
                       id: `effect_${Date.now()}`,
                       name: 'Ambient Weather FX',
@@ -2069,7 +2070,7 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                       particleSize: 3,
                       opacity: 0.8,
                       isEnabled: true,
-                      particleSystemId: project?.fileSystem?.particles?.[0]?.id || ''
+                      particleSystemId: defaultEnvFx?.id || ''
                     };
                     handleUpdateCurrentBiome(b => ({
                       ...b,
@@ -2173,18 +2174,26 @@ export const RefinedBiomeEditor: React.FC<RefinedBiomeEditorProps> = ({
                                 }}
                                 className="w-full text-xs text-neutral-200 bg-neutral-950 border border-neutral-800 rounded-lg px-2.5 py-2 outline-none focus:border-cyan-500 font-medium"
                               >
-                                <option value="" disabled>-- Select a Particle Emitter System --</option>
-                                {/* Filter to only show relevant environmental / weather emitters, but fall back gracefully */}
-                                {(project?.fileSystem?.particles || []).map(p => {
-                                  const isEnv = p.particleData?.category === 'environmental' || 
-                                                p.particleData?.category === 'weather' || 
-                                                p.particleData?.emitter?.shape === 'environmental_fx';
-                                  return (
-                                    <option key={p.id} value={p.id}>
-                                      {isEnv ? '🌧️' : '📦'} {p.name} ({p.particleData?.category || 'custom'})
-                                    </option>
+                                <option value="" disabled>-- Select an Environmental Weather FX Emitter --</option>
+                                {(() => {
+                                  const envEmitters = (project?.fileSystem?.particles || []).filter(
+                                    p => p.particleData?.emitter?.shape === 'environmental_fx'
                                   );
-                                })}
+                                  
+                                  if (envEmitters.length === 0) {
+                                    return (
+                                      <option value="" disabled>
+                                        ⚠️ No "Environmental Weather FX Mode" emitters configured. Change emitter shape to Environmental FX in Particles Editor.
+                                      </option>
+                                    );
+                                  }
+                                  
+                                  return envEmitters.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                      🌧️ {p.name} ({p.particleData?.category || 'custom'})
+                                    </option>
+                                  ));
+                                })()}
                               </select>
                             </div>
 
@@ -2547,15 +2556,62 @@ export const BiomeWeatherSandboxCanvas: React.FC<BiomeWeatherSandboxCanvasProps>
       let startX = Math.random() * width;
       let startY = 0;
 
-      if (pShape === 'embers' || pShape === 'embers_rise') {
-        startY = height;
-        startX = Math.random() * width;
-      } else if (pShape === 'rain' || pShape === 'snow' || pShape === 'environmental_fx') {
-        startY = Math.random() * -30;
-        startX = Math.random() * width;
+      const em = activeEmitter?.particleData?.emitter || {};
+      const isEnvFx = activeEmitter?.particleData?.emitter?.shape === 'environmental_fx';
+
+      if (isEnvFx) {
+        const spawnAbove = em.envSpawnAbove ?? true;
+        const spawnBelow = !!em.envSpawnBelow;
+        const spawnLeft = !!em.envSpawnLeft;
+        const spawnRight = !!em.envSpawnRight;
+        const spawnCenter = !!em.envSpawnCenter;
+
+        const sizeAbove = (em.envSizeAbove ?? 100) / 100;
+        const sizeBelow = (em.envSizeBelow ?? 100) / 100;
+        const sizeLeft = (em.envSizeLeft ?? 100) / 100;
+        const sizeRight = (em.envSizeRight ?? 100) / 100;
+        const sizeCenter = (em.envSizeCenter ?? 100) / 100;
+
+        const activeZones: Array<'above' | 'below' | 'left' | 'right' | 'center'> = [];
+        if (spawnAbove) activeZones.push('above');
+        if (spawnBelow) activeZones.push('below');
+        if (spawnLeft) activeZones.push('left');
+        if (spawnRight) activeZones.push('right');
+        if (spawnCenter) activeZones.push('center');
+
+        if (activeZones.length === 0) {
+          return null;
+        }
+
+        const chosenZone = activeZones[Math.floor(Math.random() * activeZones.length)];
+
+        if (chosenZone === 'above') {
+          startX = (width / 2) + (Math.random() - 0.5) * width * sizeAbove;
+          startY = Math.random() * -30;
+        } else if (chosenZone === 'below') {
+          startX = (width / 2) + (Math.random() - 0.5) * width * sizeBelow;
+          startY = height + Math.random() * 30;
+        } else if (chosenZone === 'left') {
+          startX = Math.random() * -30;
+          startY = (height / 2) + (Math.random() - 0.5) * height * sizeLeft;
+        } else if (chosenZone === 'right') {
+          startX = width + Math.random() * 30;
+          startY = (height / 2) + (Math.random() - 0.5) * height * sizeRight;
+        } else { // center
+          startX = (width / 2) + (Math.random() - 0.5) * width * sizeCenter;
+          startY = (height / 2) + (Math.random() - 0.5) * height * sizeCenter;
+        }
       } else {
-        startY = Math.random() * height;
-        startX = Math.random() * width;
+        if (pShape === 'embers' || pShape === 'embers_rise') {
+          startY = height;
+          startX = Math.random() * width;
+        } else if (pShape === 'rain' || pShape === 'snow' || pShape === 'environmental_fx') {
+          startY = Math.random() * -30;
+          startX = Math.random() * width;
+        } else {
+          startY = Math.random() * height;
+          startX = Math.random() * width;
+        }
       }
 
       const exactSpeedX = pSpeedMin + Math.random() * (pSpeedMax - pSpeedMin);
@@ -2585,8 +2641,10 @@ export const BiomeWeatherSandboxCanvas: React.FC<BiomeWeatherSandboxCanvasProps>
       const count = Math.min(100, effect.density);
       for (let i = 0; i < count; i++) {
         const p = createParticle(effect);
-        p.y = Math.random() * height;
-        particles.push(p);
+        if (p) {
+          p.y = Math.random() * height;
+          particles.push(p);
+        }
       }
     });
 
@@ -2656,7 +2714,12 @@ export const BiomeWeatherSandboxCanvas: React.FC<BiomeWeatherSandboxCanvasProps>
         if (p.life > p.maxLife || outOfBounds) {
           const matchedEffect = activeEffects[0];
           if (matchedEffect) {
-            particles[idx] = createParticle(matchedEffect);
+            const nextP = createParticle(matchedEffect);
+            if (nextP) {
+              particles[idx] = nextP;
+            } else {
+              p.alpha *= 0.95;
+            }
           } else {
             p.alpha *= 0.95;
           }

@@ -3851,15 +3851,15 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                       </button>
                     </div>
 
-                    {/* Emitter Dimensions & Size (Box, Line, Circle, Ring, Cone, Environmental FX) */}
-                    {activeParticleData.emitter.shape !== 'point' && (
+                    {/* Emitter Dimensions & Size (For all standard shapes except Point and Environmental FX) */}
+                    {activeParticleData.emitter.shape !== 'point' && activeParticleData.emitter.shape !== 'environmental_fx' && (
                       <div className="space-y-2 pt-1 border-t border-neutral-800/40">
-                        {/* Box, Circle, Ring, Environmental FX: Width & Height */}
-                        {(activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'circle' || activeParticleData.emitter.shape === 'ring' || activeParticleData.emitter.shape === 'environmental_fx') && (
+                        {/* Box, Circle, Ring: Width & Height */}
+                        {(activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'circle' || activeParticleData.emitter.shape === 'ring') && (
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[10px] font-bold text-neutral-400 block mb-1">
-                                {activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'environmental_fx' ? 'Width (px)' : 'Width / Dia X (px)'}
+                                {activeParticleData.emitter.shape === 'box' ? 'Width (px)' : 'Width / Dia X (px)'}
                               </label>
                               <input
                                 type="number"
@@ -3875,7 +3875,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-neutral-400 block mb-1">
-                                {activeParticleData.emitter.shape === 'box' || activeParticleData.emitter.shape === 'environmental_fx' ? 'Height (px)' : 'Height / Dia Y (px)'}
+                                {activeParticleData.emitter.shape === 'box' ? 'Height (px)' : 'Height / Dia Y (px)'}
                               </label>
                               <input
                                 type="number"
@@ -3935,7 +3935,7 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           </div>
                         )}
 
-                        {/* Emitter Rotation / Angle (For all except Point) */}
+                        {/* Emitter Rotation / Angle */}
                         <div className="space-y-1.5 pt-1">
                           <div className="flex items-center justify-between">
                             <label className="text-[10px] font-bold text-neutral-400">Emitter Rotation / Angle</label>
@@ -3979,6 +3979,273 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         </div>
                       </div>
                     )}
+
+                    {/* Emitter Environmental Weather FX Config (No standard dimensions/angles) */}
+                    {activeParticleData.emitter.shape === 'environmental_fx' && (() => {
+                      const toggleZone = (zone: 'envSpawnAbove' | 'envSpawnBelow' | 'envSpawnLeft' | 'envSpawnRight' | 'envSpawnCenter') => {
+                        updateActiveParticle(p => {
+                          const currentVal = p.emitter[zone] !== undefined 
+                            ? p.emitter[zone] 
+                            : (zone === 'envSpawnAbove' ? true : false);
+                          return {
+                            ...p,
+                            emitter: {
+                              ...p.emitter,
+                              [zone]: !currentVal
+                            }
+                          };
+                        });
+                      };
+                      
+                      const updateZoneSize = (zoneSizeKey: 'envSizeAbove' | 'envSizeBelow' | 'envSizeLeft' | 'envSizeRight' | 'envSizeCenter', val: number) => {
+                        updateActiveParticle(p => ({
+                          ...p,
+                          emitter: {
+                            ...p.emitter,
+                            [zoneSizeKey]: val
+                          }
+                        }));
+                      };
+
+                      return (
+                        <div className="space-y-4 pt-1.5 border-t border-neutral-800/40">
+                          <div className="p-2.5 bg-neutral-950/40 border border-neutral-800/60 rounded-xl space-y-1">
+                            <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">💡 CAMERA-ATTACHED VIEWPORT MODE</div>
+                            <p className="text-[10px] text-neutral-400 leading-relaxed font-normal">
+                              Particles are anchored directly to the player camera/viewport dimensions (e.g. 800x600 in play space). Customize spawning boundaries below.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col items-center p-3 bg-neutral-950/30 border border-neutral-900 rounded-xl">
+                            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2.5">
+                              Viewport Spawn Zones
+                            </span>
+                            
+                            {/* Visual Grid representing camera frame */}
+                            <div className="grid grid-cols-3 gap-2 w-full max-w-[240px] p-2 bg-neutral-950 border border-neutral-900 rounded-xl relative overflow-hidden">
+                              <div className="absolute inset-4 border border-dashed border-cyan-500/10 pointer-events-none rounded" />
+                              
+                              {/* Row 1 */}
+                              <div />
+                              <button
+                                type="button"
+                                onClick={() => toggleZone('envSpawnAbove')}
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition cursor-pointer select-none ${
+                                  (activeParticleData.emitter.envSpawnAbove ?? true)
+                                    ? 'bg-cyan-950/60 border-cyan-500/60 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.15)] font-bold'
+                                    : 'bg-neutral-900/40 border-neutral-850 text-neutral-500 hover:text-neutral-300 hover:border-neutral-700'
+                                }`}
+                              >
+                                <span className="text-sm">⬆️</span>
+                                <span className="text-[8px] mt-0.5">Above</span>
+                              </button>
+                              <div />
+
+                              {/* Row 2 */}
+                              <button
+                                type="button"
+                                onClick={() => toggleZone('envSpawnLeft')}
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition cursor-pointer select-none ${
+                                  activeParticleData.emitter.envSpawnLeft
+                                    ? 'bg-cyan-950/60 border-cyan-500/60 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.15)] font-bold'
+                                    : 'bg-neutral-900/40 border-neutral-850 text-neutral-500 hover:text-neutral-300 hover:border-neutral-700'
+                                }`}
+                              >
+                                <span className="text-sm">⬅️</span>
+                                <span className="text-[8px] mt-0.5">Left of</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleZone('envSpawnCenter')}
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition cursor-pointer select-none ${
+                                  activeParticleData.emitter.envSpawnCenter
+                                    ? 'bg-violet-950/60 border-violet-500/60 text-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.15)] font-bold'
+                                    : 'bg-neutral-900/40 border-neutral-850 text-neutral-500 hover:text-neutral-300 hover:border-neutral-700'
+                                }`}
+                              >
+                                <span className="text-sm">🎯</span>
+                                <span className="text-[8px] mt-0.5">Center</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleZone('envSpawnRight')}
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition cursor-pointer select-none ${
+                                  activeParticleData.emitter.envSpawnRight
+                                    ? 'bg-cyan-950/60 border-cyan-500/60 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.15)] font-bold'
+                                    : 'bg-neutral-900/40 border-neutral-850 text-neutral-500 hover:text-neutral-300 hover:border-neutral-700'
+                                }`}
+                              >
+                                <span className="text-sm">➡️</span>
+                                <span className="text-[8px] mt-0.5">Right of</span>
+                              </button>
+
+                              {/* Row 3 */}
+                              <div />
+                              <button
+                                type="button"
+                                onClick={() => toggleZone('envSpawnBelow')}
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition cursor-pointer select-none ${
+                                  activeParticleData.emitter.envSpawnBelow
+                                    ? 'bg-cyan-950/60 border-cyan-500/60 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.15)] font-bold'
+                                    : 'bg-neutral-900/40 border-neutral-850 text-neutral-500 hover:text-neutral-300 hover:border-neutral-700'
+                                }`}
+                              >
+                                <span className="text-sm">⬇️</span>
+                                <span className="text-[8px] mt-0.5">Below</span>
+                              </button>
+                              <div />
+                            </div>
+                          </div>
+
+                          {/* Coverage scale sliders */}
+                          <div className="space-y-3 pt-1">
+                            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                              Spawn Width/Height Coverage (% of Viewport)
+                            </span>
+                            
+                            {(activeParticleData.emitter.envSpawnAbove ?? true) && (
+                              <div className="space-y-1 p-2 bg-neutral-950/25 border border-neutral-900 rounded-lg">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-neutral-300 font-medium">Above Edge Width Coverage</span>
+                                  <span className="font-mono text-cyan-400 font-bold">{activeParticleData.emitter.envSizeAbove ?? 100}%</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="500"
+                                    step="10"
+                                    value={activeParticleData.emitter.envSizeAbove ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeAbove', Number(e.target.value))}
+                                    className="flex-1 accent-cyan-500 h-1"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="10"
+                                    max="500"
+                                    value={activeParticleData.emitter.envSizeAbove ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeAbove', Math.max(10, Math.min(500, Number(e.target.value))))}
+                                    className="w-12 bg-neutral-950 border border-neutral-850 rounded px-1 py-0.5 font-mono text-[10px] text-white text-center"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {activeParticleData.emitter.envSpawnBelow && (
+                              <div className="space-y-1 p-2 bg-neutral-950/25 border border-neutral-900 rounded-lg">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-neutral-300 font-medium">Below Edge Width Coverage</span>
+                                  <span className="font-mono text-cyan-400 font-bold">{activeParticleData.emitter.envSizeBelow ?? 100}%</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="500"
+                                    step="10"
+                                    value={activeParticleData.emitter.envSizeBelow ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeBelow', Number(e.target.value))}
+                                    className="flex-1 accent-cyan-500 h-1"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="10"
+                                    max="500"
+                                    value={activeParticleData.emitter.envSizeBelow ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeBelow', Math.max(10, Math.min(500, Number(e.target.value))))}
+                                    className="w-12 bg-neutral-950 border border-neutral-850 rounded px-1 py-0.5 font-mono text-[10px] text-white text-center"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {activeParticleData.emitter.envSpawnLeft && (
+                              <div className="space-y-1 p-2 bg-neutral-950/25 border border-neutral-900 rounded-lg">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-neutral-300 font-medium">Left Edge Height Coverage</span>
+                                  <span className="font-mono text-cyan-400 font-bold">{activeParticleData.emitter.envSizeLeft ?? 100}%</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="500"
+                                    step="10"
+                                    value={activeParticleData.emitter.envSizeLeft ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeLeft', Number(e.target.value))}
+                                    className="flex-1 accent-cyan-500 h-1"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="10"
+                                    max="500"
+                                    value={activeParticleData.emitter.envSizeLeft ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeLeft', Math.max(10, Math.min(500, Number(e.target.value))))}
+                                    className="w-12 bg-neutral-950 border border-neutral-850 rounded px-1 py-0.5 font-mono text-[10px] text-white text-center"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {activeParticleData.emitter.envSpawnRight && (
+                              <div className="space-y-1 p-2 bg-neutral-950/25 border border-neutral-900 rounded-lg">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-neutral-300 font-medium">Right Edge Height Coverage</span>
+                                  <span className="font-mono text-cyan-400 font-bold">{activeParticleData.emitter.envSizeRight ?? 100}%</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="500"
+                                    step="10"
+                                    value={activeParticleData.emitter.envSizeRight ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeRight', Number(e.target.value))}
+                                    className="flex-1 accent-cyan-500 h-1"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="10"
+                                    max="500"
+                                    value={activeParticleData.emitter.envSizeRight ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeRight', Math.max(10, Math.min(500, Number(e.target.value))))}
+                                    className="w-12 bg-neutral-950 border border-neutral-850 rounded px-1 py-0.5 font-mono text-[10px] text-white text-center"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {activeParticleData.emitter.envSpawnCenter && (
+                              <div className="space-y-1 p-2 bg-neutral-950/25 border border-neutral-900 rounded-lg">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="text-neutral-300 font-medium">Center Spawn Width/Height</span>
+                                  <span className="font-mono text-violet-400 font-bold">{activeParticleData.emitter.envSizeCenter ?? 100}%</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="500"
+                                    step="10"
+                                    value={activeParticleData.emitter.envSizeCenter ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeCenter', Number(e.target.value))}
+                                    className="flex-1 accent-violet-500 h-1"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="10"
+                                    max="500"
+                                    value={activeParticleData.emitter.envSizeCenter ?? 100}
+                                    onChange={(e) => updateZoneSize('envSizeCenter', Math.max(10, Math.min(500, Number(e.target.value))))}
+                                    className="w-12 bg-neutral-950 border border-neutral-850 rounded px-1 py-0.5 font-mono text-[10px] text-white text-center"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Emitter Animation Track Toggles */}
                     <div className="pt-2 border-t border-neutral-800/40 space-y-1.5">

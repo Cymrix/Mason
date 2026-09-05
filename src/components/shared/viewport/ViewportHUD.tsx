@@ -96,7 +96,7 @@ export const ViewportHUD: React.FC<ViewportHUDProps> = ({
 
   return (
     <div
-      className={`z-20 flex items-center gap-1.5 bg-neutral-950/85 backdrop-blur-md border border-neutral-800/90 px-2 py-1.5 rounded-xl shadow-2xl text-xs select-none pointer-events-auto ${positionClasses} ${className}`}
+      className={`z-10 flex items-center gap-1.5 bg-neutral-950/85 backdrop-blur-md border border-neutral-800/90 px-2 py-1.5 rounded-xl shadow-2xl text-xs select-none pointer-events-auto ${positionClasses} ${className}`}
     >
       {/* Leading Custom Slot */}
       {leadingSlot}

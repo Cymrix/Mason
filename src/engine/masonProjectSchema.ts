@@ -1460,6 +1460,18 @@ export interface ParticleEmitterConfig {
   animateBurstCount?: boolean;
   animateBurstInterval?: boolean;
   animateColor?: boolean;
+  
+  // Environmental weather FX specific
+  envSpawnAbove?: boolean;
+  envSpawnBelow?: boolean;
+  envSpawnLeft?: boolean;
+  envSpawnRight?: boolean;
+  envSpawnCenter?: boolean;
+  envSizeAbove?: number;  // Percentage relative to viewport width/height (e.g. 100 = 100%, 200 = 200%)
+  envSizeBelow?: number;
+  envSizeLeft?: number;
+  envSizeRight?: number;
+  envSizeCenter?: number;
 }
 
 export interface ParticleDirectionRange {

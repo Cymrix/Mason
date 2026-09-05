@@ -486,6 +486,10 @@ export interface ActiveEmitter {
 export class ParticleEngine {
   public particles: ParticleInstance[] = [];
   public activeEmitters: ActiveEmitter[] = [];
+  public lastPanOffset = { x: 0, y: 0 };
+  public lastZoom = 1;
+  public lastCanvasWidth = 640;
+  public lastCanvasHeight = 440;
   private spatialGrid: Map<string, ParticleInstance[]> = new Map();
   private CELL_SIZE = 64;
   private compositeSpriteCache: Map<string, HTMLCanvasElement> = new Map();
@@ -693,6 +697,11 @@ export class ParticleEngine {
       let spawnX = origin.x;
       let spawnY = origin.y;
 
+      if (emitter.shape === "environmental_fx") {
+        spawnX = (this.lastCanvasWidth / 2 - this.lastPanOffset.x) / this.lastZoom;
+        spawnY = (this.lastCanvasHeight / 2 - this.lastPanOffset.y) / this.lastZoom;
+      }
+
       let localX = 0;
       let localY = 0;
 
@@ -703,8 +712,50 @@ export class ParticleEngine {
         localX = (Math.random() - 0.5) * (emitter.width || 32);
         localY = (Math.random() - 0.5) * (emitter.height || 32);
       } else if (emitter.shape === "environmental_fx") {
-        localX = (Math.random() - 0.5) * (emitter.width || 800);
-        localY = (Math.random() - 0.5) * (emitter.height || 600);
+        const viewW = this.lastCanvasWidth / this.lastZoom;
+        const viewH = this.lastCanvasHeight / this.lastZoom;
+        
+        const spawnAbove = emitter.envSpawnAbove ?? true;
+        const spawnBelow = !!emitter.envSpawnBelow;
+        const spawnLeft = !!emitter.envSpawnLeft;
+        const spawnRight = !!emitter.envSpawnRight;
+        const spawnCenter = !!emitter.envSpawnCenter;
+        
+        const sizeAbove = (emitter.envSizeAbove ?? 100) / 100;
+        const sizeBelow = (emitter.envSizeBelow ?? 100) / 100;
+        const sizeLeft = (emitter.envSizeLeft ?? 100) / 100;
+        const sizeRight = (emitter.envSizeRight ?? 100) / 100;
+        const sizeCenter = (emitter.envSizeCenter ?? 100) / 100;
+        
+        const activeZones: Array<'above' | 'below' | 'left' | 'right' | 'center'> = [];
+        if (spawnAbove) activeZones.push('above');
+        if (spawnBelow) activeZones.push('below');
+        if (spawnLeft) activeZones.push('left');
+        if (spawnRight) activeZones.push('right');
+        if (spawnCenter) activeZones.push('center');
+        
+        if (activeZones.length === 0) {
+          continue;
+        }
+        
+        const chosenZone = activeZones[Math.floor(Math.random() * activeZones.length)];
+        
+        if (chosenZone === 'above') {
+          localX = (Math.random() - 0.5) * viewW * sizeAbove;
+          localY = -viewH / 2 - Math.random() * 30;
+        } else if (chosenZone === 'below') {
+          localX = (Math.random() - 0.5) * viewW * sizeBelow;
+          localY = viewH / 2 + Math.random() * 30;
+        } else if (chosenZone === 'left') {
+          localX = -viewW / 2 - Math.random() * 30;
+          localY = (Math.random() - 0.5) * viewH * sizeLeft;
+        } else if (chosenZone === 'right') {
+          localX = viewW / 2 + Math.random() * 30;
+          localY = (Math.random() - 0.5) * viewH * sizeRight;
+        } else { // center
+          localX = (Math.random() - 0.5) * viewW * sizeCenter;
+          localY = (Math.random() - 0.5) * viewH * sizeCenter;
+        }
       } else if (emitter.shape === "circle") {
         const rx = emW / 2;
         const ry = emH / 2;
@@ -1343,6 +1394,13 @@ export class ParticleEngine {
     emitterPos?: { x: number; y: number }
   ) {
     try {
+      this.lastPanOffset = panOffset;
+      this.lastZoom = zoom;
+      if (ctx && ctx.canvas) {
+        this.lastCanvasWidth = ctx.canvas.width;
+        this.lastCanvasHeight = ctx.canvas.height;
+      }
+
       ctx.save();
       ctx.imageSmoothingEnabled = false;
       ctx.translate(panOffset.x, panOffset.y);
@@ -1669,8 +1727,8 @@ export class ParticleEngine {
         ctx.restore();
       }
 
-      // Render Wireframe Hulls / Debug Outlines if enabled
-      if (showWireframe && emitterPos && particleData?.emitter) {
+      // Render Wireframe Hulls / Debug Outlines if enabled (or always for environmental weather FX overlay)
+      if ((showWireframe || particleData?.emitter?.shape === "environmental_fx") && emitterPos && particleData?.emitter) {
         const em = particleData.emitter;
         ctx.strokeStyle = "#06b6d4";
         ctx.fillStyle = "rgba(6, 182, 212, 0.1)";
@@ -1678,29 +1736,159 @@ export class ParticleEngine {
         ctx.setLineDash([4 / zoom, 4 / zoom]);
 
         ctx.save();
-        ctx.translate(emitterPos.x, emitterPos.y);
+        if (em.shape === "environmental_fx") {
+          const vpCenterX = (this.lastCanvasWidth / 2 - this.lastPanOffset.x) / this.lastZoom;
+          const vpCenterY = (this.lastCanvasHeight / 2 - this.lastPanOffset.y) / this.lastZoom;
+          ctx.translate(vpCenterX, vpCenterY);
+        } else {
+          ctx.translate(emitterPos.x, emitterPos.y);
+        }
 
         const emRotDeg = em.rotationDeg || 0;
         if (emRotDeg !== 0 && em.shape !== "point") {
           ctx.rotate(emRotDeg * (Math.PI / 180));
         }
 
-        const emW = em.width ?? (em.radius ? em.radius * 2 : 40);
-        const emH = em.height ?? (em.radius ? em.radius * 2 : (em.shape === "cone" ? 60 : 40));
+        const emW = em.shape === "environmental_fx" ? (this.lastCanvasWidth / this.lastZoom) : (em.width ?? (em.radius ? em.radius * 2 : 40));
+        const emH = em.shape === "environmental_fx" ? (this.lastCanvasHeight / this.lastZoom) : (em.height ?? (em.radius ? em.radius * 2 : (em.shape === "cone" ? 60 : 40)));
 
         if (em.shape === "box") {
           ctx.fillRect(-emW / 2, -emH / 2, emW, emH);
           ctx.strokeRect(-emW / 2, -emH / 2, emW, emH);
         } else if (em.shape === "environmental_fx") {
-          ctx.fillRect(-emW / 2, -emH / 2, emW, emH);
+          // Draw dashed viewport bounds
           ctx.strokeRect(-emW / 2, -emH / 2, emW, emH);
           ctx.save();
-          ctx.fillStyle = "rgba(14, 116, 144, 0.4)";
+          ctx.fillStyle = "rgba(14, 116, 144, 0.15)";
+          ctx.fillRect(-emW / 2, -emH / 2, emW, emH);
+          ctx.restore();
+
+          // Draw high-tech camera corner brackets
+          const bracketLen = 12 / zoom;
+          ctx.save();
+          ctx.strokeStyle = "#22d3ee";
+          ctx.lineWidth = 2 / zoom;
+          ctx.setLineDash([]); // Solid corners
+          
+          // Top-Left Corner
+          ctx.beginPath();
+          ctx.moveTo(-emW / 2 + bracketLen, -emH / 2);
+          ctx.lineTo(-emW / 2, -emH / 2);
+          ctx.lineTo(-emW / 2, -emH / 2 + bracketLen);
+          ctx.stroke();
+          
+          // Top-Right Corner
+          ctx.beginPath();
+          ctx.moveTo(emW / 2 - bracketLen, -emH / 2);
+          ctx.lineTo(emW / 2, -emH / 2);
+          ctx.lineTo(emW / 2, -emH / 2 + bracketLen);
+          ctx.stroke();
+          
+          // Bottom-Left Corner
+          ctx.beginPath();
+          ctx.moveTo(-emW / 2 + bracketLen, emH / 2);
+          ctx.lineTo(-emW / 2, emH / 2);
+          ctx.lineTo(-emW / 2, emH / 2 - bracketLen);
+          ctx.stroke();
+          
+          // Bottom-Right Corner
+          ctx.beginPath();
+          ctx.moveTo(emW / 2 - bracketLen, emH / 2);
+          ctx.lineTo(emW / 2, emH / 2);
+          ctx.lineTo(emW / 2, emH / 2 - bracketLen);
+          ctx.stroke();
+          ctx.restore();
+
+          // Load active zones and size percentage multipliers
+          const spawnAbove = em.envSpawnAbove ?? true;
+          const spawnBelow = !!em.envSpawnBelow;
+          const spawnLeft = !!em.envSpawnLeft;
+          const spawnRight = !!em.envSpawnRight;
+          const spawnCenter = !!em.envSpawnCenter;
+
+          const sizeAbove = (em.envSizeAbove ?? 100) / 100;
+          const sizeBelow = (em.envSizeBelow ?? 100) / 100;
+          const sizeLeft = (em.envSizeLeft ?? 100) / 100;
+          const sizeRight = (em.envSizeRight ?? 100) / 100;
+          const sizeCenter = (em.envSizeCenter ?? 100) / 100;
+
+          ctx.save();
+          // Draw Above Zone
+          if (spawnAbove) {
+            ctx.fillStyle = "rgba(6, 182, 212, 0.4)";
+            ctx.strokeStyle = "rgba(6, 182, 212, 0.9)";
+            ctx.fillRect(-emW * sizeAbove / 2, -emH / 2 - 10, emW * sizeAbove, 6);
+            ctx.strokeRect(-emW * sizeAbove / 2, -emH / 2 - 10, emW * sizeAbove, 6);
+          }
+          // Draw Below Zone
+          if (spawnBelow) {
+            ctx.fillStyle = "rgba(6, 182, 212, 0.4)";
+            ctx.strokeStyle = "rgba(6, 182, 212, 0.9)";
+            ctx.fillRect(-emW * sizeBelow / 2, emH / 2 + 4, emW * sizeBelow, 6);
+            ctx.strokeRect(-emW * sizeBelow / 2, emH / 2 + 4, emW * sizeBelow, 6);
+          }
+          // Draw Left Zone
+          if (spawnLeft) {
+            ctx.fillStyle = "rgba(6, 182, 212, 0.4)";
+            ctx.strokeStyle = "rgba(6, 182, 212, 0.9)";
+            ctx.fillRect(-emW / 2 - 10, -emH * sizeLeft / 2, 6, emH * sizeLeft);
+            ctx.strokeRect(-emW / 2 - 10, -emH * sizeLeft / 2, 6, emH * sizeLeft);
+          }
+          // Draw Right Zone
+          if (spawnRight) {
+            ctx.fillStyle = "rgba(6, 182, 212, 0.4)";
+            ctx.strokeStyle = "rgba(6, 182, 212, 0.9)";
+            ctx.fillRect(emW / 2 + 4, -emH * sizeRight / 2, 6, emH * sizeRight);
+            ctx.strokeRect(emW / 2 + 4, -emH * sizeRight / 2, 6, emH * sizeRight);
+          }
+          // Draw Center Zone
+          if (spawnCenter) {
+            ctx.fillStyle = "rgba(139, 92, 246, 0.25)";
+            ctx.strokeStyle = "rgba(139, 92, 246, 0.8)";
+            ctx.setLineDash([2 / zoom, 2 / zoom]);
+            ctx.fillRect(-emW * sizeCenter / 2, -emH * sizeCenter / 2, emW * sizeCenter, emH * sizeCenter);
+            ctx.strokeRect(-emW * sizeCenter / 2, -emH * sizeCenter / 2, emW * sizeCenter, emH * sizeCenter);
+          }
+          ctx.restore();
+
+          // Draw descriptive active zone labels
+          ctx.save();
+          ctx.font = `${Math.max(7, 8 / zoom)}px monospace`;
+          ctx.fillStyle = "#22d3ee";
+          ctx.textAlign = "center";
+          if (spawnAbove) {
+            ctx.fillText(`SPAWN ABOVE (x${Math.round(sizeAbove * 100)}%)`, 0, -emH / 2 - 14);
+          }
+          if (spawnBelow) {
+            ctx.fillText(`SPAWN BELOW (x${Math.round(sizeBelow * 100)}%)`, 0, emH / 2 + 16);
+          }
+          if (spawnLeft) {
+            ctx.save();
+            ctx.translate(-emW / 2 - 14, 0);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText(`SPAWN LEFT (x${Math.round(sizeLeft * 100)}%)`, 0, 0);
+            ctx.restore();
+          }
+          if (spawnRight) {
+            ctx.save();
+            ctx.translate(emW / 2 + 14, 0);
+            ctx.rotate(Math.PI / 2);
+            ctx.fillText(`SPAWN RIGHT (x${Math.round(sizeRight * 100)}%)`, 0, 0);
+            ctx.restore();
+          }
+          if (spawnCenter) {
+            ctx.fillStyle = "#c084fc";
+            ctx.fillText(`SPAWN CENTER (x${Math.round(sizeCenter * 100)}%)`, 0, 16);
+          }
+          ctx.restore();
+
+          ctx.save();
+          ctx.fillStyle = "rgba(6, 182, 212, 0.85)";
           ctx.font = "bold 9px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("ENVIRONMENTAL FX", 0, -2);
+          ctx.fillText("ENVIRONMENTAL WEATHER FX", 0, -2);
           ctx.font = "8px monospace";
-          ctx.fillText(`${Math.round(emW)}x${Math.round(emH)}`, 0, 8);
+          ctx.fillText(`Viewport Bound: ${Math.round(emW)}x${Math.round(emH)}`, 0, 8);
           ctx.restore();
         } else if (em.shape === "circle" || em.shape === "ring") {
           const rx = emW / 2;

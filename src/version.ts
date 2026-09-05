@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.321';
-export const MASON_VERSION_DISPLAY = 'v0.321';
-export const MASON_FULL_VERSION = 'v0.321';
+export const MASON_VERSION = '0.326';
+export const MASON_VERSION_DISPLAY = 'v0.326';
+export const MASON_FULL_VERSION = 'v0.326';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,31 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.326',
+    date: '2026-09-04',
+    notes: 'Fixed Environmental Weather FX shape emitter viewport lock and coordinate alignment. Designed camera/viewport-space locking logic in ParticleEngine, mapping spawn coordinate centers dynamically to the active camera screen space instead of panned world coordinate states. Ensured viewport dimensions represent exact camera resolution widths and heights scaled by zoom levels.'
+  },
+  {
+    version: 'v0.325',
+    date: '2026-09-04',
+    notes: 'Scaled default Environmental Weather FX viewport dimensions to a visible 480x320 box within the editor preview canvas. Added high-tech camera corner brackets and clear descriptive active zone labels (above, below, left, right, center) with their size multipliers. This makes the glowing overlay fully visible on the screen and spawns particles directly inside the active screen boundaries.'
+  },
+  {
+    version: 'v0.324',
+    date: '2026-09-04',
+    notes: 'Corrected Environmental Weather FX preview dimensions to use full 800x600 viewport dimensions in Particles Editor canvas. Forced the high-tech glowing visual overlay bounds to render unconditionally for environmental weather shape emitters. Added strict spawn safety logic so that deselecting all viewport spawn zones stops all particle emissions.'
+  },
+  {
+    version: 'v0.323',
+    date: '2026-09-04',
+    notes: 'Implemented Environmental Weather FX Mode supporting viewport-relative camera attachment in Particles Editor and Biome Editor. Added toggleable Above, Below, Left, Right, Center spawn zones with interactive scale coverage percentage sliders. Implemented high-tech canvas visualizations in the Particles Editor rendering the active spawn zones, and strictly filtered Biome atmospheric effects selector to show shape="environmental_fx" emitters.'
+  },
+  {
+    version: 'v0.322',
+    date: '2026-09-04',
+    notes: 'Decreased ViewportHUD z-index from z-20 to z-10 so that overlay panels, file check out headers, and dropdown menu options render properly above viewport zoom and scale controls.'
+  },
   {
     version: 'v0.321',
     date: '2026-09-04',

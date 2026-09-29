@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.378';
-export const MASON_VERSION_DISPLAY = 'v0.378';
-export const MASON_FULL_VERSION = 'v0.378';
+export const MASON_VERSION = '0.379';
+export const MASON_VERSION_DISPLAY = 'v0.379';
+export const MASON_FULL_VERSION = 'v0.379';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,11 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.379',
+    date: '2026-09-29',
+    notes: 'GitHub Actions CI & Dependency Lockfile Sync: Synchronized package-lock.json with package.json dependencies (Three.js, Rapier physics, Tween.js, Stats, Meshoptimizer, Fflate) to fix npm ci exit code 1 build failures, and updated GitHub deployment workflow with resilient fallback.'
+  },
   {
     version: 'v0.378',
     date: '2026-09-29',

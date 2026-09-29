@@ -2418,7 +2418,8 @@ export const PrefabEditor: React.FC<CharacterEditorProps> = ({
         }}
         onForceUnlockFile={(fName) => {
           const { project: updated } = performFileForceUnlock(project, 'prefabs', fName);
-          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}`, syncLinked: true });
+          showToast(`Force unlocked ${fName}`, 'info');
         }}
         accentColor="rose"
         onBackToDashboard={onBackToDashboard}

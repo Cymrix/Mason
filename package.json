@@ -1,7 +1,7 @@
 {
   "name": "mason-map-editor",
   "private": true,
-  "version": "0.326",
+  "version": "0.378",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -23,7 +23,8 @@
     "pngjs": "^7.0.0",
     "puppeteer": "^25.9.0",
     "react": "^19.0.1",
-    "react-dom": "^19.0.1"
+    "react-dom": "^19.0.1",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
@@ -32,6 +33,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/three": "^0.186.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "jsdom": "^30.0.1",

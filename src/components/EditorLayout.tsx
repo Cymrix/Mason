@@ -23,7 +23,8 @@ import {
   createNewMapInProject,
   ProjectIndexItem,
   idbGetProject,
-  convertProjectDataToMasonProject
+  convertProjectDataToMasonProject,
+  sanitizeAndDeduplicateProject
 } from '../utils/masonStorage';
 import { HamburgerMenu } from './HamburgerMenu';
 import { ModulesModal } from './ModulesModal';
@@ -33,6 +34,7 @@ import { CreateProjectModal } from './CreateProjectModal';
 import { UnifiedFileManagerModal, UnifiedFileAction } from './UnifiedFileManagerModal';
 import { importProfilesJSON } from '../utils/appProfileSystem';
 import { ProjectExplorerModal } from './ProjectExplorerModal';
+import { GenreArchetypeId, CreateProjectOptions } from '../engine/projectArchetypes';
 import { BiomeMacroMapModal } from './BiomeMacroMapModal';
 import { ModuleRunnerContainer } from './ModuleRunnerContainer';
 import { RefinedMapCanvas } from './RefinedMapCanvas';
@@ -44,12 +46,15 @@ import { SpriteEditorWrapper } from './SpriteEditorWrapper';
 import { AppProfileConfigModal } from './AppProfileConfigModal';
 import { ProfileBadgeSwitcher } from './ProfileBadgeSwitcher';
 import { ToastHistoryOverlay } from './ToastHistoryOverlay';
+import { SessionCheckoutsModal } from './SessionCheckoutsModal';
+import { CollisionMatrixModal } from './CollisionMatrixModal';
 import { addToastLog } from '../utils/toastLogStore';
 import { 
   performFileCheckout, 
   performFileCheckIn, 
   performFileForceUnlock,
-  performFileSaveAs 
+  performFileSaveAs,
+  getAllCheckedOutFiles
 } from '../utils/fileCheckoutStore';
 import {
   Paintbrush,
@@ -83,6 +88,7 @@ import {
   Network,
   Cloud,
   Sparkles,
+  Server,
   RotateCcw,
   RotateCw,
   Undo2,
@@ -107,7 +113,8 @@ import {
   acquireProjectLock,
   fetchProjectFromLinkedLocation,
   checkRemoteSyncStatus,
-  clearAllModularSyncCaches
+  clearAllModularSyncCaches,
+  FileLockInfo
 } from '../utils/linkedSaveTarget';
 import { ThemeModal } from './ThemeModal';
 import { useAppTheme } from '../theme/ThemeContext';
@@ -269,6 +276,8 @@ export const EditorLayout: React.FC = () => {
     }
   }, [isCloudSyncModalOpen, project]);
   const [isAppProfileConfigModalOpen, setIsAppProfileConfigModalOpen] = useState(false);
+  const [isSessionCheckoutsModalOpen, setIsSessionCheckoutsModalOpen] = useState(false);
+  const [isCollisionMatrixModalOpen, setIsCollisionMatrixModalOpen] = useState(false);
   const [appProfileInitialTab, setAppProfileInitialTab] = useState<'profiles' | 'config' | 'export'>('profiles');
   const [cloudSyncInitialMode, setCloudSyncInitialMode] = useState<'explore' | 'backups'>('explore');
   const [cloudSavePayload, setCloudSavePayload] = useState<{ name: string; content: string; mimeType: string } | null>(null);
@@ -355,6 +364,8 @@ export const EditorLayout: React.FC = () => {
   // Linked Storage Refresh & Sync Status State
   const [isSyncingLinked, setIsSyncingLinked] = useState(false);
   const [isOutOfSync, setIsOutOfSync] = useState(false);
+  const [remoteLockInfo, setRemoteLockInfo] = useState<FileLockInfo | undefined>(undefined);
+  const [remoteIsLockedByOther, setRemoteIsLockedByOther] = useState(false);
 
   // Manual refresh / pull from linked storage target
   const handleRefreshFromLinkedStorage = useCallback(async () => {
@@ -375,10 +386,13 @@ export const EditorLayout: React.FC = () => {
         setProject(res.project);
         setIsOutOfSync(false);
         refreshSavedProjects();
+        const updatedCount = res.syncedFiles ? res.syncedFiles.length : (res.filesCount || 0);
         showToast(
-          `Refreshed "${res.project.name}" from ${res.project.storageLocation?.displayName || 'linked storage'} (${res.syncedFiles?.length || res.filesCount || 'all'} files)!`,
+          updatedCount > 0
+            ? `Pulled ${updatedCount} updated file${updatedCount === 1 ? '' : 's'} from ${res.project.storageLocation?.displayName || 'linked storage'}.`
+            : `All files are already up to date with ${res.project.storageLocation?.displayName || 'linked storage'}.`,
           'success',
-          res.syncedFiles
+          updatedCount > 0 ? res.syncedFiles : undefined
         );
       } else {
         showToast(`Failed to refresh from linked storage: ${res.error || 'Unknown error'}`, 'error');
@@ -388,12 +402,24 @@ export const EditorLayout: React.FC = () => {
     } finally {
       setIsSyncingLinked(false);
     }
-  }, [project]);
+  }, [project, showToast, refreshSavedProjects]);
+
+  // Master Force Unlock Handler
+  const handleForceUnlockProject = useCallback(() => {
+    if (!project) return;
+    setRemoteLockInfo(undefined);
+    setRemoteIsLockedByOther(false);
+    const unlocked = releaseProjectLock(project);
+    handleUpdateProject(unlocked, { actionLabel: 'Force unlock project', syncLinked: true });
+    showToast('Project force-unlocked and lock released.', 'success');
+  }, [project, showToast]);
 
   // Periodic check if remote linked files are newer (every 30s or on window focus)
   useEffect(() => {
     if (!project || !project.storageLocation || project.storageLocation.type === 'local_idb') {
       setIsOutOfSync(false);
+      setRemoteLockInfo(undefined);
+      setRemoteIsLockedByOther(false);
       return;
     }
 
@@ -403,6 +429,8 @@ export const EditorLayout: React.FC = () => {
         const syncStatus = await checkRemoteSyncStatus(project);
         if (isMounted) {
           setIsOutOfSync(syncStatus.isOutOfSync);
+          setRemoteLockInfo(syncStatus.remoteLockInfo);
+          setRemoteIsLockedByOther(Boolean(syncStatus.remoteIsLockedByOther));
         }
       } catch (e) {
         // silent check error
@@ -427,14 +455,28 @@ export const EditorLayout: React.FC = () => {
     options?: { preserveUpdatedAt?: boolean; skipBackups?: boolean; actionLabel?: string; syncLinked?: boolean }
   ) => {
     let nextProj: MasonProject | null = null;
-    const isExplicitSave = options?.syncLinked || (options?.actionLabel && options.actionLabel.toLowerCase().startsWith('save'));
+    const actionLower = options?.actionLabel?.toLowerCase() || '';
+    const isExplicitSave = Boolean(
+      options?.syncLinked ||
+      actionLower.startsWith('save') ||
+      actionLower.includes('unlock') ||
+      actionLower.includes('check in') ||
+      actionLower.includes('check out') ||
+      actionLower.startsWith('check-in')
+    );
     const effectiveSkipBackups = options?.skipBackups !== undefined ? options.skipBackups : !isExplicitSave;
+
+    if (actionLower.includes('unlock')) {
+      setRemoteLockInfo(undefined);
+      setRemoteIsLockedByOther(false);
+    }
 
     setProject(prev => {
       if (!prev) return prev;
       const newProject = typeof updated === 'function' ? updated(prev) : updated;
-      nextProj = newProject;
-      return newProject;
+      const cleanProject = sanitizeAndDeduplicateProject(newProject);
+      nextProj = cleanProject;
+      return cleanProject;
     });
 
     if (nextProj) {
@@ -451,9 +493,13 @@ export const EditorLayout: React.FC = () => {
 
       if (isExplicitSave && p.storageLocation && p.storageLocation.type !== 'local_idb') {
         setAutoSyncStatus('syncing');
-        saveProjectToLinkedLocation(p).then(res => {
+        saveProjectToLinkedLocation(p, true).then(res => {
           if (res.success && res.syncedLocation) {
             setProject(current => current ? { ...current, storageLocation: res.syncedLocation } : current);
+            if (actionLower.includes('unlock')) {
+              setRemoteLockInfo(undefined);
+              setRemoteIsLockedByOther(false);
+            }
             setAutoSyncStatus('synced');
             setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
             setTimeout(() => setAutoSyncStatus('idle'), 2500);
@@ -469,8 +515,15 @@ export const EditorLayout: React.FC = () => {
     }
   };
 
+  const [createArchetypePresetId, setCreateArchetypePresetId] = useState<GenreArchetypeId | undefined>(undefined);
+
+  const handleOpenCreateModal = (presetId?: GenreArchetypeId) => {
+    setCreateArchetypePresetId(presetId);
+    setIsCreateModalOpen(true);
+  };
+
   // Project lifecycle handlers
-  const handleCreateNewProject = async (name: string, description: string, author: string)  => {
+  const handleCreateNewProject = async (optionsOrName: CreateProjectOptions | string, description: string = '', author: string = '') => {
     if (activeModuleId === 'sprites') {
       const checkDirty = (window as any).masonCheckSpriteDirty;
       if (checkDirty && checkDirty()) {
@@ -479,11 +532,12 @@ export const EditorLayout: React.FC = () => {
         }
       }
     }
-    const newProj = createNewProject(name, description, author);
+    const newProj = createNewProject(optionsOrName, description, author);
     setProject(newProj);
     setActiveModuleId(null); // Show project info by default
     refreshSavedProjects();
-    showToast(`Created new project: ${name}`, 'success');
+    const projName = typeof optionsOrName === 'object' ? optionsOrName.name : optionsOrName;
+    showToast(`Created new project: ${projName}`, 'success');
   };
 
   const checkLockAndProceed = (
@@ -643,8 +697,12 @@ export const EditorLayout: React.FC = () => {
           });
           setAutoSyncStatus('synced');
           setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+          const count = res.syncedFiles ? res.syncedFiles.length : 0;
+          const targetName = projectToSave.storageLocation.displayName || projectToSave.storageLocation.targetFolderName || projectToSave.storageLocation.fileName || 'linked storage';
           showToast(
-            `Saved ${projectToSave.name} to ${projectToSave.storageLocation.displayName || projectToSave.storageLocation.targetFolderName || projectToSave.storageLocation.fileName}`,
+            count > 0
+              ? `Synced ${count} file${count === 1 ? '' : 's'} to ${targetName}.`
+              : `Saved ${projectToSave.name} to ${targetName}.`,
             'success',
             res.syncedFiles
           );
@@ -1346,6 +1404,8 @@ export const EditorLayout: React.FC = () => {
             onOpenExplorerModal={() => setIsExplorerModalOpen(true)}
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
             onOpenAppProfileConfigModal={() => setIsAppProfileConfigModalOpen(true)}
+            onOpenSessionCheckoutsModal={() => setIsSessionCheckoutsModalOpen(true)}
+            onOpenCollisionMatrixModal={() => setIsCollisionMatrixModalOpen(true)}
             onShowProjectInfo={() => handleLaunchModule(null)}
             onSaveProject={handleSaveActiveProject}
             onRefreshFromLinked={handleRefreshFromLinkedStorage}
@@ -1495,24 +1555,28 @@ export const EditorLayout: React.FC = () => {
                 )}
 
                 {/* Concurrency Lock Badge */}
-                {project.lockInfo?.isLocked && (
+                {((project.lockInfo && project.lockInfo.isLocked) || (remoteLockInfo && remoteLockInfo.isLocked)) && (
                   <span 
-                    className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[10px] font-mono group"
-                    title={`File Locked by ${project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy} (Session ${project.lockInfo.lockClientId?.slice(0, 8)}...)`}
+                    className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/90 border border-amber-700/70 text-amber-300 text-[10px] font-mono group"
+                    title={`Locked by ${(remoteLockInfo?.isLocked ? remoteLockInfo : project.lockInfo)?.lockedByProfile?.name || (remoteLockInfo?.isLocked ? remoteLockInfo : project.lockInfo)?.lockedBy || 'Collaborator'}`}
                   >
                     <Lock size={10} className="text-amber-400 shrink-0" />
-                    <span className="truncate max-w-[80px]">{project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy}</span>
+                    <span className="truncate max-w-[90px]">
+                      {(remoteLockInfo?.isLocked ? remoteLockInfo : project.lockInfo)?.lockedByProfile?.name || 
+                       (remoteLockInfo?.isLocked ? remoteLockInfo : project.lockInfo)?.lockedBy || 'Locked'}
+                    </span>
                     <button
+                      type="button"
+                      id="btn-topbar-force-unlock"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm('Force unlock this file? This will allow you to edit it, but could cause conflicts if another user is actively working on it.')) {
-                          handleUpdateProject(releaseProjectLock(project), { actionLabel: 'Forced unlock file', syncLinked: true });
-                        }
+                        handleForceUnlockProject();
                       }}
-                      className="ml-1 p-0.5 rounded hover:bg-amber-900/50 text-amber-500 hover:text-amber-200 opacity-50 group-hover:opacity-100 transition-opacity"
+                      className="ml-1 px-1 py-0.2 rounded hover:bg-amber-800 text-amber-300 hover:text-white border border-amber-600/50 text-[9px] font-sans transition flex items-center gap-0.5 cursor-pointer"
                       title="Force Unlock"
                     >
-                      <Unlock size={10} />
+                      <Unlock size={9} />
+                      <span>Unlock</span>
                     </button>
                   </span>
                 )}
@@ -1582,6 +1646,9 @@ export const EditorLayout: React.FC = () => {
                         case 'Sliders': return <Sliders size={16} />;
                         case 'Network': return <Network size={16} />;
                         case 'Sparkles': return <Sparkles size={16} />;
+                        case 'Box': return <Box size={16} />;
+                        case 'Compass': return <Compass size={16} />;
+                        case 'Server': return <Server size={16} />;
                         default: return <Map size={16} />;
                       }
                     };
@@ -1682,6 +1749,26 @@ export const EditorLayout: React.FC = () => {
                 >
                   <FolderOpen size={16} className="text-amber-400" />
                 </button>
+
+                {/* Session File Locks / Checkouts Manager Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsSessionCheckoutsModalOpen(true)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-xl border transition shadow-sm relative shrink-0 ${
+                    getAllCheckedOutFiles(project).length > 0
+                      ? 'bg-amber-950/70 border-amber-500/60 hover:bg-amber-900 text-amber-300'
+                      : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 text-neutral-300'
+                  }`}
+                  title={`Session File Locks & Checkouts (${getAllCheckedOutFiles(project).length} locked)`}
+                  aria-label="File Locks"
+                >
+                  <Lock size={15} className={getAllCheckedOutFiles(project).length > 0 ? 'text-amber-400' : 'text-neutral-400'} />
+                  {getAllCheckedOutFiles(project).length > 0 && (
+                    <span className="absolute -top-1 -right-1 px-1 min-w-[14px] h-3.5 bg-amber-500 text-[9px] font-mono font-black text-neutral-950 rounded-full flex items-center justify-center shadow-sm">
+                      {getAllCheckedOutFiles(project).length}
+                    </span>
+                  )}
+                </button>
               </div>
 
               <div className="h-4 w-px bg-neutral-800 shrink-0" />
@@ -1722,7 +1809,7 @@ export const EditorLayout: React.FC = () => {
               />
               <button
                 type="button"
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => handleOpenCreateModal()}
                 className="px-3 py-1.5 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-md active:scale-95"
                 style={{
                   backgroundColor: primaryDef.hex,
@@ -1754,7 +1841,7 @@ export const EditorLayout: React.FC = () => {
         {!project && (
           <MasonWelcomeLauncher
             savedProjects={savedProjects}
-            onCreateNewProject={() => setIsCreateModalOpen(true)}
+            onCreateNewProject={handleOpenCreateModal}
             onLoadProjectFromFile={() => setIsLoadModalOpen(true)}
             onSelectSavedProject={handleSelectSavedProject}
             onDeleteSavedProject={handleDeleteSavedProject}
@@ -1797,6 +1884,10 @@ export const EditorLayout: React.FC = () => {
             onRefreshFromLinked={handleRefreshFromLinkedStorage}
             isSyncingLinked={isSyncingLinked}
             isOutOfSync={isOutOfSync}
+            remoteLockInfo={remoteLockInfo}
+            remoteIsLockedByOther={remoteIsLockedByOther}
+            onForceUnlockProject={handleForceUnlockProject}
+            onShowToast={showToast}
           />
         )}
 
@@ -1845,7 +1936,8 @@ export const EditorLayout: React.FC = () => {
                   }}
                   onForceUnlockFile={(fName) => {
                     const { project: updated } = performFileForceUnlock(project, 'maps', fName);
-                    handleUpdateProject(updated, { actionLabel: `Force unlock ${fName}` });
+                    handleUpdateProject(updated, { actionLabel: `Force unlock ${fName}`, syncLinked: true });
+                    showToast(`Force unlocked ${fName}`, 'info');
                   }}
                   onSelectFile={(fName) => {
                     handleUpdateProject(p => ({
@@ -2259,6 +2351,7 @@ export const EditorLayout: React.FC = () => {
                           mapData={currentMapData}
                           biomes={biomesList}
                           activeBiome={activeBiome}
+                          collisionMatrix={project?.collisionMatrix}
                           onTileInteract={handleMapTileInteract}
                           isDrawing={isDrawing}
                           setIsDrawing={setIsDrawing}
@@ -2352,8 +2445,8 @@ export const EditorLayout: React.FC = () => {
                               }}
                               className="w-full appearance-none bg-neutral-900 border border-neutral-700 hover:border-cyan-500/60 text-neutral-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500 transition cursor-pointer pr-9"
                             >
-                              {project.fileSystem.biomes.map((biomeFile) => (
-                                <option key={biomeFile.fileName} value={biomeFile.fileName} className="bg-neutral-900 text-neutral-200">
+                              {project.fileSystem.biomes.map((biomeFile, bIdx) => (
+                                <option key={`biome_opt_${biomeFile.fileName || biomeFile.id || bIdx}_${bIdx}`} value={biomeFile.fileName} className="bg-neutral-900 text-neutral-200">
                                   {biomeFile.biomeData.name}
                                 </option>
                               ))}
@@ -2503,11 +2596,11 @@ export const EditorLayout: React.FC = () => {
                             </div>
                           </button>
 
-                          {activeBiome?.tileTypes?.map(t => {
+                          {activeBiome?.tileTypes?.map((t, tIdx) => {
                             const isSelected = selectedAssetId === t.id;
                             return (
                               <button
-                                key={t.id}
+                                key={`tile_type_${t.id || tIdx}_${tIdx}`}
                                 type="button"
                                 onClick={() => setSelectedAssetId(t.id)}
                                 className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
@@ -2575,11 +2668,11 @@ export const EditorLayout: React.FC = () => {
                           </button>
 
                           {activeBiome?.environmentalDetails && activeBiome.environmentalDetails.length > 0 ? (
-                            activeBiome.environmentalDetails.map(env => {
+                            activeBiome.environmentalDetails.map((env, eIdx) => {
                               const isSelected = selectedAssetId === env.id;
                               return (
                                 <button
-                                  key={env.id}
+                                  key={`env_${env.id || eIdx}_${eIdx}`}
                                   type="button"
                                   onClick={() => setSelectedAssetId(env.id)}
                                   className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
@@ -2634,11 +2727,11 @@ export const EditorLayout: React.FC = () => {
                           </button>
 
                           {activeBiome?.interactiveDetails && activeBiome.interactiveDetails.length > 0 ? (
-                            activeBiome.interactiveDetails.map(item => {
+                            activeBiome.interactiveDetails.map((item, iIdx) => {
                               const isSelected = selectedAssetId === item.id;
                               return (
                                 <button
-                                  key={item.id}
+                                  key={`interactive_${item.id || iIdx}_${iIdx}`}
                                   type="button"
                                   onClick={() => setSelectedAssetId(item.id)}
                                   className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
@@ -2693,11 +2786,11 @@ export const EditorLayout: React.FC = () => {
                           </button>
 
                           {activeBiome?.wildlife && activeBiome.wildlife.length > 0 ? (
-                            activeBiome.wildlife.map(fauna => {
+                            activeBiome.wildlife.map((fauna, fIdx) => {
                               const isSelected = selectedAssetId === fauna.id;
                               return (
                                 <button
-                                  key={fauna.id}
+                                  key={`wildlife_${fauna.id || fIdx}_${fIdx}`}
                                   type="button"
                                   onClick={() => setSelectedAssetId(fauna.id)}
                                   className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition ${
@@ -2756,7 +2849,7 @@ export const EditorLayout: React.FC = () => {
                           {(project.fileSystem.prefabs && project.fileSystem.prefabs.length > 0) ? (
                             project.fileSystem.prefabs.map((prefab, idx) => (
                               <button
-                                key={prefab.fileName ? `prefab_${prefab.id || 'pf'}_${prefab.fileName}` : `prefab_${prefab.id || 'pf'}_${idx}`}
+                                key={`prefab_asset_${prefab.fileName || prefab.id || idx}_${idx}`}
                                 type="button"
                                 onClick={() => setSelectedAssetId(prefab.id)}
                                 className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition group ${
@@ -2890,6 +2983,7 @@ export const EditorLayout: React.FC = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateProject={handleCreateNewProject}
+        initialArchetypeId={createArchetypePresetId}
       />
 
       {/* Unified File Manager Modal - Load Project Mode */}
@@ -3078,6 +3172,41 @@ export const EditorLayout: React.FC = () => {
           setCloudSyncInitialMode('explore');
           setIsCloudSyncModalOpen(true);
         }}
+      />
+
+      {/* Session File Locks & Checkouts Modal */}
+      <SessionCheckoutsModal
+        isOpen={isSessionCheckoutsModalOpen}
+        onClose={() => setIsSessionCheckoutsModalOpen(false)}
+        project={project}
+        onUpdateProject={handleUpdateProject}
+        onNavigateToFile={(subfolderKey, fileName) => {
+          const modMap: Record<string, string> = {
+            maps: 'map',
+            biomes: 'biome',
+            prefabs: 'prefab',
+            particles: 'particles',
+            sprites: 'sprite',
+            ui: 'ui',
+            game: 'game',
+            behaviors: 'behaviors'
+          };
+          const modId = modMap[subfolderKey];
+          if (modId) {
+            handleLaunchModule(modId);
+          }
+        }}
+        onSaveActiveProject={handleSaveActiveProject}
+        onShowToast={showToast}
+      />
+
+      {/* Collision Tags & Matrix Modal */}
+      <CollisionMatrixModal
+        isOpen={isCollisionMatrixModalOpen}
+        onClose={() => setIsCollisionMatrixModalOpen(false)}
+        project={project}
+        onUpdateProject={handleUpdateProject}
+        onShowToast={showToast}
       />
 
       {/* Toast Notification Alerts */}

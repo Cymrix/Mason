@@ -51,8 +51,12 @@ import {
   X,
   Radio,
   DoorOpen,
-  Box
+  Box,
+  Gamepad2,
+  Grid
 } from 'lucide-react';
+import { InputMappingsTab } from './InputMappingsTab';
+import { CollisionMatrixTab } from './CollisionMatrixTab';
 
 function getQuadBezierArrowHeads(
   p0: { x: number; y: number },
@@ -104,10 +108,12 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
   };
   const currentStructureFile: GameStructureFile = gameFiles.find(g => g.fileName === activeFileName) || gameFiles[0] || defaultGameStructureFile;
 
-  const [activeTab, setActiveTabState] = useState<'world_graph' | 'entry_bindings' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags'>(
+  type GameStructureTab = 'world_graph' | 'entry_bindings' | 'input_mappings' | 'collision_matrix' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags';
+
+  const [activeTab, setActiveTabState] = useState<GameStructureTab>(
     () => getSavedModuleTab('gamestructure', 'world_graph') as any
   );
-  const setActiveTab = (tab: 'world_graph' | 'entry_bindings' | 'main_menu' | 'loading_screen' | 'pause_menu' | 'progression_flags') => {
+  const setActiveTab = (tab: GameStructureTab) => {
     setActiveTabState(tab);
     saveModuleTab('gamestructure', tab);
   };
@@ -414,7 +420,8 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
         }}
         onForceUnlockFile={(fName) => {
           const { project: updated } = performFileForceUnlock(project, 'game', fName);
-          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}`, syncLinked: true });
+          showToast(`Force unlocked ${fName}`, 'info');
         }}
         onSelectFile={(fName) => {
           onUpdateProject(p => ({
@@ -557,6 +564,36 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('input_mappings')}
+            className={`w-full p-2.5 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition ${
+              activeTab === 'input_mappings' 
+                ? 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 shadow-md' 
+                : 'text-neutral-400 hover:bg-neutral-850 hover:text-white'
+            }`}
+          >
+            <Gamepad2 size={16} className={activeTab === 'input_mappings' ? 'text-emerald-400' : 'text-neutral-500'} />
+            <div className="min-w-0">
+              <span className="block truncate">3. Input Mappings</span>
+              <span className="text-[10px] font-normal text-neutral-500">Keyboard & Gamepad Controls</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('collision_matrix')}
+            className={`w-full p-2.5 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition ${
+              activeTab === 'collision_matrix' 
+                ? 'bg-cyan-950/60 border border-cyan-500/40 text-cyan-200 shadow-md' 
+                : 'text-neutral-400 hover:bg-neutral-850 hover:text-white'
+            }`}
+          >
+            <Grid size={16} className={activeTab === 'collision_matrix' ? 'text-cyan-400' : 'text-neutral-500'} />
+            <div className="min-w-0">
+              <span className="block truncate">4. Collision Matrix</span>
+              <span className="text-[10px] font-normal text-neutral-500">Physics Tags & Interactions</span>
+            </div>
+          </button>
+
+          <button
             onClick={() => setActiveTab('main_menu')}
             className={`w-full p-2.5 rounded-xl text-left text-xs font-semibold flex items-center gap-2.5 transition ${
               activeTab === 'main_menu' 
@@ -566,7 +603,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           >
             <Tv size={16} className={activeTab === 'main_menu' ? 'text-purple-400' : 'text-neutral-500'} />
             <div className="min-w-0">
-              <span className="block truncate">3. Main Menu Scene</span>
+              <span className="block truncate">5. Main Menu Scene</span>
               <span className="text-[10px] font-normal text-neutral-500">Title screen & Parallax</span>
             </div>
           </button>
@@ -581,7 +618,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           >
             <Clock size={16} className={activeTab === 'loading_screen' ? 'text-purple-400' : 'text-neutral-500'} />
             <div className="min-w-0">
-              <span className="block truncate">4. Loading Screens & Lore</span>
+              <span className="block truncate">6. Loading Screens & Lore</span>
               <span className="text-[10px] font-normal text-neutral-500">Wipes & Lore Tips</span>
             </div>
           </button>
@@ -596,7 +633,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           >
             <Sliders size={16} className={activeTab === 'pause_menu' ? 'text-purple-400' : 'text-neutral-500'} />
             <div className="min-w-0">
-              <span className="block truncate">5. Pause & In-Game Menu</span>
+              <span className="block truncate">7. Pause & In-Game Menu</span>
               <span className="text-[10px] font-normal text-neutral-500">Inventory & System Tabs</span>
             </div>
           </button>
@@ -611,7 +648,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
           >
             <Key size={16} className={activeTab === 'progression_flags' ? 'text-purple-400' : 'text-neutral-500'} />
             <div className="min-w-0">
-              <span className="block truncate">6. Metroidvania Flags</span>
+              <span className="block truncate">8. Metroidvania Flags</span>
               <span className="text-[10px] font-normal text-neutral-500">{data.progressionFlags.length} gates registered</span>
             </div>
           </button>
@@ -628,7 +665,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
         </aside>
 
         {/* Section Body */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className={`flex-1 ${activeTab === 'input_mappings' || activeTab === 'collision_matrix' ? 'overflow-hidden flex flex-col p-0' : 'overflow-y-auto p-6 space-y-6'}`}>
           
           {/* TAB 1: WORLD MAP GRAPH & EXITS LINKER */}
           {activeTab === 'world_graph' && (
@@ -970,7 +1007,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
 
                         return (
                           <div
-                            key={mapFile.fileName}
+                            key={`map_node_${mapFile.fileName || mapFile.id || idx}_${idx}`}
                             style={{
                               left: `${pos.x}px`,
                               top: `${pos.y}px`,
@@ -1276,8 +1313,8 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                       onChange={(e) => updateStructure(s => ({ ...s, entryMapFileName: e.target.value }))}
                       className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
                     >
-                      {project.fileSystem.maps.map(m => (
-                        <option key={m.fileName} value={m.fileName}>{m.fileName} ({m.name})</option>
+                      {project.fileSystem.maps.map((m, idx) => (
+                        <option key={`opt_map_${m.fileName || m.id || idx}_${idx}`} value={m.fileName}>{m.fileName} ({m.name})</option>
                       ))}
                     </select>
                   </div>
@@ -1302,8 +1339,8 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                       onChange={(e) => updateStructure(s => ({ ...s, defaultPrefabFileName: e.target.value }))}
                       className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
                     >
-                      {(project.fileSystem.prefabs || []).map(c => (
-                        <option key={c.fileName} value={c.fileName}>{c.fileName} ({c.name})</option>
+                      {(project.fileSystem.prefabs || []).map((c, idx) => (
+                        <option key={`opt_prefab_${c.fileName || c.id || idx}_${idx}`} value={c.fileName}>{c.fileName} ({c.name})</option>
                       ))}
                     </select>
                   </div>
@@ -1328,8 +1365,8 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                       onChange={(e) => updateStructure(s => ({ ...s, attachedUiFileName: e.target.value }))}
                       className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
                     >
-                      {project.fileSystem.ui.map(u => (
-                        <option key={u.fileName} value={u.fileName}>{u.fileName} ({u.name})</option>
+                      {project.fileSystem.ui.map((u, idx) => (
+                        <option key={`opt_ui_${u.fileName || u.id || idx}_${idx}`} value={u.fileName}>{u.fileName} ({u.name})</option>
                       ))}
                     </select>
                   </div>
@@ -1369,7 +1406,25 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
             </div>
           )}
 
-          {/* TAB 3: MAIN MENU SCENE BUILDER */}
+          {/* TAB 3: PLAYER INPUT MAPPINGS */}
+          {activeTab === 'input_mappings' && (
+            <InputMappingsTab
+              project={project}
+              onUpdateProject={onUpdateProject}
+              onShowToast={showToast}
+            />
+          )}
+
+          {/* TAB 4: COLLISION MATRIX */}
+          {activeTab === 'collision_matrix' && (
+            <CollisionMatrixTab
+              project={project}
+              onUpdateProject={onUpdateProject}
+              onShowToast={showToast}
+            />
+          )}
+
+          {/* TAB 5: MAIN MENU SCENE BUILDER */}
           {activeTab === 'main_menu' && (
             <div className="space-y-6 max-w-4xl">
               <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
@@ -1466,8 +1521,8 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
                     onChange={(e) => updateStructure(s => ({ ...s, mainMenu: { ...s.mainMenu, backgroundBiomeFileName: e.target.value } }))}
                     className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono"
                   >
-                    {project.fileSystem.biomes.map(b => (
-                      <option key={b.fileName} value={b.fileName}>{b.fileName} ({b.name})</option>
+                    {project.fileSystem.biomes.map((b, idx) => (
+                      <option key={`opt_bg_biome_${b.fileName || b.id || idx}_${idx}`} value={b.fileName}>{b.fileName} ({b.name})</option>
                     ))}
                   </select>
 
@@ -1661,7 +1716,7 @@ export const GameStructureModule: React.FC<GameStructureModuleProps> = ({
 
               <div className="grid grid-cols-1 gap-3">
                 {data.progressionFlags.map((flag, idx) => (
-                  <div key={flag.id} className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div key={`prog_flag_${flag.id || idx}_${idx}`} className="bg-neutral-900/90 border border-neutral-800 rounded-xl p-4 flex items-center justify-between gap-4">
                     <div className="space-y-1 min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold text-purple-400">{flag.id}</span>

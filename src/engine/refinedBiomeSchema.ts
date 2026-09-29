@@ -201,6 +201,7 @@ export interface BiomeTileType {
 
   // Traversal, Physics Colliders & Modifiers
   generatesCollider?: boolean; // Defaults to true when undefined. Uncheck for open air, invisible trigger surfaces, background pass-through tiles, etc.
+  collisionTag?: string; // Tag for collision matrix (e.g. 'solids', 'hazard', 'world', 'trigger')
   traversal_tags: TraversalModifierTag[];
   speed_modifier: number; // 1.0 = normal
   hazard_damage?: DamageInstance;
@@ -388,7 +389,9 @@ export type BiomeActionType =
   | 'audio_cue'
   | 'unlock_progression_flag'
   | 'broadcast_interbiome_signal'
-  | 'spawn_particles';
+  | 'spawn_particles'
+  | 'toggle_atmospheric_fx'
+  | 'modify_atmospheric_fx';
 
 export interface BiomeBehaviorAction {
   id: string;
@@ -425,6 +428,18 @@ export interface BiomeBehaviorAction {
   particleSystemId?: string;
   particleCount?: number;
   delayMs?: number;
+  // toggle_atmospheric_fx
+  targetEffectId?: string;
+  effectState?: 'enable' | 'disable' | 'toggle';
+  // modify_atmospheric_fx
+  modifyDensity?: number;
+  modifySpeed?: number;
+  modifyWindX?: number;
+  modifyWindY?: number;
+  modifyColor?: string;
+  modifySize?: number;
+  modifyOpacity?: number;
+  modifyAngle?: number;
 }
 
 export interface BiomeBehaviorRule {
@@ -480,7 +495,8 @@ export interface EnvironmentalEffectConfig {
   speed: number;   // 0.5 to 5.0
   windForceX: number; // drift horizontal
   windForceY: number; // fall speed / drift vertical
-  layer: 'background' | 'midground' | 'foreground';
+  layer: 'background' | 'main' | 'midground' | 'foreground';
+  layers?: Array<'background' | 'main' | 'midground' | 'foreground'>;
   blendMode: 'normal' | 'additive' | 'screen' | 'multiply';
   particleSize: number; // size in pixels
   isEnabled: boolean; // can be toggled by behaviors / states

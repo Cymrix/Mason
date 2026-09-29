@@ -78,6 +78,8 @@ import { globalChunkCache } from '../engine/chunkCacheManager';
 import { getCell, calculateMapBounds, CHUNK_SIZE, getChunkCoords, getChunkKey } from '../engine/mapChunkHelper';
 import { getMergedPolygonColliders, invalidateMergedColliders } from '../utils/colliderMerger';
 import { useMasonViewport, ViewportHUD, ViewportCanvasContainer } from './shared/viewport';
+import { CollisionMatrixConfig } from '../engine/collisionMatrixSchema';
+import { MasonThreeRenderer, ProjectionMode, ParallaxQuadData, EntitySpriteData, ParticlePointData } from '../engine/threeRenderer';
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -102,7 +104,8 @@ import {
   Cpu,
   Bookmark,
   Undo2,
-  Redo2
+  Redo2,
+  Box
 } from 'lucide-react';
 
 interface RefinedMapCanvasProps {
@@ -111,6 +114,7 @@ interface RefinedMapCanvasProps {
   mapData: RefinedMapData;
   biomes: RefinedBiome[];
   activeBiome: RefinedBiome;
+  collisionMatrix?: CollisionMatrixConfig;
   onTileInteract: (x: number, y: number, points?: Array<{ x: number; y: number }>) => void;
   isDrawing: boolean;
   setIsDrawing: (drawing: boolean) => void;
@@ -143,6 +147,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   mapData,
   biomes,
   activeBiome,
+  collisionMatrix,
   onTileInteract,
   isDrawing,
   setIsDrawing,
@@ -169,6 +174,22 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   uiTheme
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const threeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const threeRendererRef = useRef<MasonThreeRenderer | null>(null);
+
+  // 3D WebGL Engine Integration: Projection Mode, Pixel Art Mode & Pixel Grid Snapping
+  const [projectionMode, setProjectionMode] = useState<ProjectionMode>(() => {
+    return (localStorage.getItem('mason_projection_mode') === '3d' ? '3d' : '2d') as ProjectionMode;
+  });
+  const [pixelArtMode, setPixelArtMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('mason_pixel_art_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [pixelSnapGrid, setPixelSnapGrid] = useState<boolean>(() => {
+    const saved = localStorage.getItem('mason_pixel_snap_grid');
+    return saved !== null ? saved === 'true' : true;
+  });
+
   const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
   const [showParallaxBg, setShowParallaxBg] = useState<boolean>(true);
   const [showForegroundLayer, setShowForegroundLayer] = useState<boolean>(true);
@@ -176,12 +197,23 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   const [showColliders, setShowColliders] = useState<boolean>(false);
   const [, setRenderTrigger] = useState(0);
 
+  const screenShakeTimeRef = useRef<number>(0);
+  const screenShakeIntensityRef = useRef<number>(0);
+
+  // Synchronize collision matrix to particle physics simulation engine
+  useEffect(() => {
+    particleEngineRef.current.setCollisionMatrix(collisionMatrix);
+  }, [collisionMatrix]);
+
+
+  const playParticlesInitializedRef = useRef<boolean>(false);
 
   // Set up particle emitters when entering play mode
   useEffect(() => {
     if (mode === 'play') {
-      particleEngineRef.current.clearEmitters();
-      particleEngineRef.current.particles = [];
+      if (!playParticlesInitializedRef.current) {
+        particleEngineRef.current.clearEmitters();
+        particleEngineRef.current.particles = [];
       
       // Look for props/actors that have attached particles
       if (mapData && prefabs && particleSystems) {
@@ -224,10 +256,174 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           }
         }
       }
+
+      // 2. Resolve active weather biome (from active editor biome or project biomes with environmental effects)
+      const weatherBiome = 
+        (activeBiome?.environmentalEffects && activeBiome.environmentalEffects.length > 0)
+          ? activeBiome
+          : (biomes?.find(b => b.environmentalEffects && b.environmentalEffects.length > 0) || activeBiome);
+
+      // 3. Load active biome atmospheric/environmental weather effects
+      if (weatherBiome?.environmentalEffects && particleSystems) {
+        weatherBiome.environmentalEffects.forEach(effect => {
+          if (effect.isEnabled === false) return;
+
+          const rawLayers = effect.layers && effect.layers.length > 0 ? effect.layers : [effect.layer || 'foreground'];
+          const layers = rawLayers.map(l => l === 'midground' ? 'main' : l);
+
+          layers.forEach(layer => {
+            let systemData: any = null;
+
+            if (effect.particleSystemId) {
+              const system = particleSystems.find(
+                ps => ps.id === effect.particleSystemId || ps.particleData?.id === effect.particleSystemId
+              );
+              if (system) {
+                const rawData = system.particleData || system;
+                // Clone to avoid modifying original globally
+                systemData = JSON.parse(JSON.stringify(rawData));
+                systemData.id = `${effect.id}_layer_${layer}`;
+                systemData.layer = layer;
+                if (!systemData.emitter) systemData.emitter = {};
+                // Force environmental_fx shape so it spans the player's viewport camera
+                systemData.emitter.shape = 'environmental_fx';
+                systemData.emitter.isContinuous = true;
+                if (effect.density !== undefined && effect.density > 0) {
+                  systemData.emitter.emissionRate = effect.density;
+                }
+                if (effect.color && systemData.visuals) {
+                  systemData.visuals.startColor = effect.color;
+                  systemData.visuals.endColor = effect.color;
+                }
+                if (effect.particleSize !== undefined && systemData.visuals) {
+                  systemData.visuals.startSize = effect.particleSize;
+                  systemData.visuals.endSize = effect.particleSize * 0.5;
+                }
+                if (effect.opacity !== undefined && systemData.visuals) {
+                  systemData.visuals.startAlpha = effect.opacity;
+                }
+                if (systemData.kinematics) {
+                  if (effect.windForceX !== undefined) {
+                    systemData.kinematics.gravityX = (effect.windForceX || 0) * 40;
+                    systemData.kinematics.windForce = (effect.windForceX || 0) * 10;
+                  }
+                  if (effect.speed !== undefined) {
+                    systemData.kinematics.gravityY = (systemData.kinematics.gravityY || 60) * effect.speed;
+                  }
+                }
+                // Retain physics settings from the source particle emitter
+                systemData.physics = {
+                  ...(rawData.physics || {}),
+                  ...(systemData.physics || {})
+                };
+                // Respect emitter's collideWithMapSolids setting (or default to true for rain/weather)
+                if (rawData.physics?.collideWithMapSolids !== undefined) {
+                  systemData.physics.collideWithMapSolids = rawData.physics.collideWithMapSolids;
+                } else {
+                  systemData.physics.collideWithMapSolids = true;
+                }
+                if (!systemData.physics.collisionTag) {
+                  systemData.physics.collisionTag = rawData.physics?.collisionTag || 'weather';
+                }
+              }
+            }
+
+            if (!systemData) {
+              // Convert default fallback weather to a high-performance ParticleSystemData on-the-fly
+              const spawnAbove = effect.type === 'snow' || effect.type === 'rain' || effect.type === 'leaves';
+              const spawnBelow = effect.type === 'embers';
+              const spawnCenter = effect.type === 'dust' || effect.type === 'fog' || effect.type === 'bubbles';
+              
+              systemData = {
+                id: `${effect.id}_layer_${layer}`,
+                name: `${effect.name} (${layer})`,
+                layer: layer,
+                emitter: {
+                  shape: 'environmental_fx',
+                  isContinuous: true,
+                  emissionRate: effect.density ?? 45,
+                  lifetimeMax: effect.type === 'rain' ? 80 : 150,
+                  envSpawnAbove: spawnAbove,
+                  envSpawnBelow: spawnBelow,
+                  envSpawnCenter: spawnCenter,
+                  envSpawnLeft: (effect.windForceX || 0) > 0.05,
+                  envSpawnRight: (effect.windForceX || 0) < -0.05,
+                  envSizeAbove: 100,
+                  envSizeBelow: 100,
+                  envSizeCenter: 100,
+                  envSizeLeft: 100,
+                  envSizeRight: 100
+                },
+                visuals: {
+                  shape: effect.type === 'dust' ? 'circle' : (effect.type === 'embers' ? 'ember' : effect.type),
+                  startColor: effect.color || '#ffffff',
+                  endColor: effect.color || '#ffffff',
+                  startSize: effect.particleSize || 3,
+                  endSize: (effect.particleSize || 3) * 0.5,
+                  startAlpha: effect.opacity ?? 0.8,
+                  endAlpha: 0,
+                  blendMode: effect.blendMode || 'screen',
+                  animateColor: false,
+                  animateSize: true,
+                  animateAlpha: true
+                },
+                kinematics: {
+                  gravityY: effect.type === 'rain' ? 380 * (effect.speed || 1.0) : (effect.type === 'snow' ? 60 * (effect.speed || 1.0) : (effect.type === 'embers' ? -50 * (effect.speed || 1.0) : (effect.type === 'bubbles' ? -40 * (effect.speed || 1.0) : (effect.type === 'leaves' ? 40 * (effect.speed || 1.0) : 0)))),
+                  gravityX: (effect.windForceX || 0) * 40,
+                  windSensitivity: 1.0,
+                  windForce: (effect.windForceX || 0) * 10
+                },
+                physics: {
+                  collideWithMapSolids: effect.type === 'rain' || effect.type === 'snow' || effect.type === 'leaves',
+                  collisionTag: 'weather',
+                  collisionRestitution: effect.type === 'rain' ? 0.3 : 0.1,
+                  destroyOnCollision: effect.type === 'rain',
+                  spawnCollisionSparks: effect.type === 'rain'
+                }
+              };
+            }
+
+            if (systemData) {
+              particleEngineRef.current.addEmitter(systemData, 0, 0, layer);
+            }
+          });
+        });
+
+        // Pre-warm the particle engine so atmospheric weather particles are immediately visible across the screen
+        const initialPan = viewport.panRef.current || pan;
+        const isSolidTileHelper = (tx: number, ty: number): boolean => {
+          const cell = getCell(mapData, tx, ty);
+          if (!cell || !cell.tile_type_id) return false;
+          const record = tileTypeMap[cell.tile_type_id];
+          if (record && record.tileType.generatesCollider === false) return false;
+          return true;
+        };
+        particleEngineRef.current.setViewport(canvasWidth || 800, canvasHeight || 600, initialPan, scale, 1, isSolidTileHelper, activeChunksSet);
+        particleEngineRef.current.prewarm(3.5, isSolidTileHelper);
+        playParticlesInitializedRef.current = true;
+      }
     }
-  }, [mode, mapData, prefabs, particleSystems]);
+  } else {
+      if (playParticlesInitializedRef.current) {
+        particleEngineRef.current.clear();
+        particleEngineRef.current.clearEmitters();
+        playParticlesInitializedRef.current = false;
+      }
+    }
+  }, [mode]);
 
   // Exact prefab configuration
+  // Memoized set of chunk keys that actually contain placed terrain tiles (filters out empty void chunks)
+  const activeChunksSet = useMemo(() => {
+    if (!mapData.chunks) return new Set<string>();
+    const validKeys = Object.keys(mapData.chunks).filter(key => {
+      const chunk = mapData.chunks![key];
+      if (!chunk || !Array.isArray(chunk)) return false;
+      return chunk.some(c => c && c.tile_type_id);
+    });
+    return new Set(validKeys.length > 0 ? validKeys : Object.keys(mapData.chunks));
+  }, [mapData.chunks]);
+
   // derivation strictly from testCharacter and linkedBehavior
   const charConfig = useMemo(() => {
     // 1. Dimensions & Capsule from Prefab File
@@ -247,18 +443,16 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const behMov = linkedBehavior?.movement || testCharacter?.movement;
     const heroInp = linkedBehavior?.heroInput;
 
-    // Movement speed: strictly from configured movement. If not configured, 0.
-    const rawMoveSpeed = testCharacter?.movement?.moveSpeed ?? linkedBehavior?.movement?.moveSpeed;
-    const baseSpeed = (rawMoveSpeed !== undefined && rawMoveSpeed > 0) ? rawMoveSpeed : 0;
-    const accel = (testCharacter?.movement?.acceleration ?? behMov?.acceleration ?? 0.8) * (baseSpeed > 0 ? baseSpeed : 4.0);
+    const moveSpeed = testCharacter?.movement?.moveSpeed ?? linkedBehavior?.movement?.moveSpeed ?? 0;
+    const baseSpeed = moveSpeed;
+    const accel = (testCharacter?.movement?.acceleration ?? behMov?.acceleration ?? 0.8) * baseSpeed;
     const gravScale = behMov?.gravityScale !== undefined ? behMov.gravityScale : (testCharacter?.movement?.gravityScale ?? 1.0);
     const airCtrl = heroInp?.airControlPercent !== undefined 
       ? heroInp.airControlPercent / 100 
       : (behMov?.airControl !== undefined ? behMov.airControl : (testCharacter?.movement?.airControl ?? 0.85));
 
-    // 4. Jump & Air Jumps — Strictly from configured movement. If not configured, 0 / disabled.
-    const rawJumpForce = testCharacter?.movement?.jumpForce ?? linkedBehavior?.movement?.jumpForce;
-    const jumpForce = (rawJumpForce !== undefined && rawJumpForce > 0) ? rawJumpForce : 0;
+    // 4. Jump & Air Jumps — Strictly from configured movement / behavior hero input
+    const jumpForce = testCharacter?.movement?.jumpForce ?? linkedBehavior?.movement?.jumpForce ?? 0;
     const canJump = jumpForce > 0 || (testCharacter as any)?.canJump === true;
     const maxAirJumps = heroInp?.maxAirJumps ?? 0;
     const totalJumps = canJump ? (1 + maxAirJumps) : 0;
@@ -271,7 +465,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     );
     const allowAirDash = !!(heroInp?.allowAirDash);
     const dashCooldownFrames = heroInp?.dashCooldownMs ? Math.round(heroInp.dashCooldownMs / 16.66) : 36;
-    const dashSpeed = (heroInp?.dashSpeedMultiplier ?? 2.2) * (baseSpeed > 0 ? baseSpeed * 1.5 : 8);
+    const dashSpeed = (heroInp?.dashSpeedMultiplier ?? 2.2) * baseSpeed;
     const dashDurationFrames = heroInp?.dashIFrameMs ? Math.max(4, Math.round(heroInp.dashIFrameMs / 25)) : 8;
 
     // 6. Wall Cling & Wall Jump — Strictly from behavior hero input / wall_clinger movement type
@@ -281,8 +475,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       (testCharacter as any)?.hasWallCling === true
     );
     const wallFriction = heroInp?.wallClingFriction ?? 0.6;
-    const wallJumpForceX = heroInp?.wallJumpForceX ?? (baseSpeed > 0 ? baseSpeed * 1.8 : 6);
-    const wallJumpForceY = heroInp?.wallJumpForceY ?? (jumpForce > 0 ? jumpForce * 0.95 : 0);
+    const wallJumpForceX = heroInp?.wallJumpForceX ?? (baseSpeed * 1.8);
+    const wallJumpForceY = heroInp?.wallJumpForceY ?? (jumpForce * 0.95);
 
     // 7. Combat Attacks — Driven by prefab hitboxes/animations and behavior skills
     const hasAttack = !!(
@@ -340,60 +534,9 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const rows = sheet?.rows || 4;
 
     let url = sheet?.imageUrl || sheet?.dataUrl || (sheet as any)?.imageBase64 || '';
+    // If no custom spritesheet image exists, return null so the prefab renders as its true self (e.g. capsule collider only)
     if (!url) {
-      // Procedural fallback spritesheet canvas matching Prefab Studio
-      const cvs = document.createElement('canvas');
-      cvs.width = tileW * cols;
-      cvs.height = tileH * rows;
-      const ctx = cvs.getContext('2d');
-      if (ctx) {
-        const total = cols * rows;
-        const charColor = char.tintColor || '#06b6d4';
-        const avatar = char.avatarIcon || '🛡️';
-
-        for (let i = 0; i < total; i++) {
-          const c = i % cols;
-          const r = Math.floor(i / cols);
-          const x = c * tileW;
-          const y = r * tileH;
-
-          // Subtle checkered frame box
-          ctx.fillStyle = (c + r) % 2 === 0 ? 'rgba(30, 27, 75, 0.4)' : 'rgba(15, 23, 42, 0.4)';
-          ctx.fillRect(x, y, tileW, tileH);
-
-          const cx = x + tileW / 2;
-          const cy = y + tileH / 2;
-          const bob = Math.sin((i / total) * Math.PI * 4) * 3;
-          const legOffset = Math.sin((i / 8) * Math.PI * 2) * 3;
-
-          // Hero Body Capsule
-          ctx.fillStyle = charColor;
-          ctx.beginPath();
-          ctx.roundRect(cx - 10, cy - 14 + bob, 20, 26, 6);
-          ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-
-          // Visor / Eyes
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(cx + 2, cy - 10 + bob, 5, 3);
-          ctx.fillStyle = '#0f172a';
-          ctx.fillRect(cx + 4, cy - 9 + bob, 2, 2);
-
-          // Feet
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(cx - 7, cy + 12 + bob + legOffset, 5, 4);
-          ctx.fillRect(cx + 2, cy + 12 + bob - legOffset, 5, 4);
-
-          // Avatar Icon in chest
-          ctx.font = `${Math.round(tileW * 0.26)}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(avatar, cx, cy - 1 + bob);
-        }
-        url = cvs.toDataURL('image/png');
-      }
+      return null;
     }
 
     if (!url) return null;
@@ -525,9 +668,46 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
   useEffect(() => {
     if (prevModeRef.current === 'play' && mode !== 'play') {
       setPan({ ...viewport.panRef.current });
+      particleEngineRef.current.clear();
+      particleEngineRef.current.clearEmitters();
     }
     prevModeRef.current = mode;
   }, [mode, setPan, viewport.panRef]);
+
+  // Initialize and resize Three.js WebGL Renderer
+  useEffect(() => {
+    const canvas = threeCanvasRef.current;
+    if (!canvas) return;
+
+    if (!threeRendererRef.current) {
+      threeRendererRef.current = new MasonThreeRenderer(canvas, canvasWidth, canvasHeight, {
+        pixelArtMode,
+        projectionMode,
+        pixelSnapGrid
+      });
+    } else {
+      threeRendererRef.current.resize(canvasWidth, canvasHeight);
+    }
+  }, [canvasWidth, canvasHeight]);
+
+  // Synchronize projection, pixel art, and grid snapping modes to Three.js renderer
+  useEffect(() => {
+    if (threeRendererRef.current) {
+      threeRendererRef.current.setPixelArtMode(pixelArtMode);
+      threeRendererRef.current.setProjectionMode(projectionMode);
+      threeRendererRef.current.pixelSnapGrid = pixelSnapGrid;
+    }
+  }, [pixelArtMode, projectionMode, pixelSnapGrid]);
+
+  // Dispose WebGL context cleanly on unmount
+  useEffect(() => {
+    return () => {
+      if (threeRendererRef.current) {
+        threeRendererRef.current.dispose();
+        threeRendererRef.current = null;
+      }
+    };
+  }, []);
 
   // Logical map bounds (for things that still need to know how big the active map is)
   const logicalMapWidth = mapData.width * TILE_SIZE;
@@ -565,7 +745,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const interactiveDetails: Record<string, any> = {};
     const wildlifeItems: Record<string, any> = {};
 
-    (biomes || []).forEach(biome => {
+    const allBiomes = [...(biomes || [])];
+    if (activeBiome && !allBiomes.some(b => b.id === activeBiome.id)) {
+      allBiomes.push(activeBiome);
+    }
+
+    allBiomes.forEach(biome => {
       if (!biome) return;
       bMap[biome.id] = biome;
       (biome.tileTypes || []).forEach(tt => {
@@ -589,7 +774,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       interactiveDetailMap: interactiveDetails, 
       wildlifeMap: wildlifeItems 
     };
-  }, [biomes]);
+  }, [biomes, activeBiome]);
 
   // ==========================================
   // BIOME CROSSFADE & CENTER-SCREEN DETECTION ENGINE
@@ -1049,7 +1234,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         const cell = getCell(mapData, tx, ty);
         if (!cell || !cell.tile_type_id) return false;
         const record = tileTypeMap[cell.tile_type_id];
-        if (!record || record.tileType.generatesCollider === false) return false;
+        if (record && record.tileType.generatesCollider === false) return false;
         return true;
       };
 
@@ -1872,9 +2057,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             movementOverridden = true;
           } else if (mode === 'move_up') {
             p.vy = -speed;
+            p.isGrounded = false;
+            p.isWallSliding = false;
             movementOverridden = true;
           } else if (mode === 'move_down') {
             p.vy = speed;
+            p.isGrounded = false;
             movementOverridden = true;
           } else if (mode === 'move_forward' || mode === 'towards_target') {
             p.vx = p.facing === 'right' ? speed : -speed;
@@ -1888,26 +2076,52 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             const rad = ((action.angleDeg ?? 0) * Math.PI) / 180;
             p.vx = Math.cos(rad) * speed;
             p.vy = Math.sin(rad) * speed;
+            if (p.vy < 0) {
+              p.isGrounded = false;
+              p.isWallSliding = false;
+            }
             p.isWalking = Math.abs(p.vx) > 0.1;
             movementOverridden = true;
           } else if (mode === 'set_velocity') {
             if (action.velocityX !== undefined) p.vx = action.velocityX;
-            if (action.velocityY !== undefined) p.vy = action.velocityY;
+            if (action.velocityY !== undefined) {
+              p.vy = action.velocityY;
+              if (p.vy < 0) {
+                p.isGrounded = false;
+                p.isWallSliding = false;
+              }
+            }
             movementOverridden = true;
           } else if (mode === 'add_velocity') {
             if (action.velocityX !== undefined) p.vx += action.velocityX;
-            if (action.velocityY !== undefined) p.vy += action.velocityY;
+            if (action.velocityY !== undefined) {
+              p.vy += action.velocityY;
+              if (p.vy < 0) {
+                p.isGrounded = false;
+                p.isWallSliding = false;
+              }
+            }
             movementOverridden = true;
           } else if (mode === 'set_velocity_x') {
             p.vx = speed;
             movementOverridden = true;
           } else if (mode === 'set_velocity_y') {
-            p.vy = speed;
+            p.vy = action.velocityY !== undefined ? action.velocityY : speed;
+            if (p.vy < 0) {
+              p.isGrounded = false;
+              p.isWallSliding = false;
+            }
+            movementOverridden = true;
           } else if (mode === 'add_velocity_x') {
             p.vx += speed;
             movementOverridden = true;
           } else if (mode === 'add_velocity_y') {
-            p.vy += speed;
+            p.vy += action.velocityY !== undefined ? action.velocityY : speed;
+            if (p.vy < 0) {
+              p.isGrounded = false;
+              p.isWallSliding = false;
+            }
+            movementOverridden = true;
           } else if (mode === 'stop') {
             p.vx = 0;
             p.vy = 0;
@@ -2054,6 +2268,84 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             p.allowCeilingTraversal = action.allowCeilingTraversal;
           }
         }
+        // 9. Environmental effect (e.g., Screen Shake)
+        else if (action.actionType === 'environmental_effect') {
+          if (action.effectType === 'screen_shake') {
+            screenShakeTimeRef.current = action.durationMs ?? 1000;
+            screenShakeIntensityRef.current = action.intensity ?? 0.5;
+          }
+        }
+        // 10. Toggle Atmospheric FX
+        else if (action.actionType === 'toggle_atmospheric_fx' && action.targetEffectId) {
+          const targetId = action.targetEffectId;
+          const targetState = action.effectState || 'toggle';
+          
+          particleEngineRef.current.activeEmitters.forEach(emitter => {
+            if (emitter.system?.id === targetId || emitter.system?.id?.startsWith(targetId + '_layer_')) {
+              const baseRate = (emitter.system.emitter as any).baseEmissionRate ?? (emitter.system.emitter as any).originalEmissionRate ?? emitter.system.emitter.emissionRate ?? 30;
+              (emitter.system.emitter as any).baseEmissionRate = baseRate;
+
+              const currentRate = emitter.system.emitter.emissionRate;
+              if (targetState === 'enable') {
+                emitter.system.emitter.emissionRate = baseRate;
+              } else if (targetState === 'disable') {
+                emitter.system.emitter.emissionRate = 0;
+              } else if (targetState === 'toggle') {
+                emitter.system.emitter.emissionRate = currentRate > 0 ? 0 : baseRate;
+              }
+            }
+          });
+        }
+        // 11. Modify Atmospheric FX Settings
+        else if (action.actionType === 'modify_atmospheric_fx' && action.targetEffectId) {
+          const targetId = action.targetEffectId;
+          
+          particleEngineRef.current.activeEmitters.forEach(emitter => {
+            if (emitter.system?.id === targetId || emitter.system?.id?.startsWith(targetId + '_layer_')) {
+              // 1. Modify Density
+              if (action.modifyDensity !== undefined) {
+                (emitter.system.emitter as any).baseEmissionRate = action.modifyDensity;
+                emitter.system.emitter.emissionRate = action.modifyDensity;
+              }
+              // 2. Modify Color Tint
+              if (action.modifyColor !== undefined) {
+                emitter.system.visuals.startColor = action.modifyColor;
+                emitter.system.visuals.endColor = action.modifyColor;
+              }
+              // 3. Modify Wind Forces & Directions
+              if (action.modifyWindX !== undefined) {
+                emitter.system.kinematics.gravityX = action.modifyWindX * 40;
+                emitter.system.kinematics.windForce = action.modifyWindX * 10;
+                emitter.system.emitter.envSpawnLeft = action.modifyWindX > 0.05;
+                emitter.system.emitter.envSpawnRight = action.modifyWindX < -0.05;
+              }
+              if (action.modifyWindY !== undefined) {
+                emitter.system.kinematics.gravityY = action.modifyWindY * 40;
+              }
+              // 4. Modify Speed
+              if (action.modifySpeed !== undefined) {
+                // Adjust lifespan or velocities to reflect speed
+                const originalGravityY = emitter.system.kinematics.gravityY || 1;
+                emitter.system.kinematics.gravityY = originalGravityY * action.modifySpeed;
+                const originalGravityX = emitter.system.kinematics.gravityX || 0;
+                emitter.system.kinematics.gravityX = originalGravityX * action.modifySpeed;
+              }
+              // 5. Modify Particle Size
+              if (action.modifySize !== undefined) {
+                emitter.system.visuals.startSize = action.modifySize;
+                emitter.system.visuals.endSize = action.modifySize * 0.5;
+              }
+              // 6. Modify Opacity
+              if (action.modifyOpacity !== undefined) {
+                emitter.system.visuals.startAlpha = action.modifyOpacity;
+              }
+              // 7. Modify Launch Angle
+              if (action.modifyAngle !== undefined) {
+                emitter.system.kinematics.angleDeg = action.modifyAngle;
+              }
+            }
+          });
+        }
       };
 
       // ==========================================
@@ -2154,48 +2446,50 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           if (Math.abs(p.vx) < 0.1) p.vx = 0;
           p.isWalking = false;
         }
+      }
 
-        // Jump & Action fallback triggers (only if not handled by behavior rules)
-        if (!jumpTriggeredByRule && charConfig.canJump) {
-          if (justPressed['Space'] || justPressed['KeyW'] || justPressed['ArrowUp']) {
-            if (p.isWallSliding && charConfig.hasWallCling) {
-              p.vy = -charConfig.wallJumpForceY;
-              p.vx = p.facing === 'left' ? charConfig.wallJumpForceX : -charConfig.wallJumpForceX;
-              p.facing = p.facing === 'left' ? 'right' : 'left';
-              p.isWallSliding = false;
-              p.isGrounded = false;
-              p.jumpStretch = 1.3;
-              for (let i = 0; i < 6; i++) {
-                p.particles.push({
-                  x: p.x,
-                  y: p.y - 12,
-                  vx: (Math.random() - 0.5) * 4,
-                  vy: -Math.random() * 3,
-                  life: 12,
-                  maxLife: 12,
-                  color: '#38bdf8',
-                  size: 2
-                });
-              }
-            } else if (p.jumpsLeft > 0) {
-              p.vy = -Math.abs(charConfig.jumpForce);
+      // Coyote Time & Jump Input Buffer Management
+      if (p.isGrounded) {
+        (p as any).coyoteTimer = 0.15; // ~9 frames coyote grace period after leaving ledge
+      } else {
+        (p as any).coyoteTimer = Math.max(0, ((p as any).coyoteTimer || 0) - dt);
+      }
+
+      if (justPressed['Space'] || justPressed['KeyW'] || justPressed['ArrowUp']) {
+        (p as any).jumpBufferTimer = 0.15; // ~9 frames jump input buffer window
+      } else {
+        (p as any).jumpBufferTimer = Math.max(0, ((p as any).jumpBufferTimer || 0) - dt);
+      }
+
+      if (!p.isDashing) {
+        // Variable Jump Height (releasing jump key early cuts upward velocity)
+        const jumpKeyHeld = keys['Space'] || keys['KeyW'] || keys['ArrowUp'];
+        if (!jumpKeyHeld && p.vy < -2.5) {
+          p.vy *= 0.65;
+        }
+
+        // Jump & Action triggers (strictly if allowed by configured movement or behavior rules)
+        if (!jumpTriggeredByRule && charConfig.canJump && ((p as any).jumpBufferTimer || 0) > 0) {
+          const canGroundJump = p.isGrounded || ((p as any).coyoteTimer || 0) > 0;
+          if (p.isWallSliding && charConfig.hasWallCling) {
+            p.vy = -charConfig.wallJumpForceY;
+            p.vx = p.facing === 'left' ? charConfig.wallJumpForceX : -charConfig.wallJumpForceX;
+            p.facing = p.facing === 'left' ? 'right' : 'left';
+            p.isWallSliding = false;
+            p.isGrounded = false;
+            (p as any).coyoteTimer = 0;
+            (p as any).jumpBufferTimer = 0;
+          } else if (canGroundJump || p.jumpsLeft > 0) {
+            p.vy = -Math.abs(charConfig.jumpForce);
+            if (!canGroundJump) {
               p.jumpsLeft -= 1;
-              p.isGrounded = false;
-              p.isWallSliding = false;
-              p.jumpStretch = 1.25;
-              for (let i = 0; i < 5; i++) {
-                p.particles.push({
-                  x: p.x + (Math.random() - 0.5) * 12,
-                  y: p.y,
-                  vx: (Math.random() - 0.5) * 3,
-                  vy: -Math.random() * 2,
-                  life: 14,
-                  maxLife: 14,
-                  color: 'rgba(200, 200, 200, 0.7)',
-                  size: 2
-                });
-              }
+            } else {
+              p.jumpsLeft = Math.max(0, charConfig.totalJumps - 1);
             }
+            p.isGrounded = false;
+            p.isWallSliding = false;
+            (p as any).coyoteTimer = 0;
+            (p as any).jumpBufferTimer = 0;
           }
         }
 
@@ -2211,7 +2505,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           triggerSpecial();
         }
 
-        // Apply environmental or overridden gravity with descend rate clamping
+        // Apply environmental or overridden gravity continuously
         p.vy += 0.52 * effectiveGravScale;
         if (p.maxDescendSpeed !== null) {
           p.vy = Math.min(p.vy, p.maxDescendSpeed);
@@ -2248,17 +2542,17 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
       // 1. Move X with Collision Check (using dynamic capsule height for ducking & slope traversal)
       const dynamicCharH = charH * (p.isDucking ? 0.5 : (p.capsuleHeightMultiplier || 1.0));
-      const stepHeight = 6;
+      const stepHeight = 20; // 20px step height for smooth slope traversal
       const numSamples = 4;
       const originalY = p.y;
       const isGroundedBefore = p.isGrounded;
 
-      // Helper to query the highest ground surface or slope under a specific horizontal world pixel coordinate
+      // Helper to query valid ground surface or slope under a specific horizontal world pixel coordinate
       const getGroundSurfaceAt = (worldX: number, currentY: number) => {
         const tx = Math.floor(worldX / TILE_SIZE);
-        // Search tile rows around the current feet level for possible ground blocks
-        const startTy = Math.floor((currentY - 16) / TILE_SIZE);
-        const endTy = Math.floor((currentY + 16) / TILE_SIZE);
+        // Focus search strictly around feet level to avoid overhead ceiling blocks
+        const startTy = Math.floor((currentY - 12) / TILE_SIZE);
+        const endTy = Math.floor((currentY + 28) / TILE_SIZE);
         
         let highestSurfaceY: number | null = null;
         let isSlope = false;
@@ -2273,7 +2567,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             
             if (isWalkable) {
               const h = getTileSurfaceHeightAt(tx, ty, worldX, shape, TILE_SIZE);
-              if (h !== null) {
+              if (h !== null && h >= currentY - 24) {
                 if (highestSurfaceY === null || h < highestSurfaceY) {
                   highestSurfaceY = h;
                   isSlope = true;
@@ -2282,10 +2576,12 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               }
             } else if (isSolidFlat) {
               const tileTop = ty * TILE_SIZE;
-              if (highestSurfaceY === null || tileTop < highestSurfaceY) {
-                highestSurfaceY = tileTop;
-                isSlope = false;
-                slopeShape = undefined;
+              if (tileTop >= currentY - 24) {
+                if (highestSurfaceY === null || tileTop < highestSurfaceY) {
+                  highestSurfaceY = tileTop;
+                  isSlope = false;
+                  slopeShape = undefined;
+                }
               }
             }
           }
@@ -2351,13 +2647,13 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       } else {
         p.x = testX;
 
-        // Ground snapping traversal for climbs and descents
-        if (isGroundedBefore) {
+        // Ground snapping traversal for climbs and descents (only when not ascending)
+        if (isGroundedBefore && p.vy >= 0) {
           const groundInfo = getGroundSurfaceAt(p.x, originalY);
           if (groundInfo) {
-            const maxStepUp = 12;
-            const maxSnapDown = 14;
-            const heightDiff = originalY - groundInfo.y; // Positive is climbing up, negative is climbing down
+            const maxStepUp = 24;
+            const maxSnapDown = 24;
+            const heightDiff = originalY - groundInfo.y;
             
             if (heightDiff >= -maxSnapDown && heightDiff <= maxStepUp) {
               p.y = groundInfo.y;
@@ -2384,8 +2680,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         feetSamples.forEach(sampleX => {
           const groundInfo = getGroundSurfaceAt(sampleX, nextY);
           if (groundInfo) {
-            // Check if the falling position is within landing threshold of the surface
-            if (nextY >= groundInfo.y - 8 && nextY <= groundInfo.y + 8) {
+            // Check if falling position is within landing threshold or already below surface
+            if (nextY >= groundInfo.y - 12 && p.y <= groundInfo.y + 16) {
               if (highestGroundY === null || groundInfo.y < highestGroundY) {
                 highestGroundY = groundInfo.y;
                 groundedOnSlope = groundInfo.isSlope;
@@ -2397,21 +2693,6 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
         if (highestGroundY !== null) {
           p.y = highestGroundY;
-          if (p.vy > 5) {
-            p.landingSquash = 1.3;
-            for (let i = 0; i < 4; i++) {
-              p.particles.push({
-                x: p.x + (Math.random() - 0.5) * 14,
-                y: p.y,
-                vx: (Math.random() - 0.5) * 3,
-                vy: -Math.random() * 1.5,
-                life: 12,
-                maxLife: 12,
-                color: 'rgba(210, 210, 210, 0.6)',
-                size: 2
-              });
-            }
-          }
           p.vy = 0;
           p.isGrounded = true;
           p.isWallSliding = false;
@@ -2464,6 +2745,24 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         }
       }
 
+      // 3. Anti-Trapping & De-penetration Safety check:
+      // If the character's feet or core are penetrating inside a solid flat tile, gently pop them onto the top surface
+      const currentFeetTileX = Math.floor(p.x / TILE_SIZE);
+      const currentFeetTileY = Math.floor((p.y - 4) / TILE_SIZE);
+      const feetCell = getCell(mapData, currentFeetTileX, currentFeetTileY);
+      if (feetCell && feetCell.tile_type_id) {
+        const feetShape = getEffectiveTileShape(currentFeetTileX, currentFeetTileY);
+        if (!feetShape || !feetShape.includes('slope')) {
+          const solidTop = currentFeetTileY * TILE_SIZE;
+          if (p.y > solidTop) {
+            p.y = solidTop;
+            p.vy = 0;
+            p.isGrounded = true;
+            p.jumpsLeft = charConfig.totalJumps;
+          }
+        }
+      }
+
       // Clear frame single-press keys and mouse states at end of tick
       justPressedKeysRef.current = {};
       justReleasedKeysRef.current = {};
@@ -2478,6 +2777,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
 
       // Update Particles
       (p.particles || []).forEach(pt => {
+        if (!pt) return;
         pt.x += pt.vx;
         pt.y += pt.vy;
         pt.life--;
@@ -2534,7 +2834,24 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         });
       }
       
-      particleEngineRef.current.update(dt, {}, mapData.height * 64 + 1000);
+      const activePan = viewport.panRef.current || pan;
+      particleEngineRef.current.setViewport(
+        canvasWidth,
+        canvasHeight,
+        activePan,
+        scale,
+        1,
+        (tx, ty) => isSolidTile(tx, ty),
+        activeChunksSet
+      );
+      particleEngineRef.current.update(
+        dt,
+        {},
+        mapData.height * 64 + 1000,
+        0,
+        undefined,
+        (tx, ty) => isSolidTile(tx, ty)
+      );
       animId = requestAnimationFrame(physicsTick);
     };
 
@@ -2597,10 +2914,39 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     }
 
     // ==========================================
-    // APPLY CAMERA TRANSFORM (World Space)
+    // 1b. RENDER BACKGROUND ATMOSPHERIC WEATHER FX (Behind terrain)
     // ==========================================
+    particleEngineRef.current.setViewport(
+      canvasWidth,
+      canvasHeight,
+      currentPan,
+      scale,
+      1,
+      (tx, ty) => {
+        const cell = getCell(mapData, tx, ty);
+        if (!cell || !cell.tile_type_id) return false;
+        const record = tileTypeMap[cell.tile_type_id];
+        if (record && record.tileType.generatesCollider === false) return false;
+        return true;
+      },
+      activeChunksSet
+    );
+    particleEngineRef.current.render(ctx, currentPan, scale, undefined, false, undefined, 'background', true);
+
+    // ==========================================
+    // APPLY CAMERA TRANSFORM (World Space with Screen Shake)
+    // ==========================================
+    let shakeX = 0;
+    let shakeY = 0;
+    if (screenShakeTimeRef.current > 0) {
+      screenShakeTimeRef.current -= 16.67;
+      const amt = screenShakeIntensityRef.current * 10;
+      shakeX = (Math.random() - 0.5) * amt;
+      shakeY = (Math.random() - 0.5) * amt;
+    }
+
     ctx.save();
-    ctx.translate(currentPan.x, currentPan.y);
+    ctx.translate(currentPan.x + shakeX, currentPan.y + shakeY);
     ctx.scale(scale, scale);
 
     // ==========================================
@@ -2628,6 +2974,98 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         }
       }
     }
+
+    // ==========================================
+    // 1c. THREE.JS UNIFIED 2D/3D WEBGL PIPELINE
+    // ==========================================
+    if (threeRendererRef.current) {
+      threeRendererRef.current.setViewport(currentPan, scale, { x: shakeX, y: shakeY });
+      threeRendererRef.current.setLitMode(
+        isLitMode,
+        mode === 'play' ? playerRef.current.x : undefined,
+        mode === 'play' ? playerRef.current.y : undefined
+      );
+
+      // 1. Sync Chunks to Three.js
+      const chunksForThree: Array<{ key: string; cx: number; cy: number; canvas: HTMLCanvasElement }> = [];
+      if (mapData.chunks) {
+        visibleChunks.forEach(({ key, cx, cy }) => {
+          const chunkCanvas = globalChunkCache.getOrBakeChunk(
+            cx,
+            cy,
+            mapData,
+            tileTypeMap,
+            showDamageMasks,
+            () => setRenderTrigger(t => t + 1)
+          );
+          if (chunkCanvas) {
+            chunksForThree.push({ key, cx, cy, canvas: chunkCanvas });
+          }
+        });
+      } else {
+        const numChunksX = Math.ceil(mapData.width / CHUNK_SIZE);
+        const numChunksY = Math.ceil(mapData.height / CHUNK_SIZE);
+        const startCY = Math.max(0, minVisChunkY);
+        const endCY = Math.min(numChunksY - 1, maxVisChunkY);
+        const startCX = Math.max(0, minVisChunkX);
+        const endCX = Math.min(numChunksX - 1, maxVisChunkX);
+        for (let cy = startCY; cy <= endCY; cy++) {
+          for (let cx = startCX; cx <= endCX; cx++) {
+            const chunkCanvas = globalChunkCache.getOrBakeChunk(
+              cx,
+              cy,
+              mapData,
+              tileTypeMap,
+              showDamageMasks,
+              () => setRenderTrigger(t => t + 1)
+            );
+            if (chunkCanvas) {
+              chunksForThree.push({ key: `${cx},${cy}`, cx, cy, canvas: chunkCanvas });
+            }
+          }
+        }
+      }
+      threeRendererRef.current.updateChunks(chunksForThree);
+
+      // 2. Sync Particles to Three.js
+      if (particleEngineRef.current.particles) {
+        const pts: ParticlePointData[] = particleEngineRef.current.particles.map(p => ({
+          x: p.x,
+          y: p.y,
+          size: p.startSize || 3,
+          color: p.startColor || '#ffffff',
+          alpha: p.maxLifetime > 0 ? Math.max(0, 1 - p.lifetime / p.maxLifetime) : 1,
+          layer: p.layer || 'main'
+        }));
+        threeRendererRef.current.updateParticles(pts);
+      }
+
+      // 3. Sync Player / Prefab Entities to Three.js
+      const entities: EntitySpriteData[] = [];
+      const spriteInfoLocal = getCharacterSpriteInfo(testCharacter);
+      if (mode === 'play') {
+        const p = playerRef.current;
+        entities.push({
+          id: 'player_character',
+          img: spriteInfoLocal?.img?.complete ? spriteInfoLocal.img : null,
+          x: p.x,
+          y: p.y,
+          width: spriteInfoLocal?.tileW || 48,
+          height: spriteInfoLocal?.tileH || 48,
+          facing: p.facing,
+          tintColor: testCharacter?.tintColor || '#06b6d4',
+          alpha: 1.0,
+          zOrder: 4
+        });
+      }
+      threeRendererRef.current.updateEntities(entities);
+
+      // 4. Render WebGL Frame
+      threeRendererRef.current.render();
+    }
+
+    // When in 3D mode, the Three.js canvas renders the 3D scene; 2D canvas only draws overlays
+    if (projectionMode === '2d') {
 
     // ==========================================
     // 2. RENDER BIOME CELL ATMOSPHERE TINT (Blank Air Tiles)
@@ -2796,6 +3234,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         }
       }
     }
+    } // End 2D mode terrain rendering (Three.js WebGL renders 3D mode)
 
         // ==========================================
     // 8. GRID OVERLAY & CHUNK OUTLINES
@@ -2996,26 +3435,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const facing = spawnPoint?.facing || 'right';
 
       ctx.save();
-      // 1. Pulsing Ground Ring
-      const pulseTime = performance.now() / 1000;
-      const ringRadius = 13 + Math.sin(pulseTime * 3) * 2;
-      
-      ctx.beginPath();
-      ctx.ellipse(spawnX, spawnY - 2, ringRadius, ringRadius * 0.45, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `${charColor}33`;
-      ctx.fill();
-      ctx.lineWidth = 1.5 / scale;
-      ctx.strokeStyle = charColor;
-      ctx.stroke();
 
-      // 2. Vertical Beacon Ray
-      const grad = ctx.createLinearGradient(spawnX, spawnY, spawnX, spawnY - 48);
-      grad.addColorStop(0, `${charColor}55`);
-      grad.addColorStop(1, `${charColor}00`);
-      ctx.fillStyle = grad;
-      ctx.fillRect(spawnX - 12, spawnY - 48, 24, 48);
-
-      // 3. Collision Capsule Outline
+      // 1. Collision Capsule Outline — Direct instance of prefab
       const capRad = charConfig.radius;
       const capH = charConfig.height;
       const halfH = Math.max(0, (capH - capRad * 2) / 2);
@@ -3026,27 +3447,28 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       // On the map, the bottom of the capsule rests on the ground at spawnY (or p.y).
       // Therefore, the capsule center is at (spawnX, spawnY - capH / 2).
       // And the sprite center is at (spawnX - capOx, spawnY - (capOy + capH / 2)).
-      const spriteTileH = spriteInfo?.tileH || testCharacter?.spriteHeight || 64;
-      const spriteTileW = spriteInfo?.tileW || testCharacter?.spriteWidth || 64;
       const spriteCenterX = spawnX - capOx;
       const spriteCenterY = spawnY - (capOy + capH / 2);
       const capsuleCenterY = spawnY - capH / 2;
 
-      ctx.save();
-      ctx.translate(spawnX, capsuleCenterY);
-      ctx.strokeStyle = `${charColor}ee`;
-      ctx.fillStyle = `${charColor}22`;
-      ctx.setLineDash([3 / scale, 3 / scale]);
-      ctx.lineWidth = 1.2 / scale;
-      ctx.beginPath();
-      ctx.arc(0, -halfH, capRad, Math.PI, 0);
-      ctx.arc(0, halfH, capRad, 0, Math.PI);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
+      // Render Capsule Collider Outline if configured on prefab
+      if (testCharacter?.capsule && capH > 0 && capRad > 0) {
+        ctx.save();
+        ctx.translate(spawnX, capsuleCenterY);
+        ctx.strokeStyle = `${charColor}ee`;
+        ctx.fillStyle = `${charColor}22`;
+        ctx.setLineDash([3 / scale, 3 / scale]);
+        ctx.lineWidth = 1.2 / scale;
+        ctx.beginPath();
+        ctx.arc(0, -halfH, capRad, Math.PI, 0);
+        ctx.arc(0, halfH, capRad, 0, Math.PI);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
 
-      // 4. Render Real Prefab Sprite Frame (Idle frame 0)
+      // 2. Render Real Prefab Sprite Frame (Idle frame 0) if spritesheet image exists
       if (spriteInfo && spriteInfo.img.complete && spriteInfo.img.naturalWidth > 0) {
         const { img, tileW, tileH, cols } = spriteInfo;
         const idleAnim = testCharacter?.animations?.find(a => a.stateId === 'idle') || testCharacter?.animations?.[0];
@@ -3068,49 +3490,19 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
           -tileW / 2, -tileH / 2, tileW, tileH
         );
         ctx.restore();
-      } else {
-        // Fallback Capsule Silhouette aligned with sprite center
-        ctx.fillStyle = charColor;
-        ctx.beginPath();
-        ctx.roundRect(spriteCenterX - 10, spriteCenterY - 14, 20, 28, 6);
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1 / scale;
-        ctx.stroke();
-
-        ctx.font = `${Math.max(12, 12 / scale)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(testCharacter?.avatarIcon || '🛡️', spriteCenterX, spriteCenterY);
       }
 
-      // 5. Facing Arrow
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      if (facing === 'right') {
-        ctx.moveTo(spawnX + 16, spawnY - 14);
-        ctx.lineTo(spawnX + 10, spawnY - 19);
-        ctx.lineTo(spawnX + 10, spawnY - 9);
-      } else {
-        ctx.moveTo(spawnX - 16, spawnY - 14);
-        ctx.lineTo(spawnX - 10, spawnY - 19);
-        ctx.lineTo(spawnX - 10, spawnY - 9);
-      }
-      ctx.fill();
-
-      // 6. Name & Spawn Badge
+      // 3. Name & Spawn Label — Perfectly centered horizontally with no rectangle background
       const spawnLabel = `📍 SPAWN • ${testCharacter?.name || 'Player'}`;
+      ctx.save();
       ctx.font = `bold ${Math.max(9 / scale, 8)}px monospace`;
-      const textW = ctx.measureText(spawnLabel).width;
-      const bX = spawnX - textW / 2 - 4 / scale;
-      const bY = spawnY - Math.max(36, capH) - 18 / scale;
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-      ctx.fillRect(bX, bY, textW + 8 / scale, 12 / scale);
-      ctx.strokeStyle = charColor;
-      ctx.lineWidth = 1 / scale;
-      ctx.strokeRect(bX, bY, textW + 8 / scale, 12 / scale);
-      ctx.fillStyle = '#67e8f9';
-      ctx.fillText(spawnLabel, spawnX, bY + 6 / scale);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = '#38bdf8';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(spawnLabel, spawnX, spawnY - (capH > 0 ? capH : 32) - 6 / scale);
+      ctx.restore();
 
       // 7. Hover Spawn Placement Preview
       if (activeTool === 'spawn_place' && hoverTile) {
@@ -3187,13 +3579,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.restore();
       });
 
-      // 2. Ground Contact Shadow
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y - 1, 10, 3.5, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fill();
-
-      // 3. Resolve Current Animation State
+      // 2. Resolve Current Animation State
       let animState = p.requestedAnimState || p.activeBehaviorState || 'idle';
       if (!p.requestedAnimState && (!p.activeBehaviorState || p.activeBehaviorState === 'idle')) {
         if (p.isAttacking) {
@@ -3225,6 +3611,7 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       const capOx = charConfig.offsetX;
       const capOy = charConfig.offsetY;
       const capH = charConfig.height;
+      const capRad = charConfig.radius;
       const pSpriteCenterX = p.x - capOx;
       const pSpriteCenterY = p.y - (capOy + capH / 2);
 
@@ -3232,14 +3619,8 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       // Translate to prefab sprite center
       ctx.translate(pSpriteCenterX, pSpriteCenterY);
 
-      // Run animation bounce / tilt
-      const runBounce = p.isWalking && p.isGrounded ? Math.sin(p.animTime * 10) * 1.5 : 0;
-      const runTilt = p.isWalking && p.isGrounded ? (p.facing === 'right' ? 0.06 : -0.06) : 0;
-      ctx.rotate(runTilt);
-
-      let scaleX = (p.facing === 'left' ? -1 : 1) * p.landingSquash;
-      let scaleY = p.jumpStretch / p.landingSquash;
-      ctx.scale(scaleX, scaleY);
+      const scaleX = p.facing === 'left' ? -1 : 1;
+      ctx.scale(scaleX, 1.0);
 
       if (spriteInfo && spriteInfo.img.complete && spriteInfo.img.naturalWidth > 0 && activeAnim) {
         const { img, tileW, tileH, cols } = spriteInfo;
@@ -3259,30 +3640,21 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
         ctx.drawImage(
           img,
           srcX, srcY, tileW, tileH,
-          -tileW / 2, -tileH / 2 + runBounce, tileW, tileH
+          -tileW / 2, -tileH / 2, tileW, tileH
         );
-      } else {
-        // Fallback Body Capsule
-        const bodyGrad = ctx.createLinearGradient(0, -14 + runBounce, 0, 14 + runBounce);
-        bodyGrad.addColorStop(0, charColor);
-        bodyGrad.addColorStop(1, '#0f172a');
-        ctx.fillStyle = bodyGrad;
+      } else if (testCharacter?.capsule && capH > 0 && capRad > 0) {
+        // Direct instance of the actual prefab capsule collider
+        const halfH = Math.max(0, (capH - capRad * 2) / 2);
+        ctx.strokeStyle = charColor;
+        ctx.fillStyle = `${charColor}33`;
+        ctx.lineWidth = 1.5 / scale;
         ctx.beginPath();
-        ctx.roundRect(-8, -14 + runBounce, 16, 27, 6);
+        // Translated relative to sprite center (pSpriteCenterX, pSpriteCenterY), capsule center is (capOx, capOy)
+        ctx.arc(capOx, capOy - halfH, capRad, Math.PI, 0);
+        ctx.arc(capOx, capOy + halfH, capRad, 0, Math.PI);
+        ctx.closePath();
         ctx.fill();
-        ctx.lineWidth = 1.2 / scale;
-        ctx.strokeStyle = '#ffffff';
         ctx.stroke();
-
-        // Visor / Eyes in facing direction
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(3, -8 + runBounce, 3, 3);
-
-        // Prefab Avatar Icon inside body
-        ctx.font = '10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(testCharacter?.avatarIcon || '🛡️', 0, 0 + runBounce);
       }
 
       ctx.restore();
@@ -3345,9 +3717,19 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     }
 
     // ==========================================
+    // RENDER MAIN ATMOSPHERIC PARTICLES (World space, alongside terrain & actors)
+    // ==========================================
+    particleEngineRef.current.render(ctx, { x: 0, y: 0 }, 1, undefined, false, undefined, 'main', false);
+
+    // ==========================================
     // RESTORE SCREEN SPACE
     // ==========================================
     ctx.restore();
+
+    // ==========================================
+    // RENDER FOREGROUND ATMOSPHERIC PARTICLES (In front of world, behind HUD)
+    // ==========================================
+    particleEngineRef.current.render(ctx, currentPan, scale, undefined, false, undefined, 'foreground', true);
 
     // ==========================================
     // 7. LAYER +1: FOREGROUND OVERGROWTH & PARTICLES WITH CROSSFADE
@@ -3450,7 +3832,14 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
     const viewX = clientX - rect.left;
     const viewY = clientY - rect.top;
 
-    // Convert to world coordinates using live ref values to guarantee 100% pixel-perfect tile alignment
+    if (threeRendererRef.current) {
+      const worldPos = threeRendererRef.current.screenToWorld(viewX, viewY);
+      const tileX = Math.floor(worldPos.worldX / TILE_SIZE);
+      const tileY = Math.floor(worldPos.worldY / TILE_SIZE);
+      return { x: tileX, y: tileY };
+    }
+
+    // Fallback: Convert to world coordinates using live ref values to guarantee 100% pixel-perfect tile alignment
     const curPan = viewport.panRef.current;
     const curScale = viewport.scaleRef.current;
     const worldX = (viewX - curPan.x) / curScale;
@@ -3632,12 +4021,21 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
       style={{ touchAction: 'none' }}
     >
       
-      {/* Transformed Canvas Plane */}
+      {/* 1. Primary Three.js WebGL Canvas (Unified 2D Ortho / 3D Perspective WebGL Pipeline) */}
+      <canvas
+        ref={threeCanvasRef}
+        width={canvasWidth}
+        height={canvasHeight}
+        className="absolute inset-0 block bg-black outline-none pointer-events-none z-0"
+        style={{ width: '100%', height: '100%' }}
+      />
+
+      {/* 2. Interactive Gizmo & Editor Overlay Canvas */}
       <canvas
         ref={canvasRef}
         width={canvasWidth}
         height={canvasHeight}
-        className="block shadow-2xl bg-black outline-none"
+        className="absolute inset-0 block bg-transparent outline-none pointer-events-none z-10"
         style={{ width: '100%', height: '100%' }}
       />
 
@@ -3732,6 +4130,46 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
             data-no-paint="true"
             className="absolute top-4 right-4 z-30 flex items-center gap-2 bg-neutral-950/90 backdrop-blur-md p-1.5 rounded-2xl border border-cyan-500/50 shadow-2xl pointer-events-auto"
           >
+            {/* 3D / 2D Quick Switcher in Play Mode */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextMode: ProjectionMode = projectionMode === '2d' ? '3d' : '2d';
+                setProjectionMode(nextMode);
+                localStorage.setItem('mason_projection_mode', nextMode);
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition border ${
+                projectionMode === '3d'
+                  ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-950/60'
+                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white border-neutral-700'
+              }`}
+              title="Toggle 2D Orthographic / 3D Perspective View in Play Mode"
+            >
+              <Box size={13} className={projectionMode === '3d' ? 'text-purple-200' : 'text-neutral-400'} />
+              <span>{projectionMode === '3d' ? '3D' : '2D'}</span>
+            </button>
+
+            {/* Pixel Art Mode Quick Switcher in Play Mode */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !pixelArtMode;
+                setPixelArtMode(nextVal);
+                localStorage.setItem('mason_pixel_art_mode', String(nextVal));
+              }}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-bold transition border ${
+                pixelArtMode
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border-neutral-700'
+              }`}
+              title="Toggle Pixel Art (Nearest Filter + Pixel Snap) vs Smooth (Linear)"
+            >
+              <Sparkles size={13} className={pixelArtMode ? 'text-cyan-400' : 'text-neutral-500'} />
+              <span>{pixelArtMode ? 'Pixel' : 'Smooth'}</span>
+            </button>
+
+            <div className="h-4 w-px bg-neutral-700 mx-0.5" />
+
             <button
               type="button"
               onClick={respawnPlayer}
@@ -3754,89 +4192,6 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
               <Square size={13} fill="currentColor" />
               <span>Exit Play Mode (Esc)</span>
             </button>
-          </div>
-
-          {/* Bottom Floating Controls Helper Banner — Strictly derived from configured capabilities */}
-          <div 
-            data-no-paint="true"
-            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
-          >
-            <div className="bg-neutral-950/90 border border-neutral-700/80 shadow-2xl backdrop-blur-md px-4 py-2 rounded-2xl flex items-center gap-3 text-xs text-neutral-300">
-              <span className="text-[10px] font-mono uppercase text-cyan-400 font-extrabold tracking-wider bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 rounded-lg">
-                Active Actions
-              </span>
-              
-              {charConfig.baseSpeed > 0 && (
-                <>
-                  <span className="font-medium">
-                    <strong className="text-white font-mono">WASD / ◄►</strong> Move
-                  </span>
-                  <span className="text-neutral-600">•</span>
-                </>
-              )}
-
-              {charConfig.canJump && (
-                <>
-                  <span className="font-medium">
-                    <strong className="text-white font-mono">Space</strong> Jump {charConfig.maxAirJumps > 0 ? `(${1 + charConfig.maxAirJumps}x)` : '(Single)'}
-                  </span>
-                  <span className="text-neutral-600">•</span>
-                </>
-              )}
-
-              {charConfig.hasWallCling && (
-                <>
-                  <span className="font-medium">
-                    <strong className="text-white font-mono">Wall + Space</strong> Wall Kick
-                  </span>
-                  <span className="text-neutral-600">•</span>
-                </>
-              )}
-
-              {charConfig.hasDash && (
-                <>
-                  <span className="font-medium">
-                    <strong className="text-white font-mono">Shift</strong> Dash {charConfig.allowAirDash ? '(Air/Gnd)' : '(Gnd)'}
-                  </span>
-                  <span className="text-neutral-600">•</span>
-                </>
-              )}
-
-              {charConfig.hasAttack && (
-                <>
-                  <span className="font-medium">
-                    <strong className="text-white font-mono">J / Click</strong> Attack
-                  </span>
-                  <span className="text-neutral-600">•</span>
-                </>
-              )}
-
-              {charConfig.hasSpecial && (
-                <>
-                  <span className="font-medium">
-                    <strong className="text-white font-mono">K / R-Click</strong> Skill
-                  </span>
-                  <span className="text-neutral-600">•</span>
-                </>
-              )}
-
-              {charConfig.baseSpeed === 0 && !charConfig.canJump && !charConfig.hasDash && !charConfig.hasAttack && !charConfig.hasSpecial && (
-                <>
-                  <span className="text-amber-400 font-medium flex items-center gap-1">
-                    <span>⚠️</span> No movement or jump configured for this prefab
-                  </span>
-                  <span className="text-neutral-600">•</span>
-                </>
-              )}
-
-              <span className="font-medium">
-                <strong className="text-white font-mono">R</strong> Respawn
-              </span>
-              <span className="text-neutral-600">•</span>
-              <span className="font-medium">
-                <strong className="text-white font-mono">Esc</strong> Exit
-              </span>
-            </div>
           </div>
         </>
       )}
@@ -3914,6 +4269,18 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
                   />
                 ) : null}
               </div>
+            </div>
+
+            {/* 3D WebGL Engine Status Badge */}
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-neutral-900/90 border border-neutral-800 text-[10px] font-mono shrink-0 shadow-inner">
+              <span className={`w-1.5 h-1.5 rounded-full ${projectionMode === '3d' ? 'bg-purple-400 animate-pulse' : 'bg-cyan-400'}`} />
+              <span className={projectionMode === '3d' ? 'text-purple-300 font-bold' : 'text-cyan-300 font-bold'}>
+                {projectionMode === '3d' ? '3D Perspective' : '2D Ortho'}
+              </span>
+              <span className="text-neutral-600">|</span>
+              <span className={pixelArtMode ? 'text-neutral-300' : 'text-neutral-400'}>
+                {pixelArtMode ? (pixelSnapGrid ? 'Nearest + Snap' : 'Nearest') : 'Smooth'}
+              </span>
             </div>
           </div>
         </div>
@@ -4000,6 +4367,67 @@ export const RefinedMapCanvas: React.FC<RefinedMapCanvasProps> = ({
                 {showForegroundLayer ? <Eye size={13} /> : <EyeOff size={13} />}
                 <span className="hidden sm:inline">+1 FG</span>
               </button>
+
+              <div className="h-4 w-px bg-neutral-700 mx-0.5" />
+
+              {/* 3D WebGL Projection Mode Toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextMode: ProjectionMode = projectionMode === '2d' ? '3d' : '2d';
+                  setProjectionMode(nextMode);
+                  localStorage.setItem('mason_projection_mode', nextMode);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition shadow-sm ${
+                  projectionMode === '3d'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border border-purple-400 shadow-purple-950/50'
+                    : 'bg-neutral-900/90 text-neutral-300 hover:text-white hover:bg-neutral-800 border border-neutral-700'
+                }`}
+                title={projectionMode === '3d' ? 'Active: 3D Perspective Mode (32° Tilt & Real Z-Parallax). Click to switch to 2D Orthographic' : 'Active: 2D Orthographic Mode. Click to switch to 3D Perspective View'}
+              >
+                <Box size={13} className={projectionMode === '3d' ? 'text-purple-200' : 'text-neutral-400'} />
+                <span>{projectionMode === '3d' ? '3D View' : '2D View'}</span>
+              </button>
+
+              {/* Pixel Art Mode (Nearest Filter) Toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextVal = !pixelArtMode;
+                  setPixelArtMode(nextVal);
+                  localStorage.setItem('mason_pixel_art_mode', String(nextVal));
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                  pixelArtMode
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                }`}
+                title={pixelArtMode ? 'Pixel Art Mode: Nearest-Neighbor Filtering Enabled' : 'Smooth 3D Mode: Bilinear Texture Filtering Enabled'}
+              >
+                <Sparkles size={13} className={pixelArtMode ? 'text-cyan-400' : 'text-neutral-500'} />
+                <span className="hidden sm:inline">{pixelArtMode ? 'Pixel Art' : 'Smooth'}</span>
+              </button>
+
+              {/* Pixel Grid Snapping Toggle */}
+              {pixelArtMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextVal = !pixelSnapGrid;
+                    setPixelSnapGrid(nextVal);
+                    localStorage.setItem('mason_pixel_snap_grid', String(nextVal));
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${
+                    pixelSnapGrid
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                  }`}
+                  title="Pixel Grid Snapping: Eliminates subpixel camera jitter and sprite shimmering"
+                >
+                  <Grid size={13} className={pixelSnapGrid ? 'text-emerald-400' : 'text-neutral-500'} />
+                  <span className="hidden sm:inline">Snap</span>
+                </button>
+              )}
             </>
           }
         />

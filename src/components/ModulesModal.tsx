@@ -15,7 +15,10 @@ import {
   Sliders,
   Network,
   Sparkles,
-  Paintbrush
+  Paintbrush,
+  Box,
+  Compass,
+  Server
 } from 'lucide-react';
 
 interface ModulesModalProps {
@@ -96,6 +99,12 @@ export const ModulesModal: React.FC<ModulesModalProps> = ({
                   return <Network size={22} />;
                 case 'Sparkles':
                   return <Sparkles size={22} />;
+                case 'Box':
+                  return <Box size={22} />;
+                case 'Compass':
+                  return <Compass size={22} />;
+                case 'Server':
+                  return <Server size={22} />;
                 default:
                   return <Map size={22} />;
               }

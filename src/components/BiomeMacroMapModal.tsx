@@ -365,9 +365,9 @@ export const BiomeMacroMapModal: React.FC<BiomeMacroMapModalProps> = ({
                 Active Biome Brush
               </label>
               <div className="flex flex-col gap-1.5">
-                {biomes.map(biome => (
+                {biomes.map((biome, bIdx) => (
                   <button
-                    key={biome.id}
+                    key={`macro_biome_${biome.id || bIdx}_${bIdx}`}
                     type="button"
                     onClick={() => setSelectedBiomeId(biome.id)}
                     className={`flex items-center justify-between p-2 rounded-xl text-xs transition border ${

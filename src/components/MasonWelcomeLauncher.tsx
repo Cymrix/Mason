@@ -14,17 +14,26 @@ import {
   Network,
   Cloud,
   HardDrive,
-  Paintbrush
+  Paintbrush,
+  Eye,
+  Flame,
+  Wrench,
+  Crosshair,
+  Gamepad2,
+  Sword,
+  Skull,
+  Crown
 } from 'lucide-react';
 import { ProjectIndexItem } from '../utils/masonStorage';
 import { MASON_MODULES } from '../engine/modulesRegistry';
 import { useAppTheme } from '../theme/ThemeContext';
 import { getGoogleDriveToken } from '../utils/googleDriveStorage';
 import { getOneDriveToken } from '../utils/oneDriveStorage';
+import { GENRE_ARCHETYPES, GenreArchetypeId } from '../engine/projectArchetypes';
 
 interface MasonWelcomeLauncherProps {
   savedProjects: ProjectIndexItem[];
-  onCreateNewProject: () => void;
+  onCreateNewProject: (archetypeId?: GenreArchetypeId) => void;
   onLoadProjectFromFile: () => void;
   onOpenCloudSyncModal: (mode?: 'explore' | 'backups') => void;
   onSelectSavedProject: (id: string) => void;
@@ -137,6 +146,69 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
             </div>
           </button>
 
+        </div>
+
+        {/* Playable Genre Starters */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-indigo-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-300 font-mono">
+                Playable Genre Starter Templates
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => onCreateNewProject()}
+              className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 font-bold transition flex items-center gap-1 cursor-pointer"
+            >
+              <span>View All {GENRE_ARCHETYPES.length} Archetypes</span>
+              <span>→</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {[
+              { id: 'soulslike_shooter', name: 'Gun Soulslike', tag: 'Remnant 1 & 2', icon: <Flame size={18} className="text-amber-400" />, badge: 'TPS Co-Op' },
+              { id: 'action_adventure_3d', name: '3D Adventure', tag: 'Zelda / Tomb Raider', icon: <Sword size={18} className="text-emerald-400" />, badge: '3D Quest' },
+              { id: 'coop_horde_fps', name: 'Horde Co-Op', tag: 'Killing Floor / HL', icon: <Skull size={18} className="text-rose-400" />, badge: 'FPS Wave' },
+              { id: 'mmo_rpg_3d', name: '3D MMORPG', tag: 'WoW / FFXIV Style', icon: <Crown size={18} className="text-indigo-400" />, badge: 'MMO Mesh' },
+              { id: 'stealth_action', name: 'Stealth Ninja', tag: 'Tenchu Style', icon: <Eye size={18} className="text-rose-400" />, badge: '3D / 2D' },
+              { id: 'vehicular_combat', name: 'Car Combat', tag: 'Twisted Metal', icon: <Flame size={18} className="text-amber-400" />, badge: '3D Arena' }
+            ].map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onCreateNewProject(item.id as GenreArchetypeId)}
+                className="p-3 rounded-2xl border text-left flex flex-col justify-between transition-all hover:scale-[1.03] active:scale-[0.98] group cursor-pointer shadow-sm hover:border-indigo-500/80"
+                style={{
+                  backgroundColor: bgDef.cardHex,
+                  borderColor: bgDef.borderHex
+                }}
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      {item.icon}
+                    </div>
+                    <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-neutral-900 text-neutral-400 border border-neutral-800">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <div className="font-bold text-xs text-white group-hover:text-indigo-300 transition-colors truncate">
+                    {item.name}
+                  </div>
+                  <div className="text-[10px] text-neutral-500 font-mono truncate">
+                    {item.tag}
+                  </div>
+                </div>
+                <div className="pt-2 text-[10px] font-mono text-indigo-400 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  <span>Launch</span>
+                  <span>→</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Saved Projects Section (if any exists) */}

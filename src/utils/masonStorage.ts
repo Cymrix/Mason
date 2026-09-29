@@ -18,12 +18,21 @@ import {
   createDefaultGameStructure,
   createDefaultTaskBoard,
   PrefabData,
-  PrefabFile
+  PrefabFile,
+  Model3DFile,
+  createDefaultModel3DFile,
+  Scene3DFile,
+  createDefaultScene3DFile,
+  TerrainFile,
+  createDefaultTerrainFile,
+  MultiplayerFile,
+  createDefaultMultiplayerFile
 } from '../engine/masonProjectSchema';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { MASON_VERSION_DISPLAY } from '../version';
+import { createArchetypeProject, CreateProjectOptions } from '../engine/projectArchetypes';
 
-export type { ProjectBackupRecord, FileBackupRecord };
+export type { ProjectBackupRecord, FileBackupRecord, CreateProjectOptions };
 
 const MASON_PROJECT_STORAGE_KEY = 'mason_active_project_data';
 const MASON_PROJECT_LIST_INDEX = 'mason_projects_index';
@@ -102,6 +111,55 @@ function getIDB(): Promise<IDBDatabase | null> {
 const inMemoryBackupsCache: Map<string, ProjectBackupRecord[]> = new Map();
 const inMemoryFileBackupsCache: Map<string, FileBackupRecord[]> = new Map();
 
+/**
+ * Deduplicates file arrays by fileName or id (case-insensitive) to prevent duplicate key collisions and corrupted multi-entry lists
+ */
+export const deduplicateFileSystemItems = <T extends { fileName?: string; id?: string }>(items: T[]): T[] => {
+  if (!Array.isArray(items)) return [];
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    if (!item) continue;
+    const key = (item.fileName || item.id || '').trim().toLowerCase();
+    if (!key) {
+      out.push(item);
+      continue;
+    }
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(item);
+    }
+  }
+  return out;
+};
+
+/**
+ * Sanitizes and deduplicates all file arrays in a MasonProject fileSystem
+ */
+export const sanitizeAndDeduplicateProject = (project: MasonProject): MasonProject => {
+  if (!project || !project.fileSystem) return project;
+  const fs = project.fileSystem;
+  return {
+    ...project,
+    fileSystem: {
+      ...fs,
+      maps: deduplicateFileSystemItems(fs.maps || []),
+      biomes: deduplicateFileSystemItems(fs.biomes || []),
+      prefabs: deduplicateFileSystemItems(fs.prefabs || []),
+      ui: deduplicateFileSystemItems(fs.ui || []),
+      game: deduplicateFileSystemItems(fs.game || []),
+      particles: deduplicateFileSystemItems(fs.particles || []),
+      sprites: deduplicateFileSystemItems(fs.sprites || []),
+      behaviors: deduplicateFileSystemItems(fs.behaviors || []),
+      images: deduplicateFileSystemItems(fs.images || []),
+      models3d: deduplicateFileSystemItems(fs.models3d || []),
+      scenes3d: deduplicateFileSystemItems(fs.scenes3d || []),
+      terrain: deduplicateFileSystemItems(fs.terrain || []),
+      multiplayer: deduplicateFileSystemItems(fs.multiplayer || [])
+    }
+  };
+};
+
 export async function savePerFileBackupsForProject(
   project: MasonProject,
   actionLabel?: string
@@ -111,7 +169,7 @@ export async function savePerFileBackupsForProject(
   const projectId = project.id;
 
   const fileCategories: Array<{
-    key: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'behaviors' | 'particles' | 'sprites' | 'images';
+    key: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'behaviors' | 'particles' | 'sprites' | 'images' | 'models3d' | 'scenes3d' | 'terrain' | 'multiplayer';
     list: any[];
   }> = [
     { key: 'maps', list: project.fileSystem.maps || [] },
@@ -122,7 +180,11 @@ export async function savePerFileBackupsForProject(
     { key: 'behaviors', list: project.fileSystem.behaviors || [] },
     { key: 'particles', list: project.fileSystem.particles || [] },
     { key: 'sprites', list: project.fileSystem.sprites || [] },
-    { key: 'images', list: project.fileSystem.images || [] }
+    { key: 'images', list: project.fileSystem.images || [] },
+    { key: 'models3d', list: project.fileSystem.models3d || [] },
+    { key: 'scenes3d', list: project.fileSystem.scenes3d || [] },
+    { key: 'terrain', list: project.fileSystem.terrain || [] },
+    { key: 'multiplayer', list: project.fileSystem.multiplayer || [] }
   ];
 
   try {
@@ -505,11 +567,12 @@ export async function deleteProjectBackup(backupId: string): Promise<void> {
 
 export async function idbSaveProject(project: MasonProject): Promise<void> {
   try {
+    const cleanProject = sanitizeAndDeduplicateProject(project);
     const db = await getIDB();
     if (!db) return;
     const tx = db.transaction([STORE_PROJECTS, STORE_META], 'readwrite');
-    tx.objectStore(STORE_PROJECTS).put(project);
-    tx.objectStore(STORE_META).put({ key: 'active_id', value: project.id });
+    tx.objectStore(STORE_PROJECTS).put(cleanProject);
+    tx.objectStore(STORE_META).put({ key: 'active_id', value: cleanProject.id });
   } catch (err) {
     console.warn('IndexedDB write error:', err);
   }
@@ -522,7 +585,7 @@ export async function idbGetProject(id: string): Promise<MasonProject | null> {
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_PROJECTS, 'readonly');
       const req = tx.objectStore(STORE_PROJECTS).get(id);
-      req.onsuccess = () => resolve(req.result || null);
+      req.onsuccess = () => resolve(req.result ? sanitizeAndDeduplicateProject(req.result) : null);
       req.onerror = () => resolve(null);
     });
   } catch {
@@ -597,13 +660,14 @@ export async function idbDeleteHandle(key: string): Promise<void> {
  * Loads the active project, or returns null if no project is currently open
  */
 export const getActiveMasonProject = (): MasonProject | null => {
-  if (inMemoryActiveProject) return inMemoryActiveProject;
+  if (inMemoryActiveProject) return sanitizeAndDeduplicateProject(inMemoryActiveProject);
 
   try {
     const raw = localStorage.getItem(MASON_PROJECT_STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as MasonProject;
+      let parsed = JSON.parse(raw) as MasonProject;
       if (parsed && parsed.fileSystem && parsed.id) {
+        parsed = sanitizeAndDeduplicateProject(parsed);
         if (!parsed.fileSystem.particles || parsed.fileSystem.particles.length === 0) {
           parsed.fileSystem.particles = DEFAULT_PARTICLE_SYSTEMS.map(p => ({
             id: p.id,
@@ -638,9 +702,34 @@ export const getActiveMasonProject = (): MasonProject | null => {
         if (!parsed.activeFiles.particleFileName) {
           parsed.activeFiles.particleFileName = parsed.fileSystem.particles[0]?.fileName || 'fire_embers.particle';
         }
+        if (!parsed.fileSystem.models3d || parsed.fileSystem.models3d.length === 0) {
+          parsed.fileSystem.models3d = [createDefaultModel3DFile()];
+        }
+        if (!parsed.activeFiles.model3dFileName) {
+          parsed.activeFiles.model3dFileName = parsed.fileSystem.models3d[0]?.fileName || 'hero_knight.model3d';
+        }
+        if (!parsed.fileSystem.scenes3d || parsed.fileSystem.scenes3d.length === 0) {
+          parsed.fileSystem.scenes3d = [createDefaultScene3DFile()];
+        }
+        if (!parsed.activeFiles.scene3dFileName) {
+          parsed.activeFiles.scene3dFileName = parsed.fileSystem.scenes3d[0]?.fileName || 'overworld_ruins.scene3d';
+        }
+        if (!parsed.fileSystem.terrain || parsed.fileSystem.terrain.length === 0) {
+          parsed.fileSystem.terrain = [createDefaultTerrainFile()];
+        }
+        if (!parsed.activeFiles.terrainFileName) {
+          parsed.activeFiles.terrainFileName = parsed.fileSystem.terrain[0]?.fileName || 'ashen_valley.terrain';
+        }
+        if (!parsed.fileSystem.multiplayer || parsed.fileSystem.multiplayer.length === 0) {
+          parsed.fileSystem.multiplayer = [createDefaultMultiplayerFile()];
+        }
+        if (!parsed.activeFiles.multiplayerFileName) {
+          parsed.activeFiles.multiplayerFileName = parsed.fileSystem.multiplayer[0]?.fileName || 'authoritative_mesh.multiplayer';
+        }
         if (!parsed.taskBoard) {
           parsed.taskBoard = createDefaultTaskBoard();
         }
+        parsed = sanitizeAndDeduplicateProject(parsed);
         inMemoryActiveProject = parsed;
         inMemoryProjectsCache.set(parsed.id, parsed);
         idbSaveProject(parsed);
@@ -658,8 +747,8 @@ export const getActiveMasonProject = (): MasonProject | null => {
  */
 export const loadActiveMasonProject = (): MasonProject => {
   const existing = getActiveMasonProject();
-  if (existing) return existing;
-  const initial = createInitialMasonProject();
+  if (existing) return sanitizeAndDeduplicateProject(existing);
+  const initial = sanitizeAndDeduplicateProject(createInitialMasonProject());
   saveActiveMasonProject(initial);
   return initial;
 };
@@ -679,6 +768,7 @@ export const saveActiveMasonProject = (
   options?: SaveProjectOptions
 ): void => {
   try {
+    project = sanitizeAndDeduplicateProject(project);
     const shouldPreserve = options?.preserveUpdatedAt || 
       actionLabel?.toLowerCase().includes('load') || 
       actionLabel?.toLowerCase().includes('restore') || 
@@ -852,17 +942,24 @@ export const deleteSavedProject = (projectId: string): void => {
 };
 
 /**
- * Creates a brand new project
+ * Creates a brand new project initialized with archetype presets
  */
 export const createNewProject = (
-  name: string, 
+  optionsOrName: CreateProjectOptions | string, 
   description: string = '', 
   author: string = 'Mason Architect'
 ): MasonProject => {
-  const initial = createInitialMasonProject(name);
-  initial.id = `proj_${Date.now()}`;
-  initial.description = description || '2D Metroidvania world authored in Mason Studio.';
-  initial.author = author;
+  let initial: MasonProject;
+  if (typeof optionsOrName === 'object' && optionsOrName !== null) {
+    initial = createArchetypeProject(optionsOrName);
+  } else {
+    initial = createArchetypeProject({
+      name: optionsOrName,
+      description: description || 'Modular game project authored in Mason Studio.',
+      author,
+      archetypeId: 'metroidvania'
+    });
+  }
   saveActiveMasonProject(initial);
   return initial;
 };
@@ -1284,7 +1381,11 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
         createdAt: projectData.createdAt || now,
         updatedAt: projectData.updatedAt || projectData.createdAt || now,
         particleData: p
-      }))
+      })),
+      models3d: [createDefaultModel3DFile()],
+      scenes3d: [createDefaultScene3DFile()],
+      terrain: [createDefaultTerrainFile()],
+      multiplayer: [createDefaultMultiplayerFile()]
     }
   };
 
@@ -1292,6 +1393,113 @@ export const convertProjectDataToMasonProject = (projectData: any): MasonProject
   return masonProj;
 };
 
+export const createNewMultiplayerInProject = (
+  project: MasonProject,
+  name: string = 'New Mesh Network'
+): { project: MasonProject; newFile: MultiplayerFile } => {
+  const now = new Date().toISOString();
+  const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'network';
+  const fileName = `${safeName}_${Date.now().toString(36)}.multiplayer`;
+  const id = `net_${Date.now()}`;
+  const newFile = createDefaultMultiplayerFile(id, name, fileName);
+
+  const updatedProject: MasonProject = {
+    ...project,
+    updatedAt: now,
+    activeFiles: {
+      ...project.activeFiles,
+      multiplayerFileName: fileName
+    },
+    fileSystem: {
+      ...project.fileSystem,
+      multiplayer: [...(project.fileSystem.multiplayer || []), newFile]
+    }
+  };
+
+  saveActiveMasonProject(updatedProject, `Create Network ${fileName}`);
+  return { project: updatedProject, newFile };
+};
+
+export const createNewTerrainInProject = (
+  project: MasonProject,
+  name: string = 'New Terrain'
+): { project: MasonProject; newFile: TerrainFile } => {
+  const now = new Date().toISOString();
+  const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'terrain';
+  const fileName = `${safeName}_${Date.now().toString(36)}.terrain`;
+  const id = `terrain_${Date.now()}`;
+  const newFile = createDefaultTerrainFile(id, name, fileName);
+
+  const updatedProject: MasonProject = {
+    ...project,
+    updatedAt: now,
+    activeFiles: {
+      ...project.activeFiles,
+      terrainFileName: fileName
+    },
+    fileSystem: {
+      ...project.fileSystem,
+      terrain: [...(project.fileSystem.terrain || []), newFile]
+    }
+  };
+
+  saveActiveMasonProject(updatedProject, `Create Terrain ${fileName}`);
+  return { project: updatedProject, newFile };
+};
+
+export const createNewScene3DInProject = (
+  project: MasonProject,
+  name: string = 'New 3D Scene'
+): { project: MasonProject; newFile: Scene3DFile } => {
+  const now = new Date().toISOString();
+  const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'scene';
+  const fileName = `${safeName}_${Date.now().toString(36)}.scene3d`;
+  const id = `scene_${Date.now()}`;
+  const newFile = createDefaultScene3DFile(id, name, fileName);
+
+  const updatedProject: MasonProject = {
+    ...project,
+    updatedAt: now,
+    activeFiles: {
+      ...project.activeFiles,
+      scene3dFileName: fileName
+    },
+    fileSystem: {
+      ...project.fileSystem,
+      scenes3d: [...(project.fileSystem.scenes3d || []), newFile]
+    }
+  };
+
+  saveActiveMasonProject(updatedProject, `Create 3D Scene ${fileName}`);
+  return { project: updatedProject, newFile };
+};
+
+export const createNewModel3DInProject = (
+  project: MasonProject,
+  name: string = 'New 3D Model'
+): { project: MasonProject; newFile: Model3DFile } => {
+  const now = new Date().toISOString();
+  const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'model';
+  const fileName = `${safeName}_${Date.now().toString(36)}.model3d`;
+  const id = `model_${Date.now()}`;
+  const newFile = createDefaultModel3DFile(id, name, fileName);
+
+  const updatedProject: MasonProject = {
+    ...project,
+    updatedAt: now,
+    activeFiles: {
+      ...project.activeFiles,
+      model3dFileName: fileName
+    },
+    fileSystem: {
+      ...project.fileSystem,
+      models3d: [...(project.fileSystem.models3d || []), newFile]
+    }
+  };
+
+  saveActiveMasonProject(updatedProject, `Create 3D Model ${fileName}`);
+  return { project: updatedProject, newFile };
+};
 
 export const createNewSpriteInProject = (
   project: MasonProject, 

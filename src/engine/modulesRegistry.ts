@@ -32,12 +32,12 @@ export interface MasonModuleDefinition {
   id: string;
   name: string;
   tagline: string;
-  category: 'World & Levels' | 'Biomes & Environment' | 'Actors & Combat' | 'Interface & HUD' | 'Game Architecture' | 'Generative Tools' | 'VFX & Particles';
+  category: 'World & Levels' | 'Biomes & Environment' | 'Actors & Combat' | 'Interface & HUD' | 'Game Architecture' | 'Generative Tools' | 'VFX & Particles' | '3D & Models';
   subfolder: string; // e.g. "modules/maps"
   entryHtml: string; // e.g. "/modules/maps/index.html"
   associatedFolder: string; // e.g. "maps"
   associatedExtension: string; // e.g. ".map"
-  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard' | 'Sparkles' | 'Paintbrush';
+  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard' | 'Sparkles' | 'Paintbrush' | 'Box';
   accentColor: string; // cyan, emerald, purple, amber, blue, etc.
   description: string;
   features: string[];
@@ -188,6 +188,111 @@ export const MASON_MODULES: MasonModuleDefinition[] = [
       'Loading screen wipe styles & lore hints carousel',
       'Metroidvania progression flag registry',
       'System pause menu & map tracker configuration (.gamestructure format)'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
+    id: 'models3d',
+    name: '3D Studio',
+    tagline: 'Low-poly 3D modeling, vertex & texture painting, bone rigging, animation & spritesheet/GIF export',
+    category: '3D & Models',
+    subfolder: 'modules/models3d',
+    entryHtml: './modules/models3d/index.html',
+    associatedFolder: 'models',
+    associatedExtension: '.model3d',
+    iconName: 'Box',
+    accentColor: 'indigo',
+    description: 'A comprehensive 3D modeling, texturing, bone rigging, and keyframe animation studio. Build characters and props from 3D primitives, paint vertex colors and textures, bind skeletal bone armatures with auto-weighting, pose and animate with timelines, and export multi-angle spritesheet strips (.png) or animated GIFs directly to 2D prefabs.',
+    features: [
+      '3D Primitive Modeling: Cube, cylinder, sphere, cone, wedge, capsule with real-time transforms and mirroring',
+      'Direct 3D Painting: Surface raycast vertex color painting and canvas UV texture painting',
+      'Skeletal Armature Rigging: Bone hierarchies, preset biped/quadruped rigs & automated heat-weight envelopes',
+      'Keyframe Animation Timeline: Multi-track dope sheet, quaternion interpolation & loop controls',
+      'Animation Exporter: Render multi-angle 2D spritesheet strips and transparent animated GIFs (.gif) for direct 2D Prefab playback'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
+    id: 'fabricator',
+    name: 'Model Fabricator',
+    tagline: 'Parametric creature & character synthesizer with anatomy sliders and auto-rigging',
+    category: '3D & Models',
+    subfolder: 'modules/fabricator',
+    entryHtml: './modules/fabricator/index.html',
+    associatedFolder: 'models',
+    associatedExtension: '.model3d',
+    iconName: 'Box',
+    accentColor: 'purple',
+    description: 'A parametric 3D creature and character synthesizer. Configure head counts, arm counts, leg configurations (biped, quadruped, hexapod, serpentine), breast counts, eye clusters, horns, wings, and body proportions. Automatically generates anatomically matched bone armatures and dynamic walking/idle animations for instant baking into 3D Studio or 2D spritesheet/GIF export.',
+    features: [
+      'Parametric Anatomy: Sliders for heads (1-4), arms (0-8), legs (0-8), breasts (0-6), eyes (1-8), horns & wings',
+      'Archetype Presets: Humanoid Biped, Asura Deity, Quadruped Beast, Insectoid, Serpentine Hydra, Winged Seraph, Eldritch Void',
+      'Automatic Skeletal Rigging: Procedurally synthesizes matching bone hierarchy and weight associations',
+      'Adaptive Animation Generator: Gait-synchronized walk cycles (biped, quadruped trot, insect crawl) and idle breathing',
+      'Direct Project Baking: 1-click export to .model3d, transparent PNG spritesheets, animated GIFs, or ZIP frame sequences'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
+    id: 'scenes',
+    name: '3D Scenes',
+    tagline: '3D level & scene composer with prefab placement, lighting, skybox & walkthrough play test',
+    category: 'World & Levels',
+    subfolder: 'modules/scenes',
+    entryHtml: './modules/scenes/index.html',
+    associatedFolder: 'scenes',
+    associatedExtension: '.scene3d',
+    iconName: 'Compass',
+    accentColor: 'indigo',
+    description: 'Compose full 3D levels and game spaces. Place 3D models and characters from 3D Studio, place 2D billboard prefabs, build architectural structures with 3D primitives and colliders, configure point and directional lighting, calibrate atmospheric fog and skyboxes, and immediately walk through your 3D world with integrated real-time play controls.',
+    features: [
+      '3D Space Composition: Freeform 3D entity placement with translation, rotation & scale gizmos',
+      'Prefab & Model Placement: Place .model3d assets and 2D billboard prefabs directly in 3D',
+      'Dynamic 3D Lighting & Shadows: Directional sun, point lights, beacons, and volumetric fog presets',
+      'Atmospheric Skyboxes: Presets for Dawn, Noon, Golden Sunset, Starry Night, Cyberpunk Void',
+      'Walkthrough Test Play: WASD player controller with collisions to explore the scene in real time'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
+    id: 'terrain',
+    name: 'Terrain Builder',
+    tagline: 'Voxel sculpting, plane sculpting, triplanar biome materials & baked detail scatter',
+    category: 'World & Levels',
+    subfolder: 'modules/terrain',
+    entryHtml: './modules/terrain/index.html',
+    associatedFolder: 'terrain',
+    associatedExtension: '.terrain',
+    iconName: 'TreePine',
+    accentColor: 'emerald',
+    description: 'A comprehensive 3D terrain authoring engine. Sculpt voxel volumes and heightmap plane meshes with elevate, dig, smooth, and plateau brushes. Paint triplanar biome strata materials (topsoil, steep cliff rock, valley silt) without UV stretching. Scatter trees, foliage, and boulders tied to biome materials, with 1-click static geometry baking for non-destructible terrain.',
+    features: [
+      'Voxel & Plane Mesh Sculpting: Add voxel volumes or heightmaps and sculpt with dynamic radius/falloff brushes',
+      'Triplanar Biome Materials: Auto-terrain slope strata (grass top, vertical cliff basalt, silt base) grouped by biome',
+      'Automated Detail Scatter: Scatter pine trees, broadleaf trees, boulders, and foliage tied to terrain materials',
+      'Static Geometry Baking: 1-click bake non-destructible scatter into merged static geometry for zero runtime overhead',
+      'Static & Dynamic Props: Place breakable barrels, chests, and shrines directly into the 3D terrain environment'
+    ],
+    version: MASON_VERSION_DISPLAY
+  },
+  {
+    id: 'multiplayer',
+    name: 'Multiplayer Hub',
+    tagline: 'Authoritative server mesh, MMO spatial zone partitioning, Ed25519 auth & live network sandbox',
+    category: 'Online & Multiplayer',
+    subfolder: 'modules/multiplayer',
+    entryHtml: './modules/multiplayer/index.html',
+    associatedFolder: 'network',
+    associatedExtension: '.multiplayer',
+    iconName: 'Server',
+    accentColor: 'indigo',
+    description: 'Design, simulate, and deploy distributed multiplayer game networks. Configure authoritative dedicated hubs, peer-to-peer WebRTC connections, or distributed MMO server meshes with spatial zone handoffs. Features Ed25519 cryptographic keypair player authentication, client-side prediction, entity interpolation & reconciliation, live packet latency injection, and 1-click production server script generation.',
+    features: [
+      'Multi-Topology Architecture: Switch seamlessly between Peer-to-Peer, Dedicated Authoritative Hub, and Distributed MMO Server Mesh',
+      'Spatial Zone Partitioning: Multi-node server mesh with automatic player migration across boundary coordinates',
+      'Cryptographic Identity: Ed25519 keypair verification, signed packet payloads, replay nonce windows, and RBAC permission tiers',
+      'Authoritative Tick Simulation: Calibrate 20Hz-128Hz tick loops, client-side prediction, interpolation buffers & lag compensation rewind',
+      'Live Network Testbed & Sandbox: Interactive visual arena with simulated players, artificial latency/packet loss injection, and real-time telemetry'
     ],
     version: MASON_VERSION_DISPLAY
   }

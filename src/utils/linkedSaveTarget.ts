@@ -18,7 +18,7 @@ import {
   downloadFileAsTextFromOneDrive,
   clearOneDriveModularCache
 } from './oneDriveStorage';
-import { getProjectMasonFileName, idbSaveHandle, idbGetHandle, idbDeleteHandle } from './masonStorage';
+import { getProjectMasonFileName, idbSaveHandle, idbGetHandle, idbDeleteHandle, deduplicateFileSystemItems, sanitizeAndDeduplicateProject } from './masonStorage';
 import { getActiveProfile } from './appProfileSystem';
 
 export type LinkedLocationType = 'local_idb' | 'local_file' | 'local_directory' | 'gdrive' | 'onedrive';
@@ -166,7 +166,36 @@ export const getOrRestoreActiveFileSystemFileHandle = async (project?: MasonProj
 };
 
 // Unique client session ID for this browser tab to identify lock owners
-export const CURRENT_CLIENT_SESSION_ID = `mason_client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+const getSessionId = (): string => {
+  const defaultId = `mason_client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  try {
+    if (typeof window !== 'undefined') {
+      // 1. Try sessionStorage
+      if (window.sessionStorage) {
+        const storedKey = 'mason_linked_client_session_id';
+        let stored = window.sessionStorage.getItem(storedKey);
+        if (!stored) {
+          stored = defaultId;
+          window.sessionStorage.setItem(storedKey, stored);
+        }
+        return stored;
+      }
+      
+      // 2. Try window.name as a highly reliable fallback for restricted iframes
+      if (window.name && window.name.startsWith('mason_client_')) {
+        return window.name;
+      } else if (window.name === '') {
+        window.name = defaultId;
+        return defaultId;
+      }
+    }
+  } catch (err) {
+    // sessionStorage might be blocked inside some sandboxed iframes
+  }
+  return defaultId;
+};
+
+export const CURRENT_CLIENT_SESSION_ID = getSessionId();
 
 /**
  * Creates default local storage location metadata
@@ -495,6 +524,10 @@ export const saveProjectToLinkedLocation = async (
         }
       }
 
+      if (forceOverride) {
+        writtenModularFileTimestampCache.delete(`${project.id}:root:${getProjectMasonFileName(project.name)}`);
+      }
+
       const syncedFiles = await writeModularProjectToDirectory(project, dirHandle);
       await setStoredDirHandleForProject(project.id, dirHandle, dirHandle.name);
 
@@ -643,8 +676,8 @@ export const readModularProjectFromDirectory = async (dirHandle: any): Promise<M
                   id: parsed.id || entry.name.replace(/\.[^/.]+$/, ''),
                   name: parsed.name || entry.name.replace(/\.[^/.]+$/, ''),
                   fileName: entry.name,
-                  createdAt: parsed.createdAt || new Date().toISOString(),
-                  updatedAt: parsed.updatedAt || new Date().toISOString(),
+                  createdAt: parsed.createdAt || manifestData.createdAt || manifestData.updatedAt || '',
+                  updatedAt: parsed.updatedAt || parsed.createdAt || manifestData.updatedAt || '',
                   particleData: parsed
                 });
               } else {
@@ -659,7 +692,7 @@ export const readModularProjectFromDirectory = async (dirHandle: any): Promise<M
           }
         }
       }
-      return items;
+      return deduplicateFileSystemItems(items);
     } catch (e) {
       return [];
     }
@@ -983,16 +1016,166 @@ export const checkExistingLocalDirProject = async (dirHandle: any): Promise<Maso
  * Releases a collaborative lock on the project (Step 2 Concurrency Control)
  */
 export const releaseProjectLock = (project: MasonProject): MasonProject => {
+  const updatedFileSystem: any = { ...(project.fileSystem || {}) };
+  const subfolders = ['maps', 'biomes', 'prefabs', 'ui', 'game', 'particles', 'sprites', 'behaviors', 'images'] as const;
+  for (const sf of subfolders) {
+    if (Array.isArray(updatedFileSystem[sf])) {
+      updatedFileSystem[sf] = updatedFileSystem[sf].map((f: any) => {
+        if (f.checkout) {
+          const copy = { ...f };
+          delete copy.checkout;
+          return copy;
+        }
+        return f;
+      });
+    }
+  }
+
   return {
     ...project,
+    updatedAt: new Date().toISOString(),
     lockInfo: {
       isLocked: false,
       lockedBy: undefined,
       lockedAt: undefined,
       lockClientId: undefined,
       lockedByProfile: undefined
-    }
+    },
+    fileSystem: updatedFileSystem
   };
+};
+
+export interface RemoteChangedFileItem {
+  fileName: string;
+  subfolder: string;
+  status: 'modified' | 'added';
+  displayName?: string;
+  remoteUpdatedAt?: string;
+  localUpdatedAt?: string;
+}
+
+/**
+ * Compares remote files against the local project and returns a list of files
+ * that are newer or newly created on the remote linked target.
+ */
+export const getRemoteChangedFiles = async (
+  currentProject: MasonProject
+): Promise<{ success: boolean; changedFiles: RemoteChangedFileItem[]; error?: string }> => {
+  const loc = currentProject?.storageLocation;
+  if (!loc || loc.type === 'local_idb') {
+    return { success: true, changedFiles: [] };
+  }
+
+  try {
+    let loaded: MasonProject | null = null;
+    if (loc.type === 'local_directory') {
+      let dirHandle = activeFileSystemDirHandle;
+      if (!dirHandle) {
+        dirHandle = await getOrRestoreActiveFileSystemDirHandle(currentProject);
+      }
+      if (!dirHandle) return { success: false, changedFiles: [], error: 'Local folder handle not found' };
+      loaded = await readModularProjectFromDirectory(dirHandle);
+    } else if (loc.type === 'gdrive') {
+      const token = getGoogleDriveToken();
+      if (!token) return { success: false, changedFiles: [], error: 'Google Drive is not connected' };
+      if (loc.targetFolderId) {
+        loaded = await readModularProjectFromGoogleDrive(loc.targetFolderId, loc.targetFolderName || currentProject.name);
+      } else if (loc.targetId) {
+        const text = await downloadFileAsTextFromGoogleDrive(loc.targetId);
+        loaded = JSON.parse(text);
+      }
+    } else if (loc.type === 'onedrive') {
+      let token: string | null = null;
+      try {
+        token = await ensureOneDriveToken();
+      } catch {
+        token = getOneDriveToken();
+      }
+      if (!token) return { success: false, changedFiles: [], error: 'OneDrive is not connected' };
+      if (loc.targetFolderId) {
+        loaded = await readModularProjectFromOneDrive(loc.targetFolderId, loc.targetFolderName || currentProject.name);
+      } else if (loc.targetId) {
+        const text = await downloadFileAsTextFromOneDrive({ id: loc.targetId });
+        loaded = JSON.parse(text);
+      }
+    } else if (loc.type === 'local_file') {
+      let fileHandle = activeFileSystemFileHandle;
+      if (!fileHandle) {
+        fileHandle = await getOrRestoreActiveFileSystemFileHandle(currentProject);
+      }
+      if (fileHandle) {
+        const file = await fileHandle.getFile();
+        const text = await file.text();
+        loaded = JSON.parse(text);
+      }
+    }
+
+    if (!loaded) {
+      return { success: false, changedFiles: [], error: 'Failed to read remote project' };
+    }
+
+    const changedFiles: RemoteChangedFileItem[] = [];
+
+    // Check project manifest / root level
+    const remoteManifestTime = loaded.updatedAt ? new Date(loaded.updatedAt).getTime() : 0;
+    const localManifestTime = currentProject.updatedAt ? new Date(currentProject.updatedAt).getTime() : 0;
+    if (remoteManifestTime > localManifestTime + 1000) {
+      changedFiles.push({
+        fileName: getProjectMasonFileName(loaded.name || currentProject.name),
+        subfolder: 'root',
+        status: 'modified',
+        displayName: 'Project Manifest & Settings',
+        remoteUpdatedAt: loaded.updatedAt,
+        localUpdatedAt: currentProject.updatedAt
+      });
+    }
+
+    // Check subfolders
+    const subfolders = ['maps', 'biomes', 'prefabs', 'ui', 'game', 'particles', 'sprites', 'behaviors', 'images'] as const;
+    for (const subfolder of subfolders) {
+      const remoteFiles = (loaded.fileSystem?.[subfolder] || []) as any[];
+      const localFiles = (currentProject.fileSystem?.[subfolder] || []) as any[];
+
+      for (const rf of remoteFiles) {
+        const lf = localFiles.find(f => (f.fileName && f.fileName === rf.fileName) || (f.id && f.id === rf.id));
+        if (!lf) {
+          changedFiles.push({
+            fileName: rf.fileName || rf.id,
+            subfolder,
+            status: 'added',
+            displayName: rf.name || rf.fileName || rf.id,
+            remoteUpdatedAt: rf.updatedAt
+          });
+        } else {
+          const rTime = rf.updatedAt ? new Date(rf.updatedAt).getTime() : 0;
+          const lTime = lf.updatedAt ? new Date(lf.updatedAt).getTime() : 0;
+          const isTimeNewer = rTime > lTime + 1000;
+          const isContentDiff = (rTime === 0 && lTime === 0) && JSON.stringify(rf) !== JSON.stringify(lf);
+          if (isTimeNewer || isContentDiff) {
+            changedFiles.push({
+              fileName: rf.fileName || rf.id,
+              subfolder,
+              status: 'modified',
+              displayName: rf.name || lf.name || rf.fileName,
+              remoteUpdatedAt: rf.updatedAt,
+              localUpdatedAt: lf.updatedAt
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      changedFiles
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      changedFiles: [],
+      error: err.message || 'Error checking changed files'
+    };
+  }
 };
 
 export interface FetchLinkedProjectResult {
@@ -1003,6 +1186,7 @@ export interface FetchLinkedProjectResult {
   remoteModifiedAt?: string;
   filesCount?: number;
   syncedFiles?: string[];
+  changedFiles?: RemoteChangedFileItem[];
 }
 
 /**
@@ -1110,38 +1294,79 @@ export const fetchProjectFromLinkedLocation = async (
       };
     }
 
-    // Preserve and update storageLocation metadata with the current sync time
-    loaded.storageLocation = {
-      displayName: loc.displayName || 'Linked Storage',
-      ...(loc || {}),
-      ...(loaded.storageLocation || {}),
-      type: loc.type,
-      lastSyncedAt: new Date().toISOString()
-    };
+    // Merge ONLY out-of-sync files into currentProject (Selective Pull)
+    const subfolders = ['maps', 'biomes', 'prefabs', 'ui', 'game', 'particles', 'sprites', 'behaviors', 'images'] as const;
+    const syncedFilesList: string[] = [];
+    const mergedFileSystem: any = { ...(currentProject.fileSystem || {}) };
 
-    const defaultManifest = `${(loaded.name || 'project').toLowerCase().replace(/[^a-z0-9]/g, '_')}.mason`;
-    const syncedFilesList: string[] = [
-      defaultManifest,
-      ...(loaded.fileSystem?.maps || []).map(m => `maps/${m.fileName}`),
-      ...(loaded.fileSystem?.biomes || []).map(b => `biomes/${b.fileName}`),
-      ...(loaded.fileSystem?.prefabs || []).map(p => `prefabs/${p.fileName}`),
-      ...(loaded.fileSystem?.particles || []).map(pt => `particles/${pt.fileName}`),
-      ...(loaded.fileSystem?.sprites || []).map(s => `sprites/${s.fileName}`),
-      ...(loaded.fileSystem?.ui || []).map(u => `ui/${u.fileName}`),
-      ...(loaded.fileSystem?.game || []).map(g => `game/${g.fileName}`)
-    ];
+    for (const subfolder of subfolders) {
+      const localList = [...((currentProject.fileSystem?.[subfolder] || []) as any[])];
+      const remoteList = (loaded.fileSystem?.[subfolder] || []) as any[];
 
-    const remoteUpdatedAt = loaded.updatedAt;
-    const localUpdatedAt = currentProject.updatedAt;
-    const isRemoteNewer = remoteUpdatedAt && localUpdatedAt 
-      ? (new Date(remoteUpdatedAt).getTime() > new Date(localUpdatedAt).getTime()) 
-      : false;
+      for (const rf of remoteList) {
+        const lfIndex = localList.findIndex(f => (f.fileName && f.fileName === rf.fileName) || (f.id && f.id === rf.id));
+        if (lfIndex === -1) {
+          // New file on remote -> pull it in
+          localList.push(rf);
+          syncedFilesList.push(`${subfolder}/${rf.fileName || rf.id}`);
+        } else {
+          const lf = localList[lfIndex];
+          const rTime = rf.updatedAt ? new Date(rf.updatedAt).getTime() : 0;
+          const lTime = lf.updatedAt ? new Date(lf.updatedAt).getTime() : 0;
+          const isTimeNewer = rTime > lTime + 1000;
+          const isContentDiff = (rTime === 0 && lTime === 0) && JSON.stringify(rf) !== JSON.stringify(lf);
+
+          if (isTimeNewer || isContentDiff) {
+            // File is out of sync -> update to remote file
+            localList[lfIndex] = rf;
+            syncedFilesList.push(`${subfolder}/${rf.fileName || rf.id}`);
+          }
+          // Else: retain local file copy without touching it!
+        }
+      }
+      mergedFileSystem[subfolder] = deduplicateFileSystemItems(localList);
+    }
+
+    // Check project manifest / root level
+    const remoteManifestTime = loaded.updatedAt ? new Date(loaded.updatedAt).getTime() : 0;
+    const localManifestTime = currentProject.updatedAt ? new Date(currentProject.updatedAt).getTime() : 0;
+    const isManifestOutOfSync = remoteManifestTime > localManifestTime + 1000;
+
+    if (isManifestOutOfSync) {
+      syncedFilesList.unshift(getProjectMasonFileName(loaded.name || currentProject.name));
+    }
+
+    const mergedProject: MasonProject = sanitizeAndDeduplicateProject({
+      ...currentProject,
+      name: isManifestOutOfSync ? (loaded.name || currentProject.name) : currentProject.name,
+      description: isManifestOutOfSync ? (loaded.description || currentProject.description) : currentProject.description,
+      author: isManifestOutOfSync ? (loaded.author || currentProject.author) : currentProject.author,
+      taskBoard: isManifestOutOfSync && loaded.taskBoard ? loaded.taskBoard : currentProject.taskBoard,
+      lockInfo: loaded.lockInfo || currentProject.lockInfo,
+      activeFiles: {
+        ...currentProject.activeFiles,
+        ...(isManifestOutOfSync && loaded.activeFiles ? loaded.activeFiles : {})
+      },
+      fileSystem: mergedFileSystem,
+      updatedAt: syncedFilesList.length > 0 
+        ? (loaded.updatedAt && remoteManifestTime > localManifestTime ? loaded.updatedAt : new Date().toISOString())
+        : currentProject.updatedAt,
+      storageLocation: {
+        displayName: loc.displayName || 'Linked Storage',
+        ...(loc || {}),
+        ...(loaded.storageLocation || {}),
+        type: loc.type,
+        lastSyncedAt: new Date().toISOString()
+      }
+    });
+
+    const isRemoteNewer = syncedFilesList.length > 0;
 
     return {
       success: true,
-      project: loaded,
+      project: mergedProject,
       isRemoteNewer,
-      remoteModifiedAt: remoteUpdatedAt,
+      remoteModifiedAt: loaded.updatedAt,
       filesCount: syncedFilesList.length,
       syncedFiles: syncedFilesList
     };
@@ -1207,7 +1432,7 @@ export const checkRemoteSyncStatus = async (
 
       return {
         isAvailable: true,
-        isOutOfSync: isOutOfSync || remoteIsLockedByOther,
+        isOutOfSync: isOutOfSync,
         remoteModifiedAt: remoteUpdatedAt,
         localModifiedAt: localUpdatedAt,
         remoteLockInfo,
@@ -1250,7 +1475,7 @@ export const checkRemoteSyncStatus = async (
 
       return {
         isAvailable: true,
-        isOutOfSync: isOutOfSync || remoteIsLockedByOther,
+        isOutOfSync: isOutOfSync,
         remoteModifiedAt: remoteUpdatedAt,
         localModifiedAt: localUpdatedAt,
         remoteLockInfo,
@@ -1286,7 +1511,7 @@ export const checkRemoteSyncStatus = async (
 
         return {
           isAvailable: true,
-          isOutOfSync: isOutOfSync || remoteIsLockedByOther,
+          isOutOfSync: isOutOfSync,
           remoteModifiedAt: remoteUpdatedAt,
           localModifiedAt: localUpdatedAt,
           remoteLockInfo,

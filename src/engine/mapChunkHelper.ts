@@ -16,19 +16,32 @@ export function getChunkCoords(x: number, y: number): { cx: number, cy: number, 
 }
 
 export function getCell(mapData: RefinedMapData, x: number, y: number): RefinedCellState | null {
+  if (mapData.chunks) {
+    const { cx, cy, lx, ly } = getChunkCoords(x, y);
+    const chunk = mapData.chunks[getChunkKey(cx, cy)];
+    if (chunk) {
+      const cell = chunk[ly * CHUNK_SIZE + lx];
+      if (cell) return cell;
+    }
+  }
+
   if (mapData.cells) {
-    // Legacy 2D array fallback (for intermediate compatibility, though we'll migrate it away)
+    // Legacy 2D array fallback
     if (y >= 0 && y < mapData.height && x >= 0 && x < mapData.width) {
       return mapData.cells[y]?.[x] || null;
     }
     return null;
   }
   
-  if (!mapData.chunks) return null;
-  const { cx, cy, lx, ly } = getChunkCoords(x, y);
-  const chunk = mapData.chunks[getChunkKey(cx, cy)];
-  if (!chunk) return null;
-  return chunk[ly * CHUNK_SIZE + lx];
+  if (mapData.chunks) {
+    const { cx, cy, lx, ly } = getChunkCoords(x, y);
+    const chunk = mapData.chunks[getChunkKey(cx, cy)];
+    if (chunk) {
+      return chunk[ly * CHUNK_SIZE + lx] || null;
+    }
+  }
+
+  return null;
 }
 
 export function setCell(mapData: RefinedMapData, x: number, y: number, state: RefinedCellState, createChunkIfMissing: boolean = true): void {

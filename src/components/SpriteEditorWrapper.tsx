@@ -1227,7 +1227,8 @@ export const SpriteEditorWrapper: React.FC<SpriteEditorWrapperProps> = ({
         }}
         onForceUnlockFile={(fName) => {
           const { project: updated } = performFileForceUnlock(project, 'sprites', fName);
-          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}`, syncLinked: true });
+          if (onShowToast) onShowToast(`Force unlocked ${fName}`, 'info');
         }}
         isDirty={isDirty}
         onSelectFile={handleSelectFile}

@@ -45,6 +45,7 @@ export interface TileType {
   health?: number;
   armor_deduction?: number;
   defense_type?: DamageType;
+  collisionTag?: string;
   traversal_tags?: TraversalModifierTag[];
   speed_modifier?: number;
   shares_damage_overlay?: boolean;

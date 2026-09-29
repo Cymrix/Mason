@@ -587,6 +587,17 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
   // Synchronize active customizable parameters whenever active particle data changes
   useEffect(() => {
     setAddedProps(getPropsFromParticleData(activeParticleData));
+    if (activeParticleData.emitter.prewarm) {
+      emitAccumulatorRef.current = 0;
+      lastBurstTimeRef.current = performance.now();
+      engineRef.current.prewarmSystem(
+        activeParticleData,
+        emitterPosRef.current,
+        activeParticleData.emitter.prewarmDuration ?? 3.5,
+        floorCollisionEnabledRef.current ? floorWorldYRef.current : 999999,
+        simulatedBiomeWindEnabledRef.current ? simulatedBiomeWindRef.current : 0
+      );
+    }
   }, [activeParticleData.id]);
 
   const handleAddParam = (propId: string) => {
@@ -2601,6 +2612,20 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
     engineRef.current.spawnParticles(count, activeParticleDataRef.current, origin);
   };
 
+  const handlePrewarmViewport = () => {
+    const duration = activeParticleData.emitter.prewarmDuration ?? 3.5;
+    emitAccumulatorRef.current = 0;
+    lastBurstTimeRef.current = performance.now();
+    engineRef.current.prewarmSystem(
+      activeParticleDataRef.current,
+      emitterPosRef.current,
+      duration,
+      floorCollisionEnabledRef.current ? floorWorldYRef.current : 999999,
+      simulatedBiomeWindEnabledRef.current ? simulatedBiomeWindRef.current : 0
+    );
+    showToast(`Simulation pre-warmed (${duration.toFixed(1)}s continuous stream)`);
+  };
+
   // Main 60fps GPU simulation render loop (decoupled from React re-renders via mutable refs)
   useEffect(() => {
     let animId: number;
@@ -3369,7 +3394,8 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
         }}
         onForceUnlockFile={(fName) => {
           const { project: updatedProj } = performFileForceUnlock(project, 'particles', fName);
-          onUpdateProject(() => updatedProj, { actionLabel: `Force unlock ${fName}` });
+          onUpdateProject(() => updatedProj, { actionLabel: `Force unlock ${fName}`, syncLinked: true });
+          showToast(`Force unlocked ${fName}`);
         }}
         onSelectFile={(fName) => {
           onUpdateProject(p => ({
@@ -3506,6 +3532,16 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
               >
                 <Zap size={13} />
                 <span>Burst Trigger</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrewarmViewport}
+                className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                title={`Pre-warm particle emitter simulation by ${(activeParticleData.emitter.prewarmDuration ?? 3.5).toFixed(1)}s to instantly reach steady-state`}
+              >
+                <Sparkles size={13} className="text-cyan-400" />
+                <span>Pre-warm</span>
               </button>
 
               <button
@@ -4559,6 +4595,119 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* Pre-warming & Steady-State Viewport Pre-fill */}
+                    <div className="pt-2.5 border-t border-neutral-800/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer select-none font-bold text-[11px] text-cyan-300">
+                          <input
+                            type="checkbox"
+                            checked={activeParticleData.emitter.prewarm === true}
+                            onChange={(e) => {
+                              const val = e.target.checked;
+                              updateActiveParticle(p => ({
+                                ...p,
+                                emitter: {
+                                  ...p.emitter,
+                                  prewarm: val,
+                                  prewarmDuration: p.emitter.prewarmDuration ?? 3.5
+                                }
+                              }));
+                              if (val) {
+                                engineRef.current.prewarmSystem(
+                                  {
+                                    ...activeParticleData,
+                                    emitter: { ...activeParticleData.emitter, prewarm: true, prewarmDuration: activeParticleData.emitter.prewarmDuration ?? 3.5 }
+                                  },
+                                  emitterPosRef.current,
+                                  activeParticleData.emitter.prewarmDuration ?? 3.5,
+                                  floorCollisionEnabled ? floorWorldY : 999999,
+                                  simulatedBiomeWindEnabled ? simulatedBiomeWind : 0
+                                );
+                                showToast('Pre-warming enabled & simulated in viewport!');
+                              }
+                            }}
+                            className="rounded border-neutral-700 bg-neutral-900 text-cyan-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer accent-cyan-500"
+                          />
+                          <span>Pre-warm Emitter on Load</span>
+                        </label>
+                        <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                          activeParticleData.emitter.prewarm 
+                            ? 'text-cyan-400 bg-cyan-950/60 border-cyan-800/40 font-bold' 
+                            : 'text-neutral-500 bg-neutral-900 border-neutral-800'
+                        }`}>
+                          {activeParticleData.emitter.prewarm ? 'ACTIVE' : 'OFF'}
+                        </span>
+                      </div>
+
+                      {activeParticleData.emitter.prewarm && (
+                        <div className="p-2.5 bg-cyan-950/20 border border-cyan-800/40 rounded-lg space-y-2">
+                          <p className="text-[10px] text-neutral-300 leading-relaxed">
+                            Pre-runs the particle simulation ahead of time so the emitter and play viewport are instantly populated at steady state upon scene/map spawn.
+                          </p>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="font-bold text-neutral-300">Pre-warm Duration</span>
+                              <span className="font-mono text-cyan-400 font-bold">{(activeParticleData.emitter.prewarmDuration ?? 3.5).toFixed(1)}s</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min="0.5"
+                                max="10.0"
+                                step="0.5"
+                                value={activeParticleData.emitter.prewarmDuration ?? 3.5}
+                                onChange={(e) => {
+                                  const dur = Number(e.target.value);
+                                  updateActiveParticle(p => ({
+                                    ...p,
+                                    emitter: { ...p.emitter, prewarmDuration: dur }
+                                  }));
+                                }}
+                                className="flex-1 accent-cyan-500 h-1.5 cursor-pointer"
+                              />
+                              <input
+                                type="number"
+                                min="0.5"
+                                max="10.0"
+                                step="0.5"
+                                value={activeParticleData.emitter.prewarmDuration ?? 3.5}
+                                onChange={(e) => {
+                                  const dur = Math.max(0.5, Math.min(10.0, Number(e.target.value)));
+                                  updateActiveParticle(p => ({
+                                    ...p,
+                                    emitter: { ...p.emitter, prewarmDuration: dur }
+                                  }));
+                                }}
+                                className="w-14 bg-neutral-950 border border-neutral-800 rounded p-1 text-center font-mono text-xs text-white"
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const dur = activeParticleData.emitter.prewarmDuration ?? 3.5;
+                              emitAccumulatorRef.current = 0;
+                              lastBurstTimeRef.current = performance.now();
+                              engineRef.current.prewarmSystem(
+                                activeParticleData,
+                                emitterPosRef.current,
+                                dur,
+                                floorCollisionEnabled ? floorWorldY : 999999,
+                                simulatedBiomeWindEnabled ? simulatedBiomeWind : 0
+                              );
+                              showToast(`Pre-warmed viewport simulation (${dur.toFixed(1)}s continuous stream)`);
+                            }}
+                            className="w-full py-1.5 px-2 bg-cyan-900/40 hover:bg-cyan-900/60 border border-cyan-600/50 text-cyan-300 rounded text-[10px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                          >
+                            <Sparkles size={11} className="text-cyan-400" />
+                            <span>⚡ Test Pre-warm in Viewport</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -4917,27 +5066,6 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           </div>
                         </div>
                       )}
-                    </div>
-
-                    {/* Animation / Transition toggle */}
-                    <div className="p-2.5 bg-neutral-950/60 border border-neutral-800/80 rounded-lg flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <span className="text-[11px] font-bold text-neutral-200 block">Color Track (Timeline)</span>
-                        <span className="text-[9px] text-neutral-500 block">Animate particle color over lifetime on the timeline</span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={activeParticleData.visuals.animateColor === true}
-                          onChange={(e) => updateActiveParticle(p => ({
-                            ...p,
-                            visuals: { ...p.visuals, animateColor: e.target.checked },
-                            emitter: { ...p.emitter, animateColor: e.target.checked }
-                          }))}
-                          className="sr-only peer"
-                        />
-                        <div className="w-8 h-4 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500"></div>
-                      </label>
                     </div>
                   </div>
                 </div>
@@ -6180,6 +6308,26 @@ export const ParticlesEditor: React.FC<ParticlesEditorProps> = ({
                           className="rounded accent-amber-500 font-mono w-4 h-4"
                         />
                       </label>
+
+                      {/* Collision Tag */}
+                      <div className="pt-1 border-t border-neutral-800/40">
+                        <label className="text-[10px] font-bold text-neutral-400 block mb-1">Collision Matrix Tag</label>
+                        <select
+                          value={activeParticleData.physics.collisionTag || (activeParticleData.category === 'weather' ? 'weather' : 'particles')}
+                          onChange={(e) => updateActiveParticle(p => ({ ...p, physics: { ...p.physics, collisionTag: e.target.value } }))}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="particles">particles (Standard)</option>
+                          <option value="weather">weather (Rain, Snow, Wind)</option>
+                          <option value="player_attack">player_attack</option>
+                          <option value="enemy_attack">enemy_attack</option>
+                          <option value="solids">solids</option>
+                          <option value="hazards">hazards</option>
+                        </select>
+                        <p className="text-[9px] text-neutral-500 mt-1">
+                          Controls whether this emitter collides with solids, player, enemies via the Project Collision Matrix.
+                        </p>
+                      </div>
 
                       {activeParticleData.physics.collideWithMapSolids && (
                         <div className="grid grid-cols-2 gap-2 pt-1 border-t border-neutral-800/30">

@@ -2,6 +2,8 @@ import { RefinedMapData, RefinedCellState } from '../types';
 import { RefinedBiome } from './refinedBiomeSchema';
 import { INITIAL_REFINED_BIOMES } from './refinedBiomes';
 import { MASON_VERSION_DISPLAY } from '../version';
+import { CollisionMatrixConfig, createDefaultCollisionMatrixConfig } from './collisionMatrixSchema';
+export * from './collisionMatrixSchema';
 
 // ==========================================
 // 1. MAP FILE (.map)
@@ -717,6 +719,7 @@ export interface PrefabColliderPart extends PrefabPartBase {
   shape: 'box' | 'circle' | 'capsule' | 'polygon';
   isSolid: boolean; // Blocks hero / mob physics
   isTrigger: boolean; // Triggers interaction / damage zones
+  collisionTag?: string; // Tag for collision matrix (e.g. 'player', 'enemy', 'hazard', 'trigger', 'pickup')
   width?: number;
   height?: number;
   radius?: number;
@@ -848,6 +851,7 @@ export interface PrefabNamedPolygon {
   name: string;
   type: 'hurtbox' | 'hitbox' | 'shield' | 'trigger';
   color?: string;
+  collisionTag?: string; // Tag for collision matrix (e.g. 'player', 'player_attack', 'hazard', 'trigger')
   defaultVertices: PolygonHitboxVertex[];
 }
 
@@ -892,6 +896,7 @@ export interface PrefabCapsuleConfig {
   height: number; // e.g., 48
   offsetX: number;
   offsetY: number;
+  collisionTag?: string; // Tag for collision matrix (default: 'player')
 }
 
 export interface AnimationStateConfig {
@@ -1379,6 +1384,7 @@ export interface GameStructureData {
   progressionFlags: ProgressionFlag[];
   worldGraphLinks: WorldGraphLink[];
   graphNodes?: { mapFileName: string; x: number; y: number }[];
+  inputMappings?: InputMapping[];
 }
 
 export interface GameStructureFile {
@@ -1395,7 +1401,7 @@ export interface GameStructureFile {
 // 5.5 PARTICLE SYSTEMS (.particle)
 // ==========================================
 export type ParticleEmitterShape = 'point' | 'box' | 'circle' | 'cone' | 'line' | 'ring' | 'environmental_fx';
-export type ParticleShape = 'glow_circle' | 'spark_line' | 'ember' | 'smoke_puff' | 'star' | 'diamond' | 'ring' | 'square' | 'pixel_square' | 'bubble' | 'custom_glyph' | 'svg_path' | 'spritesheet' | 'composite';
+export type ParticleShape = 'glow_circle' | 'spark_line' | 'ember' | 'smoke_puff' | 'star' | 'diamond' | 'ring' | 'square' | 'pixel_square' | 'bubble' | 'custom_glyph' | 'svg_path' | 'spritesheet' | 'composite' | 'rain' | 'snow' | 'dust' | 'fog' | 'leaves' | 'circle';
 export type ParticleBlendMode = 'source-over' | 'lighter' | 'screen' | 'multiply';
 
 export type CompositePrimitiveType = 'circle' | 'rect' | 'rounded_rect' | 'ring' | 'line' | 'star' | 'diamond' | 'ellipse';
@@ -1453,6 +1459,8 @@ export interface ParticleEmitterConfig {
   burstIntervalMax?: number;
   isContinuous: boolean; // Continuous stream vs trigger-only
   burstEnabled?: boolean;
+  prewarm?: boolean;     // Pre-warm the simulation so particles fill the viewport immediately upon load
+  prewarmDuration?: number; // Pre-warm duration in seconds (0.5 - 10.0s, default 3.0s)
   animateEmitterWidth?: boolean;
   animateEmitterHeight?: boolean;
   animateEmitterRotation?: boolean;
@@ -1624,6 +1632,7 @@ export type SubEmitterTriggerMode = 'impact' | 'death' | 'both' | 'none';
 
 export interface ParticlePhysicsConfig {
   collideWithMapSolids: boolean; // Bounce / destroy on floor & walls
+  collisionTag?: string;         // Tag for collision matrix (e.g. 'weather', 'particles', 'player_attack', 'enemy_attack')
   collisionRestitution: number;  // Bounciness / Elasticity 0.0 to 1.0 (e.g. 0.5, 0.0 = sticky)
   maxBounces?: number;           // Max allowed bounces before sticking (undefined or 0 = unlimited)
   destroyOnCollision: boolean;
@@ -1669,6 +1678,7 @@ export interface ParticleSystemData {
   description: string;
   icon: string;
   tintColor: string;
+  layer?: string;
   emitter: ParticleEmitterConfig;
   kinematics: ParticleKinematicsConfig;
   visuals: ParticleVisualsConfig;
@@ -1687,9 +1697,987 @@ export interface ParticleSystemFile {
 }
 
 // ==========================================
+// 5.8 3D MODEL FILE (.model3d)
+// ==========================================
+export interface Model3DBone {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  position: [number, number, number];
+  rotation: [number, number, number]; // Euler angles (deg)
+  length: number;
+}
+
+export interface Model3DKeyframe {
+  frame: number;
+  boneId: string;
+  position?: [number, number, number];
+  rotation?: [number, number, number]; // Euler angles (deg)
+  scale?: [number, number, number];
+}
+
+export interface Model3DAnimationClip {
+  id: string;
+  name: string;
+  fps: number;
+  totalFrames: number;
+  isLooping: boolean;
+  keyframes: Model3DKeyframe[];
+}
+
+export interface Model3DPart {
+  id: string;
+  name: string;
+  primitiveType: 'cube' | 'cylinder' | 'sphere' | 'cone' | 'wedge' | 'capsule' | 'torus' | 'plane';
+  position: [number, number, number];
+  rotation: [number, number, number]; // Euler angles (deg)
+  scale: [number, number, number];
+  color: string;
+  wireframe?: boolean;
+  roughness?: number;
+  metalness?: number;
+  parentBoneId?: string; // Attached skeletal bone
+  customVertexColors?: number[]; // RGB triplets
+  textureDataUrl?: string; // Painted texture
+}
+
+export interface Model3DData {
+  id: string;
+  name: string;
+  parts: Model3DPart[];
+  bones: Model3DBone[];
+  animations: Model3DAnimationClip[];
+  activeAnimationId?: string;
+  ambientLightColor?: string;
+  sunColor?: string;
+  previewBackgroundColor?: string;
+}
+
+export interface Model3DFile {
+  id: string;
+  name: string;
+  fileName: string; // e.g. "hero_knight.model3d"
+  createdAt: string;
+  updatedAt: string;
+  modelData: Model3DData;
+  checkout?: FileCheckoutInfo;
+}
+
+export const createDefaultModel3DFile = (
+  id: string = 'model_hero_knight',
+  name: string = 'Hero Knight',
+  fileName: string = 'hero_knight.model3d'
+): Model3DFile => {
+  return {
+    id,
+    name,
+    fileName,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    modelData: {
+      id,
+      name,
+      parts: [
+        { id: 'part_torso', name: 'Torso', primitiveType: 'cube', position: [0, 24, 0], rotation: [0, 0, 0], scale: [16, 20, 10], color: '#0284c7', parentBoneId: 'bone_spine' },
+        { id: 'part_head', name: 'Head', primitiveType: 'cube', position: [0, 39, 0], rotation: [0, 0, 0], scale: [12, 12, 12], color: '#fcd34d', parentBoneId: 'bone_head' },
+        { id: 'part_visor', name: 'Visor / Eyes', primitiveType: 'cube', position: [0, 40, 6.2], rotation: [0, 0, 0], scale: [10, 4, 1], color: '#06b6d4', parentBoneId: 'bone_head' },
+        { id: 'part_arm_l', name: 'Arm.L', primitiveType: 'cube', position: [-12, 26, 0], rotation: [0, 0, 10], scale: [6, 18, 6], color: '#0369a1', parentBoneId: 'bone_arm_l' },
+        { id: 'part_arm_r', name: 'Arm.R', primitiveType: 'cube', position: [12, 26, 0], rotation: [0, 0, -10], scale: [6, 18, 6], color: '#0369a1', parentBoneId: 'bone_arm_r' },
+        { id: 'part_sword', name: 'Sword Blade', primitiveType: 'wedge', position: [14, 28, 6], rotation: [45, 0, 0], scale: [4, 24, 2], color: '#e2e8f0', parentBoneId: 'bone_arm_r' },
+        { id: 'part_leg_l', name: 'Leg.L', primitiveType: 'cube', position: [-5, 8, 0], rotation: [0, 0, 0], scale: [6, 16, 6], color: '#1e293b', parentBoneId: 'bone_leg_l' },
+        { id: 'part_leg_r', name: 'Leg.R', primitiveType: 'cube', position: [5, 8, 0], rotation: [0, 0, 0], scale: [6, 16, 6], color: '#1e293b', parentBoneId: 'bone_leg_r' }
+      ],
+      bones: [
+        { id: 'bone_root', name: 'Root', parentId: null, position: [0, 0, 0], rotation: [0, 0, 0], length: 16 },
+        { id: 'bone_spine', name: 'Spine', parentId: 'bone_root', position: [0, 16, 0], rotation: [0, 0, 0], length: 18 },
+        { id: 'bone_head', name: 'Head', parentId: 'bone_spine', position: [0, 34, 0], rotation: [0, 0, 0], length: 12 },
+        { id: 'bone_arm_l', name: 'Arm.L', parentId: 'bone_spine', position: [-11, 30, 0], rotation: [0, 0, 0], length: 18 },
+        { id: 'bone_arm_r', name: 'Arm.R', parentId: 'bone_spine', position: [11, 30, 0], rotation: [0, 0, 0], length: 18 },
+        { id: 'bone_leg_l', name: 'Leg.L', parentId: 'bone_root', position: [-5, 16, 0], rotation: [0, 0, 0], length: 16 },
+        { id: 'bone_leg_r', name: 'Leg.R', parentId: 'bone_root', position: [5, 16, 0], rotation: [0, 0, 0], length: 16 }
+      ],
+      animations: [
+        {
+          id: 'anim_idle',
+          name: 'Idle (Breathing)',
+          fps: 12,
+          totalFrames: 24,
+          isLooping: true,
+          keyframes: [
+            { frame: 0, boneId: 'bone_spine', position: [0, 16, 0], rotation: [0, 0, 0] },
+            { frame: 12, boneId: 'bone_spine', position: [0, 15, 0], rotation: [2, 0, 0] },
+            { frame: 24, boneId: 'bone_spine', position: [0, 16, 0], rotation: [0, 0, 0] },
+            { frame: 0, boneId: 'bone_arm_l', rotation: [0, 0, 5] },
+            { frame: 12, boneId: 'bone_arm_l', rotation: [0, 0, 12] },
+            { frame: 24, boneId: 'bone_arm_l', rotation: [0, 0, 5] },
+            { frame: 0, boneId: 'bone_arm_r', rotation: [0, 0, -5] },
+            { frame: 12, boneId: 'bone_arm_r', rotation: [0, 0, -12] },
+            { frame: 24, boneId: 'bone_arm_r', rotation: [0, 0, -5] }
+          ]
+        },
+        {
+          id: 'anim_walk',
+          name: 'Walk Cycle',
+          fps: 12,
+          totalFrames: 20,
+          isLooping: true,
+          keyframes: [
+            { frame: 0, boneId: 'bone_leg_l', rotation: [25, 0, 0] },
+            { frame: 10, boneId: 'bone_leg_l', rotation: [-25, 0, 0] },
+            { frame: 20, boneId: 'bone_leg_l', rotation: [25, 0, 0] },
+            { frame: 0, boneId: 'bone_leg_r', rotation: [-25, 0, 0] },
+            { frame: 10, boneId: 'bone_leg_r', rotation: [25, 0, 0] },
+            { frame: 20, boneId: 'bone_leg_r', rotation: [-25, 0, 0] },
+            { frame: 0, boneId: 'bone_arm_l', rotation: [-20, 0, 5] },
+            { frame: 10, boneId: 'bone_arm_l', rotation: [20, 0, 5] },
+            { frame: 20, boneId: 'bone_arm_l', rotation: [-20, 0, 5] },
+            { frame: 0, boneId: 'bone_arm_r', rotation: [20, 0, -5] },
+            { frame: 10, boneId: 'bone_arm_r', rotation: [-20, 0, -5] },
+            { frame: 20, boneId: 'bone_arm_r', rotation: [20, 0, -5] }
+          ]
+        },
+        {
+          id: 'anim_attack',
+          name: 'Sword Slash',
+          fps: 16,
+          totalFrames: 16,
+          isLooping: false,
+          keyframes: [
+            { frame: 0, boneId: 'bone_arm_r', rotation: [-30, 0, -10] },
+            { frame: 4, boneId: 'bone_arm_r', rotation: [-80, -20, 10] },
+            { frame: 8, boneId: 'bone_arm_r', rotation: [50, 40, -20] },
+            { frame: 12, boneId: 'bone_arm_r', rotation: [20, 10, -10] },
+            { frame: 16, boneId: 'bone_arm_r', rotation: [0, 0, -5] }
+          ]
+        }
+      ],
+      activeAnimationId: 'anim_idle'
+    }
+  };
+};
+
+// ==========================================
+// 5.9 3D SCENE FILE (.scene3d)
+// ==========================================
+export type SceneEntityType = 
+  | 'prefab'          // Reference to 2D prefab (billboard / flat)
+  | 'model3d'         // Reference to 3D model asset (.model3d)
+  | 'primitive'       // 3D Box, Sphere, Cylinder, Plane, Cone
+  | 'light'           // PointLight, SpotLight, DirectionalLight
+  | 'spawn_point'     // Player spawn location & rotation
+  | 'camera'          // Camera marker / zone
+  | 'trigger_zone';   // Collision volume / trigger area
+
+export interface Scene3DEntity {
+  id: string;
+  name: string;
+  type: SceneEntityType;
+  position: [number, number, number];
+  rotation: [number, number, number]; // Euler angles in degrees
+  scale: [number, number, number];
+  visible?: boolean;
+  locked?: boolean;
+  
+  // Specific entity configurations:
+  prefabId?: string;          // If type === 'prefab'
+  billboardMode?: 'camera' | 'y_axis' | 'none'; // Facing mode for 2D prefabs in 3D space
+  
+  model3dFileName?: string;   // If type === 'model3d' (reference to .model3d file)
+  activeAnimation?: string;   // Playback animation clip
+  
+  primitiveType?: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'cone';
+  color?: string;
+  roughness?: number;
+  metalness?: number;
+  castShadow?: boolean;
+  receiveShadow?: boolean;
+  
+  lightType?: 'point' | 'spot' | 'directional';
+  lightColor?: string;
+  lightIntensity?: number;
+  lightDistance?: number;
+  
+  isCollider?: boolean;       // Solid physics collision
+  colliderShape?: 'box' | 'sphere' | 'capsule';
+}
+
+export interface Scene3DEnvironment {
+  skyboxType: 'gradient' | 'solid' | 'dawn' | 'noon' | 'sunset' | 'night' | 'cyber_grid' | 'void';
+  skyColorTop: string;
+  skyColorBottom: string;
+  fogEnabled: boolean;
+  fogColor: string;
+  fogNear: number;
+  fogFar: number;
+  ambientLightColor: string;
+  ambientLightIntensity: number;
+  sunColor: string;
+  sunIntensity: number;
+  sunPosition: [number, number, number];
+  showGridFloor: boolean;
+  gridFloorSize: number;
+}
+
+export interface Scene3DData {
+  id: string;
+  name: string;
+  entities: Scene3DEntity[];
+  environment: Scene3DEnvironment;
+  activeCameraId?: string;
+  playerSpawnPosition?: [number, number, number];
+}
+
+export interface Scene3DFile {
+  id: string;
+  name: string;
+  fileName: string; // e.g. "overworld_ruins.scene3d"
+  createdAt: string;
+  updatedAt: string;
+  sceneData: Scene3DData;
+  checkout?: FileCheckoutInfo;
+}
+
+export const createDefaultScene3DFile = (
+  id: string = 'scene_overworld_ruins',
+  name: string = 'Overworld Ruins',
+  fileName: string = 'overworld_ruins.scene3d'
+): Scene3DFile => {
+  return {
+    id,
+    name,
+    fileName,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    sceneData: {
+      id,
+      name,
+      environment: {
+        skyboxType: 'gradient',
+        skyColorTop: '#1e1b4b',
+        skyColorBottom: '#0f172a',
+        fogEnabled: true,
+        fogColor: '#090d16',
+        fogNear: 80,
+        fogFar: 350,
+        ambientLightColor: '#ffffff',
+        ambientLightIntensity: 0.65,
+        sunColor: '#fff7ed',
+        sunIntensity: 1.2,
+        sunPosition: [120, 160, 100],
+        showGridFloor: true,
+        gridFloorSize: 200
+      },
+      playerSpawnPosition: [0, 0, 24],
+      entities: [
+        {
+          id: 'ent_pedestal',
+          name: 'Central Pedestal',
+          type: 'primitive',
+          primitiveType: 'cylinder',
+          position: [0, 2, 0],
+          rotation: [0, 0, 0],
+          scale: [24, 4, 24],
+          color: '#334155',
+          roughness: 0.7,
+          metalness: 0.2,
+          isCollider: true,
+          castShadow: true,
+          receiveShadow: true
+        },
+        {
+          id: 'ent_crystal',
+          name: 'Floating Power Crystal',
+          type: 'primitive',
+          primitiveType: 'cone',
+          position: [0, 16, 0],
+          rotation: [180, 0, 0],
+          scale: [8, 16, 8],
+          color: '#38bdf8',
+          roughness: 0.1,
+          metalness: 0.9,
+          castShadow: true
+        },
+        {
+          id: 'ent_light_beacon',
+          name: 'Beacon Light',
+          type: 'light',
+          lightType: 'point',
+          lightColor: '#38bdf8',
+          lightIntensity: 3.0,
+          lightDistance: 90,
+          position: [0, 16, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1]
+        },
+        {
+          id: 'ent_pillar_nw',
+          name: 'Ancient Pillar (NW)',
+          type: 'primitive',
+          primitiveType: 'cube',
+          position: [-36, 18, -36],
+          rotation: [0, 25, 0],
+          scale: [8, 36, 8],
+          color: '#475569',
+          roughness: 0.8,
+          metalness: 0.1,
+          isCollider: true,
+          castShadow: true,
+          receiveShadow: true
+        },
+        {
+          id: 'ent_pillar_ne',
+          name: 'Ancient Pillar (NE)',
+          type: 'primitive',
+          primitiveType: 'cube',
+          position: [36, 18, -36],
+          rotation: [0, -15, 0],
+          scale: [8, 36, 8],
+          color: '#475569',
+          roughness: 0.8,
+          metalness: 0.1,
+          isCollider: true,
+          castShadow: true,
+          receiveShadow: true
+        },
+        {
+          id: 'ent_pillar_sw',
+          name: 'Broken Pillar (SW)',
+          type: 'primitive',
+          primitiveType: 'cube',
+          position: [-36, 10, 36],
+          rotation: [8, 45, -5],
+          scale: [8, 20, 8],
+          color: '#475569',
+          roughness: 0.8,
+          metalness: 0.1,
+          isCollider: true,
+          castShadow: true,
+          receiveShadow: true
+        },
+        {
+          id: 'ent_hero_model',
+          name: 'Hero Knight 3D',
+          type: 'model3d',
+          model3dFileName: 'hero_knight.model3d',
+          position: [0, 4, -4],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          activeAnimation: 'anim_idle',
+          castShadow: true
+        },
+        {
+          id: 'ent_spawn',
+          name: 'Player Spawn Point',
+          type: 'spawn_point',
+          position: [0, 0, 24],
+          rotation: [0, 180, 0],
+          scale: [4, 4, 4]
+        }
+      ]
+    }
+  };
+};
+
+// ==========================================
+// 5.10 TERRAIN BUILDER FILE (.terrain)
+// ==========================================
+export type TerrainObjectType = 'heightmap_plane' | 'voxel_volume';
+
+export interface VoxelBlock {
+  x: number;
+  y: number;
+  z: number;
+  materialType: string;
+  color?: string;
+}
+
+export interface HeightmapGrid {
+  resolutionX: number;
+  resolutionZ: number;
+  spacing: number;
+  heights: number[];
+}
+
+export interface TerrainBiomeMaterialLayer {
+  id: string;
+  name: string;
+  biomeId?: string;
+  topColor: string;
+  slopeColor: string;    // Vertical cliff strata
+  baseColor: string;     // Low ground sediment
+  roughness: number;
+  triplanarScale: number;
+  slopeThreshold: number; // 0 to 1, normal.y threshold for steep cliff
+  scatterDensity: number;
+  allowedDetailObjects: ('pine_tree' | 'broadleaf_tree' | 'boulder' | 'foliage_bush' | 'mushroom_cluster' | 'crystal_shard')[];
+}
+
+export interface BakedScatterInstance {
+  id: string;
+  objectType: 'pine_tree' | 'broadleaf_tree' | 'boulder' | 'foliage_bush' | 'mushroom_cluster' | 'crystal_shard';
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  tintColor?: string;
+  isBaked: boolean;
+}
+
+export interface PlacedPropObject {
+  id: string;
+  name: string;
+  isDynamic: boolean;
+  prefabId?: string;
+  model3dFileName?: string;
+  primitiveType?: 'box' | 'cylinder' | 'barrel' | 'chest';
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  color?: string;
+}
+
+export interface TerrainObject {
+  id: string;
+  name: string;
+  type: TerrainObjectType;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  isDestructible: boolean;
+  isBaked: boolean;
+  materialLayerId: string;
+  heightmap?: HeightmapGrid;
+  voxels?: VoxelBlock[];
+  voxelBounds?: [number, number, number];
+  scatterInstances: BakedScatterInstance[];
+  placedProps: PlacedPropObject[];
+}
+
+export interface TerrainData {
+  id: string;
+  name: string;
+  activeBiomeId: string;
+  materialLayers: TerrainBiomeMaterialLayer[];
+  terrainObjects: TerrainObject[];
+  ambientColor: string;
+  sunColor: string;
+  sunIntensity: number;
+  fogEnabled: boolean;
+  fogColor: string;
+  waterLevel?: number;
+  waterColor?: string;
+}
+
+export interface TerrainFile {
+  id: string;
+  name: string;
+  fileName: string; // e.g. "ashen_valley.terrain"
+  createdAt: string;
+  updatedAt: string;
+  terrainData: TerrainData;
+  checkout?: FileCheckoutInfo;
+}
+
+export const createDefaultTerrainFile = (
+  id: string = 'terrain_ashen_valley',
+  name: string = 'Ashen Valley',
+  fileName: string = 'ashen_valley.terrain'
+): TerrainFile => {
+  const res = 48;
+  const spacing = 3;
+  const heights = new Array(res * res).fill(0);
+  for (let z = 0; z < res; z++) {
+    for (let x = 0; x < res; x++) {
+      const nx = (x - res / 2) * 0.15;
+      const nz = (z - res / 2) * 0.15;
+      const distFromCenter = Math.sqrt(nx * nx + nz * nz);
+      const hill = Math.sin(nx * 0.8) * Math.cos(nz * 0.8) * 8 + Math.sin(nx * 1.6 + nz * 1.2) * 3;
+      const rim = Math.pow(distFromCenter * 0.4, 2) * 1.5;
+      heights[z * res + x] = Math.max(-2, hill + rim);
+    }
+  }
+
+  const initialScatter: BakedScatterInstance[] = [];
+  for (let i = 0; i < 28; i++) {
+    const rx = (Math.random() - 0.5) * (res * spacing * 0.7);
+    const rz = (Math.random() - 0.5) * (res * spacing * 0.7);
+    const objType: 'pine_tree' | 'boulder' | 'foliage_bush' = i % 3 === 0 ? 'pine_tree' : i % 3 === 1 ? 'boulder' : 'foliage_bush';
+    initialScatter.push({
+      id: `scatter_${i}`,
+      objectType: objType,
+      position: [rx, 2, rz],
+      rotation: [0, Math.random() * 360, 0],
+      scale: [1 + Math.random() * 0.5, 1 + Math.random() * 0.8, 1 + Math.random() * 0.5],
+      isBaked: true
+    });
+  }
+
+  return {
+    id,
+    name,
+    fileName,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    terrainData: {
+      id,
+      name,
+      activeBiomeId: 'mourne_ashen_steppes',
+      ambientColor: '#1e293b',
+      sunColor: '#fff7ed',
+      sunIntensity: 1.2,
+      fogEnabled: true,
+      fogColor: '#090d16',
+      waterLevel: -1,
+      waterColor: '#0284c7',
+      materialLayers: [
+        {
+          id: 'mat_mourne_strata',
+          name: 'Mourne Ashen Strata',
+          biomeId: 'mourne_ashen_steppes',
+          topColor: '#334155',
+          slopeColor: '#1e293b',
+          baseColor: '#0f172a',
+          roughness: 0.85,
+          triplanarScale: 1.0,
+          slopeThreshold: 0.65,
+          scatterDensity: 0.5,
+          allowedDetailObjects: ['pine_tree', 'boulder', 'foliage_bush']
+        },
+        {
+          id: 'mat_verdant_grass',
+          name: 'Verdant Highlands',
+          biomeId: 'verdant_canopy',
+          topColor: '#15803d',
+          slopeColor: '#57534e',
+          baseColor: '#78350f',
+          roughness: 0.7,
+          triplanarScale: 1.2,
+          slopeThreshold: 0.7,
+          scatterDensity: 0.8,
+          allowedDetailObjects: ['broadleaf_tree', 'pine_tree', 'foliage_bush', 'mushroom_cluster']
+        },
+        {
+          id: 'mat_frozen_tundra',
+          name: 'Glacial Tundra',
+          biomeId: 'frozen_wastes',
+          topColor: '#e0f2fe',
+          slopeColor: '#334155',
+          baseColor: '#0369a1',
+          roughness: 0.4,
+          triplanarScale: 1.0,
+          slopeThreshold: 0.6,
+          scatterDensity: 0.3,
+          allowedDetailObjects: ['pine_tree', 'boulder', 'crystal_shard']
+        }
+      ],
+      terrainObjects: [
+        {
+          id: 'obj_main_heightmap',
+          name: 'Valley Heightmap Grid',
+          type: 'heightmap_plane',
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          isDestructible: false,
+          isBaked: true,
+          materialLayerId: 'mat_mourne_strata',
+          heightmap: {
+            resolutionX: res,
+            resolutionZ: res,
+            spacing,
+            heights
+          },
+          scatterInstances: initialScatter,
+          placedProps: [
+            {
+              id: 'prop_ancient_shrine',
+              name: 'Ancient Stone Shrine',
+              isDynamic: false,
+              primitiveType: 'box',
+              position: [0, 6, 0],
+              rotation: [0, 45, 0],
+              scale: [8, 12, 8],
+              color: '#475569'
+            },
+            {
+              id: 'prop_supply_barrel_1',
+              name: 'Explosive Barrel (Dynamic)',
+              isDynamic: true,
+              primitiveType: 'cylinder',
+              position: [12, 5, 4],
+              rotation: [0, 0, 0],
+              scale: [3, 5, 3],
+              color: '#dc2626'
+            },
+            {
+              id: 'prop_wooden_chest',
+              name: 'Treasure Chest',
+              isDynamic: true,
+              primitiveType: 'chest',
+              position: [8, 5, 0],
+              rotation: [0, 20, 0],
+              scale: [4, 3, 3],
+              color: '#d97706'
+            }
+          ]
+        },
+        {
+          id: 'obj_floating_voxel_island',
+          name: 'Voxel Archway & Floating Island',
+          type: 'voxel_volume',
+          position: [0, 24, -30],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          isDestructible: true,
+          isBaked: false,
+          materialLayerId: 'mat_mourne_strata',
+          voxelBounds: [10, 8, 10],
+          voxels: [
+            { x: -3, y: 0, z: 0, materialType: 'stone', color: '#334155' },
+            { x: -2, y: 0, z: 0, materialType: 'stone', color: '#334155' },
+            { x: -1, y: 0, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: 0, y: 0, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: 1, y: 0, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: 2, y: 0, z: 0, materialType: 'stone', color: '#334155' },
+            { x: 3, y: 0, z: 0, materialType: 'stone', color: '#334155' },
+            { x: -2, y: 1, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: -1, y: 1, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: 0, y: 1, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: 1, y: 1, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: 2, y: 1, z: 0, materialType: 'moss', color: '#15803d' },
+            { x: 0, y: 2, z: 0, materialType: 'stone', color: '#334155' }
+          ],
+          scatterInstances: [],
+          placedProps: []
+        }
+      ]
+    }
+  };
+};
+
+// ==========================================
+// 5.11 MULTIPLAYER & DISTRIBUTED SERVER MESH FILE (.multiplayer)
+// ==========================================
+export type MultiplayerTopology = 'peer_to_peer' | 'dedicated_hub' | 'distributed_mesh';
+export type SyncStrategy = 'snapshot_interpolation' | 'deterministic_lockstep' | 'state_sync_rollback' | 'interest_management';
+export type CryptoScheme = 'ed25519' | 'ecdsa_p256' | 'rsa_2048';
+
+export interface MeshServerNode {
+  id: string;
+  name: string;
+  region: 'us-east' | 'us-west' | 'eu-central' | 'ap-east' | 'sa-east' | string;
+  host: string;
+  port: number;
+  allocatedZones: string[];
+  maxClients: number;
+  currentClients: number;
+  status: 'active' | 'standby' | 'draining' | 'offline';
+  avgLatencyMs: number;
+  cpuLoadPct: number;
+}
+
+export interface SpatialZone {
+  id: string;
+  name: string;
+  assignedNodeId: string;
+  bounds: {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  };
+  biomeTheme: string;
+  color: string;
+  isPvpAllowed: boolean;
+  maxZoneEntities: number;
+}
+
+export interface CryptoAuthSettings {
+  scheme: CryptoScheme;
+  requireSignedPackets: boolean;
+  antiReplayNonceWindowMs: number;
+  sessionTokenExpirySeconds: number;
+  serverPublicKeyHex: string;
+  serverPrivateKeyHexMock: string;
+  allowGuestAccess: boolean;
+  roles: Array<{
+    id: string;
+    name: string;
+    level: number;
+    permissions: string[];
+    color: string;
+  }>;
+}
+
+export interface NetworkSimulationSettings {
+  simulatedPingMs: number;
+  simulatedJitterMs: number;
+  simulatedPacketLossPct: number;
+  simulatedBandwidthLimitKbps: number;
+  clientPredictionEnabled: boolean;
+  serverReconciliationEnabled: boolean;
+  interpolationBufferMs: number;
+  lagCompensationRewindMs: number;
+  adaptiveTickRate: boolean;
+}
+
+export interface ReplicatedComponentDef {
+  id: string;
+  name: string;
+  priority: 'critical' | 'high' | 'normal' | 'low';
+  sendRateHz: number;
+  compression: 'none' | 'delta_packed' | 'quantized_16bit' | 'lossy_deadreckoning';
+  properties: Array<{
+    name: string;
+    type: 'vector3' | 'quaternion' | 'float' | 'int' | 'boolean' | 'string';
+    tolerance: number;
+  }>;
+}
+
+export interface MultiplayerData {
+  id: string;
+  name: string;
+  description: string;
+  topology: MultiplayerTopology;
+  tickRate: number;
+  maxPlayersPerRoom: number;
+  syncStrategy: SyncStrategy;
+  worldBounds: {
+    width: number;
+    height: number;
+  };
+  meshNodes: MeshServerNode[];
+  spatialZones: SpatialZone[];
+  zoneHandoffBufferDistance: number;
+  auth: CryptoAuthSettings;
+  simulation: NetworkSimulationSettings;
+  replication: ReplicatedComponentDef[];
+}
+
+export interface MultiplayerFile {
+  id: string;
+  name: string;
+  fileName: string;
+  createdAt: string;
+  updatedAt: string;
+  multiplayerData: MultiplayerData;
+  checkout?: FileCheckoutInfo;
+}
+
+export const createDefaultMultiplayerFile = (
+  id: string = 'net_mmo_mesh',
+  name: string = 'Authoritative Mesh Network',
+  fileName: string = 'authoritative_mesh.multiplayer'
+): MultiplayerFile => {
+  return {
+    id,
+    name,
+    fileName,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    multiplayerData: {
+      id,
+      name,
+      description: 'Distributed authoritative MMO server mesh with Ed25519 cryptographic authentication, spatial zone partitioning, and dynamic client-side prediction.',
+      topology: 'distributed_mesh',
+      tickRate: 60,
+      maxPlayersPerRoom: 256,
+      syncStrategy: 'snapshot_interpolation',
+      worldBounds: {
+        width: 1200,
+        height: 800
+      },
+      zoneHandoffBufferDistance: 32,
+      meshNodes: [
+        {
+          id: 'node_us_east',
+          name: 'US-East Core Node (Vanguard)',
+          region: 'us-east',
+          host: 'useast.mmo.mason.io',
+          port: 9001,
+          allocatedZones: ['zone_town_haven', 'zone_whispering_woods'],
+          maxClients: 250,
+          currentClients: 42,
+          status: 'active',
+          avgLatencyMs: 18,
+          cpuLoadPct: 34
+        },
+        {
+          id: 'node_us_west',
+          name: 'US-West Outpost Node (Frontier)',
+          region: 'us-west',
+          host: 'uswest.mmo.mason.io',
+          port: 9002,
+          allocatedZones: ['zone_canyon_pass'],
+          maxClients: 250,
+          currentClients: 28,
+          status: 'active',
+          avgLatencyMs: 24,
+          cpuLoadPct: 22
+        },
+        {
+          id: 'node_eu_central',
+          name: 'EU-Central Citadel Node (Crown)',
+          region: 'eu-central',
+          host: 'eucentral.mmo.mason.io',
+          port: 9003,
+          allocatedZones: ['zone_obsidian_depths'],
+          maxClients: 250,
+          currentClients: 36,
+          status: 'active',
+          avgLatencyMs: 38,
+          cpuLoadPct: 41
+        }
+      ],
+      spatialZones: [
+        {
+          id: 'zone_town_haven',
+          name: 'Haven Sanctum (Starting Hub)',
+          assignedNodeId: 'node_us_east',
+          bounds: { minX: 50, minY: 50, maxX: 450, maxY: 400 },
+          biomeTheme: 'sanctuary',
+          color: '#38bdf8',
+          isPvpAllowed: false,
+          maxZoneEntities: 128
+        },
+        {
+          id: 'zone_whispering_woods',
+          name: 'Whispering Woods (PVE Overland)',
+          assignedNodeId: 'node_us_east',
+          bounds: { minX: 500, minY: 50, maxX: 1150, maxY: 400 },
+          biomeTheme: 'forest',
+          color: '#22c55e',
+          isPvpAllowed: false,
+          maxZoneEntities: 160
+        },
+        {
+          id: 'zone_canyon_pass',
+          name: 'Ashen Canyon Pass (Contested Border)',
+          assignedNodeId: 'node_us_west',
+          bounds: { minX: 50, minY: 450, maxX: 550, maxY: 750 },
+          biomeTheme: 'desert',
+          color: '#f59e0b',
+          isPvpAllowed: true,
+          maxZoneEntities: 96
+        },
+        {
+          id: 'zone_obsidian_depths',
+          name: 'Obsidian Depths (High Risk Raid)',
+          assignedNodeId: 'node_eu_central',
+          bounds: { minX: 600, minY: 450, maxX: 1150, maxY: 750 },
+          biomeTheme: 'volcano',
+          color: '#ef4444',
+          isPvpAllowed: true,
+          maxZoneEntities: 120
+        }
+      ],
+      auth: {
+        scheme: 'ed25519',
+        requireSignedPackets: true,
+        antiReplayNonceWindowMs: 4000,
+        sessionTokenExpirySeconds: 86400,
+        serverPublicKeyHex: 'ed25519:7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b',
+        serverPrivateKeyHexMock: 'ed25519_priv:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        allowGuestAccess: true,
+        roles: [
+          {
+            id: 'role_admin',
+            name: 'Cluster Administrator',
+            level: 100,
+            permissions: ['server.stop', 'server.drain', 'player.ban', 'state.override', 'teleport.all'],
+            color: '#ef4444'
+          },
+          {
+            id: 'role_mod',
+            name: 'Zone Moderator',
+            level: 50,
+            permissions: ['player.kick', 'chat.mute', 'teleport.self'],
+            color: '#f59e0b'
+          },
+          {
+            id: 'role_player',
+            name: 'Verified Player',
+            level: 10,
+            permissions: ['chat.send', 'combat.engage', 'trade.initiate', 'item.drop'],
+            color: '#38bdf8'
+          },
+          {
+            id: 'role_guest',
+            name: 'Guest Spectator',
+            level: 1,
+            permissions: ['chat.read', 'spectate.view'],
+            color: '#94a3b8'
+          }
+        ]
+      },
+      simulation: {
+        simulatedPingMs: 45,
+        simulatedJitterMs: 8,
+        simulatedPacketLossPct: 1,
+        simulatedBandwidthLimitKbps: 0,
+        clientPredictionEnabled: true,
+        serverReconciliationEnabled: true,
+        interpolationBufferMs: 100,
+        lagCompensationRewindMs: 180,
+        adaptiveTickRate: true
+      },
+      replication: [
+        {
+          id: 'rep_transform',
+          name: 'Transform & Velocity (Kinematics)',
+          priority: 'critical',
+          sendRateHz: 60,
+          compression: 'quantized_16bit',
+          properties: [
+            { name: 'position', type: 'vector3', tolerance: 0.05 },
+            { name: 'rotation', type: 'quaternion', tolerance: 0.02 },
+            { name: 'velocity', type: 'vector3', tolerance: 0.1 }
+          ]
+        },
+        {
+          id: 'rep_anim_state',
+          name: 'Animation & Gait State',
+          priority: 'high',
+          sendRateHz: 30,
+          compression: 'delta_packed',
+          properties: [
+            { name: 'clipIndex', type: 'int', tolerance: 0 },
+            { name: 'playbackSpeed', type: 'float', tolerance: 0.05 },
+            { name: 'isGrounded', type: 'boolean', tolerance: 0 }
+          ]
+        },
+        {
+          id: 'rep_stats',
+          name: 'Vitals & Combat Attributes',
+          priority: 'high',
+          sendRateHz: 20,
+          compression: 'delta_packed',
+          properties: [
+            { name: 'health', type: 'int', tolerance: 0 },
+            { name: 'mana', type: 'int', tolerance: 0 },
+            { name: 'shield', type: 'int', tolerance: 0 }
+          ]
+        },
+        {
+          id: 'rep_inventory',
+          name: 'Equipment & Active Buffs',
+          priority: 'normal',
+          sendRateHz: 10,
+          compression: 'delta_packed',
+          properties: [
+            { name: 'weaponSlot', type: 'string', tolerance: 0 },
+            { name: 'armorSlot', type: 'string', tolerance: 0 },
+            { name: 'activeAura', type: 'string', tolerance: 0 }
+          ]
+        }
+      ]
+    }
+  };
+};
+
+// ==========================================
 // 6. MASON MASTER PROJECT CONTAINER
 // ==========================================
-export type MasonModuleId = 'maps' | 'biomes' | 'prefabs' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles' | 'sprites' | 'images';
+export type MasonModuleId = 'maps' | 'biomes' | 'prefabs' | 'ui' | 'gamestructure' | 'behaviors' | 'macro' | 'explorer' | 'particles' | 'sprites' | 'images' | 'models3d' | 'fabricator' | 'scenes' | 'terrain' | 'multiplayer';
 
 export interface SpriteExportMetadata {
   exportMode?: 'flattened' | 'spritesheet' | 'gif' | 'layers' | string;
@@ -1773,6 +2761,10 @@ export interface MasonFileSystem {
   particles?: ParticleSystemFile[];
   sprites?: SpriteFile[];
   images?: ImageFile[];
+  models3d?: Model3DFile[];
+  scenes3d?: Scene3DFile[];
+  terrain?: TerrainFile[];
+  multiplayer?: MultiplayerFile[];
 }
 
 export interface MasonProject {
@@ -1796,6 +2788,10 @@ export interface MasonProject {
     behaviorFileName?: string;
     particleFileName?: string;
     spriteFileName?: string;
+    model3dFileName?: string;
+    scene3dFileName?: string;
+    terrainFileName?: string;
+    multiplayerFileName?: string;
   };
   
   fileSystem: MasonFileSystem;
@@ -1828,6 +2824,8 @@ export interface MasonProject {
       color: string;
     };
   };
+  collisionMatrix?: CollisionMatrixConfig;
+  inputMappings?: InputMapping[];
 }
 
 // ==========================================
@@ -4378,7 +5376,9 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       loop: true,
       burstCount: 40,
       burstInterval: 0,
-      isContinuous: true
+      isContinuous: true,
+      prewarm: true,
+      prewarmDuration: 3.5
     },
     kinematics: {
       minSpeed: 2.6,
@@ -4435,7 +5435,9 @@ export const DEFAULT_PARTICLE_SYSTEMS: ParticleSystemData[] = [
       loop: true,
       burstCount: 20,
       burstInterval: 0,
-      isContinuous: true
+      isContinuous: true,
+      prewarm: true,
+      prewarmDuration: 3.5
     },
     kinematics: {
       minSpeed: 0.25,
@@ -5328,6 +6330,7 @@ export const createInitialMasonProject = (name: string = 'Metroidvania Odyssey')
         }
       ]
     },
+    collisionMatrix: createDefaultCollisionMatrixConfig(),
     taskBoard: createDefaultTaskBoard()
   };
 };

@@ -7,10 +7,21 @@
   "scope": ".",
   "display": "standalone",
   "display_override": [
+    "tabbed",
     "standalone",
     "minimal-ui",
     "browser"
   ],
+  "tab_strip": {
+    "home_tab": {
+      "scope_patterns": [
+        { "pathname": "/" }
+      ]
+    },
+    "new_tab_button": {
+      "url": "./"
+    }
+  },
   "prefer_related_applications": false,
   "background_color": "#0a0a0a",
   "theme_color": "#6366f1",

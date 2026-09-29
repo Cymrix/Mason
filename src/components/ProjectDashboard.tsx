@@ -27,22 +27,31 @@ import {
   Lock,
   Unlock,
   Cloud,
-  RefreshCw
+  RefreshCw,
+  ChevronRight
 } from 'lucide-react';
-import { releaseProjectLock } from '../utils/linkedSaveTarget';
+import { releaseProjectLock, FileLockInfo } from '../utils/linkedSaveTarget';
+import { RemoteChangedFilesModal } from './RemoteChangedFilesModal';
 
 interface ProjectDashboardProps {
   project: MasonProject;
-  onUpdateProject: (updated: MasonProject) => void;
+  onUpdateProject: (
+    updated: MasonProject | ((prev: MasonProject) => MasonProject),
+    options?: { preserveUpdatedAt?: boolean; skipBackups?: boolean; actionLabel?: string; syncLinked?: boolean }
+  ) => void;
   onLaunchModule: (moduleId: string) => void;
   onOpenExplorer: () => void;
   onOpenModulesModal?: () => void;
   onOpenThemeModal?: () => void;
   onOpenAppProfileConfigModal?: () => void;
   onExportBundle: () => void;
-  onRefreshFromLinked?: () => void;
+  onRefreshFromLinked?: () => Promise<void> | void;
   isSyncingLinked?: boolean;
   isOutOfSync?: boolean;
+  remoteLockInfo?: FileLockInfo;
+  remoteIsLockedByOther?: boolean;
+  onForceUnlockProject?: () => void;
+  onShowToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
@@ -56,8 +65,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
   onExportBundle,
   onRefreshFromLinked,
   isSyncingLinked = false,
-  isOutOfSync = false
+  isOutOfSync = false,
+  remoteLockInfo,
+  remoteIsLockedByOther,
+  onForceUnlockProject,
+  onShowToast
 }) => {
+  const [isChangedFilesModalOpen, setIsChangedFilesModalOpen] = React.useState(false);
   const [isEditingMetadata, setIsEditingMetadata] = React.useState(false);
   const [name, setName] = React.useState(project.name);
   const [author, setAuthor] = React.useState(project.author || 'Mason Architect');
@@ -158,37 +172,48 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               {/* Linked Storage Target Status Badge */}
               {project.storageLocation ? (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono border ${
-                    isOutOfSync 
-                      ? 'bg-amber-950/90 border-amber-500/80 text-amber-200 animate-pulse' 
-                      : 'bg-emerald-950/80 border-emerald-700/60 text-emerald-300'
-                  }`}>
-                    {project.storageLocation.type === 'local_directory' ? (
-                      <FolderSync size={12} className={isOutOfSync ? 'text-amber-400 shrink-0' : 'text-emerald-400 shrink-0'} />
-                    ) : project.storageLocation.type === 'gdrive' || project.storageLocation.type === 'onedrive' ? (
-                      <Cloud size={12} className="text-amber-400 shrink-0" />
-                    ) : (
-                      <Link2 size={12} className="text-cyan-400 shrink-0" />
-                    )}
-                    <span>
-                      {isOutOfSync ? 'Changes Available Remotely' : `Linked: ${project.storageLocation.displayName || project.storageLocation.fileName || project.storageLocation.targetFolderName}`}
+                  {isOutOfSync ? (
+                    <button
+                      type="button"
+                      id="btn-dashboard-changes-available"
+                      onClick={() => setIsChangedFilesModalOpen(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border bg-amber-950/90 border-amber-500/80 text-amber-200 hover:bg-amber-900/90 hover:border-amber-400 hover:text-white transition shadow-sm cursor-pointer group animate-pulse hover:animate-none"
+                      title="Click to view list of changed remote files"
+                    >
+                      <FolderSync size={12} className="text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="font-semibold underline underline-offset-2">Changes Available Remotely</span>
+                      <ChevronRight size={12} className="text-amber-400 opacity-75 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono border bg-emerald-950/80 border-emerald-700/60 text-emerald-300">
+                      {project.storageLocation.type === 'local_directory' ? (
+                        <FolderSync size={12} className="text-emerald-400 shrink-0" />
+                      ) : project.storageLocation.type === 'gdrive' || project.storageLocation.type === 'onedrive' ? (
+                        <Cloud size={12} className="text-emerald-400 shrink-0" />
+                      ) : (
+                        <Link2 size={12} className="text-cyan-400 shrink-0" />
+                      )}
+                      <span>
+                        Linked: {project.storageLocation.displayName || project.storageLocation.fileName || project.storageLocation.targetFolderName}
+                      </span>
                     </span>
-                  </span>
+                  )}
 
                   {onRefreshFromLinked && (
                     <button
                       type="button"
+                      id="btn-dashboard-pull-updates"
                       onClick={(e) => {
                         e.stopPropagation();
                         onRefreshFromLinked();
                       }}
                       disabled={isSyncingLinked}
-                      className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold font-mono transition border ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold font-mono transition border cursor-pointer ${
                         isOutOfSync
                           ? 'bg-amber-500 text-black border-amber-400 hover:bg-amber-400 shadow-sm'
                           : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border-neutral-700'
                       }`}
-                      title="Pull latest files and changes from linked folder/cloud storage"
+                      title="Pull updates for out-of-sync files from linked storage"
                     >
                       <RefreshCw size={11} className={isSyncingLinked ? 'animate-spin' : ''} />
                       <span>{isSyncingLinked ? 'Syncing...' : isOutOfSync ? 'Pull Updates' : 'Refresh'}</span>
@@ -203,21 +228,33 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
               )}
 
               {/* Multi-User Concurrency Lock Badge */}
-              {project.lockInfo?.isLocked && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-700/60 text-amber-300 text-[11px] font-mono group">
+              {((project.lockInfo && project.lockInfo.isLocked) || (remoteLockInfo && remoteLockInfo.isLocked)) && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-950/90 border border-amber-700/70 text-amber-300 text-[11px] font-mono group">
                   <Lock size={12} className="text-amber-400 shrink-0" />
-                  <span>Locked by: {project.lockInfo.lockedByProfile?.name || project.lockInfo.lockedBy}</span>
+                  <span>
+                    Locked by: {(remoteLockInfo?.isLocked ? remoteLockInfo : project.lockInfo)?.lockedByProfile?.name || 
+                                (remoteLockInfo?.isLocked ? remoteLockInfo : project.lockInfo)?.lockedBy || 'Collaborator'}
+                  </span>
                   <button
+                    type="button"
+                    id="btn-dashboard-force-unlock"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Force unlock this file? This will allow you to edit it, but could cause conflicts if another user is actively working on it.')) {
-                        onUpdateProject(releaseProjectLock(project));
+                      if (onForceUnlockProject) {
+                        onForceUnlockProject();
+                      } else {
+                        const unlocked = releaseProjectLock(project);
+                        onUpdateProject(unlocked, { actionLabel: 'Force unlock project', syncLinked: true });
+                        if (onShowToast) {
+                          onShowToast('Project force-unlocked and lock released.', 'success');
+                        }
                       }
                     }}
-                    className="ml-2 p-1 rounded hover:bg-amber-900/50 text-amber-500 hover:text-amber-200 opacity-50 group-hover:opacity-100 transition-opacity"
+                    className="ml-2 px-2 py-0.5 rounded bg-amber-900/80 hover:bg-amber-800 text-amber-200 hover:text-white border border-amber-600/60 text-[10px] font-sans font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer"
                     title="Force Unlock"
                   >
-                    <Unlock size={12} />
+                    <Unlock size={11} />
+                    <span>Force Unlock</span>
                   </button>
                 </span>
               )}
@@ -711,6 +748,21 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
           });
         }}
       />
+
+      {/* Remote Changed Files Inspection Modal */}
+      {isChangedFilesModalOpen && (
+        <RemoteChangedFilesModal
+          isOpen={isChangedFilesModalOpen}
+          onClose={() => setIsChangedFilesModalOpen(false)}
+          project={project}
+          onPullUpdates={async () => {
+            if (onRefreshFromLinked) {
+              await onRefreshFromLinked();
+            }
+          }}
+          isSyncing={isSyncingLinked}
+        />
+      )}
 
     </div>
   );

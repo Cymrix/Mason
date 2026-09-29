@@ -239,13 +239,13 @@ export const BiomeEditor: React.FC<BiomeEditorProps> = ({
         </div>
 
         <div className="p-3 overflow-y-auto flex-1 space-y-2">
-          {biomes.map((biome) => {
+          {biomes.map((biome, bIdx) => {
             const isSelected = selectedBiomeId === biome.id;
             const isCurrentPaintBiome = activePaintBiomeId === biome.id;
 
             return (
               <div
-                key={biome.id}
+                key={`biome_${biome.id || bIdx}_${bIdx}`}
                 onClick={() => setSelectedBiomeId(biome.id)}
                 className={`p-3 rounded-xl border text-left cursor-pointer transition-all duration-150 flex flex-col gap-2 relative ${
                   isSelected
@@ -403,7 +403,7 @@ export const BiomeEditor: React.FC<BiomeEditorProps> = ({
                 <div className="grid grid-cols-1 gap-3">
                   {selectedBiome.decorItems.map((decor, index) => (
                     <div
-                      key={decor.id}
+                      key={`decor_${decor.id || index}_${index}`}
                       className="bg-neutral-900/80 border border-neutral-800 hover:border-neutral-700 rounded-xl p-4 transition flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
                       <div className="flex items-center gap-3.5">

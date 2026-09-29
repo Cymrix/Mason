@@ -19,7 +19,9 @@ import {
   Cloud,
   User,
   RefreshCw,
-  FolderSync
+  FolderSync,
+  Lock,
+  Grid
 } from 'lucide-react';
 import { MasonProject } from '../engine/masonProjectSchema';
 import { MASON_MODULES } from '../engine/modulesRegistry';
@@ -33,6 +35,8 @@ interface HamburgerMenuProps {
   onOpenExplorerModal: () => void;
   onOpenThemeModal: () => void;
   onOpenAppProfileConfigModal?: () => void;
+  onOpenSessionCheckoutsModal?: () => void;
+  onOpenCollisionMatrixModal?: () => void;
   onShowProjectInfo: () => void;
   onSaveProject: () => void;
   onSaveAs: () => void;
@@ -52,6 +56,8 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onOpenExplorerModal,
   onOpenThemeModal,
   onOpenAppProfileConfigModal,
+  onOpenSessionCheckoutsModal,
+  onOpenCollisionMatrixModal,
   onShowProjectInfo,
   onSaveProject,
   onSaveAs,
@@ -265,6 +271,52 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                       <span className="text-xs">{activeProf.avatar}</span>
                     </div>
                     <p className="text-[10px] text-neutral-400 truncate max-w-[170px]">Profile: {activeProf.name}</p>
+                  </div>
+                </div>
+                <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
+              </button>
+            )}
+
+            {/* Session File Locks Option */}
+            {onOpenSessionCheckoutsModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenSessionCheckoutsModal();
+                }}
+                className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-neutral-200 hover:bg-neutral-800 flex items-center justify-between group transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-xs shadow-sm">
+                    <Lock size={12} />
+                  </div>
+                  <div>
+                    <span className="font-bold text-neutral-100 group-hover:text-amber-300 transition">File Checkouts &amp; Locks</span>
+                    <p className="text-[10px] text-neutral-400">View session locks &amp; bulk check in</p>
+                  </div>
+                </div>
+                <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />
+              </button>
+            )}
+
+            {/* Collision Tags Matrix Option */}
+            {onOpenCollisionMatrixModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenCollisionMatrixModal();
+                }}
+                className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-neutral-200 hover:bg-neutral-800 flex items-center justify-between group transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center text-xs shadow-sm">
+                    <Grid size={12} />
+                  </div>
+                  <div>
+                    <span className="font-bold text-neutral-100 group-hover:text-cyan-300 transition">Collision Matrix</span>
+                    <p className="text-[10px] text-neutral-400">Layer interactions &amp; weather filtering</p>
                   </div>
                 </div>
                 <ChevronRight size={14} className="text-neutral-500 group-hover:text-neutral-300" />

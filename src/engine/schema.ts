@@ -45,6 +45,7 @@ export interface TileType {
   shares_damage_overlay: boolean; // True: crack/burn threshold masks bleed contiguously across neighbors; False: cell-local
   
   // Traversal & Modifiers
+  collisionTag?: string; // Tag for collision matrix (e.g. 'solids', 'hazard', 'world')
   traversal_tags: TraversalModifierTag[];
   speed_modifier: number; // 1.0 = normal, 0.5 = swamp/sludge, 1.3 = ice slide
   hazard_damage?: DamageInstance; // Contact hazard damage through shared resolver

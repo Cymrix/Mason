@@ -16,7 +16,9 @@ import {
   CustomCompositeShape,
   SubEmitterTriggerMode,
   DEFAULT_PARTICLE_SYSTEMS,
-  SUB_EMITTER_PRESETS
+  SUB_EMITTER_PRESETS,
+  CollisionMatrixConfig,
+  canCollide
 } from "./masonProjectSchema";
 
 export interface ParticleInstance {
@@ -63,6 +65,7 @@ export interface ParticleInstance {
   emitterPullStrength?: number;
   emitterPullFalloff?: number;
   collides: boolean;
+  collisionTag?: string;
   restitution: number;
   bounces?: number;
   destroyOnCollision: boolean;
@@ -134,6 +137,7 @@ export interface ParticleInstance {
   trailTaperLength?: number;
   trailHistory?: {x: number, y: number}[];
   trackNodes?: Record<string, any>;
+  layer?: string;
 }
 
 export function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -481,6 +485,9 @@ export interface ActiveEmitter {
   originX: number;
   originY: number;
   accumulator: number;
+  burstTimer?: number;
+  nextBurstInterval?: number;
+  layer?: string;
 }
 
 export class ParticleEngine {
@@ -490,10 +497,44 @@ export class ParticleEngine {
   public lastZoom = 1;
   public lastCanvasWidth = 640;
   public lastCanvasHeight = 440;
+  public collisionMatrix?: CollisionMatrixConfig;
+
+  // Chunk-based world simulation fields
+  public readonly CHUNK_SIZE = 1024; // 1024 world units per chunk (16 tiles x 64px)
+  public activeChunkKeys: Set<string> = new Set();
+  public allocatedMapChunks: Set<string> | null = null;
+  public chunkAccumulators: Map<string, number> = new Map();
+  public chunkBurstTimers: Map<string, number> = new Map();
+  public chunkNextBurstIntervals: Map<string, number> = new Map();
+  public chunkMargin: number = 1;
+
+  public setMapChunks(chunks?: Record<string, any> | Set<string> | string[]) {
+    if (!chunks) {
+      this.allocatedMapChunks = null;
+      return;
+    }
+    if (chunks instanceof Set) {
+      this.allocatedMapChunks = chunks;
+    } else if (Array.isArray(chunks)) {
+      this.allocatedMapChunks = new Set(chunks);
+    } else if (typeof chunks === 'object') {
+      const keys = Object.keys(chunks);
+      if (keys.length > 0) {
+        this.allocatedMapChunks = new Set(keys);
+      } else {
+        this.allocatedMapChunks = null;
+      }
+    }
+  }
+
   private spatialGrid: Map<string, ParticleInstance[]> = new Map();
   private CELL_SIZE = 64;
   private compositeSpriteCache: Map<string, HTMLCanvasElement> = new Map();
   private path2dCache: Map<string, Path2D> = new Map();
+
+  public setCollisionMatrix(matrix?: CollisionMatrixConfig) {
+    this.collisionMatrix = matrix;
+  }
 
   public clearSpriteCache() {
     this.compositeSpriteCache.clear();
@@ -621,16 +662,297 @@ export class ParticleEngine {
     return offscreen;
   }
 
-  public addEmitter(system: ParticleSystemData, originX: number, originY: number) {
-    this.activeEmitters.push({ system, originX, originY, accumulator: 0 });
+  public addEmitter(system: any, originX: number, originY: number, layer?: string) {
+    const actualSystem = system?.particleData || system;
+    const rawLayer = layer || actualSystem?.layer || 'foreground';
+    const emitterLayer = rawLayer === 'midground' ? 'main' : rawLayer;
+    this.activeEmitters.push({ system: actualSystem, originX, originY, accumulator: 0, layer: emitterLayer });
+  }
+
+  public setViewport(
+    width: number,
+    height: number,
+    panOffset: { x: number; y: number },
+    zoom: number,
+    margin: number = 1,
+    isSolidCallback?: (tx: number, ty: number) => boolean,
+    mapChunks?: Record<string, any> | Set<string> | string[]
+  ) {
+    if (mapChunks !== undefined) {
+      this.setMapChunks(mapChunks);
+    }
+
+    if (width > 0) this.lastCanvasWidth = width;
+    if (height > 0) this.lastCanvasHeight = height;
+    if (panOffset) {
+      this.lastPanOffset.x = panOffset.x;
+      this.lastPanOffset.y = panOffset.y;
+    }
+    if (zoom > 0) this.lastZoom = zoom;
+    this.chunkMargin = margin;
+
+    const effZoom = Math.max(0.01, this.lastZoom || 1.0);
+    const effW = (this.lastCanvasWidth || 800) / effZoom;
+    const effH = (this.lastCanvasHeight || 600) / effZoom;
+
+    const viewMinX = -(this.lastPanOffset?.x || 0) / effZoom;
+    const viewMaxX = viewMinX + effW;
+    const viewMinY = -(this.lastPanOffset?.y || 0) / effZoom;
+    const viewMaxY = viewMinY + effH;
+
+    const minChunkX = Math.floor(viewMinX / this.CHUNK_SIZE) - margin;
+    const maxChunkX = Math.floor(viewMaxX / this.CHUNK_SIZE) + margin;
+    const minChunkY = Math.floor(viewMinY / this.CHUNK_SIZE) - margin;
+    const maxChunkY = Math.floor(viewMaxY / this.CHUNK_SIZE) + margin;
+
+    const newActiveChunks = new Set<string>();
+    const newlyActivatedChunks: Array<{ cx: number; cy: number; key: string }> = [];
+
+    for (let cy = minChunkY; cy <= maxChunkY; cy++) {
+      for (let cx = minChunkX; cx <= maxChunkX; cx++) {
+        const key = `${cx},${cy}`;
+        // If specific map chunk allocations exist, strictly restrict simulation to allocated chunks
+        if (this.allocatedMapChunks && this.allocatedMapChunks.size > 0) {
+          if (!this.allocatedMapChunks.has(key)) continue;
+        }
+        newActiveChunks.add(key);
+        if (!this.activeChunkKeys.has(key)) {
+          newlyActivatedChunks.push({ cx, cy, key });
+        }
+      }
+    }
+
+    // Pre-warm newly activated chunks if environmental weather emitters exist
+    if (newlyActivatedChunks.length > 0 && this.activeEmitters.length > 0) {
+      for (const { cx, cy } of newlyActivatedChunks) {
+        for (const emitter of this.activeEmitters) {
+          const system = emitter.system;
+          if (!system || !system.emitter) continue;
+          const isEnv = system.emitter.shape === 'environmental_fx' || system.category === 'weather';
+          if (isEnv) {
+            this.prewarmChunk(cx, cy, system, emitter.layer, isSolidCallback);
+          }
+        }
+      }
+    }
+
+    // Prune stale chunk keys and out-of-bounds environmental particles
+    if (this.activeChunkKeys.size > 0) {
+      for (const oldKey of this.activeChunkKeys) {
+        if (!newActiveChunks.has(oldKey)) {
+          this.chunkAccumulators.delete(oldKey);
+          this.chunkBurstTimers.delete(oldKey);
+          this.chunkNextBurstIntervals.delete(oldKey);
+        }
+      }
+
+      // Cull particles that are outside the active chunk grid margin
+      const cullMinX = (minChunkX - 1) * this.CHUNK_SIZE;
+      const cullMaxX = (maxChunkX + 2) * this.CHUNK_SIZE;
+      const cullMinY = (minChunkY - 1) * this.CHUNK_SIZE;
+      const cullMaxY = (maxChunkY + 2) * this.CHUNK_SIZE;
+
+      if (this.particles.length > 300) {
+        this.particles = this.particles.filter(p => {
+          if (p.x < cullMinX || p.x > cullMaxX || p.y < cullMinY || p.y > cullMaxY) {
+            return false;
+          }
+          return true;
+        });
+      }
+    }
+
+    this.activeChunkKeys = newActiveChunks;
+  }
+
+  /**
+   * Pre-warms a specific chunk by seeding steady-state environmental weather particles
+   * spanning its world coordinates so entering a new chunk displays seamless falling rain / FX.
+   */
+  public prewarmChunk(
+    cx: number,
+    cy: number,
+    system: ParticleSystemData,
+    layer?: string,
+    isSolidCallback?: (tx: number, ty: number) => boolean
+  ) {
+    if (!system || !system.emitter) return;
+    const { emitter, kinematics, visuals } = system;
+
+    const baseRate = emitter.emissionRateMin ?? emitter.emissionRate ?? 30;
+    const particlesPerChunk = Math.min(35, Math.max(4, Math.round(baseRate * 0.45)));
+
+    const chunkMinX = cx * this.CHUNK_SIZE;
+    const chunkMinY = cy * this.CHUNK_SIZE;
+
+    for (let i = 0; i < particlesPerChunk; i++) {
+      if (this.particles.length >= 1500) break;
+
+      const spawnX = chunkMinX + Math.random() * this.CHUNK_SIZE;
+      const spawnY = chunkMinY + Math.random() * this.CHUNK_SIZE;
+
+      if (isSolidCallback) {
+        const tx = Math.floor(spawnX / 64);
+        const ty = Math.floor(spawnY / 64);
+        if (isSolidCallback(tx, ty) && (system.physics as any)?.destroyOnCollision !== false) {
+          continue;
+        }
+      }
+
+      const lifetimeMin = (emitter as any).lifetimeMin ?? (emitter as any).lifetimeMax ?? 2.0;
+      const lifetimeMax = (emitter as any).lifetimeMax ?? 2.0;
+      const maxLifetime = Math.max(0.1, lifetimeMin + Math.random() * (lifetimeMax - lifetimeMin));
+      const currentAge = Math.random() * maxLifetime;
+
+      this.spawnParticleDirect(
+        system,
+        { x: spawnX, y: spawnY },
+        currentAge,
+        maxLifetime,
+        layer,
+        `${cx},${cy}`,
+        true
+      );
+    }
+  }
+
+  /**
+   * Pre-warms the particle engine by simulating the active continuous and environmental emitters
+   * in advance so the viewport is immediately populated at steady state.
+   */
+  public prewarm(seconds: number = 3.5, isSolidCallback?: (tx: number, ty: number) => boolean) {
+    if (!this.activeEmitters || this.activeEmitters.length === 0) return;
+
+    this.particles = [];
+    const dt = 0.025; // 40 simulation steps per second
+    const steps = Math.ceil(seconds / dt);
+
+    for (const emitter of this.activeEmitters) {
+      emitter.accumulator = 0;
+      emitter.burstTimer = 0;
+      const intervalMin = emitter.system.emitter.burstIntervalMin ?? emitter.system.emitter.burstInterval ?? 1.0;
+      const intervalMax = emitter.system.emitter.burstIntervalMax ?? emitter.system.emitter.burstInterval ?? 1.0;
+      emitter.nextBurstInterval = Math.max(0.05, intervalMin + Math.random() * Math.max(0, intervalMax - intervalMin));
+    }
+
+    // Step forward the continuous simulation from t=0 to t=seconds
+    for (let s = 0; s < steps; s++) {
+      this.update(dt, {}, 999999, 0, undefined, isSolidCallback);
+    }
+  }
+
+  /**
+   * Pre-warms a single standalone particle system (used by the Particle Module viewport).
+   */
+  public prewarmSystem(
+    system: ParticleSystemData,
+    origin: { x: number; y: number } = { x: 320, y: 220 },
+    seconds: number = 3.5,
+    floorY: number = 999999,
+    globalWind: number = 0,
+    isSolidCallback?: (tx: number, ty: number) => boolean
+  ) {
+    if (!system || !system.emitter) return;
+    if (system.emitter.isContinuous === false && !system.emitter.burstEnabled) return;
+
+    this.particles = [];
+
+    // Continuous simulation timestep: 40 updates per second for smooth, accurate continuous integration
+    const dt = 0.025;
+    const steps = Math.ceil(seconds / dt);
+
+    let accumulator = 0;
+    let burstTimer = 0;
+    const intervalMin = system.emitter.burstIntervalMin ?? system.emitter.burstInterval ?? 1.0;
+    const intervalMax = system.emitter.burstIntervalMax ?? system.emitter.burstInterval ?? 1.0;
+    let nextBurstInterval = Math.max(0.05, intervalMin + Math.random() * Math.max(0, intervalMax - intervalMin));
+
+    const burstEnabled = system.emitter.burstEnabled === true ||
+      (system.emitter.burstEnabled === undefined &&
+        (system.emitter.burstInterval ?? 0) > 0 &&
+        (system.emitter.burstCount ?? 0) > 0 &&
+        !system.emitter.isContinuous);
+
+    const emitterState = {
+      x: origin.x,
+      y: origin.y,
+      dx: 0,
+      dy: 0
+    };
+
+    const effectivePhysics = {
+      ...system.physics,
+      collideWithMapSolids: floorY < 900000 && system.physics?.collideWithMapSolids
+    };
+
+    for (let s = 0; s < steps; s++) {
+      // 1. Continuous stream emission for this timestep
+      if (system.emitter.isContinuous !== false) {
+        const rateMin = system.emitter.emissionRateMin ?? system.emitter.emissionRate ?? 20;
+        const rateMax = system.emitter.emissionRateMax ?? system.emitter.emissionRate ?? 20;
+        const currentRate = rateMin + Math.random() * (rateMax - rateMin);
+
+        if (currentRate > 0) {
+          accumulator += dt * currentRate;
+          const particlesToSpawn = Math.floor(accumulator);
+          if (particlesToSpawn > 0) {
+            this.spawnParticles(particlesToSpawn, system, origin);
+            accumulator = Math.max(0, accumulator - particlesToSpawn);
+          }
+        }
+      }
+
+      // 2. Periodic bursts for this timestep
+      if (burstEnabled && (intervalMin > 0 || intervalMax > 0)) {
+        burstTimer += dt;
+        if (burstTimer >= nextBurstInterval) {
+          const countMin = system.emitter.burstCountMin ?? system.emitter.burstCount ?? 30;
+          const countMax = system.emitter.burstCountMax ?? system.emitter.burstCount ?? 30;
+          const count = Math.floor(countMin + Math.random() * Math.max(0, countMax - countMin));
+          if (count > 0) {
+            this.spawnParticles(count, system, origin);
+          }
+          burstTimer = 0;
+          nextBurstInterval = Math.max(0.05, intervalMin + Math.random() * Math.max(0, intervalMax - intervalMin));
+        }
+      }
+
+      // 3. Step physics and particles forward
+      this.update(
+        dt,
+        effectivePhysics,
+        floorY,
+        globalWind,
+        emitterState,
+        isSolidCallback
+      );
+    }
+  }
+
+  public setEmitters(emitters: { id?: string; system: ParticleSystemData; originX: number; originY: number; layer?: 'foreground' | 'background' }[]) {
+    this.activeEmitters = emitters.map(e => ({
+      system: e.system,
+      originX: e.originX,
+      originY: e.originY,
+      accumulator: 0,
+      layer: e.layer
+    }));
   }
 
   public clearEmitters() {
     this.activeEmitters = [];
+    this.activeChunkKeys.clear();
+    this.chunkAccumulators.clear();
+    this.chunkBurstTimers.clear();
+    this.chunkNextBurstIntervals.clear();
   }
 
   public clear() {
     this.particles = [];
+    this.activeChunkKeys.clear();
+    this.chunkAccumulators.clear();
+    this.chunkBurstTimers.clear();
+    this.chunkNextBurstIntervals.clear();
   }
 
   private subEmitterResolver?: (id: string) => ParticleSystemData | undefined;
@@ -671,17 +993,283 @@ export class ParticleEngine {
     return undefined;
   }
 
-  public spawnParticles(
-    count: number,
+  public spawnParticleDirect(
     data: ParticleSystemData,
-    origin: { x: number; y: number }
-  ) {
-    const { emitter, kinematics, visuals, physics } = data;
+    pos: { x: number; y: number },
+    initialLifetime: number = 0,
+    forcedMaxLifetime?: number,
+    forcedLayer?: string,
+    chunkKey?: string,
+    isEnvironmental: boolean = false
+  ): ParticleInstance | null {
+    if (this.particles.length >= 1500) return null;
+    const { emitter, kinematics, visuals } = data;
+    const physics: any = data.physics || {};
+
     const getRandVal = (min: number, max?: number) => {
       if (max === undefined || max <= min) return min;
       return min + Math.random() * (max - min);
     };
 
+    let launchAngle: number;
+    const emRotDeg = emitter.rotationDeg || 0;
+    const activeRanges = kinematics.directionRanges?.filter(r => r.enabled !== false);
+    if (activeRanges && activeRanges.length > 0) {
+      let totalWeight = 0;
+      for (let rIdx = 0; rIdx < activeRanges.length; rIdx++) {
+        totalWeight += Math.max(0.1, activeRanges[rIdx].weight ?? 1);
+      }
+      let randW = Math.random() * totalWeight;
+      let selectedRange = activeRanges[0];
+      for (let rIdx = 0; rIdx < activeRanges.length; rIdx++) {
+        const w = Math.max(0.1, activeRanges[rIdx].weight ?? 1);
+        if (randW <= w) {
+          selectedRange = activeRanges[rIdx];
+          break;
+        }
+        randW -= w;
+      }
+      const aDeg = selectedRange.angleDeg;
+      const sDeg = selectedRange.spreadDeg;
+      const baseAngleRad = (aDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
+      const spreadRad = ((Math.random() - 0.5) * sDeg) * (Math.PI / 180);
+      launchAngle = baseAngleRad + spreadRad;
+    } else {
+      const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : 270;
+      const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : 30;
+      const baseAngleRad = (angleDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
+      const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
+      launchAngle = baseAngleRad + spreadRad;
+    }
+
+    const rawMinSpd = kinematics.minSpeed !== undefined ? kinematics.minSpeed : 0.3;
+    const rawMaxSpd = kinematics.maxSpeed !== undefined ? kinematics.maxSpeed : 0.85;
+    const effMinSpd = (rawMinSpd > 15 ? rawMinSpd / 100 : rawMinSpd) * 100;
+    const effMaxSpd = (rawMaxSpd > 15 ? rawMaxSpd / 100 : rawMaxSpd) * 100;
+    const speed = effMinSpd + Math.random() * Math.max(0, effMaxSpd - effMinSpd);
+
+    const vx = Math.cos(launchAngle) * speed;
+    const vy = Math.sin(launchAngle) * speed;
+
+    const lifetime = forcedMaxLifetime !== undefined
+      ? forcedMaxLifetime
+      : (visuals.minLifetime + Math.random() * Math.max(0.1, visuals.maxLifetime - visuals.minLifetime));
+    const vRot = kinematics.minAngularVelocity + Math.random() * Math.max(0, kinematics.maxAngularVelocity - kinematics.minAngularVelocity);
+
+    const instStartSize = getRandVal(visuals.startSize, visuals.startSizeMax);
+    const instMidSize = visuals.midSize !== undefined ? getRandVal(visuals.midSize, visuals.midSizeMax) : undefined;
+    const instEndSize = getRandVal(visuals.endSize, visuals.endSizeMax);
+
+    const instStartRot = getRandVal(visuals.startRotationDeg ?? 0, visuals.startRotationDegMax);
+    const instMidRot = visuals.midRotationDeg !== undefined ? getRandVal(visuals.midRotationDeg, visuals.midRotationDegMax) : undefined;
+    const instEndRot = getRandVal(visuals.endRotationDeg ?? 360, visuals.endRotationDegMax);
+
+    const instEmissiveStartStr = getRandVal(visuals.emissiveStartStrength ?? 35, visuals.emissiveStartStrengthMax);
+    const instEmissiveMidStr = visuals.emissiveMidStrength !== undefined ? getRandVal(visuals.emissiveMidStrength, visuals.emissiveMidStrengthMax) : undefined;
+    const instEmissiveEndStr = getRandVal(visuals.emissiveEndStrength ?? 0, visuals.emissiveEndStrengthMax);
+
+    const instStartDrag = getRandVal(kinematics.startDrag ?? kinematics.drag ?? 0.0, kinematics.startDragMax);
+    const instMidDrag = kinematics.midDrag !== undefined ? getRandVal(kinematics.midDrag, kinematics.midDragMax) : undefined;
+    const instEndDrag = getRandVal(kinematics.endDrag ?? kinematics.drag ?? 0.0, kinematics.endDragMax);
+
+    let instStartColor = visuals.startColor || "#ffffff";
+    let instEndColor = visuals.animateColor === false ? instStartColor : (visuals.endColor || visuals.startColor || "#ffffff");
+
+    if (visuals.randomColorRange) {
+      const rangeStart = visuals.colorRangeStart || visuals.startColor || "#ff4500";
+      const rangeEnd = visuals.colorRangeEnd || "#ffd700";
+      const stops = visuals.colorRangeStops && visuals.colorRangeStops.length >= 2
+        ? visuals.colorRangeStops
+        : [
+            { position: 0, color: rangeStart },
+            { position: 1, color: rangeEnd }
+          ];
+      const t = Math.random();
+      instStartColor = evaluateGradientColor(stops, t);
+      if (visuals.animateColor === false || !visuals.endColor) {
+        instEndColor = instStartColor;
+      }
+    }
+
+    const rawLayer = forcedLayer || data.layer || 'foreground';
+    const effectiveLayer = rawLayer === 'midground' ? 'main' : rawLayer;
+
+    const p: ParticleInstance = {
+      x: pos.x,
+      y: pos.y,
+      vx,
+      vy,
+      rotation: instStartRot * (Math.PI / 180),
+      vRot,
+      lifetime: initialLifetime,
+      maxLifetime: lifetime,
+      startSize: instStartSize,
+      midSize: instMidSize,
+      endSize: instEndSize,
+      sizeCurve: visuals.sizeCurve || "linear",
+      alphaCurve: visuals.alphaCurve || "linear",
+      startColor: instStartColor,
+      startAlpha: visuals.startAlpha !== undefined ? visuals.startAlpha : 1,
+      midColor: visuals.midColor,
+      midAlpha: visuals.midAlpha,
+      endColor: instEndColor,
+      endAlpha: visuals.endAlpha !== undefined ? visuals.endAlpha : 0,
+      randomColorRange: visuals.randomColorRange,
+      colorRangeStart: visuals.colorRangeStart,
+      colorRangeEnd: visuals.colorRangeEnd,
+      colorRangeStops: visuals.colorRangeStops,
+      shape: visuals.shape || "glow_circle",
+      customGlyph: visuals.customGlyph,
+      customSvgPath: visuals.customSvgPath,
+      compositeShape: visuals.compositeShape,
+      glowBlurRadius: visuals.glowBlurRadius || 0,
+      blendMode: visuals.blendMode || "source-over",
+      drag: instStartDrag,
+      startDrag: instStartDrag,
+      midDrag: instMidDrag,
+      endDrag: instEndDrag,
+      dragCurve: kinematics.dragCurve || "linear",
+      angularDrag: kinematics.angularDrag ?? 0.98,
+      gravityScale: kinematics.gravityScale !== undefined ? kinematics.gravityScale : (kinematics.gravityY !== undefined ? kinematics.gravityY / 980 : 0),
+      gravityScaleX: kinematics.gravityScaleX !== undefined ? kinematics.gravityScaleX : (kinematics.gravityX !== undefined ? kinematics.gravityX / 980 : 0),
+      gravityX: kinematics.gravityX ?? 0,
+      gravityY: kinematics.gravityY ?? 0,
+      windSensitivity: kinematics.windSensitivity !== undefined ? kinematics.windSensitivity : 1.0,
+      windForce: kinematics.windForce ?? 0,
+      turbulenceJitter: kinematics.turbulenceJitter ?? 0,
+      emitterPull: kinematics.emitterPull ?? false,
+      emitterPullRadius: kinematics.emitterPullRadius ?? 150,
+      emitterPullStrength: kinematics.emitterPullStrength ?? 1.0,
+      emitterPullFalloff: kinematics.emitterPullFalloff ?? 1.0,
+      collides: physics.collideWithMapSolids !== undefined ? physics.collideWithMapSolids : (effectiveLayer === 'main'),
+      collisionTag: physics.collisionTag || (data.category === 'weather' ? 'weather' : 'particles'),
+      restitution: physics.collisionRestitution ?? 0.3,
+      bounces: 0,
+      destroyOnCollision: physics.destroyOnCollision ?? (
+        visuals.shape === 'rain' ||
+        visuals.shape === 'snow' ||
+        visuals.shape === 'ember' ||
+        visuals.shape === 'dust' ||
+        visuals.shape === 'leaves' ||
+        data.category === 'weather'
+      ),
+      spawnCollisionSparks: physics.spawnCollisionSparks ?? false,
+      spawnOnDeath: physics.spawnOnDeath ?? false,
+      subEmitterId: physics.subEmitterId,
+      subEmitterTrigger: physics.subEmitterTrigger || (
+        physics.spawnCollisionSparks && physics.spawnOnDeath ? 'both' :
+        physics.spawnCollisionSparks ? 'impact' :
+        physics.spawnOnDeath ? 'death' : 'none'
+      ),
+      subEmitterCount: physics.subEmitterCount ?? physics.sparkCount,
+      subEmitterInheritVelocity: physics.subEmitterInheritVelocity ?? 0,
+      subEmitterProbability: physics.subEmitterProbability ?? 1.0,
+      subEmitterPositionJitter: physics.subEmitterPositionJitter,
+      subEmitterAlphaStartMin: physics.subEmitterAlphaStartMin,
+      subEmitterAlphaStartMax: physics.subEmitterAlphaStartMax,
+      subEmitterAlphaEndMin: physics.subEmitterAlphaEndMin,
+      subEmitterAlphaEndMax: physics.subEmitterAlphaEndMax,
+      isSubParticle: false,
+      sparkCount: physics.sparkCount,
+      sparkGravity: physics.sparkGravity,
+      sparkLifetimeMin: physics.sparkLifetimeMin,
+      sparkLifetimeMax: physics.sparkLifetimeMax,
+      sparkStartSizeMin: physics.sparkStartSizeMin,
+      sparkStartSizeMax: physics.sparkStartSizeMax,
+      sparkEndSizeMin: physics.sparkEndSizeMin,
+      sparkEndSizeMax: physics.sparkEndSizeMax,
+      sparkStartColor: physics.sparkStartColor,
+      sparkEndColor: physics.sparkEndColor,
+      sparkColorMode: physics.sparkColorMode,
+      fxStyle: visuals.fxStyle || "default",
+      isEmissive: visuals.isEmissive ?? false,
+      emissiveMode: visuals.emissiveMode || "glow_only",
+      emissiveStartColor: visuals.emissiveStartColor || visuals.startColor,
+      emissiveStartStrength: instEmissiveStartStr,
+      emissiveMidColor: visuals.emissiveMidColor,
+      emissiveMidStrength: instEmissiveMidStr,
+      emissiveEndColor: visuals.emissiveEndColor || visuals.endColor,
+      emissiveEndStrength: instEmissiveEndStr,
+      startRotationDeg: instStartRot,
+      midRotationDeg: instMidRot,
+      endRotationDeg: instEndRot,
+      rotationCurve: visuals.rotationCurve || "linear",
+      sizeAnimStyle: visuals.sizeAnimStyle || "one_shot",
+      colorAnimStyle: visuals.colorAnimStyle || "one_shot",
+      emissiveAnimStyle: visuals.emissiveAnimStyle || "one_shot",
+      rotationAnimStyle: visuals.rotationAnimStyle || "one_shot",
+      animateSize: visuals.animateSize === true,
+      animateColor: visuals.animateColor === true,
+      animateAlpha: visuals.animateAlpha === true,
+      animateEmissive: visuals.animateEmissive ?? false,
+      animateRotation: visuals.animateRotation ?? false,
+      faceVelocity: visuals.faceVelocity ?? kinematics.faceVelocity ?? false,
+      velocityRotationOffsetDeg: visuals.velocityRotationOffsetDeg ?? kinematics.velocityRotationOffsetDeg ?? 0,
+      lastVelAngle: Math.atan2(vy, vx),
+      animateMotionBlur: visuals.animateMotionBlur ?? true,
+      startMotionBlur: visuals.startMotionBlur,
+      midMotionBlur: visuals.midMotionBlur,
+      endMotionBlur: visuals.endMotionBlur,
+      motionBlurAnimStyle: visuals.motionBlurAnimStyle || "one_shot",
+      motionBlurCurve: visuals.motionBlurCurve || "linear",
+      hasTrails: visuals.hasTrails ?? false,
+      trailLength: visuals.trailLength ?? 10,
+      trailWidthScale: visuals.trailWidthScale ?? 1.0,
+      trailTaper: visuals.trailTaper ?? false,
+      trailTaperLength: visuals.trailTaperLength ?? visuals.trailLength ?? 10,
+      trailHistory: [],
+      trackNodes: visuals.trackNodes,
+      layer: effectiveLayer
+    };
+
+    this.particles.push(p);
+    return p;
+  }
+
+  public spawnChunkParticle(
+    data: ParticleSystemData,
+    cx: number,
+    cy: number,
+    layer?: string
+  ) {
+    const maxCapacity = Math.min(4500, 1200 + this.activeChunkKeys.size * 120);
+    if (this.particles.length >= maxCapacity) return;
+    const { emitter } = data;
+    const chunkMinX = cx * this.CHUNK_SIZE;
+    const chunkMinY = cy * this.CHUNK_SIZE;
+
+    // Spawn strictly within the target chunk bounds
+    const spawnX = chunkMinX + Math.random() * this.CHUNK_SIZE;
+    let spawnY = chunkMinY + Math.random() * this.CHUNK_SIZE;
+
+    if (data.category === 'weather' || emitter.shape === 'environmental_fx') {
+      const shapeType = data.visuals?.shape || 'rain';
+      if (shapeType === 'rain' || shapeType === 'snow' || shapeType === 'leaves' || shapeType === 'dust') {
+        // Spawn near the top edge of the active chunk so particles fall continuously down through the chunk
+        spawnY = chunkMinY - 16 + Math.random() * 64;
+      } else if (shapeType === 'ember' || (shapeType as string) === 'bubbles' || shapeType === 'bubble') {
+        // Spawn near the bottom edge of the active chunk for rising embers/bubbles
+        spawnY = chunkMinY + this.CHUNK_SIZE - 16 + Math.random() * 64;
+      }
+    }
+
+    this.spawnParticleDirect(
+      data,
+      { x: spawnX, y: spawnY },
+      0,
+      undefined,
+      layer,
+      `${cx},${cy}`,
+      true
+    );
+  }
+
+  public spawnParticles(
+    count: number,
+    data: ParticleSystemData,
+    origin: { x: number; y: number }
+  ) {
+    const { emitter } = data;
     const maxPrimary = emitter.maxParticles || 300;
     let currentPrimaryCount = 0;
     for (let j = 0; j < this.particles.length; j++) {
@@ -690,9 +1278,23 @@ export class ParticleEngine {
       }
     }
 
+    const isEnv = emitter.shape === "environmental_fx" || data.category === "weather";
+    if (isEnv && this.activeChunkKeys.size > 0) {
+      // Distribute emission evenly across active chunks
+      const chunkList = Array.from(this.activeChunkKeys);
+      for (let i = 0; i < count; i++) {
+        if (currentPrimaryCount + i >= maxPrimary) break;
+        if (this.particles.length >= 1500) break;
+        const targetChunk = chunkList[Math.floor(Math.random() * chunkList.length)];
+        const [cx, cy] = targetChunk.split(',').map(Number);
+        this.spawnChunkParticle(data, cx, cy, data.layer);
+      }
+      return;
+    }
+
     for (let i = 0; i < count; i++) {
       if (currentPrimaryCount + i >= maxPrimary) break;
-      if (this.particles.length >= 1000) break; // Global pool safety cap
+      if (this.particles.length >= 1500) break;
 
       let spawnX = origin.x;
       let spawnY = origin.y;
@@ -704,7 +1306,6 @@ export class ParticleEngine {
 
       let localX = 0;
       let localY = 0;
-
       const emW = emitter.width ?? (emitter.radius ? emitter.radius * 2 : 40);
       const emH = emitter.height ?? (emitter.radius ? emitter.radius * 2 : (emitter.shape === 'cone' ? 60 : 40));
 
@@ -714,47 +1315,36 @@ export class ParticleEngine {
       } else if (emitter.shape === "environmental_fx") {
         const viewW = this.lastCanvasWidth / this.lastZoom;
         const viewH = this.lastCanvasHeight / this.lastZoom;
-        
         const spawnAbove = emitter.envSpawnAbove ?? true;
         const spawnBelow = !!emitter.envSpawnBelow;
         const spawnLeft = !!emitter.envSpawnLeft;
         const spawnRight = !!emitter.envSpawnRight;
         const spawnCenter = !!emitter.envSpawnCenter;
-        
-        const sizeAbove = (emitter.envSizeAbove ?? 100) / 100;
-        const sizeBelow = (emitter.envSizeBelow ?? 100) / 100;
-        const sizeLeft = (emitter.envSizeLeft ?? 100) / 100;
-        const sizeRight = (emitter.envSizeRight ?? 100) / 100;
-        const sizeCenter = (emitter.envSizeCenter ?? 100) / 100;
-        
+
         const activeZones: Array<'above' | 'below' | 'left' | 'right' | 'center'> = [];
         if (spawnAbove) activeZones.push('above');
         if (spawnBelow) activeZones.push('below');
         if (spawnLeft) activeZones.push('left');
         if (spawnRight) activeZones.push('right');
         if (spawnCenter) activeZones.push('center');
-        
-        if (activeZones.length === 0) {
-          continue;
-        }
-        
+
+        if (activeZones.length === 0) continue;
         const chosenZone = activeZones[Math.floor(Math.random() * activeZones.length)];
-        
         if (chosenZone === 'above') {
-          localX = (Math.random() - 0.5) * viewW * sizeAbove;
+          localX = (Math.random() - 0.5) * viewW;
           localY = -viewH / 2 - Math.random() * 30;
         } else if (chosenZone === 'below') {
-          localX = (Math.random() - 0.5) * viewW * sizeBelow;
+          localX = (Math.random() - 0.5) * viewW;
           localY = viewH / 2 + Math.random() * 30;
         } else if (chosenZone === 'left') {
           localX = -viewW / 2 - Math.random() * 30;
-          localY = (Math.random() - 0.5) * viewH * sizeLeft;
+          localY = (Math.random() - 0.5) * viewH;
         } else if (chosenZone === 'right') {
           localX = viewW / 2 + Math.random() * 30;
-          localY = (Math.random() - 0.5) * viewH * sizeRight;
-        } else { // center
-          localX = (Math.random() - 0.5) * viewW * sizeCenter;
-          localY = (Math.random() - 0.5) * viewH * sizeCenter;
+          localY = (Math.random() - 0.5) * viewH;
+        } else {
+          localX = (Math.random() - 0.5) * viewW;
+          localY = (Math.random() - 0.5) * viewH;
         }
       } else if (emitter.shape === "circle") {
         const rx = emW / 2;
@@ -780,7 +1370,6 @@ export class ParticleEngine {
         localY = -emH * t;
       }
 
-      // Apply Emitter Rotation for non-point shapes
       const emRotDeg = emitter.rotationDeg || 0;
       if (emRotDeg !== 0 && emitter.shape !== "point") {
         const emRotRad = emRotDeg * (Math.PI / 180);
@@ -793,210 +1382,103 @@ export class ParticleEngine {
         spawnY += localY;
       }
 
-      // Determine launch angle (supports multi-direction ranges e.g. 4 cardinal directions)
-      let launchAngle: number;
-      const activeRanges = kinematics.directionRanges?.filter(r => r.enabled !== false);
-      if (activeRanges && activeRanges.length > 0) {
-        let totalWeight = 0;
-        for (let rIdx = 0; rIdx < activeRanges.length; rIdx++) {
-          totalWeight += Math.max(0.1, activeRanges[rIdx].weight ?? 1);
-        }
-        let randW = Math.random() * totalWeight;
-        let selectedRange = activeRanges[0];
-        for (let rIdx = 0; rIdx < activeRanges.length; rIdx++) {
-          const w = Math.max(0.1, activeRanges[rIdx].weight ?? 1);
-          if (randW <= w) {
-            selectedRange = activeRanges[rIdx];
-            break;
-          }
-          randW -= w;
-        }
-        const aDeg = selectedRange.angleDeg;
-        const sDeg = selectedRange.spreadDeg;
-        const baseAngleRad = (aDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
-        const spreadRad = ((Math.random() - 0.5) * sDeg) * (Math.PI / 180);
-        launchAngle = baseAngleRad + spreadRad;
-      } else {
-        const angleDeg = kinematics.angleDeg !== undefined ? kinematics.angleDeg : 270;
-        const spreadDeg = kinematics.spreadDeg !== undefined ? kinematics.spreadDeg : 30;
-        const baseAngleRad = (angleDeg + (emitter.shape === "cone" ? emRotDeg : 0)) * (Math.PI / 180);
-        const spreadRad = ((Math.random() - 0.5) * spreadDeg) * (Math.PI / 180);
-        launchAngle = baseAngleRad + spreadRad;
-      }
-
-      const rawMinSpd = kinematics.minSpeed !== undefined ? kinematics.minSpeed : 0.3;
-      const rawMaxSpd = kinematics.maxSpeed !== undefined ? kinematics.maxSpeed : 0.85;
-      const effMinSpd = (rawMinSpd > 15 ? rawMinSpd / 100 : rawMinSpd) * 100;
-      const effMaxSpd = (rawMaxSpd > 15 ? rawMaxSpd / 100 : rawMaxSpd) * 100;
-      const speed = effMinSpd + Math.random() * Math.max(0, effMaxSpd - effMinSpd);
-
-      const vx = Math.cos(launchAngle) * speed;
-      const vy = Math.sin(launchAngle) * speed;
-
-      const lifetime = visuals.minLifetime + Math.random() * Math.max(0.1, visuals.maxLifetime - visuals.minLifetime);
-      const vRot = kinematics.minAngularVelocity + Math.random() * Math.max(0, kinematics.maxAngularVelocity - kinematics.minAngularVelocity);
-
-      const instStartSize = getRandVal(visuals.startSize, visuals.startSizeMax);
-      const instMidSize = visuals.midSize !== undefined ? getRandVal(visuals.midSize, visuals.midSizeMax) : undefined;
-      const instEndSize = getRandVal(visuals.endSize, visuals.endSizeMax);
-
-      const instStartRot = getRandVal(visuals.startRotationDeg ?? 0, visuals.startRotationDegMax);
-      const instMidRot = visuals.midRotationDeg !== undefined ? getRandVal(visuals.midRotationDeg, visuals.midRotationDegMax) : undefined;
-      const instEndRot = getRandVal(visuals.endRotationDeg ?? 360, visuals.endRotationDegMax);
-
-      const instEmissiveStartStr = getRandVal(visuals.emissiveStartStrength ?? 35, visuals.emissiveStartStrengthMax);
-      const instEmissiveMidStr = visuals.emissiveMidStrength !== undefined ? getRandVal(visuals.emissiveMidStrength, visuals.emissiveMidStrengthMax) : undefined;
-      const instEmissiveEndStr = getRandVal(visuals.emissiveEndStrength ?? 0, visuals.emissiveEndStrengthMax);
-
-      const instStartDrag = getRandVal(kinematics.startDrag ?? kinematics.drag ?? 0.0, kinematics.startDragMax);
-      const instMidDrag = kinematics.midDrag !== undefined ? getRandVal(kinematics.midDrag, kinematics.midDragMax) : undefined;
-      const instEndDrag = getRandVal(kinematics.endDrag ?? kinematics.drag ?? 0.0, kinematics.endDragMax);
-
-      let instStartColor = visuals.startColor || "#ffffff";
-      let instEndColor = visuals.animateColor === false ? instStartColor : (visuals.endColor || visuals.startColor || "#ffffff");
-
-      if (visuals.randomColorRange) {
-        const rangeStart = visuals.colorRangeStart || visuals.startColor || "#ff4500";
-        const rangeEnd = visuals.colorRangeEnd || "#ffd700";
-        const stops = visuals.colorRangeStops && visuals.colorRangeStops.length >= 2
-          ? visuals.colorRangeStops
-          : [
-              { position: 0, color: rangeStart },
-              { position: 1, color: rangeEnd }
-            ];
-        const t = Math.random();
-        instStartColor = evaluateGradientColor(stops, t);
-        if (visuals.animateColor === false || !visuals.endColor) {
-          instEndColor = instStartColor;
-        }
-      }
-
-      this.particles.push({
-        x: spawnX,
-        y: spawnY,
-        vx,
-        vy,
-        rotation: instStartRot * (Math.PI / 180),
-        vRot,
-        lifetime: 0,
-        maxLifetime: lifetime,
-        startSize: instStartSize,
-        midSize: instMidSize,
-        endSize: instEndSize,
-        sizeCurve: visuals.sizeCurve || "linear",
-        alphaCurve: visuals.alphaCurve || "linear",
-        startColor: instStartColor,
-        startAlpha: visuals.startAlpha !== undefined ? visuals.startAlpha : 1,
-        midColor: visuals.midColor,
-        midAlpha: visuals.midAlpha,
-        endColor: instEndColor,
-        endAlpha: visuals.endAlpha !== undefined ? visuals.endAlpha : 0,
-        randomColorRange: visuals.randomColorRange,
-        colorRangeStart: visuals.colorRangeStart,
-        colorRangeEnd: visuals.colorRangeEnd,
-        colorRangeStops: visuals.colorRangeStops,
-        shape: visuals.shape || "glow_circle",
-        customGlyph: visuals.customGlyph,
-        customSvgPath: visuals.customSvgPath,
-        compositeShape: visuals.compositeShape,
-        glowBlurRadius: visuals.glowBlurRadius || 0,
-        blendMode: visuals.blendMode || "source-over",
-        drag: instStartDrag,
-        startDrag: instStartDrag,
-        midDrag: instMidDrag,
-        endDrag: instEndDrag,
-        dragCurve: kinematics.dragCurve || "linear",
-        angularDrag: kinematics.angularDrag ?? 0.98,
-        gravityScale: kinematics.gravityScale !== undefined ? kinematics.gravityScale : (kinematics.gravityY !== undefined ? kinematics.gravityY / 980 : 0),
-        gravityScaleX: kinematics.gravityScaleX !== undefined ? kinematics.gravityScaleX : (kinematics.gravityX !== undefined ? kinematics.gravityX / 980 : 0),
-        gravityX: kinematics.gravityX ?? 0,
-        gravityY: kinematics.gravityY ?? 0,
-        windSensitivity: kinematics.windSensitivity !== undefined ? kinematics.windSensitivity : 1.0,
-        windForce: kinematics.windForce ?? 0,
-        turbulenceJitter: kinematics.turbulenceJitter ?? 0,
-        emitterPull: kinematics.emitterPull ?? false,
-        emitterPullRadius: kinematics.emitterPullRadius ?? 150,
-        emitterPullStrength: kinematics.emitterPullStrength ?? 1.0,
-        emitterPullFalloff: kinematics.emitterPullFalloff ?? 1.0,
-        collides: physics.collideWithMapSolids ?? false,
-        restitution: physics.collisionRestitution ?? 0.3,
-        bounces: 0,
-        destroyOnCollision: physics.destroyOnCollision ?? false,
-        spawnCollisionSparks: physics.spawnCollisionSparks ?? false,
-        spawnOnDeath: physics.spawnOnDeath ?? false,
-        subEmitterId: physics.subEmitterId,
-        subEmitterTrigger: physics.subEmitterTrigger || (
-          physics.spawnCollisionSparks && physics.spawnOnDeath ? 'both' :
-          physics.spawnCollisionSparks ? 'impact' :
-          physics.spawnOnDeath ? 'death' : 'none'
-        ),
-        subEmitterCount: physics.subEmitterCount ?? physics.sparkCount,
-        subEmitterInheritVelocity: physics.subEmitterInheritVelocity ?? 0,
-        subEmitterProbability: physics.subEmitterProbability ?? 1.0,
-        subEmitterPositionJitter: physics.subEmitterPositionJitter,
-        subEmitterAlphaStartMin: physics.subEmitterAlphaStartMin,
-        subEmitterAlphaStartMax: physics.subEmitterAlphaStartMax,
-        subEmitterAlphaEndMin: physics.subEmitterAlphaEndMin,
-        subEmitterAlphaEndMax: physics.subEmitterAlphaEndMax,
-        isSubParticle: false,
-        sparkCount: physics.sparkCount,
-        sparkGravity: physics.sparkGravity,
-        sparkLifetimeMin: physics.sparkLifetimeMin,
-        sparkLifetimeMax: physics.sparkLifetimeMax,
-        sparkStartSizeMin: physics.sparkStartSizeMin,
-        sparkStartSizeMax: physics.sparkStartSizeMax,
-        sparkEndSizeMin: physics.sparkEndSizeMin,
-        sparkEndSizeMax: physics.sparkEndSizeMax,
-        sparkStartColor: physics.sparkStartColor,
-        sparkEndColor: physics.sparkEndColor,
-        sparkColorMode: physics.sparkColorMode,
-        fxStyle: visuals.fxStyle || "default",
-        isEmissive: visuals.isEmissive ?? false,
-        emissiveMode: visuals.emissiveMode || "glow_only",
-        emissiveStartColor: visuals.emissiveStartColor || visuals.startColor,
-        emissiveStartStrength: instEmissiveStartStr,
-        emissiveMidColor: visuals.emissiveMidColor,
-        emissiveMidStrength: instEmissiveMidStr,
-        emissiveEndColor: visuals.emissiveEndColor || visuals.endColor,
-        emissiveEndStrength: instEmissiveEndStr,
-        startRotationDeg: instStartRot,
-        midRotationDeg: instMidRot,
-        endRotationDeg: instEndRot,
-        rotationCurve: visuals.rotationCurve || "linear",
-        sizeAnimStyle: visuals.sizeAnimStyle || "one_shot",
-        colorAnimStyle: visuals.colorAnimStyle || "one_shot",
-        emissiveAnimStyle: visuals.emissiveAnimStyle || "one_shot",
-        rotationAnimStyle: visuals.rotationAnimStyle || "one_shot",
-        animateSize: visuals.animateSize === true,
-        animateColor: visuals.animateColor === true,
-        animateAlpha: visuals.animateAlpha === true,
-        animateEmissive: visuals.animateEmissive ?? false,
-        animateRotation: visuals.animateRotation ?? false,
-        faceVelocity: visuals.faceVelocity ?? kinematics.faceVelocity ?? false,
-        velocityRotationOffsetDeg: visuals.velocityRotationOffsetDeg ?? kinematics.velocityRotationOffsetDeg ?? 0,
-        lastVelAngle: Math.atan2(vy, vx),
-        animateMotionBlur: visuals.animateMotionBlur ?? true,
-        startMotionBlur: visuals.startMotionBlur,
-        midMotionBlur: visuals.midMotionBlur,
-        endMotionBlur: visuals.endMotionBlur,
-        motionBlurAnimStyle: visuals.motionBlurAnimStyle || "one_shot",
-        motionBlurCurve: visuals.motionBlurCurve || "linear",
-        hasTrails: visuals.hasTrails ?? false,
-        trailLength: visuals.trailLength ?? 10,
-        trailWidthScale: visuals.trailWidthScale ?? 1.0,
-        trailTaper: visuals.trailTaper ?? false,
-        trailTaperLength: visuals.trailTaperLength ?? visuals.trailLength ?? 10,
-        trailHistory: [],
-        trackNodes: visuals.trackNodes
-      });
+      this.spawnParticleDirect(data, { x: spawnX, y: spawnY }, 0, undefined, data.layer);
     }
   }
 
-  public update(dt: number, physics: any, floorY: number, globalWind: number = 0, emitterState?: { x: number, y: number, dx: number, dy: number }) {
+  public update(dt: number, physics: any, floorY: number, globalWind: number = 0, emitterState?: { x: number, y: number, dx: number, dy: number }, isSolidCallback?: (tx: number, ty: number) => boolean) {
     try {
       this.spatialGrid.clear();
-      const fluidEnabled = physics.fluidSelfCollision ?? false;
-      const fluidForce = physics.fluidRepulsionForce ?? 1.0;
+
+      // Update active emitters and spawn particles
+      if (this.activeEmitters && this.activeEmitters.length > 0) {
+        for (let eIdx = 0; eIdx < this.activeEmitters.length; eIdx++) {
+          const emitter = this.activeEmitters[eIdx];
+          const activeData = emitter.system;
+          if (!activeData || !activeData.emitter) continue;
+          
+          if (emitter.layer && (!activeData.layer || activeData.layer === 'midground')) {
+            activeData.layer = emitter.layer === 'midground' ? 'main' : emitter.layer;
+          }
+
+          const isEnv = activeData.emitter.shape === 'environmental_fx' || activeData.category === 'weather';
+          const continuous = activeData.emitter.isContinuous !== false;
+
+          if (isEnv && this.activeChunkKeys.size > 0) {
+            // Chunk-based continuous environmental weather simulation
+            if (continuous) {
+              const rateMin = activeData.emitter.emissionRateMin ?? activeData.emitter.emissionRate ?? 20;
+              const rateMax = activeData.emitter.emissionRateMax ?? activeData.emitter.emissionRate ?? 20;
+              const baseRate = rateMin + Math.random() * (rateMax - rateMin);
+              const chunkRate = baseRate * 0.45; // Calibrated per 1024x1024 chunk
+
+              for (const chunkKey of this.activeChunkKeys) {
+                const [cx, cy] = chunkKey.split(',').map(Number);
+                const accumKey = `${eIdx}_${chunkKey}`;
+                let accum = (this.chunkAccumulators.get(accumKey) || 0) + dt * chunkRate;
+                const toSpawn = Math.floor(accum);
+                if (toSpawn > 0) {
+                  const count = Math.min(toSpawn, 4);
+                  for (let s = 0; s < count; s++) {
+                    this.spawnChunkParticle(activeData, cx, cy, emitter.layer);
+                  }
+                  accum = Math.max(0, accum - count);
+                }
+                this.chunkAccumulators.set(accumKey, accum);
+              }
+            }
+          } else {
+            // Localized or standalone viewport emitter
+            if (continuous) {
+              const rateMin = activeData.emitter.emissionRateMin ?? activeData.emitter.emissionRate ?? 20;
+              const rateMax = activeData.emitter.emissionRateMax ?? activeData.emitter.emissionRate ?? 20;
+              const currentRate = rateMin + Math.random() * (rateMax - rateMin);
+              
+              if (currentRate > 0) {
+                emitter.accumulator += dt * currentRate;
+                const particlesToSpawn = Math.floor(emitter.accumulator);
+                if (particlesToSpawn > 0) {
+                  const maxPerFrame = Math.max(1, Math.ceil(currentRate * 0.25));
+                  const count = Math.min(particlesToSpawn, maxPerFrame);
+                  this.spawnParticles(count, activeData, { x: emitter.originX, y: emitter.originY });
+                  emitter.accumulator = Math.max(0, emitter.accumulator - count);
+                }
+              }
+            }
+          }
+
+          // Handle periodic bursts for active emitters
+          const burstEnabled = activeData.emitter.burstEnabled === true ||
+            (activeData.emitter.burstEnabled === undefined &&
+              (activeData.emitter.burstInterval ?? 0) > 0 &&
+              (activeData.emitter.burstCount ?? 0) > 0 &&
+              !activeData.emitter.isContinuous);
+
+          if (burstEnabled) {
+            const intervalMin = activeData.emitter.burstIntervalMin ?? activeData.emitter.burstInterval ?? 1.0;
+            const intervalMax = activeData.emitter.burstIntervalMax ?? activeData.emitter.burstInterval ?? 1.0;
+            if (intervalMin > 0 || intervalMax > 0) {
+              if (emitter.nextBurstInterval === undefined || emitter.nextBurstInterval === null) {
+                emitter.nextBurstInterval = Math.max(0.05, intervalMin + Math.random() * Math.max(0, intervalMax - intervalMin));
+              }
+              emitter.burstTimer = (emitter.burstTimer ?? 0) + dt;
+              if (emitter.burstTimer >= emitter.nextBurstInterval) {
+                const countMin = activeData.emitter.burstCountMin ?? activeData.emitter.burstCount ?? 30;
+                const countMax = activeData.emitter.burstCountMax ?? activeData.emitter.burstCount ?? 30;
+                const count = Math.floor(countMin + Math.random() * Math.max(0, countMax - countMin));
+                if (count > 0) {
+                  this.spawnParticles(count, activeData, { x: emitter.originX, y: emitter.originY });
+                }
+                emitter.burstTimer = 0;
+                emitter.nextBurstInterval = Math.max(0.05, intervalMin + Math.random() * Math.max(0, intervalMax - intervalMin));
+              }
+            }
+          }
+        }
+      }
+
+      const fluidEnabled = physics?.fluidSelfCollision ?? false;
+      const fluidForce = physics?.fluidRepulsionForce ?? 1.0;
       const globalWindForce = globalWind;
 
       const aliveParticles: ParticleInstance[] = [];
@@ -1247,6 +1729,8 @@ export class ParticleEngine {
               emissiveStartColor: visuals.emissiveStartColor,
               trackNodes: visuals.trackNodes ? JSON.parse(JSON.stringify(visuals.trackNodes)) : undefined
             });
+            const lastSpark = newSparks[newSparks.length - 1];
+            if (lastSpark) lastSpark.layer = source.layer || 'foreground';
           }
         } else {
           // Fallback legacy sub-particle generation
@@ -1256,6 +1740,7 @@ export class ParticleEngine {
             const vy = isImpact ? -Math.random() * 150 : (Math.random() - 0.5) * 140;
             const sub = createSubParticle(source, vx, vy, isImpact);
             sub.isSubParticle = true;
+            sub.layer = source.layer || 'foreground';
             newSparks.push(sub);
           }
         }
@@ -1355,24 +1840,93 @@ export class ParticleEngine {
           p.rotation += p.vRot * dt;
         }
 
-        if (p.collides && p.y >= floorY) {
-          p.y = floorY;
-          p.vy = -p.vy * p.restitution;
-          p.vx *= 0.8;
-
-          if (p.bounces === undefined) p.bounces = 0;
-          p.bounces++;
-
-          spawnSubParticlesForEvent(p, true);
-
-          if (p.destroyOnCollision) {
-            p.lifetime = p.maxLifetime;
-            continue;
+        // Strict Allocated Chunk Boundary Validation:
+        // Culls any particle instantly if it leaves allocated map chunks or active simulation bounds
+        if (this.allocatedMapChunks && this.allocatedMapChunks.size > 0) {
+          const pChunkX = Math.floor(p.x / this.CHUNK_SIZE);
+          const pChunkY = Math.floor(p.y / this.CHUNK_SIZE);
+          if (!this.allocatedMapChunks.has(`${pChunkX},${pChunkY}`)) {
+            return false;
           }
+        }
 
-          if (Math.abs(p.vy) < 5) {
-            p.vy = 0;
-            p.isRestingOnFloor = true;
+        if (p.collides) {
+          const pTag = p.collisionTag || (p.shape === 'rain' || p.shape === 'snow' ? 'weather' : 'particles');
+          const canCollideWithSolids = canCollide(this.collisionMatrix, pTag, 'solids');
+
+          if (canCollideWithSolids) {
+            const TILE_SIZE = 64;
+            const prevX = p.x - p.vx * dt;
+            const prevY = p.y - p.vy * dt;
+
+            // Continuous Swept Raycast Step: prevents tunneling for fast particles / rain streaks
+            const dist = Math.hypot(p.x - prevX, p.y - prevY);
+            const numSteps = Math.max(1, Math.min(6, Math.ceil(dist / 16)));
+            let hitTile = false;
+            let hitTileX = Math.floor(p.x / TILE_SIZE);
+            let hitTileY = Math.floor(p.y / TILE_SIZE);
+            let isVerticalHit = true;
+
+            for (let s = 1; s <= numSteps; s++) {
+              const frac = s / numSteps;
+              const sampleX = prevX + (p.x - prevX) * frac;
+              const sampleY = prevY + (p.y - prevY) * frac;
+              const sTileX = Math.floor(sampleX / TILE_SIZE);
+              const sTileY = Math.floor(sampleY / TILE_SIZE);
+
+              if (isSolidCallback && isSolidCallback(sTileX, sTileY)) {
+                hitTile = true;
+                hitTileX = sTileX;
+                hitTileY = sTileY;
+                
+                const prevSampleTileX = Math.floor((prevX + (p.x - prevX) * ((s - 1) / numSteps)) / TILE_SIZE);
+                const prevSampleTileY = Math.floor((prevY + (p.y - prevY) * ((s - 1) / numSteps)) / TILE_SIZE);
+                isVerticalHit = !(prevSampleTileX !== sTileX && prevSampleTileY === sTileY);
+                break;
+              }
+            }
+
+            const hitFloor = p.y >= floorY;
+
+            if (hitTile || hitFloor) {
+              if (hitTile) {
+                if (!isVerticalHit) {
+                  // Bounce horizontally off wall
+                  p.x = p.vx > 0 ? hitTileX * TILE_SIZE - 0.01 : (hitTileX + 1) * TILE_SIZE + 0.01;
+                  p.vx = -p.vx * p.restitution;
+                } else {
+                  // Bounce vertically off floor/ceiling
+                  if (p.vy > 0) {
+                    p.y = hitTileY * TILE_SIZE - 0.01;
+                    p.vy = -p.vy * p.restitution;
+                  } else if (p.vy < 0) {
+                    p.y = (hitTileY + 1) * TILE_SIZE + 0.01;
+                    p.vy = -p.vy * p.restitution;
+                  }
+                  p.vx *= 0.8; // friction
+                }
+              } else {
+                p.y = floorY - 0.01;
+                p.vy = -p.vy * p.restitution;
+                p.vx *= 0.8;
+              }
+
+              if (p.bounces === undefined) p.bounces = 0;
+              p.bounces++;
+
+              spawnSubParticlesForEvent(p, true);
+
+              if (p.destroyOnCollision) {
+                p.lifetime = p.maxLifetime;
+                continue;
+              }
+
+              if (Math.abs(p.vy) < 5 && Math.abs(p.vx) < 5) {
+                p.vy = 0;
+                p.vx = 0;
+                p.isRestingOnFloor = true;
+              }
+            }
           }
         }
 
@@ -1387,15 +1941,19 @@ export class ParticleEngine {
 
   public render(
     ctx: CanvasRenderingContext2D,
-    panOffset: { x: number; y: number },
-    zoom: number,
-    particleData: any,
+    panOffset: { x: number; y: number } = { x: 0, y: 0 },
+    zoom: number = 1,
+    particleData?: any,
     showWireframe: boolean = false,
-    emitterPos?: { x: number; y: number }
+    emitterPos?: { x: number; y: number },
+    targetLayer?: string,
+    applyTransform: boolean = true
   ) {
     try {
-      this.lastPanOffset = panOffset;
-      this.lastZoom = zoom;
+      if (applyTransform) {
+        this.lastPanOffset = panOffset;
+        this.lastZoom = zoom;
+      }
       if (ctx && ctx.canvas) {
         this.lastCanvasWidth = ctx.canvas.width;
         this.lastCanvasHeight = ctx.canvas.height;
@@ -1403,12 +1961,19 @@ export class ParticleEngine {
 
       ctx.save();
       ctx.imageSmoothingEnabled = false;
-      ctx.translate(panOffset.x, panOffset.y);
-      ctx.scale(zoom, zoom);
+      if (applyTransform) {
+        ctx.translate(panOffset.x, panOffset.y);
+        ctx.scale(zoom, zoom);
+      }
 
       // Render active particles
+      const reqLayer = targetLayer === 'midground' ? 'main' : targetLayer;
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
+        const pLayer = p.layer === 'midground' ? 'main' : (p.layer || 'foreground');
+        if (reqLayer && pLayer !== reqLayer) {
+          continue;
+        }
         const rawProgress = p.lifetime / p.maxLifetime;
         const visuals = {
           startSize: p.startSize,
@@ -1663,6 +2228,28 @@ export class ParticleEngine {
           ctx.beginPath();
           ctx.arc(0, 0, currentSize * 0.7, 0, Math.PI * 2);
           ctx.fill();
+        } else if (shape === "rain") {
+          // Directional falling rain streak
+          ctx.strokeStyle = ctx.fillStyle;
+          ctx.lineWidth = Math.max(1, currentSize * 0.4);
+          const streakLen = Math.max(currentSize * 2.8, 8);
+          ctx.beginPath();
+          ctx.moveTo(0, -streakLen);
+          ctx.lineTo(0, streakLen);
+          ctx.stroke();
+        } else if (shape === "snow" || shape === "dust" || shape === "circle") {
+          ctx.beginPath();
+          ctx.arc(0, 0, currentSize, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (shape === "fog") {
+          ctx.globalAlpha *= 0.55;
+          ctx.beginPath();
+          ctx.arc(0, 0, currentSize * 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (shape === "leaves") {
+          ctx.beginPath();
+          ctx.ellipse(0, 0, currentSize * 1.5, currentSize * 0.75, Math.PI / 4, 0, Math.PI * 2);
+          ctx.fill();
         } else if (shape === "smoke_puff") {
           ctx.globalAlpha *= 0.6;
           ctx.beginPath();
@@ -1727,8 +2314,8 @@ export class ParticleEngine {
         ctx.restore();
       }
 
-      // Render Wireframe Hulls / Debug Outlines if enabled (or always for environmental weather FX overlay)
-      if ((showWireframe || particleData?.emitter?.shape === "environmental_fx") && emitterPos && particleData?.emitter) {
+      // Render Wireframe Hulls / Debug Outlines if enabled
+      if (showWireframe && emitterPos && particleData?.emitter) {
         const em = particleData.emitter;
         ctx.strokeStyle = "#06b6d4";
         ctx.fillStyle = "rgba(6, 182, 212, 0.1)";

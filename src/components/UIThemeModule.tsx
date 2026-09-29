@@ -86,7 +86,6 @@ interface UIThemeModuleProps {
   isOutOfSync?: boolean;
 }
 
-type MainTab = 'menus_designer' | 'input_mappings';
 type CanvasResolution = '16:9' | '4:3' | '21:9' | 'mobile';
 type CanvasBackdrop = 'game_scene' | 'dark_void' | 'grid_cyber' | 'blueprint';
 
@@ -136,14 +135,6 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
     });
   };
 
-  // Main UI Navigation Tabs
-  const [mainTab, setMainTabState] = useState<MainTab>(
-    () => getSavedModuleTab('ui', 'menus_designer') as any
-  );
-  const setMainTab = (tab: MainTab) => {
-    setMainTabState(tab);
-    saveModuleTab('ui', tab);
-  };
   const [isTestMode, setIsTestMode] = useState<boolean>(false);
   const [isStyleDrawerOpen, setIsStyleDrawerOpen] = useState<boolean>(false);
   const [canvasResolution, setCanvasResolution] = useState<CanvasResolution>('16:9');
@@ -310,102 +301,6 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
       window.removeEventListener('pointerup', handlePointerUp);
     };
   }, [isDraggingWidget, isResizingWidget, dragStartPos, resizeStartPos, selectedWidgetId, selectedMenuId, snapGridSize]);
-
-  // Key / Gamepad Recording State for Input Mappings
-  interface RecordingTarget {
-    mappingIdx: number;
-    targetType: 'keys' | 'gamepadButtons';
-    actionLabel: string;
-  }
-  const [recordingTarget, setRecordingTarget] = useState<RecordingTarget | null>(null);
-  const [recordedValues, setRecordedValues] = useState<string[]>([]);
-  const [currentlyHeldKeys, setCurrentlyHeldKeys] = useState<Set<string>>(new Set());
-  const [inputSearchQuery, setInputSearchQuery] = useState<string>('');
-  const [activeInputCategory, setActiveInputCategory] = useState<'all' | 'movement' | 'combat' | 'interaction' | 'navigation'>('all');
-
-  // Listen for real-time key presses and controller buttons when modal is open
-  useEffect(() => {
-    if (!recordingTarget) return;
-
-    const heldSet = new Set<string>();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (['Tab', 'Space', 'Enter', 'Escape'].includes(e.code)) {
-        e.preventDefault();
-      }
-      const keyName = e.code || e.key;
-      heldSet.add(keyName);
-      setCurrentlyHeldKeys(new Set(heldSet));
-
-      const comboStr = Array.from(heldSet).join(' + ');
-      setRecordedValues(prev => {
-        if (prev.includes(comboStr)) return prev;
-        return [...prev, comboStr];
-      });
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const keyName = e.code || e.key;
-      heldSet.delete(keyName);
-      setCurrentlyHeldKeys(new Set(heldSet));
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    // Gamepad Polling Loop
-    let animFrameId: number;
-    const GAMEPAD_BUTTON_NAMES: Record<number, string> = {
-      0: 'ButtonSouth / A',
-      1: 'ButtonEast / B',
-      2: 'ButtonWest / X',
-      3: 'ButtonNorth / Y',
-      4: 'LeftBumper / LB',
-      5: 'RightBumper / RB',
-      6: 'LeftTrigger / LT',
-      7: 'RightTrigger / RT',
-      8: 'Select / Back',
-      9: 'Start / Pause',
-      10: 'LeftStickClick',
-      11: 'RightStickClick',
-      12: 'DPadUp',
-      13: 'DPadDown',
-      14: 'DPadLeft',
-      15: 'DPadRight'
-    };
-
-    const pressedGpSet = new Set<string>();
-
-    const pollGamepad = () => {
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      if (gamepads) {
-        for (const gp of gamepads) {
-          if (gp && gp.buttons) {
-            gp.buttons.forEach((btn, idx) => {
-              const name = GAMEPAD_BUTTON_NAMES[idx] || `Button_${idx}`;
-              if (btn.pressed) {
-                if (!pressedGpSet.has(name)) {
-                  pressedGpSet.add(name);
-                  setRecordedValues(prev => prev.includes(name) ? prev : [...prev, name]);
-                }
-              } else {
-                pressedGpSet.delete(name);
-              }
-            });
-          }
-        }
-      }
-      animFrameId = requestAnimationFrame(pollGamepad);
-    };
-
-    animFrameId = requestAnimationFrame(pollGamepad);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      cancelAnimationFrame(animFrameId);
-    };
-  }, [recordingTarget]);
 
   // Global styling tokens
   const styling = ui.styling || DEFAULT_UI_THEMES[0].styling!;
@@ -838,7 +733,8 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
         }}
         onForceUnlockFile={(fName) => {
           const { project: updated } = performFileForceUnlock(project, 'ui', fName);
-          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}` });
+          onUpdateProject(() => updated, { actionLabel: `Force unlock ${fName}`, syncLinked: true });
+          showToast(`Force unlocked ${fName}`, 'info');
         }}
         onSelectFile={(fName) => {
           onUpdateProject(p => ({
@@ -956,37 +852,16 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
 
       {/* 2. Top Module Toolbar with Tabs & Controls */}
       <div className="h-12 bg-neutral-900/90 border-b border-neutral-800 px-4 flex items-center justify-between gap-3 shrink-0">
-        {/* Left: Main Tabs */}
+        {/* Left: Designer Header Title */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setMainTab('menus_designer')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-              mainTab === 'menus_designer'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950'
-                : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-750'
-            }`}
-          >
+          <div className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 flex items-center gap-2 shadow-sm">
             <Layout size={14} />
             <span>UI Menus & Screens Designer</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMainTab('input_mappings')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-              mainTab === 'input_mappings'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950'
-                : 'bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-750'
-            }`}
-          >
-            <Gamepad2 size={14} />
-            <span>Input Mappings</span>
-          </button>
+          </div>
         </div>
 
         {/* Center / Right: Designer Quick Controls */}
-        {mainTab === 'menus_designer' && (
+        <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-2.5">
             {/* Snap Grid Toggle */}
             <div className="hidden lg:flex items-center gap-1.5 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800 text-xs">
@@ -1074,7 +949,7 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
               <span>{isTestMode ? 'Testing Live (Click to Edit)' : 'Test Mode'}</span>
             </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* 3. Action Feedback Notification */}
@@ -1088,8 +963,7 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
       )}
 
       {/* 4. MAIN CONTENT AREA */}
-      {mainTab === 'menus_designer' ? (
-        <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative">
           
           {/* LEFT SIDEBAR: MENUS LIST & ELEMENT TOOLBOX */}
           <div className="w-72 bg-neutral-900 border-r border-neutral-800 flex flex-col shrink-0 overflow-y-auto">
@@ -2378,446 +2252,8 @@ export const UIThemeModule: React.FC<UIThemeModuleProps> = ({
             )}
           </div>
         </div>
-      ) : (
-        /* 5. TAB 2: INPUT & KEY MAPPINGS */
-        <div className="flex-1 flex flex-col bg-neutral-950 overflow-hidden">
-          {/* Input Header & Filters */}
-          <div className="p-4 border-b border-neutral-800 bg-neutral-900/50 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Gamepad2 className="text-emerald-400" size={18} />
-                <span className="text-sm font-bold text-white">Input & Gamepad Action Bindings</span>
-              </div>
-              <span className="text-xs text-neutral-500 font-mono">
-                ({(ui.inputMappings || UNIFIED_INPUT_TEMPLATE).length} Actions Mapped)
-              </span>
-            </div>
 
-            {/* Category Filter Pills & Actions */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative">
-                <Search size={13} className="absolute left-2.5 top-2.5 text-neutral-500" />
-                <input
-                  type="text"
-                  placeholder="Search actions, keys, categories..."
-                  value={inputSearchQuery}
-                  onChange={(e) => setInputSearchQuery(e.target.value)}
-                  className="bg-neutral-950 border border-neutral-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-emerald-500 w-44 sm:w-56"
-                />
-              </div>
-
-              <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-lg border border-neutral-800">
-                {(['all', 'movement', 'combat', 'interaction', 'navigation'] as const).map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setActiveInputCategory(cat)}
-                    className={`px-2.5 py-1 rounded text-[11px] font-bold capitalize transition ${
-                      activeInputCategory === cat
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const currentMappings = ui.inputMappings || [...UNIFIED_INPUT_TEMPLATE];
-                  const newBinding: InputMapping = {
-                    id: `inp_${Date.now()}`,
-                    name: `custom_action_${currentMappings.length + 1}`,
-                    label: 'New Action Binding',
-                    category: 'custom',
-                    triggerMode: 'press',
-                    actionType: 'gameplay_action',
-                    keys: ['KeyF'],
-                    gamepadButtons: ['ButtonSouth / A']
-                  };
-                  updateUI(u => ({ ...u, inputMappings: [...currentMappings, newBinding] }));
-                  triggerActionFeedback('Added new input binding');
-                }}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm shadow-emerald-950"
-              >
-                <Plus size={13} />
-                <span>Add Binding</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  updateUI(u => ({ ...u, inputMappings: [...UNIFIED_INPUT_TEMPLATE] }));
-                  triggerActionFeedback("Reset input mappings to Metroidvania defaults");
-                }}
-                className="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-bold transition flex items-center gap-1"
-                title="Reset to default controller & keyboard layout"
-              >
-                <RotateCcw size={12} />
-                <span>Reset Defaults</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Mappings Table */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="max-w-5xl mx-auto space-y-3">
-              {(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)
-                .map((inp, idx) => ({ inp, idx }))
-                .filter(({ inp }) => {
-                  if (activeInputCategory !== 'all' && (inp.category || '').toLowerCase() !== activeInputCategory.toLowerCase()) return false;
-                  if (inputSearchQuery) {
-                    const q = inputSearchQuery.toLowerCase();
-                    return (
-                      (inp.name || '').toLowerCase().includes(q) || 
-                      (inp.label || '').toLowerCase().includes(q) || 
-                      (inp.category || '').toLowerCase().includes(q) ||
-                      (inp.keys || []).some(k => k.toLowerCase().includes(q))
-                    );
-                  }
-                  return true;
-                })
-                .map(({ inp, idx }) => {
-                  const isUiTrigger = inp.actionType === 'open_ui';
-
-                  return (
-                    <div
-                      key={inp.id || idx}
-                      className="p-3.5 bg-neutral-900/90 border border-neutral-800 rounded-xl space-y-3 hover:border-neutral-700 transition"
-                    >
-                      {/* Top Row: Label, Event Name, Category, Trigger Mode, UI Target */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
-                        {/* Display Label */}
-                        <div className="md:col-span-3">
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-0.5">Label / Display</label>
-                          <input
-                            type="text"
-                            value={inp.label}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                              mappings[idx] = { ...mappings[idx], label: val };
-                              updateUI(u => ({ ...u, inputMappings: mappings }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-750 rounded-lg px-2.5 py-1 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
-                            placeholder="e.g. Jump / Ascent"
-                          />
-                        </div>
-
-                        {/* Event / Action Identifier */}
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-0.5">Event Name</label>
-                          <input
-                            type="text"
-                            value={inp.name}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                              mappings[idx] = { ...mappings[idx], name: val };
-                              updateUI(u => ({ ...u, inputMappings: mappings }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-750 rounded-lg px-2 py-1 text-xs font-mono text-emerald-400 focus:outline-none focus:border-emerald-500"
-                            placeholder="e.g. jump, pause_menu"
-                          />
-                        </div>
-
-                        {/* Category (Text Box) */}
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-0.5">Category</label>
-                          <input
-                            type="text"
-                            value={inp.category || ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                              mappings[idx] = { ...mappings[idx], category: val };
-                              updateUI(u => ({ ...u, inputMappings: mappings }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-750 rounded-lg px-2 py-1 text-xs font-mono text-cyan-300 focus:outline-none focus:border-emerald-500"
-                            placeholder="movement, combat, ui..."
-                          />
-                        </div>
-
-                        {/* Interaction / Trigger Mode */}
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-0.5">Interaction Type</label>
-                          <select
-                            value={inp.triggerMode || 'press'}
-                            onChange={(e) => {
-                              const val = e.target.value as any;
-                              const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                              mappings[idx] = { ...mappings[idx], triggerMode: val };
-                              updateUI(u => ({ ...u, inputMappings: mappings }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-750 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
-                          >
-                            <option value="press">Press (On Down)</option>
-                            <option value="hold">Hold (Continuous)</option>
-                            <option value="toggle">Toggle (Switch)</option>
-                            <option value="tap">Tap (Quick Tap)</option>
-                            <option value="release">Release (On Up)</option>
-                            <option value="double_tap">Double Tap</option>
-                            <option value="combo">Combo Key</option>
-                          </select>
-                        </div>
-
-                        {/* Action Target / UI Trigger */}
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] font-bold text-neutral-400 block mb-0.5">Action Target</label>
-                          <select
-                            value={inp.actionType || (inp.name === 'pause_menu' || inp.name === 'inventory' || inp.name === 'map_tracker' ? 'open_ui' : 'gameplay_action')}
-                            onChange={(e) => {
-                              const val = e.target.value as any;
-                              const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                              mappings[idx] = { 
-                                ...mappings[idx], 
-                                actionType: val,
-                                targetUiMenuId: val === 'open_ui' ? (mappings[idx].targetUiMenuId || 'pause_menu') : undefined
-                              };
-                              updateUI(u => ({ ...u, inputMappings: mappings }));
-                            }}
-                            className="w-full bg-neutral-950 border border-neutral-750 rounded-lg px-2 py-1 text-xs text-amber-300 focus:outline-none focus:border-emerald-500"
-                          >
-                            <option value="gameplay_action">⚔️ Gameplay Event</option>
-                            <option value="open_ui">🖥️ Open UI / Menu</option>
-                          </select>
-                        </div>
-
-                        {/* Delete Button */}
-                        <div className="md:col-span-1 flex justify-end pt-3 md:pt-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const mappings = (ui.inputMappings || UNIFIED_INPUT_TEMPLATE).filter((_, i) => i !== idx);
-                              updateUI(u => ({ ...u, inputMappings: mappings }));
-                              triggerActionFeedback(`Deleted binding "${inp.label}"`);
-                            }}
-                            className="p-1.5 text-neutral-500 hover:text-red-400 rounded-lg hover:bg-neutral-800 transition"
-                            title="Delete Binding"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Optional Target Menu Selector when actionType is 'open_ui' */}
-                      {(inp.actionType === 'open_ui' || (!inp.actionType && (inp.name === 'pause_menu' || inp.name === 'inventory' || inp.name === 'map_tracker'))) && (
-                        <div className="p-2 bg-neutral-950/90 rounded-lg border border-amber-500/30 flex items-center justify-between gap-3 text-xs">
-                          <span className="text-neutral-400 flex items-center gap-1.5">
-                            <Layers size={13} className="text-amber-400" />
-                            <span>Target Menu Screen to Open / Toggle:</span>
-                          </span>
-                          <select
-                            value={inp.targetUiMenuId || 'pause_menu'}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                              mappings[idx] = { ...mappings[idx], targetUiMenuId: val };
-                              updateUI(u => ({ ...u, inputMappings: mappings }));
-                            }}
-                            className="bg-neutral-900 border border-neutral-700 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-amber-400 font-medium"
-                          >
-                            <option value="pause_menu">⏸️ Default In-Game Pause Menu</option>
-                            <option value="initial_menu">🏠 Start / Title Screen</option>
-                            {ui.menus.map(m => (
-                              <option key={m.id} value={m.id}>📜 Screen: {m.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* Bottom Row: Hardware Keys & Gamepad Bindings */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800/60 pt-2.5">
-                        {/* Keyboard Keys */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-mono text-neutral-400 mr-1 flex items-center gap-1">
-                            <Keyboard size={12} className="text-emerald-400" /> Keyboard:
-                          </span>
-                          {(inp.keys || []).map((k, kIdx) => (
-                            <span
-                              key={kIdx}
-                              className="px-2 py-0.5 rounded bg-neutral-950 border border-neutral-700 text-neutral-200 font-mono text-[11px] shadow-sm flex items-center gap-1"
-                            >
-                              <Key size={10} className="text-emerald-400" />
-                              <span>{k}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                                  mappings[idx] = {
-                                    ...mappings[idx],
-                                    keys: mappings[idx].keys.filter((_, i) => i !== kIdx)
-                                  };
-                                  updateUI(u => ({ ...u, inputMappings: mappings }));
-                                }}
-                                className="text-neutral-500 hover:text-red-400 ml-0.5"
-                                title="Remove key"
-                              >
-                                <X size={10} />
-                              </button>
-                            </span>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRecordingTarget({
-                                mappingIdx: idx,
-                                targetType: 'keys',
-                                actionLabel: inp.label
-                              });
-                              setRecordedValues([...inp.keys]);
-                            }}
-                            className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold transition flex items-center gap-1"
-                          >
-                            <span>+ Rebind Key</span>
-                          </button>
-                        </div>
-
-                        {/* Gamepad Buttons */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-mono text-neutral-400 mr-1 flex items-center gap-1">
-                            <Gamepad2 size={12} className="text-cyan-400" /> Gamepad:
-                          </span>
-                          {(inp.gamepadButtons || []).map((btn, bIdx) => (
-                            <span
-                              key={bIdx}
-                              className="px-2 py-0.5 rounded bg-neutral-950 border border-cyan-500/40 text-cyan-200 font-mono text-[11px] shadow-sm flex items-center gap-1"
-                            >
-                              <span>{btn}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                                  mappings[idx] = {
-                                    ...mappings[idx],
-                                    gamepadButtons: (mappings[idx].gamepadButtons || []).filter((_, i) => i !== bIdx)
-                                  };
-                                  updateUI(u => ({ ...u, inputMappings: mappings }));
-                                }}
-                                className="text-neutral-500 hover:text-red-400 ml-0.5"
-                                title="Remove gamepad button"
-                              >
-                                <X size={10} />
-                              </button>
-                            </span>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRecordingTarget({
-                                mappingIdx: idx,
-                                targetType: 'gamepadButtons',
-                                actionLabel: inp.label
-                              });
-                              setRecordedValues([...(inp.gamepadButtons || [])]);
-                            }}
-                            className="px-2 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold transition flex items-center gap-1"
-                          >
-                            <span>+ Rebind Gamepad</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. REAL-TIME HARDWARE KEY & CONTROLLER CAPTURE MODAL */}
-      {recordingTarget && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-full bg-emerald-950 border border-emerald-500/50 flex items-center justify-center mx-auto text-emerald-400">
-                {recordingTarget.targetType === 'keys' ? <Keyboard size={24} /> : <Gamepad2 size={24} />}
-              </div>
-              <h3 className="text-base font-bold text-white">
-                Rebinding "{recordingTarget.actionLabel}"
-              </h3>
-              <p className="text-xs text-neutral-400">
-                {recordingTarget.targetType === 'keys'
-                  ? 'Press any keyboard key or key combination now...'
-                  : 'Press any button or trigger on your connected gamepad...'}
-              </p>
-            </div>
-
-            {/* Live Captured Buttons */}
-            <div className="p-4 bg-neutral-950 rounded-xl border border-neutral-800 min-h-[72px] flex items-center justify-center flex-wrap gap-2">
-              {recordedValues.length === 0 ? (
-                <span className="text-xs text-neutral-500 animate-pulse font-mono">
-                  [ Listening for input signal... ]
-                </span>
-              ) : (
-                recordedValues.map((val, i) => (
-                  <span
-                    key={i}
-                    className="px-3 py-1 rounded-lg bg-emerald-950 border border-emerald-500 text-emerald-200 font-mono text-xs font-bold flex items-center gap-1.5"
-                  >
-                    <span>{val}</span>
-                    <button
-                      type="button"
-                      onClick={() => setRecordedValues(prev => prev.filter((_, idx) => idx !== i))}
-                      className="text-neutral-400 hover:text-white"
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))
-              )}
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setRecordingTarget(null);
-                  setRecordedValues([]);
-                }}
-                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl text-xs font-bold transition"
-              >
-                Cancel
-              </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRecordedValues([])}
-                  className="px-3 py-2 bg-neutral-950 border border-neutral-800 hover:bg-neutral-800 text-neutral-400 rounded-xl text-xs font-bold transition"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const mappings = [...(ui.inputMappings || UNIFIED_INPUT_TEMPLATE)];
-                    if (mappings[recordingTarget.mappingIdx]) {
-                      if (recordingTarget.targetType === 'keys') {
-                        mappings[recordingTarget.mappingIdx].keys = recordedValues;
-                      } else {
-                        mappings[recordingTarget.mappingIdx].gamepadButtons = recordedValues;
-                      }
-                      updateUI(u => ({ ...u, inputMappings: mappings }));
-                      triggerActionFeedback(`Rebound "${recordingTarget.actionLabel}"`);
-                    }
-                    setRecordingTarget(null);
-                    setRecordedValues([]);
-                  }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-emerald-950"
-                >
-                  Save Binding
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 7. GLOBAL THEME & STYLES SLIDE-OVER DRAWER */}
+      {/* 5. GLOBAL THEME & STYLES SLIDE-OVER DRAWER */}
       {isStyleDrawerOpen && (
         <div className="fixed inset-y-0 right-0 z-50 w-80 bg-neutral-900/98 border-l border-neutral-800 shadow-2xl backdrop-blur-xl p-4 overflow-y-auto flex flex-col space-y-4 animate-in slide-in-from-right duration-200">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-3">

@@ -633,9 +633,9 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
               {expandedFolders.maps && (
                 <div className="pl-6 space-y-0.5">
-                  {project.fileSystem.maps.map(m => (
+                  {project.fileSystem.maps.map((m, idx) => (
                     <button
-                      key={m.fileName}
+                      key={`map_file_${m.fileName || m.id || idx}_${idx}`}
                       type="button"
                       onClick={() => setSelectedFile({ subfolder: 'maps', file: m })}
                       className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
@@ -677,9 +677,9 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
               {expandedFolders.biomes && (
                 <div className="pl-6 space-y-0.5">
-                  {project.fileSystem.biomes.map(b => (
+                  {project.fileSystem.biomes.map((b, idx) => (
                     <button
-                      key={b.fileName}
+                      key={`biome_file_${b.fileName || b.id || idx}_${idx}`}
                       type="button"
                       onClick={() => setSelectedFile({ subfolder: 'biomes', file: b })}
                       className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
@@ -720,9 +720,9 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
               {expandedFolders.prefabs && (
                 <div className="pl-6 space-y-0.5">
-                  {(project.fileSystem.prefabs || []).map(c => (
+                  {(project.fileSystem.prefabs || []).map((c, idx) => (
                     <button
-                      key={c.fileName}
+                      key={`prefab_file_${c.fileName || c.id || idx}_${idx}`}
                       type="button"
                       onClick={() => setSelectedFile({ subfolder: 'prefabs', file: c })}
                       className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
@@ -763,9 +763,9 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
               {expandedFolders.particles && (
                 <div className="pl-6 space-y-0.5">
-                  {(project.fileSystem.particles || []).map(pt => (
+                  {(project.fileSystem.particles || []).map((pt, idx) => (
                     <button
-                      key={pt.fileName}
+                      key={`particle_file_${pt.fileName || pt.id || idx}_${idx}`}
                       type="button"
                       onClick={() => setSelectedFile({ subfolder: 'particles', file: pt })}
                       className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
@@ -806,9 +806,9 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
               {expandedFolders.ui && (
                 <div className="pl-6 space-y-0.5">
-                  {project.fileSystem.ui.map(u => (
+                  {project.fileSystem.ui.map((u, idx) => (
                     <button
-                      key={u.fileName}
+                      key={`ui_file_${u.fileName || u.id || idx}_${idx}`}
                       type="button"
                       onClick={() => setSelectedFile({ subfolder: 'ui', file: u })}
                       className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${
@@ -849,9 +849,9 @@ export const ProjectExplorerModal: React.FC<ProjectExplorerModalProps> = ({
 
               {expandedFolders.game && (
                 <div className="pl-6 space-y-0.5">
-                  {project.fileSystem.game.map(g => (
+                  {project.fileSystem.game.map((g, idx) => (
                     <button
-                      key={g.fileName}
+                      key={`game_file_${g.fileName || g.id || idx}_${idx}`}
                       type="button"
                       onClick={() => setSelectedFile({ subfolder: 'game', file: g })}
                       className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition flex items-center justify-between ${

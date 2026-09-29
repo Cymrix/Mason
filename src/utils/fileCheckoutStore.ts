@@ -69,7 +69,7 @@ export const normalizeSubfolderKey = (subfolderName: string): keyof MasonProject
   if (clean === 'sprites' || clean === 'sprite') return 'sprites';
   if (clean === 'images' || clean === 'image') return 'images';
   if (clean === 'ui' || clean === 'themes') return 'ui';
-  if (clean === 'game' || clean === 'gamestructure') return 'game';
+  if (clean === 'game' || clean === 'gamestructure' || clean === 'structure') return 'game';
   if (clean === 'behaviors' || clean === 'behavior') return 'behaviors';
   return clean as any;
 };
@@ -194,7 +194,7 @@ export const performFileForceUnlock = (
   const fileArray = (project.fileSystem[key] || []) as any[];
 
   const updatedFiles = fileArray.map(f => {
-    if (f.fileName === fileName || f.id === fileName) {
+    if (f.fileName === fileName || f.id === fileName || f.name === fileName) {
       const copy = { ...f };
       delete copy.checkout;
       copy.updatedAt = now;
@@ -297,3 +297,148 @@ export const performFileSaveAs = (
 
   return { project: updatedProject, newFileName: cleanFileName };
 };
+
+export interface CheckedOutFileInfo {
+  file: any;
+  subfolder: string;
+  subfolderKey: keyof MasonProject['fileSystem'];
+  fileName: string;
+  name: string;
+  checkout: FileCheckoutInfo;
+  isCurrentSession: boolean;
+  isOtherSession: boolean;
+}
+
+/**
+ * Returns a list of all currently checked out / locked files across the entire project
+ */
+export const getAllCheckedOutFiles = (project: MasonProject): CheckedOutFileInfo[] => {
+  if (!project || !project.fileSystem) return [];
+  const results: CheckedOutFileInfo[] = [];
+  const currentSessionId = getCurrentSessionId();
+
+  const subfolders: Array<{ key: keyof MasonProject['fileSystem']; label: string }> = [
+    { key: 'maps', label: 'Maps' },
+    { key: 'biomes', label: 'Biomes' },
+    { key: 'prefabs', label: 'Prefabs' },
+    { key: 'particles', label: 'Particles' },
+    { key: 'sprites', label: 'Sprites' },
+    { key: 'images', label: 'Images' },
+    { key: 'ui', label: 'UI Themes' },
+    { key: 'game', label: 'Game Structure' },
+    { key: 'behaviors', label: 'Behaviors' }
+  ];
+
+  for (const { key, label } of subfolders) {
+    const list = (project.fileSystem[key] || []) as any[];
+    for (const f of list) {
+      if (f.checkout && f.checkout.isCheckedOut) {
+        const isCurrentSession = f.checkout.sessionId === currentSessionId;
+        results.push({
+          file: f,
+          subfolder: label,
+          subfolderKey: key,
+          fileName: f.fileName || f.id || 'unnamed',
+          name: f.name || f.fileName || 'Unnamed File',
+          checkout: f.checkout,
+          isCurrentSession,
+          isOtherSession: !isCurrentSession
+        });
+      }
+    }
+  }
+
+  return results;
+};
+
+/**
+ * Checks in all files (or only files locked by current session)
+ */
+export const performCheckInAllFiles = (
+  project: MasonProject,
+  options?: { onlyCurrentSession?: boolean; note?: string }
+): { project: MasonProject; count: number } => {
+  const now = new Date().toISOString();
+  const currentSessionId = getCurrentSessionId();
+  const onlyCurrent = options?.onlyCurrentSession ?? true;
+  let count = 0;
+
+  const nextFileSystem = { ...project.fileSystem } as Record<string, any[]>;
+  const keys: Array<keyof MasonProject['fileSystem']> = [
+    'maps', 'biomes', 'prefabs', 'particles', 'sprites', 'images', 'ui', 'game', 'behaviors'
+  ];
+
+  for (const key of keys) {
+    const arr = (nextFileSystem[key] || []) as any[];
+    if (Array.isArray(arr) && arr.length > 0) {
+      nextFileSystem[key] = arr.map(f => {
+        if (f.checkout && f.checkout.isCheckedOut) {
+          if (!onlyCurrent || f.checkout.sessionId === currentSessionId) {
+            count++;
+            const copy = { ...f };
+            delete copy.checkout;
+            copy.updatedAt = now;
+            return copy;
+          }
+        }
+        return f;
+      });
+    }
+  }
+
+  const updatedProject: MasonProject = {
+    ...project,
+    updatedAt: now,
+    fileSystem: nextFileSystem as any
+  };
+
+  if (count > 0) {
+    addToastLog(`Checked in ${count} file${count === 1 ? '' : 's'}${options?.note ? ` — "${options.note}"` : ''}`, 'success');
+  }
+
+  return { project: updatedProject, count };
+};
+
+/**
+ * Force unlocks all locked files in the project
+ */
+export const performForceUnlockAllFiles = (
+  project: MasonProject
+): { project: MasonProject; count: number } => {
+  const now = new Date().toISOString();
+  let count = 0;
+
+  const nextFileSystem = { ...project.fileSystem } as Record<string, any[]>;
+  const keys: Array<keyof MasonProject['fileSystem']> = [
+    'maps', 'biomes', 'prefabs', 'particles', 'sprites', 'images', 'ui', 'game', 'behaviors'
+  ];
+
+  for (const key of keys) {
+    const arr = (nextFileSystem[key] || []) as any[];
+    if (Array.isArray(arr) && arr.length > 0) {
+      nextFileSystem[key] = arr.map(f => {
+        if (f.checkout && f.checkout.isCheckedOut) {
+          count++;
+          const copy = { ...f };
+          delete copy.checkout;
+          copy.updatedAt = now;
+          return copy;
+        }
+        return f;
+      });
+    }
+  }
+
+  const updatedProject: MasonProject = {
+    ...project,
+    updatedAt: now,
+    fileSystem: nextFileSystem as any
+  };
+
+  if (count > 0) {
+    addToastLog(`Force unlocked all ${count} locked file${count === 1 ? '' : 's'}`, 'info');
+  }
+
+  return { project: updatedProject, count };
+};
+

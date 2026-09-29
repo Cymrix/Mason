@@ -623,6 +623,8 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                                     <option value="change_biome_state">⚡ Change Biome State</option>
                                     <option value="set_gravity">🪐 Set Environmental Gravity</option>
                                     <option value="environmental_effect">🌪️ Environmental / Screen FX</option>
+                                    <option value="toggle_atmospheric_fx">🌫️ Toggle Atmospheric FX (Enable/Disable)</option>
+                                    <option value="modify_atmospheric_fx">⚙️ Modify Atmospheric FX Settings</option>
                                     <option value="change_map">🚀 Change Map / Level Warp</option>
                                     <option value="spawn_entity">👾 Spawn Entity / Fauna</option>
                                     <option value="audio_cue">🎵 Play Audio Cue / Soundtrack</option>
@@ -939,6 +941,170 @@ export const BiomeBehaviorsEditor: React.FC<BiomeBehaviorsEditorProps> = ({
                                       className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-white"
                                       placeholder="0"
                                     />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 10. TOGGLE ATMOSPHERIC FX */}
+                              {action.actionType === 'toggle_atmospheric_fx' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                  <div>
+                                    <label className="text-[10px] text-neutral-400 font-bold block mb-1">Target Atmospheric FX</label>
+                                    <select
+                                      value={action.targetEffectId || ''}
+                                      onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, targetEffectId: e.target.value }))}
+                                      className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs text-amber-300 font-semibold"
+                                    >
+                                      <option value="">-- Choose Atmospheric FX --</option>
+                                      {(biome.environmentalEffects || []).map((eff) => (
+                                        <option key={eff.id} value={eff.id}>
+                                          {eff.name} ({eff.type})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-neutral-400 font-bold block mb-1">Desired State</label>
+                                    <select
+                                      value={action.effectState || 'toggle'}
+                                      onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, effectState: e.target.value as any }))}
+                                      className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs text-emerald-300 font-semibold"
+                                    >
+                                      <option value="toggle">🔄 Toggle Current State</option>
+                                      <option value="enable">🟢 Enable (Turn On)</option>
+                                      <option value="disable">🔴 Disable (Turn Off)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 11. MODIFY ATMOSPHERIC FX */}
+                              {action.actionType === 'modify_atmospheric_fx' && (
+                                <div className="space-y-3 pt-1">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 font-bold block mb-1">Target Atmospheric FX</label>
+                                      <select
+                                        value={action.targetEffectId || ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, targetEffectId: e.target.value }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs text-amber-300 font-semibold"
+                                      >
+                                        <option value="">-- Choose Atmospheric FX --</option>
+                                        {(biome.environmentalEffects || []).map((eff) => (
+                                          <option key={eff.id} value={eff.id}>
+                                            {eff.name} ({eff.type})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 font-bold block mb-1">Color Tint</label>
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="color"
+                                          value={action.modifyColor || '#ffffff'}
+                                          onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifyColor: e.target.value }))}
+                                          className="w-8 h-7 bg-neutral-950 border border-neutral-800 rounded cursor-pointer animate-none"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={action.modifyColor || '#ffffff'}
+                                          onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifyColor: e.target.value }))}
+                                          className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                          placeholder="#ffffff"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 block mb-0.5">Spawn Rate (Density)</label>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max="500"
+                                        value={action.modifyDensity ?? ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifyDensity: e.target.value === '' ? undefined : parseInt(e.target.value) }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                        placeholder="Keep original"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 block mb-0.5">Speed Multiplier</label>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0.1"
+                                        max="10"
+                                        value={action.modifySpeed ?? ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifySpeed: e.target.value === '' ? undefined : parseFloat(e.target.value) }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                        placeholder="Keep original"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 block mb-0.5">Wind Force X (Angle)</label>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        value={action.modifyWindX ?? ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifyWindX: e.target.value === '' ? undefined : parseFloat(e.target.value) }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                        placeholder="Keep original"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 block mb-0.5">Wind Force Y (Fall)</label>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        value={action.modifyWindY ?? ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifyWindY: e.target.value === '' ? undefined : parseFloat(e.target.value) }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                        placeholder="Keep original"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 block mb-0.5">Particle Size (px)</label>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max="50"
+                                        value={action.modifySize ?? ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifySize: e.target.value === '' ? undefined : parseInt(e.target.value) }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                        placeholder="Keep original"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 block mb-0.5">Opacity (0.0-1.0)</label>
+                                      <input
+                                        type="number"
+                                        step="0.05"
+                                        min="0"
+                                        max="1"
+                                        value={action.modifyOpacity ?? ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifyOpacity: e.target.value === '' ? undefined : parseFloat(e.target.value) }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                        placeholder="Keep original"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] text-neutral-400 block mb-0.5">Launch Angle (Deg)</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="360"
+                                        value={action.modifyAngle ?? ''}
+                                        onChange={(e) => handleUpdateAction(rule.id, action.id, a => ({ ...a, modifyAngle: e.target.value === '' ? undefined : parseInt(e.target.value) }))}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-xs font-mono text-white"
+                                        placeholder="Keep original"
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               )}

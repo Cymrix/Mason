@@ -302,7 +302,7 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
   const sockets: PrefabSocket[] = char.sockets || [];
   const points: PrefabNamedPoint[] = char.points || [];
   const polygons: PrefabNamedPolygon[] = char.polygons || [];
-  const capsule: PrefabCapsuleConfig = char.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
+  const capsule: PrefabCapsuleConfig | undefined = char.capsule;
   const spritesheets = char.spritesheets || [];
 
   // Active Subtab: 'parts' | 'sockets' | 'colliders'
@@ -326,10 +326,10 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
     originMode: 'center'
   });
 
-  // Viewport Settings
+  // Viewport Settings — Default colliders and relevant overlays to visible
   const [showGrid, setShowGrid] = useState<boolean>(true);
-  const [showColliders, setShowColliders] = useState<boolean>(false);
-  const [showPolygons, setShowPolygons] = useState<boolean>(false);
+  const [showColliders, setShowColliders] = useState<boolean>(true);
+  const [showPolygons, setShowPolygons] = useState<boolean>(true);
   const [showLights, setShowLights] = useState<boolean>(false);
   const [showParticles, setShowParticles] = useState<boolean>(true);
   const [showSockets, setShowSockets] = useState<boolean>(false);
@@ -579,13 +579,31 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
     showToast('Deleted polygon', 'info');
   };
 
-  // Base Capsule Collider helpers
+  // Base Capsule Collider helpers — Allows removing capsule to support 0 colliders
   const updateCapsuleConfig = (updater: (prev: PrefabCapsuleConfig) => PrefabCapsuleConfig) => {
     onUpdateCharacter(c => {
       const currCapsule = c.capsule || { radius: 16, height: 44, offsetX: 0, offsetY: 2 };
       const nextCapsule = updater(currCapsule);
       return { ...c, capsule: nextCapsule };
     });
+  };
+
+  const handleRemoveCapsule = () => {
+    onUpdateCharacter(c => {
+      const next = { ...c };
+      delete next.capsule;
+      return next;
+    });
+    setIsSelectedCapsule(false);
+  };
+
+  const handleAddCapsule = () => {
+    onUpdateCharacter(c => ({
+      ...c,
+      capsule: { radius: 16, height: 44, offsetX: 0, offsetY: 2 }
+    }));
+    setIsSelectedCapsule(true);
+    setShowColliders(true);
   };
 
   // Duplicate part
@@ -1109,20 +1127,51 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             ctx.stroke();
           }
 
-          // 3. Fallback Base Silhouette if no parts
+          // 3. Fallback Base Silhouette / Spritesheet Frame if no composite parts
           if (parts.length === 0) {
-            ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
-            ctx.strokeStyle = '#06b6d4';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.roundRect(-24, -32, 48, 64, 8);
-            ctx.fill();
-            ctx.stroke();
+            const sprW = char.spriteWidth || 64;
+            const sprH = char.spriteHeight || 64;
+            const primarySheet = spritesheets[0];
+            const primaryImgUrl = primarySheet ? getSpritesheetDataUrl(primarySheet) : '';
 
-            ctx.font = '28px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(char.avatarIcon || '🛡️', 0, 0);
+            if (primaryImgUrl) {
+              let cached = loadedImagesRef.current.get(primaryImgUrl);
+              if (!cached) {
+                cached = new Image();
+                cached.src = primaryImgUrl;
+                loadedImagesRef.current.set(primaryImgUrl, cached);
+              }
+              if (cached.complete && cached.naturalWidth > 0) {
+                const tileW = primarySheet?.tileWidth || sprW;
+                const tileH = primarySheet?.tileHeight || sprH;
+                const cols = primarySheet?.cols || 8;
+                const frameIdx = activeGlobalFrameIndex;
+                const c = frameIdx % cols;
+                const r = Math.floor(frameIdx / cols);
+                ctx.save();
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(cached, c * tileW, r * tileH, tileW, tileH, -tileW / 2, -tileH / 2, tileW, tileH);
+                ctx.restore();
+              }
+            } else {
+              // Draw true sprite dimension boundary matching actual spriteWidth and spriteHeight
+              ctx.fillStyle = 'rgba(6, 182, 212, 0.08)';
+              ctx.strokeStyle = 'rgba(6, 182, 212, 0.35)';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([3, 3]);
+              ctx.strokeRect(-sprW / 2, -sprH / 2, sprW, sprH);
+              ctx.fillRect(-sprW / 2, -sprH / 2, sprW, sprH);
+              ctx.setLineDash([]);
+
+              ctx.font = '24px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(char.avatarIcon || '🛡️', 0, 0);
+
+              ctx.font = '8px monospace';
+              ctx.fillStyle = 'rgba(6, 182, 212, 0.6)';
+              ctx.fillText(`Sprite Bounds: ${sprW}×${sprH}`, 0, sprH / 2 + 10);
+            }
           }
 
           // 4. Render Composite Parts in strict layer & Z-order
@@ -1346,16 +1395,18 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             }
           });
 
-          // 5. Base Capsule Collider Overlay
+          // 5. Base Capsule Collider Overlay with accurate dimensions & callouts
           if (showColliders && capsule) {
             const cx = capsule.offsetX || 0;
             const cy = capsule.offsetY || 0;
-            const cr = capsule.radius || 16;
-            const ch = capsule.height || 44;
-            const halfH = Math.max(0, ch / 2 - cr);
+            const cr = Math.max(1, capsule.radius || 16);
+            const ch = Math.max(cr * 2, capsule.height || 44);
+            const halfH = Math.max(0, (ch - cr * 2) / 2);
 
             ctx.save();
             ctx.translate(cx, cy);
+
+            // Capsule Hull
             ctx.strokeStyle = isSelectedCapsule ? '#38bdf8' : '#06b6d4';
             ctx.fillStyle = isSelectedCapsule ? 'rgba(56, 189, 248, 0.2)' : 'rgba(6, 182, 212, 0.12)';
             ctx.lineWidth = isSelectedCapsule ? 2.5 : 1.5;
@@ -1371,10 +1422,59 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             ctx.stroke();
             ctx.setLineDash([]);
 
-            ctx.font = '8px monospace';
+            // If selected: show precise dimension measurements and bounds
+            if (isSelectedCapsule) {
+              const topY = -halfH - cr;
+              const bottomY = halfH + cr;
+              const leftX = -cr;
+              const rightX = cr;
+
+              // Center Crosshair
+              ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(-6, 0);
+              ctx.lineTo(6, 0);
+              ctx.moveTo(0, -6);
+              ctx.lineTo(0, 6);
+              ctx.stroke();
+
+              // Width dimension bar (horizontal)
+              ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+              ctx.lineWidth = 0.8;
+              ctx.beginPath();
+              ctx.moveTo(leftX, bottomY + 6);
+              ctx.lineTo(rightX, bottomY + 6);
+              ctx.moveTo(leftX, bottomY + 3);
+              ctx.lineTo(leftX, bottomY + 9);
+              ctx.moveTo(rightX, bottomY + 3);
+              ctx.lineTo(rightX, bottomY + 9);
+              ctx.stroke();
+
+              // Height dimension bar (vertical)
+              ctx.beginPath();
+              ctx.moveTo(rightX + 6, topY);
+              ctx.lineTo(rightX + 6, bottomY);
+              ctx.moveTo(rightX + 3, topY);
+              ctx.lineTo(rightX + 9, topY);
+              ctx.moveTo(rightX + 3, bottomY);
+              ctx.lineTo(rightX + 9, bottomY);
+              ctx.stroke();
+
+              // Ground baseline indicator (where capsule bottom touches ground)
+              ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
+              ctx.setLineDash([2, 2]);
+              ctx.beginPath();
+              ctx.moveTo(-cr - 12, bottomY);
+              ctx.lineTo(cr + 12, bottomY);
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
+
+            ctx.font = '9px monospace';
             ctx.fillStyle = isSelectedCapsule ? '#38bdf8' : '#06b6d4';
             ctx.textAlign = 'center';
-            ctx.fillText(`Base Capsule (${cr}r x ${ch}h)`, 0, halfH + cr + 9);
+            ctx.fillText(`Capsule: ${cr * 2}px W × ${ch}px H (r=${cr})`, 0, (halfH + cr) + 18);
             ctx.restore();
           }
 
@@ -1732,6 +1832,7 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             type="button"
             onClick={() => {
               setActiveSubTab('sockets');
+              setShowSockets(true);
               if (points.length > 0) setSelectedPointId(points[0].id);
             }}
             className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
@@ -1748,8 +1849,13 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             type="button"
             onClick={() => {
               setActiveSubTab('colliders');
-              if (polygons.length > 0) setSelectedPolygonId(polygons[0].id);
-              else setIsSelectedCapsule(true);
+              setShowColliders(true);
+              setShowPolygons(true);
+              if (capsule) {
+                setIsSelectedCapsule(true);
+              } else if (polygons.length > 0) {
+                setSelectedPolygonId(polygons[0].id);
+              }
             }}
             className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
               activeSubTab === 'colliders' 
@@ -1758,7 +1864,7 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
             }`}
           >
             <Shield size={13} />
-            <span>Colliders ({polygons.length + 1})</span>
+            <span>Colliders ({(capsule ? 1 : 0) + parts.filter(p => p.type === 'collider').length + polygons.length})</span>
           </button>
         </div>
 
@@ -2153,33 +2259,83 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
               </button>
             </div>
 
-            {/* Base Capsule Collider Card */}
-            <div
-              onClick={() => {
-                setIsSelectedCapsule(true);
-                setSelectedPolygonId(null);
-                setSelectedPointId(null);
-                setSelectedPartId(null);
-              }}
-              className={`p-3 rounded-xl border transition cursor-pointer ${
-                isSelectedCapsule 
-                  ? 'bg-neutral-950 border-cyan-500 shadow-md shadow-cyan-500/10' 
-                  : 'bg-neutral-950/60 border-neutral-800 hover:border-neutral-700'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Box size={14} className="text-cyan-400" />
-                  <h4 className="text-xs font-bold text-white">Base Capsule Collider</h4>
-                </div>
-                <span className="text-[10px] font-mono text-cyan-400 font-bold">
-                  {capsule.radius}r x {capsule.height}h
+            {/* Active Colliders Count Banner */}
+            <div className="flex items-center justify-between px-1 text-[11px]">
+              <span className="text-neutral-400 font-bold">Collision Boundaries</span>
+              {((capsule ? 1 : 0) + (parts.filter(p => p.type === 'collider').length) + polygons.length) === 0 ? (
+                <span className="px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-800/80 text-amber-300 font-bold text-[10px]">
+                  0 Colliders (No Collision)
                 </span>
-              </div>
-              <p className="text-[10px] text-neutral-400">
-                Primary movement & world solid obstacle boundary for characters and entities.
-              </p>
+              ) : (
+                <span className="font-mono text-cyan-400 text-[10px] font-bold">
+                  {(capsule ? 1 : 0) + (parts.filter(p => p.type === 'collider').length) + polygons.length} Colliders Active
+                </span>
+              )}
             </div>
+
+            {/* Base Capsule Collider Card */}
+            {capsule ? (
+              <div
+                onClick={() => {
+                  setIsSelectedCapsule(true);
+                  setSelectedPolygonId(null);
+                  setSelectedPointId(null);
+                  setSelectedPartId(null);
+                  setShowColliders(true);
+                }}
+                className={`p-3 rounded-xl border transition cursor-pointer ${
+                  isSelectedCapsule 
+                    ? 'bg-neutral-950 border-cyan-500 shadow-md shadow-cyan-500/10' 
+                    : 'bg-neutral-950/60 border-neutral-800 hover:border-neutral-700'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Box size={14} className="text-cyan-400" />
+                    <h4 className="text-xs font-bold text-white">Base Capsule Collider</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-cyan-400 font-bold">
+                      {capsule.radius}r × {capsule.height}h
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveCapsule();
+                      }}
+                      className="p-1 rounded hover:bg-neutral-800 text-neutral-500 hover:text-red-400 transition"
+                      title="Remove Base Capsule Collider (Set to 0 colliders)"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-neutral-400">
+                  Primary movement & world solid obstacle boundary for characters and entities.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl border border-dashed border-neutral-800 bg-neutral-950/40 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 text-neutral-400 text-xs font-bold">
+                    <Box size={14} className="text-neutral-500" />
+                    <span>No Base Capsule Collider (0 Colliders)</span>
+                  </div>
+                  <p className="text-[10px] text-neutral-500 mt-0.5">
+                    This prefab has no capsule collision. Ideal for scenery, decorative props, or visual FX.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddCapsule}
+                  className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold flex items-center gap-1 shrink-0 ml-2 shadow-md shadow-cyan-600/20"
+                >
+                  <Plus size={12} />
+                  <span>Add Capsule</span>
+                </button>
+              </div>
+            )}
 
             {/* Hitbox / Hurtbox Polygon Presets */}
             <div className="space-y-1.5">
@@ -3058,13 +3214,22 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
               </div>
             </div>
           );
-        })() : isSelectedCapsule ? (
+        })() : (isSelectedCapsule && capsule) ? (
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <div className="flex items-center gap-2">
                 <Box size={16} className="text-cyan-400" />
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">Base Capsule Collider</h3>
               </div>
+              <button
+                type="button"
+                onClick={handleRemoveCapsule}
+                className="px-2.5 py-1 rounded-lg bg-red-950/70 hover:bg-red-900 border border-red-800/80 text-red-300 hover:text-white text-[11px] font-bold flex items-center gap-1 transition shadow-sm"
+                title="Remove Base Capsule Collider (Allows 0 colliders)"
+              >
+                <Trash2 size={12} />
+                <span>Remove Collider</span>
+              </button>
             </div>
 
             <div className="space-y-3 text-xs">
@@ -3074,20 +3239,28 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
                   <input
                     type="number"
                     value={capsule.radius}
-                    onChange={(e) => updateCapsuleConfig(c => ({ ...c, radius: Number(e.target.value) }))}
+                    onChange={(e) => updateCapsuleConfig(c => ({ ...c, radius: Math.max(1, Number(e.target.value)) }))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-white font-mono mt-1"
                   />
+                  <span className="text-[10px] text-neutral-500 mt-0.5 block">Width: {capsule.radius * 2}px</span>
                 </div>
                 <div>
                   <label className="text-neutral-400 font-bold block">Height (px)</label>
                   <input
                     type="number"
                     value={capsule.height}
-                    onChange={(e) => updateCapsuleConfig(c => ({ ...c, height: Number(e.target.value) }))}
+                    onChange={(e) => updateCapsuleConfig(c => ({ ...c, height: Math.max(1, Number(e.target.value)) }))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-white font-mono mt-1"
                   />
+                  <span className="text-[10px] text-neutral-500 mt-0.5 block">Total Extent: {capsule.height}px</span>
                 </div>
               </div>
+
+              {capsule.height < capsule.radius * 2 && (
+                <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-800/50 text-amber-300 text-[10px] leading-relaxed">
+                  ⚠️ Note: Capsule total height is mathematically clamped to minimum diameter (2 × radius = {capsule.radius * 2}px) in physics and rendering.
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -3107,6 +3280,16 @@ export const PrefabCompositionStudio: React.FC<PrefabCompositionStudioProps> = (
                     onChange={(e) => updateCapsuleConfig(c => ({ ...c, offsetY: Number(e.target.value) }))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-white font-mono mt-1"
                   />
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-neutral-950/80 rounded-xl border border-neutral-800/80 text-[11px] text-neutral-400 space-y-1">
+                <div className="flex justify-between font-mono text-[10px]">
+                  <span>Center: ({capsule.offsetX || 0}, {capsule.offsetY || 0})</span>
+                  <span>Feet Contact: Y = {(capsule.offsetY || 0) + Math.round(capsule.height / 2)}</span>
+                </div>
+                <div className="text-[10px] text-neutral-500">
+                  Green dashed baseline in viewport represents ground surface contact.
                 </div>
               </div>
             </div>

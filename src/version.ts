@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.326';
-export const MASON_VERSION_DISPLAY = 'v0.326';
-export const MASON_FULL_VERSION = 'v0.326';
+export const MASON_VERSION = '0.378';
+export const MASON_VERSION_DISPLAY = 'v0.378';
+export const MASON_FULL_VERSION = 'v0.378';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,251 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.378',
+    date: '2026-09-29',
+    notes: 'Local File Asset Ingestion & Spritesheet Pipeline Validation: Verified universal HTML5 File API and drag-and-drop ingestion across Waterfox/Firefox/Chromium for PNG/JPG spritesheets, slices, texture maps, 3D meshes (.obj/.gltf), and .mason project bundles into IndexedDB persistent project storage.'
+  },
+  {
+    version: 'v0.377',
+    date: '2026-09-29',
+    notes: 'Firefox & Waterfox Engine Compatibility Validation: Verified complete W3C compliance across Gecko/SpiderMonkey runtime engines for WebGL 2.0 Three.js rendering, IndexedDB persistent storage, BroadcastChannel multi-tab disk watching, WebRTC peer data channels, and native tab management.'
+  },
+  {
+    version: 'v0.376',
+    date: '2026-09-28',
+    notes: 'Disk-First Asset Watcher & Multi-Window Architectural Blueprint: Formulated disk-first asset change detection strategy (storage revision timestamp watching across windows) and evaluated browser GPU process vs window WebGL context realities, process crash isolation, and pop-out window workflows.'
+  },
+  {
+    version: 'v0.375',
+    date: '2026-09-28',
+    notes: 'PWA Tabbed Display Mode & Multi-Module Workspace Tab Architecture: Configured modern W3C Web App Manifest tabbed display override with tab_strip home/new tab controls, enabling native browser tabs in installed PWA desktop windows while laying the groundwork for in-app workspace tab switching.'
+  },
+  {
+    version: 'v0.374',
+    date: '2026-09-28',
+    notes: 'Holistic Architecture & Cross-Module Pipeline Readiness Audit: Conducted high-level audit across cross-module asset pipelines (Fabricator -> 3D Studio -> 3D Scenes / Terrain -> Multiplayer), WebGL lifecycle & context disposal, IndexedDB storage quotas for complex 3D/voxel bundles, and archetype camera controller switching.'
+  },
+  {
+    version: 'v0.373',
+    date: '2026-09-28',
+    notes: 'Shared-World MMOFPS & Gun-Souls MMO Topologies (19 Total Archetypes): Added dedicated Shared-World MMOFPS & Looter-Shooter archetype (Destiny 2 / PlanetSide 2 / Warframe style with 3-weapon loadouts, public anomaly events, strike dungeon instances, and power rating loot chases) and expanded Gun-Soulslike (Remnant style) with distributed MMO spatial mesh networking.'
+  },
+  {
+    version: 'v0.372',
+    date: '2026-09-28',
+    notes: 'Third-Person Soulslike Shooter Archetype (Remnant 1 & 2 Style): Added 18th foundational game archetype—Third-Person Soulslike Shooter (Gun-Soulslike) featuring over-the-shoulder ADS gunplay, Dragon Heart healing flasks with swig animations, stamina i-frame dodge rolls, World Stone bonfire checkpoints, weapon mod charge generation via bullet hits, procedural biome tile stitching, and seamless 1–3 player drop-in co-op.'
+  },
+  {
+    version: 'v0.371',
+    date: '2026-09-28',
+    notes: 'Expanded 3D Action & RPG Archetypes (17 Total): Added 3 distinct first-class archetypes based on iconic genre pillars: (1) 3D Action-Adventure & Dungeon Quest (Zelda / Tomb Raider / Dark Souls style with Z-targeting lock-on camera, sword/shield combos, rolling, ledge climbing, and environmental dungeon puzzles); (2) First-Person Horde & Co-Op Objective Shooter (Half-Life / Killing Floor / Team Fortress / Left 4 Dead style with weapon viewmodels, escalating wave swarms, physics manipulation, class perks, and objective extraction); and (3) 3D MMORPG & Persistent World RPG (World of Warcraft / FFXIV style with tab-targeting, GCD hotbar rotations, quest hubs (!/?), equipment paper dolls, and spatial MMO multiplayer mesh).'
+  },
+  {
+    version: 'v0.370',
+    date: '2026-09-28',
+    notes: 'Interactive Project Creation Wizard & Playable Genre Archetypes: Launched 4-step interactive project setup wizard with 14 foundational playable game archetypes (Stealth Ninja & Infiltrator, Vehicular Combat Arena, Top-Down Vehicular Demolition, FPS/TPS Combat Arena, Metroidvania Action Platformer, Racing & Driving Circuit, Real-Time Strategy, Action RPG, Turn-Based Tactical RPG, Flight & Space Dogfight Sim, Twin-Stick Bullet Hell, Platformer Arena Brawler, Survival Crafting, and Tower Defense). Supports 2D, 2.5D, and 3D camera pipelines; 5 multiplayer topologies (Single Player, Local Couch/Split-Screen, Online P2P Co-Op, Dedicated Server Hub, and Distributed MMO Mesh); smart title generators; and instant playable world seeding.'
+  },
+  {
+    version: 'v0.369',
+    date: '2026-09-28',
+    notes: 'Stealth Action Archetype Integration Blueprint: Added Stealth Action Ninja/Infiltrator template (Tenchu / Mark of the Ninja / Metal Gear style with dual-perspective 3D Third-Person Rooftop & 2D Sidescroller modes, grappling hook locomotion, dynamic enemy vision cones, audio alert noise ripples, crouching shadow concealment, and one-hit stealth assassination execution triggers).'
+  },
+  {
+    version: 'v0.368',
+    date: '2026-09-28',
+    notes: 'Vehicular Action Archetypes Integration Blueprint: Added Vehicular Combat Arena (Twisted Metal style car combat with 3D/third-person chase cam, ramming physics, weapon pickup mounts, arena ring walls, and destruction scoring) and Top-Down Vehicular Demolition (Blast Corps style isometric/top-down vehicle switching, heavy machinery clearance physics, destructible obstacle buildings, and ticking hazard route timers).'
+  },
+  {
+    version: 'v0.367',
+    date: '2026-09-28',
+    notes: 'Project Archetype & Playable Template Architecture Design: Outlined genre-specific starter project blueprints (FPS/TPS, Racing, RTS, Metroidvania, Turn-Based RPG, Action RPG, Flight/Space Sim, Roguelike Dungeon Crawler, Platformer Fighter, Survival Crafting, Tower Defense) and multiplayer topology configurations (Local Couch/Split-Screen, Host-Guest P2P Co-op, Dedicated Authoritative Server Hub, Asynchronous/Turn-based Ghost, and Distributed Spatial MMO Mesh).'
+  },
+  {
+    version: 'v0.366',
+    date: '2026-09-28',
+    notes: 'Preview White-Screen Elimination & PWA Cache Decoupling: Fixed blank white screen in preview environments by replacing legacy service worker interceptor with an instant self-unregister and cache purger; eliminated circular structure serialization hazards in console.error interceptor; added inline dark theme background defaults to html and body tags; established initial visual workspace loader inside root container; implemented graceful fallback error recovery card in main.tsx; and refreshed Vite development server.'
+  },
+  {
+    version: 'v0.365',
+    date: '2026-09-28',
+    notes: '3D Engine & Distributed Architecture Blueprint Complete: Verified full integration and production readiness across all 5 planned architectural modules: 1) 3D Model Studio & Skeletal Armature Rigging (.model3d), 2) Parametric Creature & Monster Fabricator with anatomical generators, 3) 3D Scene Level Composer (.scene3d) with 3D primitives and WASD walkthrough play testing, 4) Triplanar Voxel & Heightmap Terrain Sculptor (.terrain) with biome strata and baked scatter, and 5) Authoritative Distributed Multiplayer Server Mesh (.multiplayer) with MMO zone partitioning, Ed25519 authentication, and client-side prediction.'
+  },
+  {
+    version: 'v0.364',
+    date: '2026-09-28',
+    notes: 'Multiplayer Hub & Authoritative Server Mesh Studio: Added full-featured Multiplayer module (.multiplayer) supporting multi-topology game architectures (Peer-to-Peer WebRTC, Dedicated Authoritative Hub, and Distributed MMO Server Mesh). Includes spatial zone partitioning with automatic border handoffs across regional server nodes, Ed25519 zero-trust cryptographic keypair player authentication with signed packet validation and replay prevention windows, 20Hz-128Hz tick calibration, client-side prediction, entity interpolation & reconciliation, a live interactive test sandbox with artificial latency/jitter/loss injection, and 1-click production TypeScript server & client SDK code generation.'
+  },
+  {
+    version: 'v0.363',
+    date: '2026-09-28',
+    notes: '3D Scene Level Composer Integration: Added full-featured 3D Scenes module (.scene3d) supporting freeform 3D level composition, placement of 3D models (.model3d) and 2D billboard prefabs, 3D architectural primitives with solid physics colliders, point lights and directional sun with real-time shadow maps, atmospheric skybox presets (Starry Night, Golden Sunset, Bright Noon, Cyberpunk Void, Twilight Dawn), volumetric fog calibration, scene outliner & entity hierarchy, and an interactive real-time WASD walkthrough test play mode with player physics and collisions.'
+  },
+  {
+    version: 'v0.362',
+    date: '2026-09-28',
+    notes: '3D Studio & Parametric Creature Fabricator Integration: Implemented Parametric 3D Model Template Fabricator with custom anatomical sliders (heads 1-4, arms 0-8, legs 0-8, eyes 1-8, breasts 0-6, horns, wings, tails, and body proportions), automatic skeletal bone armature rigging, dynamic gait-synchronized animation generation (idle breathing, walking, attacking), real-time Three.js 3D viewport with orbit controls, seamless 1-click baking to 3D Studio (.model3d), and multi-format exports including transparent 2D spritesheet strips (.png), animated GIFs (.gif), and individual frame sequences (.zip).'
+  },
+  {
+    version: 'v0.361',
+    date: '2026-09-28',
+    notes: '3D Engine Expansion & Distributed Multiplayer Architecture Blueprint: Technical specifications and architecture roadmap for 3D Model Studio & Skeletal Animator, Parametric Creature Fabricator, 3D Scene Level Composer, Triplanar Voxel/Heightmap Terrain Sculptor with Baked Scatter, and Authoritative Distributed Multiplayer Server Mesh.'
+  },
+  {
+    version: 'v0.360',
+    date: '2026-09-28',
+    notes: 'Three.js Unified 2D/3D WebGL Pipeline: Transitioned canvas rendering to a high-performance Three.js WebGL renderer hosting 2D scenes within a 3D pipeline. Implemented dual camera projections (2D Orthographic and 3D Perspective with 32° tilt and real Z-depth parallax); strict Pixel Art mode with nearest-neighbor texture filtering (THREE.NearestFilter, zero mipmap blur); and integer pixel grid snapping for cameras and sprites to prevent subpixel jitter and shimmering.'
+  },
+  {
+    version: 'v0.359',
+    date: '2026-09-05',
+    notes: 'Strict Prefab & Behavior Configuration Playback: Removed all artificial speed, jump force, and kinematic fallbacks in play mode; play test characters now strictly evaluate exact properties as configured on the prefab and linked behavior data.'
+  },
+  {
+    version: 'v0.358',
+    date: '2026-09-05',
+    notes: 'Platformer Jump & Non-Empty Chunk Weather Stream Fixes: Restored default 2D sidescroller jump force (11.5) and base speed (4.0) fallbacks when unconfigured in character movement; filtered active particle chunks strictly to non-empty terrain chunks (eliminating void chunk particles); enabled default destroyOnCollision for weather particles so raindrops and snowflakes splash and despawn instantly on impact instead of pausing on tile surfaces; updated continuous weather spawning to enter top chunk edges in unbroken falling streams.'
+  },
+  {
+    version: 'v0.357',
+    date: '2026-09-05',
+    notes: 'Continuous Gravity Application & Strict Allocated Chunk Particle Culling: Moved gravity evaluation outside movementOverridden conditional block so airborne players fall immediately when walking off ledges even while holding movement keys; removed legacy viewport particle screen wrapping and enforced strict spatial culling so particles exist strictly within allocated map chunks.'
+  },
+  {
+    version: 'v0.356',
+    date: '2026-09-05',
+    notes: '2D Sidescroller Character Controller Upgrade & Particle Autosave Stabilization: Prevented 30-second autosave particle resets by memoizing play-mode particle emitter initialization; fixed particle chunk bounds spawning and uniform active chunk density; upgraded character controller with coyote time (0.15s), jump buffering (0.15s), variable jump height, 20px step height for smooth slope traversal, and elevated ground snapping (24px) to eliminate slope sticking and stuttering.'
+  },
+  {
+    version: 'v0.355',
+    date: '2026-09-05',
+    notes: 'Play Mode Exit Particle Cleanup & Move Up Prefab Behavior Fix: Implemented automatic particle and emitter purging when stopping play test mode; fixed Move Up / Ascend (move_up) prefab behavior rule execution by unsetting ground state and bypassing downward floor snapping whenever upward vertical velocity is applied.'
+  },
+  {
+    version: 'v0.354',
+    date: '2026-09-05',
+    notes: 'Map Data Chunk Filtering Integration: Directly bound ParticleEngine chunk simulation to mapData.chunks; weather particles and pre-warming now simulate strictly inside allocated map chunks, ensuring unallocated void space remains devoid of particles and guaranteeing seamless synchronization when chunks are created or removed via map tools.'
+  },
+  {
+    version: 'v0.353',
+    date: '2026-09-05',
+    notes: 'Chunk-Based Environmental Particle Simulation & Dynamic Pre-Warming: Refactored live map atmospheric weather particle simulation from screen-viewport-relative bounds to world-space grid chunks (1024x1024 px); dynamically tracks camera viewport bounds plus a configurable chunk margin; pre-warms newly activated chunks automatically upon panning or zooming so particle density and distribution remain perfectly consistent across all camera zoom levels.'
+  },
+  {
+    version: 'v0.352',
+    date: '2026-09-05',
+    notes: 'Continuous Emission Rate Pre-warming Simulation: Fixed the particle pre-warming simulation engine to run active time-stepped continuous emission throughout the full pre-warm duration (40 Hz integration loop) rather than executing a single initial burst; accurate integration of emissionRateMin/Max and periodic bursts ensures true steady-state particle density across the entire viewport upon load and testing.'
+  },
+  {
+    version: 'v0.351',
+    date: '2026-09-05',
+    notes: 'Particle Emitter Pre-warming Configuration & Viewport Preview: Added customizable pre-warming toggle (prewarm) and duration slider (prewarmDuration) in the Particle Module Emitter Geometry & Rates panel; added dedicated Pre-warm action buttons in both the Particle Studio and Atmospheric FX previewer toolbars; integrated instant viewport pre-warm testing and automatic pre-warming upon active particle selection so developers can easily inspect steady-state simulations directly in the editor.'
+  },
+  {
+    version: 'v0.350',
+    date: '2026-09-05',
+    notes: 'Particle Pre-Warming, Dynamic Viewport Infill & Play Test Physics Refinement: Implemented multi-step particle engine pre-warming across the full viewport upon weather initialization; added dynamic camera-movement margin infill and screen wrapping so panning into new areas never displays empty particle gaps; added continuous swept raycast collision detection for fast-moving rain streaks against solid map tiles; resolved tile collider trapping with anti-penetration safety; and removed procedural squash/stretch, tilt, and dust particles in play test mode so characters render strictly according to prefab specifications.'
+  },
+  {
+    version: 'v0.349',
+    date: '2026-09-05',
+    notes: 'Atmospheric FX Live Particle Previewer: Integrated full-featured interactive particle preview canvas in the Biome Atmospheric Effects tab matching the Particle Module previewer, featuring 60 FPS ParticleEngine simulation, interactive zoom & pan with ViewportHUD, play/pause, burst trigger, reset, solid floor collision with draggable plane, wireframe hull, background theme switcher, layer filter preview, and live telemetry overlay HUD.'
+  },
+  {
+    version: 'v0.348',
+    date: '2026-09-05',
+    notes: 'Collider Collision Matrix Tags & Atmospheric Effects Simplification: Removed collision matrix grid button from top bar; added collision matrix tag selection to tile colliders (in Biome Editor) and prefab composite colliders (in Prefab Studio); simplified Biome Atmospheric Effects tab to exclusively contain particle source selection and target render layers without sliders, numerical attributes, or canvas sandbox in full alignment with behavior-driven weather control.'
+  },
+  {
+    version: 'v0.347',
+    date: '2026-09-05',
+    notes: 'Architecture Module Reorganization & Tab Migration: Moved Input Mappings and Collision Matrix into dedicated tabs within the Game Architecture module (GameStructureModule); created standalone InputMappingsTab and CollisionMatrixTab components with full hardware keyboard, gamepad binding recording, and layer interaction matrix editing; updated GameStructureData and MasonProject schema definitions; and streamlined the UI Theme module header.'
+  },
+  {
+    version: 'v0.346',
+    date: '2026-09-05',
+    notes: 'Atmospheric Weather & Map Tile Collision Physics: Enabled rain, snow, and atmospheric particle collisions with map tiles in Map Studio; configured weather-to-solid collision rules in default collision matrix and canCollide lookup; preserved source particle emitter physics and collision settings when bound to biome weather; updated tile solid detection and activeBiome registry; and synchronized project collision matrix with particle engine.'
+  },
+  {
+    version: 'v0.345',
+    date: '2026-09-05',
+    notes: 'Collision Matrix & File Locks Management: Added comprehensive Session File Locks & Checkouts Modal with bulk check in and force unlock capabilities; integrated top-bar file locks indicator with real-time lock count; implemented project-wide Collision Tags Matrix Modal for layer/entity/particle/weather collision filtering; added collision tag configuration in Particle Editor physics panel; resolved dirty save button state after file check-in across all editors; and added Collision Matrix & File Locks to Hamburger Menu.'
+  },
+  {
+    version: 'v0.344',
+    date: '2026-09-05',
+    notes: 'Prefab & Map Module Polish: Supported 0 colliders in Composite Parts with collider removal/addition in Prefab Studio; rendered true capsule dimensions with viewport ground baseline; removed artificial procedural robot visuals, beacon rays, and ground shadows from Korrath prefab so it displays as a pure, direct instance of its capsule collider; centered spawn text without background box; removed controls helper overlay during play testing; and disabled map tile collisions for atmospheric weather FX.'
+  },
+  {
+    version: 'v0.343',
+    date: '2026-09-05',
+    notes: 'Atmospheric Environmental FX Parallax & Transform Pipeline: Resolved atmospheric FX rendering in Map module play mode by fixing multi-layer pass order (background parallax behind terrain, world-space collision with terrain on main layer, and foreground screen-space overgrowth), eliminating duplicate camera transforms, adding dedicated weather shapes (rain, snow, dust, fog, leaves), pre-warming particles on play start, and adding complete weather controls in Biome Editor.'
+  },
+  {
+    version: 'v0.342',
+    date: '2026-09-05',
+    notes: 'Atmospheric Environmental FX Restoration: Fixed weather particles not rendering in play mode by synchronizing real-time viewport bounds with environmental emitters, fixing coordinate transforms across background, main terrain collision, and foreground layers, adding pre-warming on play start, normalizing layer mappings, and expanding weather rendering and customization controls.'
+  },
+  {
+    version: 'v0.341',
+    date: '2026-09-05',
+    notes: 'Error Banner Hardening & Runtime Resiliency: Enhanced runtime error boundary and warning banner with benign notice filtering (ignoring vite websocket and ResizeObserver notifications), safe object and error stack stringification, and a quick-dismiss control.'
+  },
+  {
+    version: 'v0.340',
+    date: '2026-09-05',
+    notes: 'Synced Files Notification Refinement: Streamlined the direct save and linked storage sync notification message to cleanly show the exact number of files synced instead of listing all file names in the main toast alert, preserving detailed paths within the expandable file list section of the notification history.'
+  },
+  {
+    version: 'v0.339',
+    date: '2026-09-05',
+    notes: 'Force Unlock Execution & Clean Sync Notifications: Fixed the force-unlock button across the dashboard and top navigation bar by eliminating iframe dialog blockage, synchronously resetting lock state, and sweeping all file checkouts; refined dashboard refresh diff checks to only pull genuinely newer remote files (rTime > lTime + 1000) avoiding false pulls; streamlined sync notifications to display concise file counts while keeping full file paths inside the expandable notification details.'
+  },
+  {
+    version: 'v0.338',
+    date: '2026-09-05',
+    notes: 'Selective Pull & Storage Concurrency Overhaul: Decoupled file locks from out-of-sync checks (only newer timestamps trigger isOutOfSync), transformed the dashboard "Changes Available Remotely" badge into an interactive inspection modal button displaying granular remote file diffs, implemented selective merge pulling only modified files without overwriting local changes, and fixed the force-unlock button across dashboard and subfolder file headers.'
+  },
+  {
+    version: 'v0.337',
+    date: '2026-09-05',
+    notes: 'Dashboard Synchronization Loop Fix: Resolved the recursive sync/pull loop by persisting CURRENT_CLIENT_SESSION_ID across page reloads/Vite compilation refreshes using sessionStorage.'
+  },
+  {
+    version: 'v0.336',
+    date: '2026-09-04',
+    notes: 'Fixed particle physics property access and refined boundary tile solid collisions for environmental effects (like rain and snow hitting walls sideways).'
+  },
+  {
+    version: 'v0.332',
+    date: '2026-09-04',
+    notes: 'Added layer-specific checkboxes for atmospheric effects (Background, Main, Foreground). Effects spawn and render independently per checked layer while sharing synchronized parameter controls, allowing weather like rain to correctly interact with solid objects in the main layer.'
+  },
+  {
+    version: 'v0.331',
+    date: '2026-09-04',
+    notes: 'Fixed tile painting visualization and player collision detection by prioritizing chunk-based cell storage in getCell when chunks are active. Ensured painted tiles and solid colliders render and function correctly in both map editor and play mode.'
+  },
+  {
+    version: 'v0.330',
+    date: '2026-09-04',
+    notes: 'Enabled full-stack support for toggling and dynamically modifying atmospheric particle parameters via interactive Biome behaviors and logic rules in active level play mode. Integrated automatic conversion of default weather presets to full physical ParticleSystemData structures during play ticks. Added a responsive screen shake environmental action triggered directly by custom active biome rules.'
+  },
+  {
+    version: 'v0.329',
+    date: '2026-09-04',
+    notes: 'Upgraded the Biome Atmospheric FX sandbox simulator to use the real, high-performance ParticleEngine. Replaced the lightweight, limited custom preview loop with the exact same rendering and physics engine used in the active map player. This provides 100% accurate support for custom particle shapes, alphas, sizes, lifetime behaviors, color interpolation curves, glows, trails, and continuous emitter streams.'
+  },
+  {
+    version: 'v0.328',
+    date: '2026-09-04',
+    notes: 'Fixed Uncaught TypeError: Cannot read properties of null (reading \'vx\') runtime error. Added defensive null check guards to both the Biome Editor sandbox particle simulation loop and the Map Canvas active player/enemy character particle physics update loop.'
+  },
+  {
+    version: 'v0.327',
+    date: '2026-09-04',
+    notes: 'Fixed particle emitter behavior in Biome Atmosphere FX sandbox and level play modes. Resolved missing active emitter updates in ParticleEngine so particle systems attached to prefabs, tiles, or weather layers spawn particles dynamically. Linked biome weather atmospheric effects to the particle engine in the play mode map canvas. Re-engineered particle lifecycle resurrection in the Biome Editor preview loop to map to their correct original effect IDs, enabling perfect multi-effect atmospheric particle simulations.'
+  },
   {
     version: 'v0.326',
     date: '2026-09-04',

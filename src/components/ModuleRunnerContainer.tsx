@@ -10,6 +10,12 @@ import { BiomeMacroMapModal } from './BiomeMacroMapModal';
 import { PrefabEditor } from './PrefabEditor';
 import { ParticlesEditor } from './ParticlesEditor';
 import { SpriteEditorWrapper } from './SpriteEditorWrapper';
+import { Model3DStudio } from './Model3DStudio';
+import { ModelTemplateFabricator } from './ModelTemplateFabricator';
+import { Scene3DStudio } from './Scene3DStudio';
+import { TerrainStudio } from './TerrainStudio';
+import { MultiplayerStudio } from './MultiplayerStudio';
+import { createDefaultModel3DFile, createDefaultScene3DFile, createDefaultTerrainFile, createDefaultMultiplayerFile } from '../engine/masonProjectSchema';
 import { RefinedBiome } from '../engine/refinedBiomeSchema';
 import { buildMapFromBiomeMatrix, BiomeAllocationMatrix, MetroidvaniaLayoutStyle } from '../engine/metroidvaniaGenerator';
 
@@ -176,6 +182,208 @@ export const ModuleRunnerContainer: React.FC<ModuleRunnerContainerProps> = ({
             currentWidth={currentMapFile?.width || 32}
             currentHeight={currentMapFile?.height || 24}
             onApplyToLevel={handleApplyMacroToLevel}
+          />
+        )}
+        {moduleId === 'models3d' && (
+          <Model3DStudio
+            project={project}
+            activeModelFile={project.fileSystem.models3d?.find(m => m.fileName === project.activeFiles.model3dFileName) || project.fileSystem.models3d?.[0] || createDefaultModel3DFile()}
+            onSaveModelFile={(file) => {
+              const now = new Date().toISOString();
+              onUpdateProject(p => {
+                const existing = p.fileSystem.models3d || [];
+                const updatedList = existing.some(m => m.fileName === file.fileName)
+                  ? existing.map(m => m.fileName === file.fileName ? { ...file, updatedAt: now } : m)
+                  : [...existing, { ...file, updatedAt: now }];
+                return {
+                  ...p,
+                  updatedAt: now,
+                  fileSystem: {
+                    ...p.fileSystem,
+                    models3d: updatedList
+                  }
+                };
+              }, { actionLabel: `Saved 3D Model ${file.name}` });
+            }}
+            onSwitchModelFile={(fileName) => {
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, model3dFileName: fileName }
+              }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: `Switched to 3D Model ${fileName}` });
+            }}
+            onCreateNewModel={(name) => {
+              const id = `model_${Date.now().toString(36)}`;
+              const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+              const fileName = `${safeName}.model3d`;
+              const newModel = createDefaultModel3DFile(id, name, fileName);
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, model3dFileName: fileName },
+                fileSystem: {
+                  ...p.fileSystem,
+                  models3d: [...(p.fileSystem.models3d || []), newModel]
+                }
+              }), { actionLabel: `Created 3D Model ${name}` });
+            }}
+          />
+        )}
+        {moduleId === 'fabricator' && (
+          <ModelTemplateFabricator
+            project={project}
+            onSaveToProject={(file) => {
+              const now = new Date().toISOString();
+              onUpdateProject(p => {
+                const existing = p.fileSystem.models3d || [];
+                const updatedList = existing.some(m => m.fileName === file.fileName)
+                  ? existing.map(m => m.fileName === file.fileName ? { ...file, updatedAt: now } : m)
+                  : [...existing, { ...file, updatedAt: now }];
+                return {
+                  ...p,
+                  updatedAt: now,
+                  activeFiles: { ...p.activeFiles, model3dFileName: file.fileName },
+                  fileSystem: {
+                    ...p.fileSystem,
+                    models3d: updatedList
+                  }
+                };
+              }, { actionLabel: `Fabricated 3D Model ${file.name}` });
+            }}
+            onOpenInStudio={(fileName) => {
+              onNavigateToModule?.('models3d');
+            }}
+            onBack={onBackToProjectInfo}
+          />
+        )}
+        {moduleId === 'scenes' && (
+          <Scene3DStudio
+            project={project}
+            activeSceneFile={project.fileSystem.scenes3d?.find(s => s.fileName === project.activeFiles.scene3dFileName) || project.fileSystem.scenes3d?.[0] || createDefaultScene3DFile()}
+            onSaveSceneFile={(file) => {
+              const now = new Date().toISOString();
+              onUpdateProject(p => {
+                const existing = p.fileSystem.scenes3d || [];
+                const updatedList = existing.some(s => s.fileName === file.fileName)
+                  ? existing.map(s => s.fileName === file.fileName ? { ...file, updatedAt: now } : s)
+                  : [...existing, { ...file, updatedAt: now }];
+                return {
+                  ...p,
+                  updatedAt: now,
+                  fileSystem: {
+                    ...p.fileSystem,
+                    scenes3d: updatedList
+                  }
+                };
+              }, { actionLabel: `Saved 3D Scene ${file.name}` });
+            }}
+            onSwitchSceneFile={(fileName) => {
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, scene3dFileName: fileName }
+              }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: `Switched to 3D Scene ${fileName}` });
+            }}
+            onCreateNewScene={(name) => {
+              const id = `scene_${Date.now().toString(36)}`;
+              const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+              const fileName = `${safeName}.scene3d`;
+              const newScene = createDefaultScene3DFile(id, name, fileName);
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, scene3dFileName: fileName },
+                fileSystem: {
+                  ...p.fileSystem,
+                  scenes3d: [...(p.fileSystem.scenes3d || []), newScene]
+                }
+              }), { actionLabel: `Created 3D Scene ${name}` });
+            }}
+            onBackToDashboard={onBackToProjectInfo}
+          />
+        )}
+        {moduleId === 'terrain' && (
+          <TerrainStudio
+            project={project}
+            activeTerrainFile={project.fileSystem.terrain?.find(t => t.fileName === project.activeFiles.terrainFileName) || project.fileSystem.terrain?.[0] || createDefaultTerrainFile()}
+            onSaveTerrainFile={(file) => {
+              const now = new Date().toISOString();
+              onUpdateProject(p => {
+                const existing = p.fileSystem.terrain || [];
+                const updatedList = existing.some(t => t.fileName === file.fileName)
+                  ? existing.map(t => t.fileName === file.fileName ? { ...file, updatedAt: now } : t)
+                  : [...existing, { ...file, updatedAt: now }];
+                return {
+                  ...p,
+                  updatedAt: now,
+                  fileSystem: {
+                    ...p.fileSystem,
+                    terrain: updatedList
+                  }
+                };
+              }, { actionLabel: `Saved Terrain ${file.name}` });
+            }}
+            onSwitchTerrainFile={(fileName) => {
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, terrainFileName: fileName }
+              }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: `Switched to Terrain ${fileName}` });
+            }}
+            onCreateNewTerrain={(name) => {
+              const id = `terrain_${Date.now().toString(36)}`;
+              const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+              const fileName = `${safeName}.terrain`;
+              const newTerrain = createDefaultTerrainFile(id, name, fileName);
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, terrainFileName: fileName },
+                fileSystem: {
+                  ...p.fileSystem,
+                  terrain: [...(p.fileSystem.terrain || []), newTerrain]
+                }
+              }), { actionLabel: `Created Terrain ${name}` });
+            }}
+            onBackToDashboard={onBackToProjectInfo}
+          />
+        )}
+        {moduleId === 'multiplayer' && (
+          <MultiplayerStudio
+            project={project}
+            activeMultiplayerFile={project.fileSystem.multiplayer?.find(m => m.fileName === project.activeFiles.multiplayerFileName) || project.fileSystem.multiplayer?.[0] || createDefaultMultiplayerFile()}
+            onSaveMultiplayerFile={(file) => {
+              const now = new Date().toISOString();
+              onUpdateProject(p => {
+                const existing = p.fileSystem.multiplayer || [];
+                const updatedList = existing.some(m => m.fileName === file.fileName)
+                  ? existing.map(m => m.fileName === file.fileName ? { ...file, updatedAt: now } : m)
+                  : [...existing, { ...file, updatedAt: now }];
+                return {
+                  ...p,
+                  updatedAt: now,
+                  fileSystem: {
+                    ...p.fileSystem,
+                    multiplayer: updatedList
+                  }
+                };
+              }, { actionLabel: `Saved Multiplayer ${file.name}` });
+            }}
+            onSwitchMultiplayerFile={(fileName) => {
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, multiplayerFileName: fileName }
+              }), { preserveUpdatedAt: true, skipBackups: true, actionLabel: `Switched to Multiplayer ${fileName}` });
+            }}
+            onCreateNewMultiplayer={(name) => {
+              const id = `net_${Date.now().toString(36)}`;
+              const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+              const fileName = `${safeName}.multiplayer`;
+              const newNet = createDefaultMultiplayerFile(id, name, fileName);
+              onUpdateProject(p => ({
+                ...p,
+                activeFiles: { ...p.activeFiles, multiplayerFileName: fileName },
+                fileSystem: {
+                  ...p.fileSystem,
+                  multiplayer: [...(p.fileSystem.multiplayer || []), newNet]
+                }
+              }), { actionLabel: `Created Multiplayer Network ${name}` });
+            }}
+            onBackToDashboard={onBackToProjectInfo}
           />
         )}
         {moduleId === 'maps' && (

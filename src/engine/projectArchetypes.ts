@@ -20,7 +20,10 @@ import {
   DEFAULT_UI_THEMES,
   DEFAULT_PARTICLE_SYSTEMS,
   DEFAULT_BEHAVIORS,
-  DEFAULT_PREFABS
+  DEFAULT_PREFABS,
+  ProjectTaskBoardData,
+  DEFAULT_TASK_CATEGORIES,
+  DEFAULT_TASK_BOARD_MEMBERS
 } from './masonProjectSchema';
 import { INITIAL_REFINED_BIOMES } from './refinedBiomes';
 import { MASON_VERSION_DISPLAY } from '../version';
@@ -664,7 +667,7 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
       ...INITIAL_REFINED_BIOMES[0],
       id: `biome_${archetype.id}`,
       name: `${archetype.name} Environment`,
-      accentColor: archetype.accentColor
+      regionColor: archetype.accentColor
     }
   };
 
@@ -695,45 +698,45 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
 
   // Customize scene environment based on genre
   if (archetype.id === 'stealth_action') {
-    starterScene.sceneData.environment.skyboxPreset = 'night';
-    starterScene.sceneData.environment.fogDensity = 0.025;
+    starterScene.sceneData.environment.skyboxType = 'night';
+    starterScene.sceneData.environment.fogEnabled = true;
     starterScene.sceneData.environment.fogColor = '#050814';
-    starterScene.sceneData.environment.ambientColor = '#1e293b';
+    starterScene.sceneData.environment.ambientLightColor = '#1e293b';
   } else if (archetype.id === 'action_adventure_3d') {
-    starterScene.sceneData.environment.skyboxPreset = 'clear';
-    starterScene.sceneData.environment.fogDensity = 0.012;
+    starterScene.sceneData.environment.skyboxType = 'noon';
+    starterScene.sceneData.environment.fogEnabled = true;
     starterScene.sceneData.environment.fogColor = '#60a5fa';
-    starterScene.sceneData.environment.ambientColor = '#064e3b';
+    starterScene.sceneData.environment.ambientLightColor = '#064e3b';
   } else if (archetype.id === 'soulslike_shooter') {
-    starterScene.sceneData.environment.skyboxPreset = 'sunset';
-    starterScene.sceneData.environment.fogDensity = 0.022;
+    starterScene.sceneData.environment.skyboxType = 'sunset';
+    starterScene.sceneData.environment.fogEnabled = true;
     starterScene.sceneData.environment.fogColor = '#292524';
-    starterScene.sceneData.environment.ambientColor = '#78350f';
+    starterScene.sceneData.environment.ambientLightColor = '#78350f';
     starterScene.sceneData.environment.sunIntensity = 1.5;
   } else if (archetype.id === 'mmofps_looter') {
-    starterScene.sceneData.environment.skyboxPreset = 'clear';
-    starterScene.sceneData.environment.fogDensity = 0.01;
+    starterScene.sceneData.environment.skyboxType = 'noon';
+    starterScene.sceneData.environment.fogEnabled = true;
     starterScene.sceneData.environment.fogColor = '#0284c7';
-    starterScene.sceneData.environment.ambientColor = '#0f172a';
+    starterScene.sceneData.environment.ambientLightColor = '#0f172a';
     starterScene.sceneData.environment.sunIntensity = 1.6;
   } else if (archetype.id === 'coop_horde_fps') {
-    starterScene.sceneData.environment.skyboxPreset = 'night';
-    starterScene.sceneData.environment.fogDensity = 0.035;
+    starterScene.sceneData.environment.skyboxType = 'night';
+    starterScene.sceneData.environment.fogEnabled = true;
     starterScene.sceneData.environment.fogColor = '#1c1917';
-    starterScene.sceneData.environment.ambientColor = '#450a0a';
+    starterScene.sceneData.environment.ambientLightColor = '#450a0a';
   } else if (archetype.id === 'mmo_rpg_3d') {
-    starterScene.sceneData.environment.skyboxPreset = 'day';
-    starterScene.sceneData.environment.fogDensity = 0.008;
+    starterScene.sceneData.environment.skyboxType = 'dawn';
+    starterScene.sceneData.environment.fogEnabled = true;
     starterScene.sceneData.environment.fogColor = '#38bdf8';
-    starterScene.sceneData.environment.ambientColor = '#1e1b4b';
+    starterScene.sceneData.environment.ambientLightColor = '#1e1b4b';
   } else if (archetype.id === 'vehicular_combat') {
-    starterScene.sceneData.environment.skyboxPreset = 'sunset';
-    starterScene.sceneData.environment.fogDensity = 0.015;
+    starterScene.sceneData.environment.skyboxType = 'sunset';
+    starterScene.sceneData.environment.fogEnabled = true;
     starterScene.sceneData.environment.fogColor = '#451a03';
     starterScene.sceneData.environment.sunIntensity = 1.8;
   } else if (archetype.id === 'flight_sim') {
-    starterScene.sceneData.environment.skyboxPreset = 'void';
-    starterScene.sceneData.environment.fogDensity = 0.005;
+    starterScene.sceneData.environment.skyboxType = 'void';
+    starterScene.sceneData.environment.fogEnabled = false;
   }
 
   // 5. Initialize starter 3D Terrain (.terrain)
@@ -751,34 +754,32 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
   );
 
   if (multiplayerTopology === 'p2p_coop') {
-    starterMultiplayer.multiplayerData.topology = 'p2p';
-    starterMultiplayer.multiplayerData.maxPlayers = 4;
+    starterMultiplayer.multiplayerData.topology = 'peer_to_peer';
+    starterMultiplayer.multiplayerData.maxPlayersPerRoom = 4;
   } else if (multiplayerTopology === 'dedicated_hub') {
-    starterMultiplayer.multiplayerData.topology = 'dedicated';
-    starterMultiplayer.multiplayerData.maxPlayers = 16;
-    starterMultiplayer.multiplayerData.tickRateHz = 60;
+    starterMultiplayer.multiplayerData.topology = 'dedicated_hub';
+    starterMultiplayer.multiplayerData.maxPlayersPerRoom = 16;
+    starterMultiplayer.multiplayerData.tickRate = 60;
   } else if (multiplayerTopology === 'mmo_mesh') {
-    starterMultiplayer.multiplayerData.topology = 'mmo_mesh';
-    starterMultiplayer.multiplayerData.maxPlayers = 500;
+    starterMultiplayer.multiplayerData.topology = 'distributed_mesh';
+    starterMultiplayer.multiplayerData.maxPlayersPerRoom = 500;
   } else if (multiplayerTopology === 'local_couch') {
-    starterMultiplayer.multiplayerData.topology = 'p2p';
-    starterMultiplayer.multiplayerData.maxPlayers = 4;
+    starterMultiplayer.multiplayerData.topology = 'peer_to_peer';
+    starterMultiplayer.multiplayerData.maxPlayersPerRoom = 4;
   }
 
   // 7. Seed genre-specific Task Board
-  const starterTaskBoard = {
-    columns: [
-      { id: 'todo', title: 'To Do', taskIds: [`task_${archetype.id}_1`, `task_${archetype.id}_2`] },
-      { id: 'in_progress', title: 'In Progress', taskIds: [`task_${archetype.id}_core`] },
-      { id: 'done', title: 'Completed', taskIds: [`task_${archetype.id}_setup`] }
-    ],
+  const starterTaskBoard: ProjectTaskBoardData = {
+    categories: DEFAULT_TASK_CATEGORIES,
+    members: DEFAULT_TASK_BOARD_MEMBERS,
     tasks: [
       {
         id: `task_${archetype.id}_setup`,
         title: `Seed ${archetype.name} Archetype`,
         description: `Project initialized with ${dimension.toUpperCase()} dimension, working starter level, and ${multiplayerTopology.replace('_', ' ')} architecture.`,
-        priority: 'high' as const,
-        category: 'core' as const,
+        categoryId: 'cat_code',
+        assigneeId: 'member_1',
+        priority: 'high',
         createdAt: now,
         updatedAt: now
       },
@@ -786,8 +787,9 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
         id: `task_${archetype.id}_core`,
         title: `Tune ${archetype.shortTag} Controls & Physics`,
         description: `Controls: ${archetype.recommendedControls}`,
-        priority: 'high' as const,
-        category: 'mechanics' as const,
+        categoryId: 'cat_code',
+        assigneeId: 'member_1',
+        priority: 'high',
         createdAt: now,
         updatedAt: now
       },
@@ -795,8 +797,9 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
         id: `task_${archetype.id}_1`,
         title: `Expand ${archetype.keyMechanics[0].split(':')[0]}`,
         description: archetype.keyMechanics[0],
-        priority: 'medium' as const,
-        category: 'gameplay' as const,
+        categoryId: 'cat_level',
+        assigneeId: 'member_3',
+        priority: 'medium',
         createdAt: now,
         updatedAt: now
       },
@@ -804,8 +807,9 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
         id: `task_${archetype.id}_2`,
         title: `Place Custom ${archetype.shortTag} Obstacles & Enemies`,
         description: `Decorate the starter level in the 3D Scenes or Maps module.`,
-        priority: 'low' as const,
-        category: 'world' as const,
+        categoryId: 'cat_art',
+        assigneeId: 'member_2',
+        priority: 'low',
         createdAt: now,
         updatedAt: now
       }
@@ -829,11 +833,11 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
     activeFiles: {
       mapFileName: starterMap.fileName,
       biomeFileName: starterBiome.fileName,
-      prefabFileName: DEFAULT_PREFABS[0]?.fileName || 'hero.prefab',
-      uiFileName: DEFAULT_UI_THEMES[0]?.fileName || 'classic.ui',
+      prefabFileName: `${DEFAULT_PREFABS[0]?.id.replace('char_', '')}.prefab` || 'korrath.prefab',
+      uiFileName: `${DEFAULT_UI_THEMES[0]?.id}.ui` || 'classic_crimson.ui',
       gameStructureFileName: 'main_campaign.gamestructure',
-      behaviorFileName: DEFAULT_BEHAVIORS[0]?.fileName || 'default.behavior',
-      particleFileName: DEFAULT_PARTICLE_SYSTEMS[0]?.fileName || 'fire.particle',
+      behaviorFileName: `${DEFAULT_BEHAVIORS[0]?.id.replace('behavior_', '')}.behavior` || 'patrol_sentry.behavior',
+      particleFileName: `${DEFAULT_PARTICLE_SYSTEMS[0]?.id.replace('particles_', '')}.particle` || 'flame_burst.particle',
       spriteFileName: 'hero_character.sprite',
       model3dFileName: starterModel.fileName,
       scene3dFileName: starterScene.fileName,
@@ -843,7 +847,14 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
     fileSystem: {
       maps: [starterMap],
       biomes: [starterBiome],
-      prefabs: DEFAULT_PREFABS.map(p => ({ ...p, createdAt: now, updatedAt: now })),
+      prefabs: DEFAULT_PREFABS.map(c => ({
+        id: c.id,
+        name: c.name,
+        fileName: `${c.id.replace('char_', '')}.prefab`,
+        createdAt: now,
+        updatedAt: now,
+        prefabData: c
+      })),
       ui: DEFAULT_UI_THEMES.map(u => ({ id: u.id, name: u.name, fileName: `${u.id}.ui`, createdAt: now, updatedAt: now, uiConfig: u })),
       game: [
         {
@@ -855,7 +866,14 @@ export function createArchetypeProject(options: CreateProjectOptions): MasonProj
           structureData: createDefaultGameStructure()
         }
       ],
-      behaviors: DEFAULT_BEHAVIORS.map(b => ({ ...b, createdAt: now, updatedAt: now })),
+      behaviors: DEFAULT_BEHAVIORS.map(b => ({
+        id: b.id,
+        name: b.name,
+        fileName: `${b.id.replace('behavior_', '')}.behavior`,
+        createdAt: now,
+        updatedAt: now,
+        behaviorData: b
+      })),
       particles: DEFAULT_PARTICLE_SYSTEMS.map(p => ({
         id: p.id,
         name: p.name,

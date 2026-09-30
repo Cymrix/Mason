@@ -6,9 +6,9 @@
  * - Every iteration / prompt change MUST bump the Mason release version as direct sequential integers without sub-numbers.
  * - All components, manifests, cache service workers, and UI badges must consume or sync with these constants.
  */
-export const MASON_VERSION = '0.379';
-export const MASON_VERSION_DISPLAY = 'v0.379';
-export const MASON_FULL_VERSION = 'v0.379';
+export const MASON_VERSION = '0.380';
+export const MASON_VERSION_DISPLAY = 'v0.380';
+export const MASON_FULL_VERSION = 'v0.380';
 
 export interface ProjectChangeRecord {
   timestamp: string;
@@ -30,6 +30,11 @@ export const getMasonVersionString = (revision?: number): string => {
  * Release History Log
  */
 export const MASON_RELEASE_HISTORY = [
+  {
+    version: 'v0.380',
+    date: '2026-09-30',
+    notes: 'Task Board Defensive Normalization & Migration Resilience: Fixed TypeError where project taskBoard categories was undefined in legacy or partially formed project files by adding ensureTaskBoardData schema normalizer and safe fallback lists in ProjectTaskBoard, TaskDetailModal, and CategoryManagerModal.'
+  },
   {
     version: 'v0.379',
     date: '2026-09-29',

@@ -71,7 +71,7 @@ export const MasonWelcomeLauncher: React.FC<MasonWelcomeLauncherProps> = ({
           {/* 1. Create Project Card */}
           <button
             type="button"
-            onClick={onCreateNewProject}
+            onClick={() => onCreateNewProject()}
             className="group relative overflow-hidden p-6 rounded-3xl border text-left transition-all hover:shadow-2xl active:scale-[0.98] cursor-pointer flex flex-col justify-between"
             style={{
               backgroundColor: bgDef.cardHex,

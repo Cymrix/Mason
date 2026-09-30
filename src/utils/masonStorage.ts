@@ -17,6 +17,7 @@ import {
   DEFAULT_PARTICLE_SYSTEMS,
   createDefaultGameStructure,
   createDefaultTaskBoard,
+  ensureTaskBoardData,
   PrefabData,
   PrefabFile,
   Model3DFile,
@@ -141,6 +142,7 @@ export const sanitizeAndDeduplicateProject = (project: MasonProject): MasonProje
   const fs = project.fileSystem;
   return {
     ...project,
+    taskBoard: ensureTaskBoardData(project.taskBoard),
     fileSystem: {
       ...fs,
       maps: deduplicateFileSystemItems(fs.maps || []),
@@ -953,8 +955,9 @@ export const createNewProject = (
   if (typeof optionsOrName === 'object' && optionsOrName !== null) {
     initial = createArchetypeProject(optionsOrName);
   } else {
+    const projectName: string = typeof optionsOrName === 'string' ? optionsOrName : 'Untitled Project';
     initial = createArchetypeProject({
-      name: optionsOrName,
+      name: projectName,
       description: description || 'Modular game project authored in Mason Studio.',
       author,
       archetypeId: 'metroidvania'

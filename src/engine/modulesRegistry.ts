@@ -32,12 +32,12 @@ export interface MasonModuleDefinition {
   id: string;
   name: string;
   tagline: string;
-  category: 'World & Levels' | 'Biomes & Environment' | 'Actors & Combat' | 'Interface & HUD' | 'Game Architecture' | 'Generative Tools' | 'VFX & Particles' | '3D & Models';
+  category: 'World & Levels' | 'Biomes & Environment' | 'Actors & Combat' | 'Interface & HUD' | 'Game Architecture' | 'Generative Tools' | 'VFX & Particles' | '3D & Models' | 'Online & Multiplayer';
   subfolder: string; // e.g. "modules/maps"
   entryHtml: string; // e.g. "/modules/maps/index.html"
   associatedFolder: string; // e.g. "maps"
   associatedExtension: string; // e.g. ".map"
-  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard' | 'Sparkles' | 'Paintbrush' | 'Box';
+  iconName: 'Map' | 'TreePine' | 'Sliders' | 'Users' | 'Network' | 'LayoutDashboard' | 'Sparkles' | 'Paintbrush' | 'Box' | 'Compass' | 'Server';
   accentColor: string; // cyan, emerald, purple, amber, blue, etc.
   description: string;
   features: string[];

@@ -2742,7 +2742,7 @@ export interface ProjectBackupRecord {
 export interface FileBackupRecord {
   id: string;
   projectId: string;
-  fileCategory: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'behaviors' | 'particles' | 'sprites' | 'images';
+  fileCategory: 'maps' | 'biomes' | 'prefabs' | 'ui' | 'game' | 'behaviors' | 'particles' | 'sprites' | 'images' | 'models3d' | 'scenes3d' | 'terrain' | 'multiplayer';
   fileName: string;
   timestamp: string;
   actionLabel: string;
@@ -2960,6 +2960,34 @@ export const createDefaultTaskBoard = (): ProjectTaskBoardData => ({
     }
   ]
 });
+
+/**
+ * Defensive normalizer for Task Board state across all storage and component consumers
+ */
+export const ensureTaskBoardData = (raw?: Partial<ProjectTaskBoardData> | null): ProjectTaskBoardData => {
+  if (!raw || typeof raw !== 'object') {
+    return createDefaultTaskBoard();
+  }
+  const categories = Array.isArray(raw.categories) && raw.categories.length > 0
+    ? raw.categories
+    : DEFAULT_TASK_CATEGORIES;
+  const members = Array.isArray(raw.members) && raw.members.length > 0
+    ? raw.members
+    : DEFAULT_TASK_BOARD_MEMBERS;
+  const tasks = Array.isArray(raw.tasks)
+    ? raw.tasks.map(t => ({
+        ...t,
+        categoryId: t.categoryId || categories[0]?.id || 'cat_art',
+        subtasks: Array.isArray(t.subtasks) ? t.subtasks : []
+      }))
+    : [];
+
+  return {
+    categories,
+    members,
+    tasks
+  };
+};
 
 // ==========================================
 // DEFAULT STARTER TEMPLATES & PRESETS

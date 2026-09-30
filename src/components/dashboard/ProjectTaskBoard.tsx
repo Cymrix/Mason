@@ -5,7 +5,10 @@ import {
   ProjectTaskCategory, 
   ProjectTeamMemberColumn,
   ProjectTaskSubtask,
-  createDefaultTaskBoard
+  createDefaultTaskBoard,
+  ensureTaskBoardData,
+  DEFAULT_TASK_CATEGORIES,
+  DEFAULT_TASK_BOARD_MEMBERS
 } from '../../engine/masonProjectSchema';
 import { useAppTheme } from '../../theme/ThemeContext';
 import { getContrastTextColor } from '../../theme/appTheme';
@@ -41,7 +44,15 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
   taskBoard: rawTaskBoard,
   onUpdateTaskBoard
 }) => {
-  const taskBoard = rawTaskBoard || createDefaultTaskBoard();
+  const taskBoard = React.useMemo(() => ensureTaskBoardData(rawTaskBoard), [rawTaskBoard]);
+  const categoriesList = Array.isArray(taskBoard.categories) && taskBoard.categories.length > 0
+    ? taskBoard.categories
+    : DEFAULT_TASK_CATEGORIES;
+  const membersList = Array.isArray(taskBoard.members) && taskBoard.members.length > 0
+    ? taskBoard.members
+    : DEFAULT_TASK_BOARD_MEMBERS;
+  const tasksList = Array.isArray(taskBoard.tasks) ? taskBoard.tasks : [];
+
   const { theme, primaryDef, bgDef } = useAppTheme();
 
   // Filters & Search
@@ -87,12 +98,15 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
 
   // Helper map for categories
   const categoryMap = new Map<string, ProjectTaskCategory>();
-  taskBoard.categories.forEach(c => categoryMap.set(c.id, c));
+  categoriesList.forEach(c => {
+    if (c && c.id) categoryMap.set(c.id, c);
+  });
 
   // Filter tasks based on search & category filter
-  const filteredTasks = taskBoard.tasks.filter(task => {
+  const filteredTasks = tasksList.filter(task => {
+    if (!task) return false;
     const matchesSearch = searchQuery === '' || 
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (task.title && task.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesCat = selectedCategoryFilter === 'all' || task.categoryId === selectedCategoryFilter;
@@ -157,7 +171,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
       id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       title,
       description: '',
-      categoryId: taskBoard.categories[0]?.id || 'cat_art',
+      categoryId: categoriesList[0]?.id || 'cat_art',
       assigneeId: columnId === 'unassigned' ? undefined : columnId,
       priority: 'medium',
       createdAt: new Date().toISOString(),
@@ -166,7 +180,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
 
     onUpdateTaskBoard({
       ...taskBoard,
-      tasks: [...taskBoard.tasks, newTask]
+      tasks: [...tasksList, newTask]
     });
 
     setQuickTaskTitles(prev => ({ ...prev, [columnId]: '' }));
@@ -174,13 +188,13 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
 
   // SAVE TASK FROM MODAL
   const handleSaveTaskModal = (taskToSave: ProjectTaskCard) => {
-    const exists = taskBoard.tasks.some(t => t.id === taskToSave.id);
+    const exists = tasksList.some(t => t.id === taskToSave.id);
     let updatedTasks: ProjectTaskCard[];
     
     if (exists) {
-      updatedTasks = taskBoard.tasks.map(t => t.id === taskToSave.id ? { ...taskToSave, updatedAt: new Date().toISOString() } : t);
+      updatedTasks = tasksList.map(t => t.id === taskToSave.id ? { ...taskToSave, updatedAt: new Date().toISOString() } : t);
     } else {
-      updatedTasks = [...taskBoard.tasks, { ...taskToSave, updatedAt: new Date().toISOString() }];
+      updatedTasks = [...tasksList, { ...taskToSave, updatedAt: new Date().toISOString() }];
     }
 
     onUpdateTaskBoard({
@@ -196,7 +210,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
   const handleDeleteTask = (taskId: string) => {
     onUpdateTaskBoard({
       ...taskBoard,
-      tasks: taskBoard.tasks.filter(t => t.id !== taskId)
+      tasks: tasksList.filter(t => t.id !== taskId)
     });
     setActiveTaskModal(null);
   };
@@ -206,7 +220,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
     if (!newCatName.trim()) return;
 
     if (editingCategory) {
-      const updated = taskBoard.categories.map(c => c.id === editingCategory.id ? { ...c, name: newCatName.trim(), color: newCatColor } : c);
+      const updated = categoriesList.map(c => c.id === editingCategory.id ? { ...c, name: newCatName.trim(), color: newCatColor } : c);
       onUpdateTaskBoard({ ...taskBoard, categories: updated });
     } else {
       const newCat: ProjectTaskCategory = {
@@ -214,7 +228,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
         name: newCatName.trim(),
         color: newCatColor
       };
-      onUpdateTaskBoard({ ...taskBoard, categories: [...taskBoard.categories, newCat] });
+      onUpdateTaskBoard({ ...taskBoard, categories: [...categoriesList, newCat] });
     }
 
     setEditingCategory(null);
@@ -222,11 +236,11 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
   };
 
   const handleDeleteCategory = (catId: string) => {
-    if (taskBoard.categories.length <= 1) return; // Keep at least 1 category
+    if (categoriesList.length <= 1) return; // Keep at least 1 category
     onUpdateTaskBoard({
       ...taskBoard,
-      categories: taskBoard.categories.filter(c => c.id !== catId),
-      tasks: taskBoard.tasks.map(t => t.categoryId === catId ? { ...t, categoryId: taskBoard.categories.find(c => c.id !== catId)?.id } : t)
+      categories: categoriesList.filter(c => c.id !== catId),
+      tasks: tasksList.map(t => t.categoryId === catId ? { ...t, categoryId: categoriesList.find(c => c.id !== catId)?.id } : t)
     });
   };
 
@@ -235,7 +249,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
     if (!memberName.trim()) return;
 
     if (editingMember) {
-      const updated = taskBoard.members.map(m => m.id === editingMember.id ? { ...m, name: memberName.trim(), role: memberRole.trim(), avatarColor: memberColor } : m);
+      const updated = membersList.map(m => m.id === editingMember.id ? { ...m, name: memberName.trim(), role: memberRole.trim(), avatarColor: memberColor } : m);
       onUpdateTaskBoard({ ...taskBoard, members: updated });
     } else {
       const newMember: ProjectTeamMemberColumn = {
@@ -244,7 +258,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
         role: memberRole.trim() || 'Team Member',
         avatarColor: memberColor
       };
-      onUpdateTaskBoard({ ...taskBoard, members: [...taskBoard.members, newMember] });
+      onUpdateTaskBoard({ ...taskBoard, members: [...membersList, newMember] });
     }
 
     setIsMemberModalOpen(false);
@@ -256,9 +270,9 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
   const handleDeleteMember = (memberId: string) => {
     onUpdateTaskBoard({
       ...taskBoard,
-      members: taskBoard.members.filter(m => m.id !== memberId),
+      members: membersList.filter(m => m.id !== memberId),
       // Move unassigned or member's tasks back to Project Tasks column
-      tasks: taskBoard.tasks.map(t => t.assigneeId === memberId ? { ...t, assigneeId: undefined } : t)
+      tasks: tasksList.map(t => t.assigneeId === memberId ? { ...t, assigneeId: undefined } : t)
     });
   };
 
@@ -267,7 +281,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
       id: `task_${Date.now()}`,
       title: '',
       description: '',
-      categoryId: taskBoard.categories[0]?.id || 'cat_art',
+      categoryId: categoriesList[0]?.id || 'cat_art',
       assigneeId: defaultColumnId === 'unassigned' ? undefined : defaultColumnId,
       priority: 'medium',
       subtasks: [],
@@ -279,8 +293,8 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
   };
 
   // Stats calculation
-  const totalTasks = taskBoard.tasks.length;
-  const completedTasksCount = taskBoard.tasks.filter(t => {
+  const totalTasks = tasksList.length;
+  const completedTasksCount = tasksList.filter(t => {
     if (!t.subtasks || t.subtasks.length === 0) return false;
     return t.subtasks.every(s => s.completed);
   }).length;
@@ -372,7 +386,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
                 className="bg-transparent text-neutral-200 outline-none text-xs cursor-pointer"
               >
                 <option value="all" className="bg-neutral-900 text-white">All Categories</option>
-                {taskBoard.categories.map(cat => (
+                {categoriesList.map(cat => (
                   <option key={cat.id} value={cat.id} className="bg-neutral-900 text-white">
                     {cat.name}
                   </option>
@@ -449,7 +463,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
           })}
 
           {/* COLUMNS 2..N: TEAM MEMBER COLUMNS */}
-          {taskBoard.members.map(member => (
+          {membersList.map(member => (
             renderColumn({
               columnId: member.id,
               title: member.name,
@@ -502,8 +516,8 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
         <TaskDetailModal
           task={activeTaskModal}
           isNew={isCreatingTask}
-          categories={taskBoard.categories}
-          members={taskBoard.members}
+          categories={categoriesList}
+          members={membersList}
           onSave={handleSaveTaskModal}
           onDelete={handleDeleteTask}
           onClose={() => {
@@ -516,7 +530,7 @@ export const ProjectTaskBoard: React.FC<ProjectTaskBoardProps> = ({
       {/* CATEGORIES MANAGER MODAL */}
       {isCategoryModalOpen && (
         <CategoryManagerModal
-          categories={taskBoard.categories}
+          categories={categoriesList}
           editingCategory={editingCategory}
           newCatName={newCatName}
           newCatColor={newCatColor}
@@ -951,7 +965,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   borderColor: bgDef.borderHex
                 }}
               >
-                {categories.map(cat => (
+                {(categories || []).map(cat => (
                   <option key={cat.id} value={cat.id} className="bg-neutral-900 text-white">
                     {cat.name}
                   </option>
@@ -972,7 +986,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 }}
               >
                 <option value="unassigned" className="bg-neutral-900 text-white">📋 Project Tasks (Unassigned)</option>
-                {members.map(m => (
+                {(members || []).map(m => (
                   <option key={m.id} value={m.id} className="bg-neutral-900 text-white">
                     👤 {m.name} ({m.role || 'Member'})
                   </option>
@@ -1286,7 +1300,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
           <div className="space-y-2">
             <h4 className="text-xs font-bold uppercase text-neutral-400">Existing Categories</h4>
             <div className="space-y-2">
-              {categories.map(cat => (
+              {(categories || []).map(cat => (
                 <div 
                   key={cat.id}
                   className="flex items-center justify-between gap-3 p-3 rounded-2xl border text-xs"
@@ -1314,7 +1328,7 @@ const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
                       <Edit3 size={13} />
                     </button>
 
-                    {categories.length > 1 && (
+                    {(categories || []).length > 1 && (
                       <button
                         type="button"
                         onClick={() => onDeleteCategory(cat.id)}
